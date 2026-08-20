@@ -11,7 +11,7 @@ class DoctorDocument extends BaseAdminController
     protected DoctorDocumentModel $doctorDocument;
     protected DoctorModel $doctor;
 
-    public function __construct()
+    public function __construct() 
     {
         $this->doctorDocument = new DoctorDocumentModel();
         $this->doctor = new DoctorModel();
