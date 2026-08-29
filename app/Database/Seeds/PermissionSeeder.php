@@ -39,6 +39,27 @@ class PermissionSeeder extends Seeder
             ['module'=>'Appointment','permission_name'=>'Edit Appointment','permission_key'=>'appointment.edit'],
             ['module'=>'Appointment','permission_name'=>'Delete Appointment','permission_key'=>'appointment.delete'],
 
+            // Consultation
+
+            ['module'=>'Consultation','permission_name'=>'View Consultation','permission_key'=>'consultation.view'],
+            ['module'=>'Consultation','permission_name'=>'Create Consultation','permission_key'=>'consultation.create'],
+            ['module'=>'Consultation','permission_name'=>'Edit Consultation','permission_key'=>'consultation.edit'],
+            ['module'=>'Consultation','permission_name'=>'Delete Consultation','permission_key'=>'consultation.delete'],
+
+            // Prescription
+
+            ['module'=>'Prescription','permission_name'=>'View Prescription','permission_key'=>'prescription.view'],
+            ['module'=>'Prescription','permission_name'=>'Create Prescription','permission_key'=>'prescription.create'],
+            ['module'=>'Prescription','permission_name'=>'Edit Prescription','permission_key'=>'prescription.edit'],
+            ['module'=>'Prescription','permission_name'=>'Delete Prescription','permission_key'=>'prescription.delete'],
+
+            // Medicine
+
+            ['module'=>'Medicine','permission_name'=>'View Medicines','permission_key'=>'medicine.view'],
+            ['module'=>'Medicine','permission_name'=>'Create Medicine','permission_key'=>'medicine.create'],
+            ['module'=>'Medicine','permission_name'=>'Edit Medicine','permission_key'=>'medicine.edit'],
+            ['module'=>'Medicine','permission_name'=>'Delete Medicine','permission_key'=>'medicine.delete'],
+
             // Role
 
             ['module'=>'Role','permission_name'=>'View Roles','permission_key'=>'role.view'],

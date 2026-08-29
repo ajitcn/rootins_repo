@@ -12,6 +12,15 @@ class Auth implements FilterInterface
     {
         if (! session('isLoggedIn')) {
 
+            if ($request->isAJAX()) {
+                return service('response')
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => false,
+                        'msg'    => 'Your session has expired. Please login again.',
+                    ]);
+            }
+
             return redirect()
                 ->to(base_url('system/login'))
                 ->with('error', 'Please login first.');

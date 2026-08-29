@@ -13,6 +13,7 @@ $routes->get('/', 'Home::index');
  */
 $routes->get('system/login', 'UserAuth::index');
 $routes->post('system/user-auth-authenticate', 'UserAuth::authenticate');
+$routes->get('permission-denied', 'PermissionDenied::index');
 
 
 //Location routes

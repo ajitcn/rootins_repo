@@ -35,7 +35,7 @@ class Permission implements FilterInterface
             }
 
             // Normal Request
-            return redirect()->to(base_url('permission-denied'));
+           // return redirect()->to(base_url('permission-denied'));
         }
     }
 

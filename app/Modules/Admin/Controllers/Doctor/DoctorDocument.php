@@ -3,6 +3,7 @@
 namespace Admin\Controllers\Doctor;
 
 use App\Controllers\BaseAdminController;
+use App\Services\Common\R2StorageLibrary;
 use Admin\Models\Doctor\DoctorDocumentModel;
 use Admin\Models\Doctor\DoctorModel;
 
@@ -10,12 +11,15 @@ class DoctorDocument extends BaseAdminController
 {
     protected DoctorDocumentModel $doctorDocument;
     protected DoctorModel $doctor;
+    protected R2StorageLibrary $storage;
 
-    public function __construct() 
+    public function __construct()
     {
         $this->doctorDocument = new DoctorDocumentModel();
-        $this->doctor = new DoctorModel();
+        $this->doctor         = new DoctorModel();
+        $this->storage        = new R2StorageLibrary();
     }
+
 
     /**
      * --------------------------------------------------------
@@ -86,42 +90,52 @@ class DoctorDocument extends BaseAdminController
         $newFileName = $file->getRandomName();
 
         /*
-         * Storage path.
+         * R2 object key.
+         *
+         * Example:
+         * doctors/15/documents/abc123.pdf
          */
-        $uploadPath = WRITEPATH
-            . 'uploads/doctors/'
+        $r2Key = 'doctors/'
             . $data['doctor_id']
-            . '/documents/';
+            . '/documents/'
+            . $newFileName;
 
-        /*
-         * Create directory if it doesn't exist.
-         */
-        if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0755, true);
-        }
+        try {
 
-        /*
-         * Move uploaded file.
-         */
-        if (!$file->move($uploadPath, $newFileName)) {
+            /*
+             * Upload directly to Cloudflare R2.
+             */
+            $this->storage->uploadFile(
+                $r2Key,
+                $file
+            );
+
+        } catch (\Throwable $e) {
+
+            log_message(
+                'error',
+                'Doctor document R2 upload failed: '
+                . $e->getMessage()
+            );
+
             return $this->response->setJSON([
                 'status' => false,
                 'msg'    => 'Unable to upload document.'
             ]);
         }
 
+
         /*
          * Store document information.
+         *
+         * file_path contains R2 object key.
          */
         $documentData = [
             'doctor_id'     => $data['doctor_id'],
             'document_type' => $data['document_type'],
             'document_name' => $data['document_name'],
             'file_name'     => $newFileName,
-            'file_path'     => 'uploads/doctors/'
-                                . $data['doctor_id']
-                                . '/documents/'
-                                . $newFileName,
+            'file_path'     => $r2Key,
             'file_size'     => $file->getSize(),
             'mime_type'     => $file->getMimeType(),
             'remarks'       => $data['remarks'],
@@ -129,13 +143,58 @@ class DoctorDocument extends BaseAdminController
             'created_at'    => date('Y-m-d H:i:s'),
         ];
 
-        if (!$this->doctorDocument->insert($documentData)) {
+
+        /*
+         * Save DB record.
+         */
+        try {
+
+            $documentId = $this->doctorDocument->insert(
+                $documentData
+            );
+
+        } catch (\Throwable $e) {
 
             /*
-             * Remove uploaded file if DB insert fails.
+             * DB failed.
+             * Remove uploaded R2 object.
              */
-            if (is_file($uploadPath . $newFileName)) {
-                unlink($uploadPath . $newFileName);
+            try {
+                $this->storage->delete($r2Key);
+            } catch (\Throwable $deleteException) {
+                log_message(
+                    'error',
+                    'Failed to rollback R2 doctor document: '
+                    . $deleteException->getMessage()
+                );
+            }
+
+            log_message(
+                'error',
+                'Doctor document DB insert failed: '
+                . $e->getMessage()
+            );
+
+            return $this->response->setJSON([
+                'status' => false,
+                'msg'    => 'Unable to save document information.'
+            ]);
+        }
+
+
+        if (!$documentId) {
+
+            /*
+             * DB insert returned false.
+             */
+            try {
+                $this->storage->delete($r2Key);
+            } catch (\Throwable $e) {
+                log_message(
+                    'error',
+                    'Failed to rollback R2 object: '
+                    . $e->getMessage()
+                );
             }
 
             return $this->response->setJSON([
@@ -143,6 +202,7 @@ class DoctorDocument extends BaseAdminController
                 'msg'    => 'Unable to save document information.'
             ]);
         }
+
 
         return $this->response->setJSON([
             'status' => true,
@@ -165,6 +225,15 @@ class DoctorDocument extends BaseAdminController
                 'status' => false,
                 'msg'    => 'Doctor document not found.'
             ]);
+        }
+
+        /*
+         * Add public URL if required by frontend.
+         */
+        if (!empty($document['file_path'])) {
+            $document['file_url'] = $this->storage->getUrl(
+                $document['file_path']
+            );
         }
 
         return $this->response->setJSON([
@@ -199,7 +268,9 @@ class DoctorDocument extends BaseAdminController
             ]);
         }
 
+
         $data = $this->_getDocumentData();
+
 
         /*
          * Validate metadata.
@@ -217,6 +288,7 @@ class DoctorDocument extends BaseAdminController
             ]);
         }
 
+
         $updateData = [
             'doctor_id'     => $data['doctor_id'],
             'document_type' => $data['document_type'],
@@ -226,59 +298,126 @@ class DoctorDocument extends BaseAdminController
             'updated_at'    => date('Y-m-d H:i:s'),
         ];
 
+
         /*
-         * Optional replacement file.
+         * Check if replacement file was uploaded.
          */
         $file = $this->request->getFile('document');
 
+        $newR2Key = null;
+
+
         if ($file && $file->isValid()) {
 
+            /*
+             * Generate new file name.
+             */
             $newFileName = $file->getRandomName();
 
-            $uploadPath = WRITEPATH
-                . 'uploads/doctors/'
+
+            /*
+             * New R2 object key.
+             */
+            $newR2Key = 'doctors/'
                 . $data['doctor_id']
-                . '/documents/';
+                . '/documents/'
+                . $newFileName;
 
-            if (!is_dir($uploadPath)) {
-                mkdir($uploadPath, 0755, true);
-            }
 
-            if (!$file->move($uploadPath, $newFileName)) {
+            /*
+             * Upload new file first.
+             *
+             * Do NOT delete old file before this succeeds.
+             */
+            try {
+
+                $this->storage->uploadFile(
+                    $newR2Key,
+                    $file
+                );
+
+            } catch (\Throwable $e) {
+
+                log_message(
+                    'error',
+                    'Doctor document replacement upload failed: '
+                    . $e->getMessage()
+                );
+
                 return $this->response->setJSON([
                     'status' => false,
                     'msg'    => 'Unable to upload replacement document.'
                 ]);
             }
 
+
             /*
-             * Delete old physical file.
+             * Update database.
              */
-            $oldFile = WRITEPATH . $existing['file_path'];
-
-            if (is_file($oldFile)) {
-                unlink($oldFile);
-            }
-
             $updateData['file_name'] = $newFileName;
-
-            $updateData['file_path'] =
-                'uploads/doctors/'
-                . $data['doctor_id']
-                . '/documents/'
-                . $newFileName;
-
+            $updateData['file_path'] = $newR2Key;
             $updateData['file_size'] = $file->getSize();
             $updateData['mime_type'] = $file->getMimeType();
         }
 
+
+        /*
+         * Update DB.
+         */
         if (!$this->doctorDocument->update($id, $updateData)) {
+
+            /*
+             * DB failed.
+             * Delete newly uploaded R2 object.
+             */
+            if ($newR2Key) {
+                try {
+                    $this->storage->delete($newR2Key);
+                } catch (\Throwable $e) {
+                    log_message(
+                        'error',
+                        'Failed to rollback replacement R2 object: '
+                        . $e->getMessage()
+                    );
+                }
+            }
 
             return $this->response->setJSON([
                 'status' => false,
                 'msg'    => 'Unable to update doctor document.'
             ]);
         }
+
+
+        /*
+         * DB update succeeded.
+         *
+         * Now delete old R2 object.
+         */
+        if ($newR2Key && !empty($existing['file_path'])) {
+
+            try {
+
+                $this->storage->delete(
+                    $existing['file_path']
+                );
+
+            } catch (\Throwable $e) {
+
+                /*
+                 * Do not fail the whole update.
+                 *
+                 * DB is already updated.
+                 * Log the orphaned old file for cleanup.
+                 */
+                log_message(
+                    'error',
+                    'Unable to delete old doctor document from R2: '
+                    . $e->getMessage()
+                );
+            }
+        }
+
 
         return $this->response->setJSON([
             'status' => true,
@@ -289,7 +428,7 @@ class DoctorDocument extends BaseAdminController
 
     /**
      * --------------------------------------------------------
-     * Download
+     * Download / View
      * --------------------------------------------------------
      */
     public function download(int $id)
@@ -303,19 +442,26 @@ class DoctorDocument extends BaseAdminController
             );
         }
 
-        $filePath = WRITEPATH . $document['file_path'];
-
-        if (!is_file($filePath)) {
+        if (empty($document['file_path'])) {
             return redirect()->back()->with(
                 'error',
                 'Document file not found.'
             );
         }
 
-        return $this->response->download(
-            $filePath,
-            null
+
+        /*
+         * Get R2 public URL.
+         */
+        $url = $this->storage->getUrl(
+            $document['file_path']
         );
+
+
+        /*
+         * Redirect browser to R2.
+         */
+        return redirect()->to($url);
     }
 
 
@@ -340,8 +486,9 @@ class DoctorDocument extends BaseAdminController
             );
         }
 
+
         /*
-         * Soft delete DB record.
+         * Delete DB record.
          */
         if (!$this->doctorDocument->delete($id)) {
 
@@ -350,13 +497,45 @@ class DoctorDocument extends BaseAdminController
                 'msg'    => 'Unable to delete doctor document.'
             ]);
 
-        } else {
-
-            session()->setFlashdata([
-                'status' => true,
-                'msg'    => 'Doctor document deleted successfully.'
-            ]);
+            return redirect()->to(
+                'admin/doctor-documents'
+            );
         }
+
+
+        /*
+         * Delete physical object from R2.
+         */
+        if (!empty($document['file_path'])) {
+
+            try {
+
+                $this->storage->delete(
+                    $document['file_path']
+                );
+
+            } catch (\Throwable $e) {
+
+                /*
+                 * DB deletion succeeded, so don't tell
+                 * the user that the complete operation failed.
+                 *
+                 * Log the R2 deletion failure for cleanup.
+                 */
+                log_message(
+                    'error',
+                    'Unable to delete doctor document from R2: '
+                    . $e->getMessage()
+                );
+            }
+        }
+
+
+        session()->setFlashdata([
+            'status' => true,
+            'msg'    => 'Doctor document deleted successfully.'
+        ]);
+
 
         return redirect()->to(
             'admin/doctor-documents'
@@ -372,6 +551,7 @@ class DoctorDocument extends BaseAdminController
     protected function _getDocumentData(): array
     {
         return [
+
             'doctor_id' => (int) $this->request->getPost(
                 'doctor_id'
             ),
@@ -428,9 +608,9 @@ class DoctorDocument extends BaseAdminController
             ],
         ];
 
+
         /*
-         * File validation is handled separately because
-         * CI4 uploaded files require getFile().
+         * File validation is handled separately by CI4.
          */
         if ($fileRequired) {
 
@@ -444,6 +624,7 @@ class DoctorDocument extends BaseAdminController
             ];
         }
 
+
         if (!$this->validate($rules)) {
 
             return [
@@ -451,6 +632,7 @@ class DoctorDocument extends BaseAdminController
                 'errors' => $this->validator->getErrors()
             ];
         }
+
 
         return [
             'status' => true

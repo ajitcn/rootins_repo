@@ -39,7 +39,7 @@
             <a href="<?= base_url('admin/doctor-leaves')?>" class="submenu-link">Doctor Leaves</a> 
             <a href="<?= base_url('admin/doctor-fees')?>" class="submenu-link">Consultation Fees</a>
             <a href="<?= base_url('admin/doctor-commissions')?>" class="submenu-link">Commission Plans</a>
-            <a href="#" class="submenu-link">Doctor Documents</a> 
+            <a href="<?= base_url('admin/doctor-documents')?>" class="submenu-link">Doctor Documents</a>
           </div>
         </div>
       </li>
@@ -51,11 +51,16 @@
         </a>
         <div class="collapse" id="patientsMenu" data-parent="#sidebarMenu">
           <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">Patients</a>
-            <a href="#" class="submenu-link">Patient Registration</a>
+            <a href="<?= base_url('admin/patients') ?>" class="submenu-link">
+                Patients
+            </a>
+
+            <a href="<?= base_url('admin/patient-registration') ?>" class="submenu-link">
+              Patient Registration
+            </a>
             <a href="#" class="submenu-link">Medical History</a>
-            <a href="#" class="submenu-link">OPD Consultation</a>
-            <a href="#" class="submenu-link">Prescriptions</a>
+              <a href="<?= base_url('admin/consultations') ?>" class="submenu-link">OPD Consultation</a>
+              <a href="<?= base_url('admin/prescriptions') ?>" class="submenu-link">Prescriptions</a>
             <a href="#" class="submenu-link">Diagnostic Tests</a>
             <a href="#" class="submenu-link">Treatment Plans</a> 
             <a href="#" class="submenu-link">Diet Plans</a> 
@@ -71,11 +76,11 @@
         </a>
         <div class="collapse" id="appointmentsMenu" data-parent="#sidebarMenu">
           <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">Appointments</a>
+            <a href="<?= base_url('admin/appointments') ?>" class="submenu-link">Appointments</a>
             <a href="#" class="submenu-link">List View</a>
-            <a href="#" class="submenu-link">Calendar View</a>
-            <a href="#" class="submenu-link">Waiting Queue</a>
-            <a href="#" class="submenu-link">Appointment Reports</a> 
+            <a href="<?= base_url('admin/appointments/calendar') ?>" class="submenu-link">Calendar View</a>
+            <a href="<?= base_url('admin/appointments/queue') ?>" class="submenu-link">Waiting Queue</a>
+            <a href="<?= base_url('admin/appointments/reports') ?>" class="submenu-link">Appointment Reports</a>
           </div>
         </div>
       </li>
@@ -127,6 +132,9 @@
             <a href="#" class="submenu-link">Services</a>
             <a href="#" class="submenu-link">Payment Modes</a>
             <a href="#" class="submenu-link">Tax Rates</a> 
+            <?php if (in_array('medicine.view', session('permissions') ?? [], true)): ?>
+              <a href="<?= base_url('admin/medicines') ?>" class="submenu-link">Medicine Master</a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
