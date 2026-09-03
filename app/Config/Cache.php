@@ -11,7 +11,6 @@ use CodeIgniter\Cache\Handlers\PredisHandler;
 use CodeIgniter\Cache\Handlers\RedisHandler;
 use CodeIgniter\Cache\Handlers\WincacheHandler;
 use CodeIgniter\Config\BaseConfig;
-
 class Cache extends BaseConfig
 {
     /**
@@ -23,7 +22,6 @@ class Cache extends BaseConfig
      * it is not available, the $backupHandler will be used in its place.
      */
     public string $handler = 'file';
-
     /**
      * --------------------------------------------------------------------------
      * Backup Handler
@@ -34,7 +32,6 @@ class Cache extends BaseConfig
      * always available, though that's not always practical for the app.
      */
     public string $backupHandler = 'dummy';
-
     /**
      * --------------------------------------------------------------------------
      * Key Prefix
@@ -44,7 +41,6 @@ class Cache extends BaseConfig
      * if you run multiple applications with the same cache engine.
      */
     public string $prefix = '';
-
     /**
      * --------------------------------------------------------------------------
      * Default TTL
@@ -57,7 +53,6 @@ class Cache extends BaseConfig
      * the hard-coded value in a future release.
      */
     public int $ttl = 60;
-
     /**
      * --------------------------------------------------------------------------
      * Reserved Characters
@@ -70,7 +65,6 @@ class Cache extends BaseConfig
      * NOTE: The default set is required for PSR-6 compliance.
      */
     public string $reservedCharacters = '{}()/\@:';
-
     /**
      * --------------------------------------------------------------------------
      * File settings
@@ -81,11 +75,7 @@ class Cache extends BaseConfig
      *
      * @var array{storePath?: string, mode?: int}
      */
-    public array $file = [
-        'storePath' => WRITEPATH . 'cache/',
-        'mode'      => 0640,
-    ];
-
+    public array $file = ['storePath' => WRITEPATH . 'cache/', 'mode' => 0640];
     /**
      * -------------------------------------------------------------------------
      * Memcached settings
@@ -98,13 +88,7 @@ class Cache extends BaseConfig
      *
      * @var array{host?: string, port?: int, weight?: int, raw?: bool}
      */
-    public array $memcached = [
-        'host'   => '127.0.0.1',
-        'port'   => 11211,
-        'weight' => 1,
-        'raw'    => false,
-    ];
-
+    public array $memcached = ['host' => '127.0.0.1', 'port' => 11211, 'weight' => 1, 'raw' => false];
     /**
      * -------------------------------------------------------------------------
      * Redis settings
@@ -124,15 +108,15 @@ class Cache extends BaseConfig
      * }
      */
     public array $redis = [
-        'host'       => '127.0.0.1',
-        'password'   => null,
-        'port'       => 6379,
-        'timeout'    => 0,
-        'async'      => false, // specific to Predis and ignored by the native Redis extension
+        'host' => '127.0.0.1',
+        'password' => null,
+        'port' => 6379,
+        'timeout' => 0,
+        'async' => false,
+        // specific to Predis and ignored by the native Redis extension
         'persistent' => false,
-        'database'   => 0,
+        'database' => 0,
     ];
-
     /**
      * --------------------------------------------------------------------------
      * Available Cache Handlers
@@ -143,16 +127,7 @@ class Cache extends BaseConfig
      *
      * @var array<string, class-string<CacheInterface>>
      */
-    public array $validHandlers = [
-        'apcu'      => ApcuHandler::class,
-        'dummy'     => DummyHandler::class,
-        'file'      => FileHandler::class,
-        'memcached' => MemcachedHandler::class,
-        'predis'    => PredisHandler::class,
-        'redis'     => RedisHandler::class,
-        'wincache'  => WincacheHandler::class,
-    ];
-
+    public array $validHandlers = ['apcu' => ApcuHandler::class, 'dummy' => DummyHandler::class, 'file' => FileHandler::class, 'memcached' => MemcachedHandler::class, 'predis' => PredisHandler::class, 'redis' => RedisHandler::class, 'wincache' => WincacheHandler::class];
     /**
      * --------------------------------------------------------------------------
      * Web Page Caching: Cache Include Query String
@@ -171,7 +146,6 @@ class Cache extends BaseConfig
      * @var bool|list<string>
      */
     public $cacheQueryString = false;
-
     /**
      * --------------------------------------------------------------------------
      * Web Page Caching: Cache Status Codes

@@ -70,5 +70,4 @@ $(function () {
         });
     });
 
-    if ($.fn.DataTable) $('.datatable').DataTable();
 });

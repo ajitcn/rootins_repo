@@ -9,7 +9,11 @@ $(function () {
         resetForm(form);
         clearFormErrors();
         $('#consultation_id').val('');
-        $('#consultation_date').val(new Date().toISOString().slice(0, 10));
+        if (window.setSharedDateValue) {
+            setSharedDateValue('#consultation_date', new Date().toISOString().slice(0, 10));
+        } else {
+            $('#consultation_date').val(new Date().toISOString().slice(0, 10));
+        }
         $('#consultation_status').val('draft');
         $('#consultationModal .modal-title').text('Add Consultation');
         $(form + ' .save').text('Save Consultation');
@@ -64,14 +68,22 @@ $(function () {
                 $('#consultation_doctor_id').val(consultation.doctor_id);
                 $('#consultation_clinic_id').val(consultation.clinic_id);
                 $('#consultation_appointment_id').val(consultation.appointment_id || '');
-                $('#consultation_date').val(consultation.consultation_date);
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#consultation_date', consultation.consultation_date);
+                } else {
+                    $('#consultation_date').val(consultation.consultation_date);
+                }
                 $('#consultation_time').val((consultation.consultation_time || '').substring(0, 5));
                 $('#consultation_status').val(consultation.status);
                 $('#consultation_chief_complaint').val(consultation.chief_complaint || '');
                 $('#consultation_clinical_notes').val(consultation.clinical_notes || '');
                 $('#consultation_diagnosis').val(consultation.diagnosis || '');
                 $('#consultation_treatment_plan').val(consultation.treatment_plan || '');
-                $('#follow_up_date').val(consultation.follow_up_date || '');
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#follow_up_date', consultation.follow_up_date || '');
+                } else {
+                    $('#follow_up_date').val(consultation.follow_up_date || '');
+                }
                 refreshSelects();
                 $('#consultationModal .modal-title').text('Edit Consultation');
                 $(form + ' .save').text('Update Consultation');
@@ -109,7 +121,4 @@ $(function () {
         $('.edit-consultation[data-id="' + editId + '"]').trigger('click');
     }
 
-    if ($.fn.DataTable) {
-        $('.datatable').DataTable();
-    }
 });

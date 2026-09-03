@@ -79,7 +79,24 @@ ROOTINS is a healthcare operations platform for clinic administration, doctor co
 - Use existing layout, navigation, modal, loader, alert, and form-error helpers.
 - Use accessible labels, keyboard-friendly controls, clear status text, and confirmation for destructive or irreversible actions.
 
-## 8. Quality gates
+## 8. Mandatory UI/UX standard
+
+This is a project-wide release requirement for Admin, Doctor, Patient, and Farmassist. A module is not UI-complete merely because its route, controller, or database workflow exists.
+
+- Provide a modern, clean, interactive experience using the established server-rendered Bootstrap/jQuery stack. Keep layout, navigation, breadcrumbs, page titles, cards, forms, tables, buttons, badges, alerts, modals, validation, and status language consistent across panels.
+- Every interactive screen must provide intentional loading, empty, validation, success, permission-denied, and recoverable-error states. Safe user-facing messages must not expose exceptions, identifiers, medical data, credentials, or provider secrets.
+- Use shared layout partials, centralized CSS/design tokens, and reusable components/helpers. Do not introduce ad-hoc per-page styling or duplicate interaction patterns when an existing project component can be reused.
+- Large datasets must use the project’s established searchable/filterable `bootstrap-select` (or approved equivalent) and must provide pagination and/or server-side search where appropriate. Do not use unwieldy unfiltered plain dropdowns for clinics, users, doctors, patients, medicines, permissions, or other large datasets.
+- Screens must work at mobile, tablet, and desktop widths with responsive tables/forms and usable navigation collapse behavior. Avoid horizontal overflow and preserve the primary task on small screens.
+- Meet accessibility expectations: explicit labels and field associations, logical keyboard order, visible focus, keyboard-operable controls, sufficient contrast, non-colour-only status meaning, accessible modal/collapse behavior, and status messages that are announced or otherwise perceivable.
+- UI actions must respect route-level authentication, permission checks, clinic/data scope, CSRF, and server-side validation. Hide unavailable actions where appropriate, but rely on server enforcement; never treat UI visibility as authorization.
+- Keep interactions performant and maintainable: debounce server-side search, avoid unnecessary requests, paginate results, prevent duplicate submissions, use non-blocking alerts/loaders, and keep feature-specific JavaScript small and reusable.
+
+### UI review checklist
+
+Before marking a module or workflow `Implemented` or `Verified`, reviewers must record evidence for: responsive layout; shared components/styles; searchable/filterable large-data controls; pagination or server-side search; loading/empty/error/success states; validation and safe errors; keyboard/focus/contrast checks; permission and clinic-scope behavior; duplicate-submit protection; and desktop/tablet/mobile smoke coverage. Any unmet item remains `Partial`, `Unverified`, or `NEEDS_REVIEW` in `MODULE-STATUS.md`.
+
+## 9. Quality gates
 
 Every change must include, as applicable:
 
@@ -92,11 +109,11 @@ Every change must include, as applicable:
 7. security regression tests covering authorization, record scoping, CSRF, uploads, and sensitive responses;
 8. PHP linting, PSR-12 review, and configured static-analysis checks.
 
-## 9. Definition of done
+## 10. Definition of done
 
 A feature is done only when its requirements, authorization, validation, persistence, UI states, error handling, audit impact, tests, performance checks, static checks, and documentation are addressed. “Implemented” means usable through the intended route and role, not merely that a table or controller exists. CI/test evidence must identify the changed requirement IDs.
 
-## 10. India provider and release-scope rules
+## 11. India provider and release-scope rules
 
 - Use provider abstractions for Cashfree/Razorpay payments, Twilio Video, Twilio Messaging/WhatsApp, Twilio SendGrid, and Shiprocket. Provider credentials, merchant onboarding, sender/template/DLT setup, serviceability, contracts, webhooks, settlement, reconciliation, and production enablement remain deployment-controlled and `[NEEDS_REVIEW]`.
 - Twilio Video sessions must use room-scoped short-lived access tokens, recording disabled by default, explicit consent, participant identity checks, and access/session audit events.

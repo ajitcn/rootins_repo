@@ -10,7 +10,6 @@ use CodeIgniter\Debug\Toolbar\Collectors\Logs;
 use CodeIgniter\Debug\Toolbar\Collectors\Routes;
 use CodeIgniter\Debug\Toolbar\Collectors\Timers;
 use CodeIgniter\Debug\Toolbar\Collectors\Views;
-
 /**
  * --------------------------------------------------------------------------
  * Debug Toolbar
@@ -43,7 +42,6 @@ class Toolbar extends BaseConfig
         Routes::class,
         Events::class,
     ];
-
     /**
      * --------------------------------------------------------------------------
      * Collect Var Data
@@ -53,7 +51,6 @@ class Toolbar extends BaseConfig
      * avoid high memory usage when there are lots of data passed to the view.
      */
     public bool $collectVarData = true;
-
     /**
      * --------------------------------------------------------------------------
      * Max History
@@ -64,7 +61,6 @@ class Toolbar extends BaseConfig
      * 0 (zero) to not have any history stored, or -1 for unlimited history.
      */
     public int $maxHistory = 20;
-
     /**
      * --------------------------------------------------------------------------
      * Toolbar Views Path
@@ -74,7 +70,6 @@ class Toolbar extends BaseConfig
      * This MUST have a trailing slash.
      */
     public string $viewsPath = SYSTEMPATH . 'Debug/Toolbar/Views/';
-
     /**
      * --------------------------------------------------------------------------
      * Max Queries
@@ -88,7 +83,6 @@ class Toolbar extends BaseConfig
      * `$maxQueries` defines the maximum amount of queries that will be stored.
      */
     public int $maxQueries = 100;
-
     /**
      * --------------------------------------------------------------------------
      * Watched Directories
@@ -102,10 +96,7 @@ class Toolbar extends BaseConfig
      *
      * @var list<string>
      */
-    public array $watchedDirectories = [
-        'app',
-    ];
-
+    public array $watchedDirectories = ['app'];
     /**
      * --------------------------------------------------------------------------
      * Watched File Extensions
@@ -116,10 +107,7 @@ class Toolbar extends BaseConfig
      *
      * @var list<string>
      */
-    public array $watchedExtensions = [
-        'php', 'css', 'js', 'html', 'svg', 'json', 'env',
-    ];
-
+    public array $watchedExtensions = ['php', 'css', 'js', 'html', 'svg', 'json', 'env'];
     /**
      * --------------------------------------------------------------------------
      * Ignored HTTP Headers
@@ -140,8 +128,10 @@ class Toolbar extends BaseConfig
      * @var array<string, string|null>
      */
     public array $disableOnHeaders = [
-        'X-Requested-With' => 'xmlhttprequest', // AJAX requests
-        'HX-Request'       => 'true',           // HTMX requests
-        'X-Up-Version'     => null,             // Unpoly partial requests
+        'X-Requested-With' => 'xmlhttprequest',
+        // AJAX requests
+        'HX-Request' => 'true',
+        // HTMX requests
+        'X-Up-Version' => null,
     ];
 }

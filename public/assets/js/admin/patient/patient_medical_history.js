@@ -59,7 +59,11 @@ $(function () {
                 resetHistoryForm();
                 $('#medical_history_id').val(response.data.id);
                 $('#medical_history_title').val(response.data.title);
-                $('#medical_history_date').val(response.data.history_date || '');
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#medical_history_date', response.data.history_date || '');
+                } else {
+                    $('#medical_history_date').val(response.data.history_date || '');
+                }
                 $('#medical_history_details').val(response.data.details);
                 $('#medicalHistoryModal .modal-title').text('Edit Medical History');
                 $(form + ' button[type="submit"]').text('Update History');

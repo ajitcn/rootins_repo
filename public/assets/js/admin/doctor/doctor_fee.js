@@ -89,7 +89,11 @@
                 $('#consultation_type').val(fee.consultation_type).selectpicker('refresh'); 
                 $('#consultation_mode').val(fee.consultation_mode).selectpicker('refresh'); 
                 $('#consultation_fee').val(fee.fee);
-                $('#effective_from').val(fee.effective_from);
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#effective_from', fee.effective_from);
+                } else {
+                    $('#effective_from').val(fee.effective_from);
+                }
                 $('#status').val(fee.status);
                  
                  

@@ -1,17 +1,11 @@
 function showSuccess(message)
 {
-    Swal.fire({
-        icon:'success',
-        title:message
-    });
+    Swal.fire({icon: 'success', title: message, toast: true, position: 'top-end', showConfirmButton: false, timer: 3200, timerProgressBar: true});
 }
 
 function showError(message)
 {
-    Swal.fire({
-        icon:'error',
-        title:message
-    });
+    Swal.fire({icon: 'error', title: message, toast: true, position: 'top-end', showConfirmButton: false, timer: 4200, timerProgressBar: true});
 }
 
 function resetForm(form)
@@ -167,6 +161,46 @@ function ajaxRequest(options)
 /*================================
 =            Location            =
 ================================*/
+function bindLocationManualToggles(root = document)
+{
+    $(root).find('.location-manual-toggle').off('change.location').on('change.location', function () {
+        const toggle = $(this);
+        const select = $(toggle.data('select'));
+        const input = $(toggle.data('input'));
+        const manual = toggle.is(':checked');
+        select.prop('disabled', manual).val('').selectpicker('refresh');
+        input.toggleClass('d-none', ! manual).prop('required', manual);
+        if (! manual) input.val('');
+    });
+}
+
+function bindCountryCodeToggles(root = document)
+{
+    $(root).find('.country-code-manual-toggle').off('change.countryCode').on('change.countryCode', function () {
+        const toggle = $(this);
+        const select = $(toggle.data('select'));
+        const input = $(toggle.data('input'));
+        const manual = toggle.is(':checked');
+        select.prop('disabled', manual).val('').selectpicker('refresh');
+        input.toggleClass('d-none', ! manual).prop('disabled', ! manual).prop('required', manual);
+        if (! manual) input.val('');
+    });
+    $(root).find('select[name="country_code"]').off('changed.countryCode').on('changed.countryCode', function () {
+        const code = $(this).find(':selected').data('phone-code');
+        if (code) $(this).siblings('.bootstrap-select').find('.filter-option-inner-inner').text('+' + code);
+    }).trigger('changed.countryCode');
+}
+
+function resetLocationControls(root = document)
+{
+    const scope = $(root);
+    scope.find('.location-manual-toggle').prop('checked', false);
+    scope.find('.location-manual').addClass('d-none').prop('required', false).val('');
+    scope.find('.location-manual-toggle').each(function () {
+        $($(this).data('select')).prop('disabled', false).selectpicker('refresh');
+    });
+}
+
 function loadStates(countryId, stateSelector, callback =null)
 {
       
@@ -220,6 +254,19 @@ function loadCities(stateId, citySelector, callback =null)
     });
 
     
+}
+
+function loadLocalities(cityId, localitySelector, callback = null)
+{
+    $(localitySelector).html('<option value="">Loading...</option>').selectpicker('refresh');
+    ajaxRequest({
+        url: BASE_URL + 'location/localities/' + cityId,
+        method: 'GET',
+        success: function (response) {
+            $(localitySelector).html(response.data || '<option value="">No localities found</option>').selectpicker('refresh');
+            if (typeof callback === 'function') callback();
+        }
+    });
 }
 
 

@@ -13,8 +13,6 @@
   <!-- font-awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css"/>
 
-<!-- data table -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.11/css/dataTables.bootstrap4.min.css">
 
   <!-- bootstrap datetime -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-datepicker@1.9.0/dist/css/bootstrap-datepicker.min.css">
@@ -40,6 +38,7 @@
  
 </head>
 <body>
+  <a class="sr-only sr-only-focusable" href="#main-content">Skip to main content</a>
 
 
 
@@ -52,7 +51,7 @@
   </div>
 
   <!-- Js alert msg -->
-  <div id="js_alert"></div>
+  <div id="js_alert" aria-live="polite" aria-atomic="true"></div>
 
 
   <!-- ================= PRESERVED SIDEBAR MENU ================= -->
@@ -66,7 +65,9 @@
     <?= $this->renderSection('top-menu')?>
 
     <!-- DASHBOARD CONTENT GRID -->
-    <?= $this->renderSection('main-content')?>
+    <div id="main-content" tabindex="-1">
+      <?= $this->renderSection('main-content')?>
+    </div>
 
   </div>
 
@@ -74,10 +75,6 @@
 
   <!-- Bootstrap 5 Bundle JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- DataTables -->
-<script src="https://cdn.datatables.net/1.13.11/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.11/js/dataTables.bootstrap4.min.js"></script>
 
 
   <!-- bt select2 -->
@@ -102,21 +99,129 @@
   <?= $this->renderSection('scripts')?>
 
   <script>
-    document.getElementById('sidebarToggle')?.addEventListener('click', function () {
-      document.getElementById('sidebar').classList.toggle('show');
+    const sidebar = document.getElementById('sidebar');
+    const topHeader = document.querySelector('.top-header');
+    sidebar?.querySelectorAll('.nav-link').forEach(function (link) {
+      const label = link.querySelector('span')?.textContent?.trim();
+      if (label && !link.getAttribute('title')) link.setAttribute('title', label);
+      if (link.classList.contains('active')) link.setAttribute('aria-current', 'page');
     });
+    const sidebarNav = sidebar?.querySelector('.sidebar-nav');
+    if (sidebarNav && !sidebarNav.querySelector('.sidebar-section-title')) {
+      const section = document.createElement('div');
+      section.className = 'sidebar-section-title';
+      section.setAttribute('aria-hidden', 'true');
+      section.textContent = sidebar.querySelector('.system-tag')?.textContent?.trim() === 'Farmassist' ? 'Fulfilment' : 'Workspace';
+      sidebarNav.prepend(section);
+    }
+    if (topHeader && !document.getElementById('sidebarCollapseToggle')) {
+      const collapseButton = document.createElement('button');
+      collapseButton.id = 'sidebarCollapseToggle';
+      collapseButton.type = 'button';
+      collapseButton.className = 'btn btn-sm btn-light d-none d-lg-inline-flex mr-2';
+      collapseButton.setAttribute('aria-controls', 'sidebar');
+      collapseButton.setAttribute('aria-expanded', 'true');
+      collapseButton.setAttribute('aria-label', 'Collapse navigation');
+      collapseButton.innerHTML = '<i class="bi bi-chevron-double-left" aria-hidden="true"></i>';
+      topHeader.querySelector('.d-flex.align-items-center')?.prepend(collapseButton);
+    }
+    document.getElementById('sidebarToggle')?.addEventListener('click', function () {
+      sidebar?.classList.toggle('show');
+      this.setAttribute('aria-expanded', sidebar?.classList.contains('show') ? 'true' : 'false');
+    });
+    document.getElementById('sidebarCollapseToggle')?.addEventListener('click', function () {
+      document.body.classList.toggle('sidebar-collapsed');
+      const collapsed = document.body.classList.contains('sidebar-collapsed');
+      this.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      this.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+      this.querySelector('i')?.classList.toggle('bi-chevron-double-right', collapsed);
+      this.querySelector('i')?.classList.toggle('bi-chevron-double-left', !collapsed);
+      try { localStorage.setItem('rootins-sidebar-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+    });
+    try { if (localStorage.getItem('rootins-sidebar-collapsed') === '1') document.body.classList.add('sidebar-collapsed'); } catch (e) {}
 
     /*bt Select init*/
     $(function () {
-      $('.btSelect').selectpicker();
+      $('select[data-live-search], .btSelect').each(function () {
+        if (!$(this).hasClass('selectpicker')) {
+          $(this).selectpicker({noneSelectedText: 'Select an option', liveSearchPlaceholder: 'Type to search...'});
+        }
+      });
     });
 
 
-    /*datetime init*/
-    $('.datepicker').datepicker({
-        format: 'dd-mm-yyyy',
-        autoclose: true,
-        todayHighlight: true
+    /* Shared datepicker init. Keep the submitted value in the server's ISO format. */
+    function isoDate(value) {
+      const text = String(value || '').trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+      const match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+    }
+
+    function displayDate(value) {
+      const iso = isoDate(value);
+      return iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}` : '';
+    }
+
+    window.rootinsDateToIso = function (selector) {
+      return isoDate($(selector).val());
+    };
+
+    window.setSharedDateValue = function (selector, value) {
+      const field = $(selector);
+      field.val(displayDate(value)).trigger('changeDate');
+      const hidden = field.data('datepicker-hidden');
+      if (hidden) hidden.val(isoDate(value));
+    };
+
+    function initSharedDatepickers(root) {
+      const fields = $(root || document).find('input[type="date"], .datepicker');
+      fields.filter('input[type="date"]').each(function () {
+        this.type = 'text';
+        $(this).addClass('datepicker').attr({
+          placeholder: 'dd-mm-yyyy',
+          autocomplete: 'off'
+        });
+      });
+      fields.filter('.datepicker').each(function () {
+        const field = $(this);
+        field.attr('placeholder', 'dd-mm-yyyy');
+        if (!field.data('datepicker-bound')) {
+          const name = field.attr('name');
+          if (name) {
+            const id = field.attr('id') || `datepicker-${Math.random().toString(36).slice(2)}`;
+            field.attr('id', id);
+            const hidden = $('<input>', {type: 'hidden', name: name, 'data-datepicker-hidden-for': id});
+            field.removeAttr('name').after(hidden).data('datepicker-hidden', hidden);
+            field.val(displayDate(field.val()));
+            field.on('change.sharedDate changeDate.sharedDate', function () {
+              hidden.val(isoDate(field.val()));
+            });
+            hidden.val(isoDate(field.val()));
+          }
+          field.data('datepicker-bound', true);
+        }
+        if (!field.data('datepicker')) {
+          const options = {
+            format: 'dd-mm-yyyy',
+            autoclose: true,
+            todayHighlight: true,
+            clearBtn: true,
+            orientation: 'auto',
+            keyboardNavigation: true
+          };
+          if (field.attr('min')) options.startDate = displayDate(field.attr('min'));
+          if (field.attr('max')) options.endDate = displayDate(field.attr('max'));
+          field.datepicker(options);
+        }
+      });
+    }
+
+    $(function () {
+      initSharedDatepickers(document);
+      $(document).on('shown.bs.modal', '.modal', function () {
+        initSharedDatepickers(this);
+      });
     });
 
 

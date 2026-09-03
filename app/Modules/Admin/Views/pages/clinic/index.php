@@ -1,145 +1,35 @@
-<?= $this->extend(ADMIN_VIEW.'layout')?>
-
-
- <?= $this->section('main-content')?>
-
-<main class="dashboard-container">
-	<!-- breadcrumb -->
- 	<?= 
- 		view('templates/_breadcrumb', 
-
- 			[
-				'module' 		=> 'admin',
-				'menu_title'	=> 'Clinic Management',
-				'page'			=> 'Clinics' 
- 			]
- 		)
- 	?>
-
- 	<!-- main content -->
-  		<div class="action-btn-container">
-  			<button class="btn btn-sm theme-btn open_clinic_modal">+ New Clinic</button>
-  		</div>
-
-        <?= display_session_msg()?>
-
-        <div class="table-responsive">
-
-            <table class="table table-bordered table-hover align-middle">
-
-                <thead class="thead-light">
-                    <tr>
-                        <th width="50">#</th>
-                        <th>Clinic Name</th>
-                        <th>Contact Person</th>
-                        <th>Mobile</th>
-                        <th>Email</th>
-                        <th>Country</th>
-                        <th>State</th>
-                        <th>City</th>
-                        <th>Status</th>
-                        <th width="120">Action</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    <?php if(!empty($records)): ?>
-
-                        <?php foreach($records as $key => $row): ?>
-
-                            <tr>
-
-                                <td><?= $key + 1 ?></td>
-
-                                <td>
-                                    <strong>
-                                        <?= esc($row['clinic_name']) ?>
-                                    </strong>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['contact_person']) ?>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['mobile']) ?>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['email']) ?>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['country_name']) ?>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['state_name']) ?>
-                                </td>
-
-                                <td>
-                                    <?= esc($row['city_name']) ?>
-                                </td>
-
-                                <td>
-                                    <?php if($row['status'] == 1): ?>
-                                        <span class="badge badge-success">
-                                            Active
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge badge-danger">
-                                            Inactive
-                                        </span>
-                                    <?php endif; ?>
-                                </td>
-
-                                <td>
-
-                                    <a href="javascript:void(0)"
-                                        onclick="editClinicForm(<?=$row['id']?>)" 
-                                        class="btn btn-sm btn-primary">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
-
-                                    <a href="<?= base_url('admin/clinics/delete/'.$row['id']) ?>"
-                                       class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Are you sure?')">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
-
-                                </td>
-
-                            </tr>
-
-                        <?php endforeach; ?>
-
-                    <?php else: ?>
-
-                        <tr>
-                            <td colspan="10" class="text-center text-muted">
-                                No records found.
-                            </td>
-                        </tr>
-
-                    <?php endif; ?>
-
-                </tbody>
-
-            </table>
-
+<?= $this->extend(ADMIN_VIEW . 'layout') ?>
+<?= $this->section('main-content') ?>
+<?php
+$filters = $filters ?? [];
+$queryFilters = array_filter(['search' => $filters['search'] ?? '', 'status' => $filters['status'] ?? '', 'country_id' => $filters['country_id'] ?? 0, 'state_id' => $filters['state_id'] ?? 0, 'city_id' => $filters['city_id'] ?? 0, 'page_size' => $filters['page_size'] ?? 15], static fn ($value) => $value !== '' && $value !== null && $value !== 0);
+$pageUrl = static fn (int $page): string => current_url() . '?' . http_build_query($queryFilters + ['page_clinics' => $page]);
+$currentPage = $pager->getCurrentPage('clinics');
+$pageCount = $pager->getPageCount('clinics');
+?>
+<main class="dashboard-container" aria-labelledby="clinic-management-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Operations', 'page' => 'Clinic Management']) ?>
+    <h1 id="clinic-management-title" class="sr-only">Clinic Management</h1>
+    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <p class="text-muted mb-2 mb-md-0">Manage clinic records and operational status.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary mr-2" data-toggle="modal" data-target="#clinicFilterModal" aria-controls="clinicFilterModal"><i class="bi bi-funnel mr-1" aria-hidden="true"></i> Filters</button>
+            <a href="<?= base_url('admin/clinics/create') ?>" class="btn theme-btn d-inline-flex align-items-center open_clinic_modal" data-toggle="modal" data-target="#clinicModal" aria-controls="clinicModal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i> New Clinic</a>
         </div>
- 
-
+    </div>
+    <?= display_session_msg() ?>
+    <div class="card">
+        <div class="table-responsive"><table class="table table-bordered table-hover align-middle mb-0" id="clinics-table"><caption class="sr-only">Clinic records</caption><thead class="thead-light"><tr><th scope="col" width="50">#</th><th scope="col">Clinic Name</th><th scope="col">Contact Person</th><th scope="col">Mobile</th><th scope="col">Email</th><th scope="col">Country</th><th scope="col">State</th><th scope="col">City</th><th scope="col">Status</th><th scope="col" width="140">Action</th></tr></thead><tbody>
+            <?php if (! empty($records)): ?>
+                <?php $rowNumber = (($currentPage - 1) * (int) ($filters['page_size'] ?? 15)) + 1; foreach ($records as $row): ?>
+                    <tr><td><?= esc((string) $rowNumber++) ?></td><td><strong><?= esc($row['clinic_name']) ?></strong><div class="small text-muted"><?= esc($row['clinic_code']) ?></div></td><td><?= esc($row['contact_person'] ?? '') ?></td><td><?= esc($row['mobile'] ?? '') ?></td><td><?= esc($row['email'] ?? '') ?></td><td><?= esc($row['country_name'] ?? '') ?></td><td><?= esc($row['state_name'] ?? '') ?></td><td><?= esc($row['city_name'] ?? '') ?></td><td><span class="badge badge-<?= (int) $row['status'] === 1 ? 'success' : 'danger' ?>"><?= (int) $row['status'] === 1 ? 'Active' : 'Inactive' ?></span></td><td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-info" data-toggle="tooltip" data-placement="top" title="Created: <?= esc($row['created_at'] ?? 'Unavailable') ?> | Updated: <?= esc($row['updated_at'] ?? 'Unavailable') ?>" aria-label="Created and updated dates for <?= esc($row['clinic_name']) ?>"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button> <a href="<?= base_url('admin/clinics/view/' . $row['id']) ?>" class="btn btn-sm btn-outline-secondary" aria-label="View <?= esc($row['clinic_name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></a><?php if ($canEdit): ?><button type="button" onclick="editClinicForm(<?= (int) $row['id'] ?>)" class="btn btn-sm btn-outline-primary" aria-label="Edit <?= esc($row['clinic_name']) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i></button><?php endif; ?><?php if ($canDelete && (int) $row['status'] === 1): ?><a href="<?= base_url('admin/clinics/delete/' . $row['id']) ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this clinic?')" aria-label="Deactivate <?= esc($row['clinic_name']) ?>"><i class="bi bi-toggle-off" aria-hidden="true"></i></a><?php endif; ?></td></tr>
+                <?php endforeach; ?>
+            <?php else: ?><tr><td colspan="10" class="text-center text-muted py-4">No clinics match the current filters.</td></tr><?php endif; ?>
+        </tbody></table></div>
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center"><form method="get" action="<?= current_url() ?>" class="form-inline mb-2 mb-md-0" aria-label="Clinic page size"><?php foreach ($queryFilters as $key => $value): ?><?php if ($key !== 'page_size'): ?><input type="hidden" name="<?= esc($key) ?>" value="<?= esc((string) $value) ?>"><?php endif; ?><?php endforeach; ?><label class="small mr-2" for="clinic-page-size">Rows per page</label><select class="custom-select custom-select-sm" id="clinic-page-size" name="page_size" onchange="this.form.submit()"><?php foreach ([10, 15, 25, 50, 100] as $size): ?><option value="<?= $size ?>" <?= (int) ($filters['page_size'] ?? 15) === $size ? 'selected' : '' ?>><?= $size ?></option><?php endforeach; ?></select></form><nav aria-label="Clinic pagination"><span class="small text-muted mr-3">Page <?= esc((string) $currentPage) ?> of <?= esc((string) max(1, $pageCount)) ?></span><a class="btn btn-sm btn-outline-secondary <?= $currentPage <= 1 ? 'disabled' : '' ?>" href="<?= $currentPage > 1 ? esc($pageUrl($currentPage - 1)) : '#' ?>" aria-label="Previous page">Previous</a> <a class="btn btn-sm btn-outline-secondary <?= $currentPage >= $pageCount ? 'disabled' : '' ?>" href="<?= $currentPage < $pageCount ? esc($pageUrl($currentPage + 1)) : '#' ?>" aria-label="Next page">Next</a></nav></div>
+    </div>
 </main>
-
-
-
-<?= view(ADMIN_VIEW.'pages/clinic/modals/_clinic')?>
-
-
-	<?= $this->section('scripts') ?>
-	<script src="<?= base_url('assets/js/admin/clinic/clinic.js') ?>"></script>
-	<?= $this->endSection() ?>
-
- <?= $this->endSection()?>
+<div class="modal fade" id="clinicFilterModal" tabindex="-1" role="dialog" aria-labelledby="clinicFilterModalTitle" aria-hidden="true"><div class="modal-dialog modal-lg" role="document"><div class="modal-content"><form method="get" action="<?= current_url() ?>"><div class="modal-header"><h2 class="modal-title h5" id="clinicFilterModalTitle">Filter clinics</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close filters"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><div class="form-row"><div class="form-group col-md-6"><label for="filter-search">Search</label><input type="search" class="form-control" id="filter-search" name="search" value="<?= esc($filters['search'] ?? '') ?>" placeholder="Name, code, contact, or email"></div><div class="form-group col-md-3"><label for="filter-status">Status</label><select class="custom-select" id="filter-status" name="status"><option value="">All statuses</option><option value="1" <?= ($filters['status'] ?? '') === '1' ? 'selected' : '' ?>>Active</option><option value="0" <?= ($filters['status'] ?? '') === '0' ? 'selected' : '' ?>>Inactive</option></select></div><div class="form-group col-md-3"><label for="filter-page-size">Rows per page</label><select class="custom-select" id="filter-page-size" name="page_size"><?php foreach ([10, 15, 25, 50, 100] as $size): ?><option value="<?= $size ?>" <?= (int) ($filters['page_size'] ?? 15) === $size ? 'selected' : '' ?>><?= $size ?></option><?php endforeach; ?></select></div><div class="form-group col-md-4"><label for="filter-country">Country</label><select class="selectpicker form-control" data-live-search="true" title="All countries" id="filter-country" name="country_id" onchange="loadStates(this.value, '#filter-state'); $('#filter-city').html('<option value=\"\">All cities</option>').selectpicker('refresh');"><option value="">All countries</option><?php foreach ($countries as $country): ?><option value="<?= (int) $country['id'] ?>" <?= (int) ($filters['country_id'] ?? 0) === (int) $country['id'] ? 'selected' : '' ?>><?= esc($country['name']) ?></option><?php endforeach; ?></select></div><div class="form-group col-md-4"><label for="filter-state">State</label><select class="selectpicker form-control" data-live-search="true" title="All states" id="filter-state" name="state_id"><option value="">All states</option><?php foreach (($filterStates ?? []) as $state): ?><option value="<?= (int) $state['id'] ?>" <?= (int) ($filters['state_id'] ?? 0) === (int) $state['id'] ? 'selected' : '' ?>><?= esc($state['name']) ?></option><?php endforeach; ?></select></div><div class="form-group col-md-4"><label for="filter-city">City</label><select class="selectpicker form-control" data-live-search="true" title="All cities" id="filter-city" name="city_id"><option value="">All cities</option><?php foreach (($filterCities ?? []) as $city): ?><option value="<?= (int) $city['id'] ?>" <?= (int) ($filters['city_id'] ?? 0) === (int) $city['id'] ? 'selected' : '' ?>><?= esc($city['name']) ?></option><?php endforeach; ?></select></div></div></div><div class="modal-footer"><a href="<?= current_url() ?>" class="btn btn-link mr-auto">Clear</a><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn theme-btn">Apply filters</button></div></form></div></div></div>
+<?= view(ADMIN_VIEW . 'pages/clinic/modals/_clinic') ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/clinic/clinic.js') ?>"></script><?= $this->endSection() ?>
+<?= $this->endSection() ?>

@@ -12,11 +12,11 @@
         <div class="row align-items-end mb-3">
             <div class="col-md-3">
                 <label for="reportDateFrom">Date From</label>
-                <input type="date" name="date_from" id="reportDateFrom" class="form-control">
+                <input type="text" name="date_from" id="reportDateFrom" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
             </div>
             <div class="col-md-3">
                 <label for="reportDateTo">Date To</label>
-                <input type="date" name="date_to" id="reportDateTo" class="form-control">
+                <input type="text" name="date_to" id="reportDateTo" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
             </div>
             <div class="col-md-3">
                 <label for="reportClinic">Clinic</label>
@@ -96,7 +96,7 @@
     </div>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable" id="appointmentReportTable">
+        <table class="table table-bordered table-hover" id="appointmentReportTable">
             <thead class="thead-light"><tr>
                 <th>Appointment No.</th><th>Date</th><th>Time</th><th>Patient Reg. No.</th>
                 <th>Patient</th><th>Doctor</th><th>Clinic</th><th>Type</th><th>Status</th>

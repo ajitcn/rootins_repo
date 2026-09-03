@@ -44,7 +44,7 @@ $patientName = trim(implode(' ', array_filter([
     </div>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
+        <table class="table table-bordered table-hover">
             <thead class="thead-light">
                 <tr>
                     <th width="60">#</th>

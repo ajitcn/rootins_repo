@@ -7,7 +7,6 @@ use CodeIgniter\Debug\ExceptionHandler;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use Psr\Log\LogLevel;
 use Throwable;
-
 /**
  * Setup how the exception handler works.
  */
@@ -23,7 +22,6 @@ class Exceptions extends BaseConfig
      * Default: true
      */
     public bool $log = true;
-
     /**
      * --------------------------------------------------------------------------
      * DO NOT LOG STATUS CODES
@@ -34,7 +32,6 @@ class Exceptions extends BaseConfig
      * @var list<int>
      */
     public array $ignoreCodes = [404];
-
     /**
      * --------------------------------------------------------------------------
      * Error Views Path
@@ -45,7 +42,6 @@ class Exceptions extends BaseConfig
      * Default: APPPATH.'Views/errors'
      */
     public string $errorViewPath = APPPATH . 'Views/errors';
-
     /**
      * --------------------------------------------------------------------------
      * HIDE FROM DEBUG TRACE
@@ -57,7 +53,6 @@ class Exceptions extends BaseConfig
      * @var list<string>
      */
     public array $sensitiveDataInTrace = [];
-
     /**
      * --------------------------------------------------------------------------
      * WHETHER TO THROW AN EXCEPTION ON DEPRECATED ERRORS
@@ -66,7 +61,6 @@ class Exceptions extends BaseConfig
      * thrown. This option also works for user deprecations.
      */
     public bool $logDeprecations = true;
-
     /**
      * --------------------------------------------------------------------------
      * LOG LEVEL THRESHOLD FOR DEPRECATIONS
@@ -79,7 +73,6 @@ class Exceptions extends BaseConfig
      * to capture logging the deprecations.
      */
     public string $deprecationLogLevel = LogLevel::WARNING;
-
     /*
      * DEFINE THE HANDLERS USED
      * --------------------------------------------------------------------------

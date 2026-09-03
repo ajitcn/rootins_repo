@@ -42,7 +42,7 @@
               <li><a class="dropdown-item small" href="#"><i class="bi bi-person me-2"></i> Profile</a></li>
               <li><a class="dropdown-item small" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item small text-danger" href="#"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+              <li><a class="dropdown-item small text-danger" href="<?= base_url('system/logout') ?>"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
             </ul>
           </div>
         </div>

@@ -3,7 +3,6 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-
 class Security extends BaseConfig
 {
     /**
@@ -16,7 +15,6 @@ class Security extends BaseConfig
      * @var string 'cookie' or 'session'
      */
     public string $csrfProtection = 'cookie';
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Token Randomization
@@ -25,7 +23,6 @@ class Security extends BaseConfig
      * Randomize the CSRF Token for added security.
      */
     public bool $tokenRandomize = false;
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Token Name
@@ -34,7 +31,6 @@ class Security extends BaseConfig
      * Token name for Cross Site Request Forgery protection.
      */
     public string $tokenName = 'csrf_rtn';
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Header Name
@@ -43,7 +39,6 @@ class Security extends BaseConfig
      * Header name for Cross Site Request Forgery protection.
      */
     public string $headerName = 'X-CSRF-TOKEN';
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Cookie Name
@@ -52,7 +47,6 @@ class Security extends BaseConfig
      * Cookie name for Cross Site Request Forgery protection.
      */
     public string $cookieName = 'csrf_rtn_cookie';
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Expires
@@ -63,7 +57,6 @@ class Security extends BaseConfig
      * Defaults to two hours (in seconds).
      */
     public int $expires = 7200;
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Regenerate
@@ -72,7 +65,6 @@ class Security extends BaseConfig
      * Regenerate CSRF Token on every submission.
      */
     public bool $regenerate = false;
-
     /**
      * --------------------------------------------------------------------------
      * CSRF Redirect
@@ -82,5 +74,5 @@ class Security extends BaseConfig
      *
      * @see https://codeigniter4.github.io/userguide/libraries/security.html#redirection-on-failure
      */
-    public bool $redirect = (ENVIRONMENT === 'production');
+    public bool $redirect = ENVIRONMENT === 'production';
 }

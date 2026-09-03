@@ -26,7 +26,11 @@ $(function () {
         resetForm(form);
         clearFormErrors();
         $('#prescription_id').val('');
-        $('#prescription_date').val(new Date().toISOString().slice(0, 10));
+        if (window.setSharedDateValue) {
+            setSharedDateValue('#prescription_date', new Date().toISOString().slice(0, 10));
+        } else {
+            $('#prescription_date').val(new Date().toISOString().slice(0, 10));
+        }
         $('#prescription_status').val('draft');
         $('#prescription_notes').val('');
         $('#prescriptionItemRows').html(itemRow(0));
@@ -223,7 +227,11 @@ $(function () {
                 const prescription = response.data.prescription;
                 $('#prescription_id').val(prescription.id);
                 $('#prescription_consultation_id').val(prescription.consultation_id);
-                $('#prescription_date').val(prescription.prescription_date);
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#prescription_date', prescription.prescription_date);
+                } else {
+                    $('#prescription_date').val(prescription.prescription_date);
+                }
                 $('#prescription_status').val(prescription.status);
                 $('#prescription_notes').val(prescription.notes || '');
                 $('#prescriptionItemRows').empty();
@@ -252,5 +260,4 @@ $(function () {
         });
     });
 
-    if ($.fn.DataTable) $('.datatable').DataTable();
 });

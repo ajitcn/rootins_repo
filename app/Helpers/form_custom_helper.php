@@ -6,7 +6,7 @@ if (!function_exists('display_form_error')) {
         if (isset($validation)) {
             if (isset($validation[$field])) {
                 return $validation[$field];
-            }else{
+            } else {
                 return false;
             }
         }

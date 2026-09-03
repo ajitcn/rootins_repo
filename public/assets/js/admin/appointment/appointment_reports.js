@@ -1,14 +1,12 @@
 $(function () {
-    const table = $('#appointmentReportTable').DataTable({
-        data: [],
-        columns: [
-            { data: 'appointment_number' }, { data: 'appointment_date' }, { data: 'appointment_time' },
-            { data: 'registration_number' }, { data: 'patient_name' }, { data: 'doctor' },
-            { data: 'clinic' }, { data: 'appointment_type' }, { data: 'status' },
-            { data: 'booking_source' }, { data: 'created_by' }, { data: 'created_at' }
-        ],
-        language: { emptyTable: 'No appointments match the selected filters.' }
-    });
+    const table = {
+        rows: [],
+        clear() { this.rows = []; return this; },
+        add(rows) { this.rows = this.rows.concat(rows); return this; },
+        draw() {
+            $('#appointmentReportTable tbody').html(this.rows.length ? this.rows.map(row => '<tr><td>' + row.appointment_number + '</td><td>' + row.appointment_date + '</td><td>' + row.appointment_time + '</td><td>' + row.registration_number + '</td><td>' + row.patient_name + '</td><td>' + row.doctor + '</td><td>' + row.clinic + '</td><td>' + row.appointment_type + '</td><td>' + row.status + '</td><td>' + row.booking_source + '</td><td>' + row.created_by + '</td><td>' + row.created_at + '</td></tr>').join('') : '<tr><td colspan="12" class="text-center text-muted py-4">No appointments match the selected filters.</td></tr>');
+        }
+    };
     const escapeHtml = value => $('<div>').text(value == null ? '' : value).html();
     const label = value => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 
@@ -26,7 +24,7 @@ $(function () {
                     $('[data-summary="' + key + '"]').text(value);
                 });
                 table.clear();
-                table.rows.add((response.data.rows || []).map(row => ({
+                table.add((response.data.rows || []).map(row => ({
                     appointment_number: escapeHtml(row.appointment_number),
                     appointment_date: escapeHtml(row.appointment_date),
                     appointment_time: escapeHtml(row.appointment_time),

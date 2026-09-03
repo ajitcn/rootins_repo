@@ -17,7 +17,8 @@
  	?>
 
  	<!-- main content -->
-  		<div class="action-btn-container">
+        <div class="action-btn-container d-flex justify-content-end mb-3">
+            <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorFeeFilter', 'filters' => $filters ?? []]) ?>
   			<button class="btn btn-sm theme-btn open_doctor_fee_modal">+ New Consultation Fee</button>
   		</div>
 
@@ -200,14 +201,14 @@
                                 <div class="d-flex gap-1">
 
                                     <button
-                                        class="btn btn-sm btn-primary"
+                                        class="btn btn-sm btn-outline-primary"
                                         onclick="editDoctorFeeForm(<?= $row['id'] ?>)">
                                         <i class="fa fa-edit"></i>
                                     </button>
 
 
                                     <a href="<?= base_url('admin/doctor-fees/delete/' . $row['id']) ?>"
-                                       class="btn btn-sm btn-danger"
+                                       class="btn btn-sm btn-outline-danger"
                                        onclick="return confirm('Are you sure?')">
                                         <i class="bi bi-trash"></i>
                                     </a>
@@ -244,15 +245,15 @@
           
  
 
+<?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_fees', 'filters' => $filters ?? []]) ?>
 </main>
-
 
 
 <?= view(ADMIN_VIEW.'pages/doctor/modals/_fee')?>
 
 
+
 	<?= $this->section('scripts') ?>
 	<script src="<?= base_url('assets/js/admin/doctor/doctor_fee.js') ?>"></script>
 	<?= $this->endSection() ?>
-
  <?= $this->endSection()?>

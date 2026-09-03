@@ -3,7 +3,6 @@
 namespace Config;
 
 use CodeIgniter\Modules\Modules as BaseModules;
-
 /**
  * Modules Configuration.
  *
@@ -24,7 +23,6 @@ class Modules extends BaseModules
      * @var bool
      */
     public $enabled = true;
-
     /**
      * --------------------------------------------------------------------------
      * Enable Auto-Discovery Within Composer Packages?
@@ -36,7 +34,6 @@ class Modules extends BaseModules
      * @var bool
      */
     public $discoverInComposer = true;
-
     /**
      * The Composer package list for Auto-Discovery
      * This setting is optional.
@@ -59,7 +56,6 @@ class Modules extends BaseModules
      * @var array{only?: list<string>, exclude?: list<string>}
      */
     public $composerPackages = [];
-
     /**
      * --------------------------------------------------------------------------
      * Auto-Discovery Rules
@@ -72,11 +68,5 @@ class Modules extends BaseModules
      *
      * @var list<string>
      */
-    public $aliases = [
-        'events',
-        'filters',
-        'registrars',
-        'routes',
-        'services',
-    ];
+    public $aliases = ['events', 'filters', 'registrars', 'routes', 'services'];
 }

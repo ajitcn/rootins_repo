@@ -44,7 +44,7 @@ $patientName = trim(implode(' ', array_filter([
     </div>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
+        <table class="table table-bordered table-hover">
             <thead class="thead-light">
                 <tr>
                     <th width="60">#</th>
@@ -97,7 +97,7 @@ $patientName = trim(implode(' ', array_filter([
                     </div>
                     <div class="form-group">
                         <label for="medical_history_date">History Date</label>
-                        <input type="date" class="form-control" name="history_date" id="medical_history_date">
+                        <input type="text" class="form-control datepicker" name="history_date" id="medical_history_date" placeholder="dd-mm-yyyy" autocomplete="off">
                         <div class="validation-error" id="history_dateErr"></div>
                     </div>
                     <div class="form-group">

@@ -120,7 +120,7 @@
         }
     </style>
 </head>
-<body>
+<body class="rootins-login">
 
 <div class="container-fluid">
     <div class="row login-wrapper">
@@ -219,5 +219,6 @@
     </div>
 </div>
 
+<link href="<?= base_url('assets/css/style.css') ?>" rel="stylesheet" />
 </body>
 </html>

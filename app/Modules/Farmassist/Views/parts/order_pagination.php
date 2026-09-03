@@ -1,0 +1,9 @@
+<?php
+$pagination = $pagination ?? ['page' => 1, 'pages' => 1, 'page_size' => 15, 'total' => 0];
+$filters = $filters ?? [];
+$pageSize = (int) ($pagination['page_size'] ?? 15);
+$url = static function (int $page) use ($filters, $pageSize): string {
+    return current_url() . '?' . http_build_query(array_filter(['order_search' => $filters['search'] ?? '', 'delivery_status' => $filters['delivery_status'] ?? '', 'order_page_size' => $pageSize, 'order_page' => $page], static fn ($value) => $value !== '' && $value !== null));
+};
+?>
+<div class="card-footer d-flex flex-wrap justify-content-between align-items-center"><form method="get" action="<?= current_url() ?>" class="form-inline mb-2 mb-md-0" aria-label="Order page size"><input type="hidden" name="order_search" value="<?= esc($filters['search'] ?? '') ?>"><input type="hidden" name="delivery_status" value="<?= esc($filters['delivery_status'] ?? '') ?>"><label class="small mr-2" for="farmassist-order-page-size">Rows per page</label><select class="custom-select custom-select-sm" id="farmassist-order-page-size" name="order_page_size" onchange="this.form.submit()"><?php foreach ([10,15,25,50] as $size): ?><option value="<?= $size ?>" <?= $pageSize === $size ? 'selected' : '' ?>><?= $size ?></option><?php endforeach; ?></select></form><nav aria-label="Medicine order pagination"><span class="small text-muted mr-3">Page <?= esc((string) $pagination['page']) ?> of <?= esc((string) $pagination['pages']) ?> (<?= esc((string) $pagination['total']) ?> total)</span><a class="btn btn-sm btn-outline-secondary" href="<?= $pagination['page'] > 1 ? esc($url($pagination['page'] - 1)) : '#' ?>" aria-label="Previous order page">Previous</a> <a class="btn btn-sm btn-outline-secondary" href="<?= $pagination['page'] < $pagination['pages'] ? esc($url($pagination['page'] + 1)) : '#' ?>" aria-label="Next order page">Next</a></nav></div>

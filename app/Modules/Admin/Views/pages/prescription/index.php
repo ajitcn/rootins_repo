@@ -1,23 +1,24 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
+<?php $filters = $filters ?? []; ?>
 <main class="dashboard-container">
     <?= view('templates/_breadcrumb', [
         'module'     => 'admin',
-        'menu_title' => 'Patient Management',
+        'menu_title' => 'Clinical Records',
         'page'       => 'Prescriptions',
     ]) ?>
 
-    <?php if ($canCreate): ?>
-        <div class="action-btn-container">
-            <button type="button" class="btn btn-sm theme-btn" id="openPrescriptionModal">+ New Prescription</button>
-        </div>
-    <?php endif; ?>
+    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-2 mb-md-0">Prescriptions</h1>
+        <div><button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#prescriptionFilterModal"><i class="bi bi-funnel" aria-hidden="true"></i> Filters</button>
+        <?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openPrescriptionModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> New Prescription</button><?php endif; ?></div>
+    </div>
 
     <?= display_session_msg() ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
+        <table class="table table-bordered table-hover" id="prescriptions-table">
             <thead class="thead-light">
                 <tr>
                     <th>Prescription No.</th><th>Consultation</th><th>Patient</th><th>Doctor</th>
@@ -25,6 +26,7 @@
                 </tr>
             </thead>
             <tbody>
+                <?php if ($prescriptions === []): ?><tr><td colspan="8" class="text-center text-muted py-4">No prescriptions match the selected filters.</td></tr><?php endif; ?>
                 <?php foreach ($prescriptions as $prescription): ?>
                     <?php
                     $patientName = trim(implode(' ', array_filter([
@@ -44,12 +46,13 @@
                         <td><?= esc($prescription['prescription_date']) ?></td>
                         <td><span class="badge <?= $statusClass ?>"><?= esc(ucwords(str_replace('_', ' ', $prescription['status']))) ?></span></td>
                         <td>
-                            <a href="<?= base_url('admin/prescriptions/view/' . (int) $prescription['id']) ?>" class="btn btn-sm btn-info" title="View Prescription"><i class="bi bi-eye"></i></a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="tooltip" title="Created: <?= esc($prescription['created_at'] ?? '—') ?> | Updated: <?= esc($prescription['updated_at'] ?? '—') ?>" aria-label="Show created and updated dates"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button>
+                            <a href="<?= base_url('admin/prescriptions/view/' . (int) $prescription['id']) ?>" class="btn btn-sm btn-outline-primary" aria-label="View prescription <?= esc($prescription['prescription_number']) ?>">View</a>
                             <?php if ($canEdit && $prescription['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-primary edit-prescription" data-id="<?= (int) $prescription['id'] ?>" title="Edit Prescription"><i class="bi bi-pencil-square"></i></button>
+                                <button type="button" class="btn btn-sm btn-outline-primary edit-prescription" data-id="<?= (int) $prescription['id'] ?>" aria-label="Edit prescription <?= esc($prescription['prescription_number']) ?>">Edit</button>
                             <?php endif; ?>
                             <?php if ($canDelete && $prescription['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-danger delete-prescription" data-id="<?= (int) $prescription['id'] ?>" title="Delete Prescription"><i class="bi bi-trash"></i></button>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-prescription" data-id="<?= (int) $prescription['id'] ?>" aria-label="Delete prescription <?= esc($prescription['prescription_number']) ?>">Delete</button>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -57,8 +60,10 @@
             </tbody>
         </table>
     </div>
+    <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'prescriptions', 'filters' => $filters]) ?>
 </main>
 
+<?= view(ADMIN_VIEW . 'parts/clinical_filter', ['prefix' => 'prescription', 'title' => 'Filter prescriptions', 'statuses' => ['draft', 'completed'], 'clinics' => $clinics ?? [], 'doctors' => $doctors ?? [], 'filters' => $filters]) ?>
 <?= form_open('', 'id="prescriptionCsrfForm" class="d-none"') ?><?= form_close() ?>
 
 <?php if ($canCreate || $canEdit): ?>
@@ -92,7 +97,7 @@
                             <div class="col-md-2">
                                 <div class="form-group">
                                     <label for="prescription_date">Date <span class="text-danger">*</span></label>
-                                    <input type="date" name="prescription_date" id="prescription_date" class="form-control">
+                                    <input type="text" name="prescription_date" id="prescription_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
                                     <div class="validation-error" id="prescription_dateErr"></div>
                                 </div>
                             </div>

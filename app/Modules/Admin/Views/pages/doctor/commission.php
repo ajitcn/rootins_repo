@@ -17,7 +17,8 @@
 
 
     <!-- main content -->
-    <div class="action-btn-container">
+    <div class="action-btn-container d-flex justify-content-end mb-3">
+        <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorCommissionFilter', 'filters' => $filters ?? []]) ?>
 
         <button class="btn btn-sm theme-btn open_doctor_commission_modal">
             + New Doctor Commission
@@ -251,7 +252,7 @@
                             <div class="d-flex gap-1">
 
                                 <button
-                                    class="btn btn-sm btn-primary"
+                                    class="btn btn-sm btn-outline-primary"
                                     onclick="editDoctorCommissionForm(<?= $row['id'] ?>)">
 
                                     <i class="fa fa-edit"></i>
@@ -261,7 +262,7 @@
 
                                 <a
                                     href="<?= base_url('admin/doctor-commissions/delete/' . $row['id']) ?>"
-                                    class="btn btn-sm btn-danger"
+                                   class="btn btn-sm btn-outline-danger"
                                     onclick="return confirm('Are you sure?')">
 
                                     <i class="bi bi-trash"></i>
@@ -300,6 +301,7 @@
     </div>
 
 
+<?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_commissions', 'filters' => $filters ?? []]) ?>
 </main>
 
 

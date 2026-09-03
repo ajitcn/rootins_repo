@@ -8,11 +8,9 @@
  * For the full copyright and license information, please view
  * the LICENSE file that was distributed with this source code.
  */
-
 namespace Config;
 
 use CodeIgniter\Config\Routing as BaseRouting;
-
 /**
  * Routing configuration
  */
@@ -28,10 +26,7 @@ class Routing extends BaseRouting
      *
      * @var list<string>
      */
-    public array $routeFiles = [
-        APPPATH . 'Config/Routes.php',
-    ];
-
+    public array $routeFiles = [APPPATH . 'Config/Routes.php'];
     /**
      * For Defined Routes and Auto Routing.
      * The default namespace to use for Controllers when no other
@@ -40,7 +35,6 @@ class Routing extends BaseRouting
      * Default: 'App\Controllers'
      */
     public string $defaultNamespace = 'App\Controllers';
-
     /**
      * For Auto Routing.
      * The default controller to use when no other controller has been
@@ -49,7 +43,6 @@ class Routing extends BaseRouting
      * Default: 'Home'
      */
     public string $defaultController = 'Home';
-
     /**
      * For Defined Routes and Auto Routing.
      * The default method to call on the controller when no other
@@ -58,7 +51,6 @@ class Routing extends BaseRouting
      * Default: 'index'
      */
     public string $defaultMethod = 'index';
-
     /**
      * For Auto Routing.
      * Whether to translate dashes in URIs for controller/method to underscores.
@@ -67,7 +59,6 @@ class Routing extends BaseRouting
      * Default: false
      */
     public bool $translateURIDashes = false;
-
     /**
      * Sets the class/method that should be called if routing doesn't
      * find a match. It can be the controller/method name like: Users::index
@@ -85,7 +76,6 @@ class Routing extends BaseRouting
      *  public $override404 = 'App\Errors::show404';
      */
     public ?string $override404 = null;
-
     /**
      * If TRUE, the system will attempt to match the URI against
      * Controllers by matching each segment against folders/files
@@ -95,7 +85,6 @@ class Routing extends BaseRouting
      * If FALSE, will stop searching and do NO automatic routing.
      */
     public bool $autoRoute = false;
-
     /**
      * If TRUE, the system will look for attributes on controller
      * class and methods that can run before and after the
@@ -104,7 +93,6 @@ class Routing extends BaseRouting
      * If FALSE, will ignore any attributes.
      */
     public bool $useControllerAttributes = true;
-
     /**
      * For Defined Routes.
      * If TRUE, will enable the use of the 'prioritize' option
@@ -113,7 +101,6 @@ class Routing extends BaseRouting
      * Default: false
      */
     public bool $prioritize = false;
-
     /**
      * For Defined Routes.
      * If TRUE, matched multiple URI segments will be passed as one parameter.
@@ -121,7 +108,6 @@ class Routing extends BaseRouting
      * Default: false
      */
     public bool $multipleSegmentsOneParam = false;
-
     /**
      * For Auto Routing (Improved).
      * Map of URI segments and namespaces.
@@ -135,7 +121,6 @@ class Routing extends BaseRouting
      * @var array<string, string>
      */
     public array $moduleRoutes = [];
-
     /**
      * For Auto Routing (Improved).
      * Whether to translate dashes in URIs for controller/method to CamelCase.

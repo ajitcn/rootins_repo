@@ -3,7 +3,6 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-
 class CURLRequest extends BaseConfig
 {
     /**
@@ -17,11 +16,7 @@ class CURLRequest extends BaseConfig
      *
      * @see https://www.php.net/manual/en/curl.constants.php#constant.curl-lock-data-connect
      */
-    public array $shareConnectionOptions = [
-        CURL_LOCK_DATA_CONNECT,
-        CURL_LOCK_DATA_DNS,
-    ];
-
+    public array $shareConnectionOptions = [CURL_LOCK_DATA_CONNECT, CURL_LOCK_DATA_DNS];
     /**
      * --------------------------------------------------------------------------
      * CURLRequest Share Options

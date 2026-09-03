@@ -12,7 +12,6 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
-
 class Filters extends BaseFilters
 {
     /**
@@ -24,21 +23,7 @@ class Filters extends BaseFilters
      * [filter_name => classname]
      * or [filter_name => [classname1, classname2, ...]]
      */
-    public array $aliases = [
-        'csrf'          => CSRF::class,
-        'toolbar'       => DebugToolbar::class,
-        'honeypot'      => Honeypot::class,
-        'invalidchars'  => InvalidChars::class,
-        'secureheaders' => SecureHeaders::class,
-        'cors'          => Cors::class,
-        'forcehttps'    => ForceHTTPS::class,
-        'pagecache'     => PageCache::class,
-        'performance'   => PerformanceMetrics::class,
-
-        'auth'          => \App\Filters\Auth::class,
-        'permission'    => \App\Filters\Permission::class,
-    ];
-
+    public array $aliases = ['csrf' => CSRF::class, 'toolbar' => DebugToolbar::class, 'honeypot' => Honeypot::class, 'invalidchars' => InvalidChars::class, 'secureheaders' => SecureHeaders::class, 'cors' => Cors::class, 'forcehttps' => ForceHTTPS::class, 'pagecache' => PageCache::class, 'performance' => PerformanceMetrics::class, 'auth' => \App\Filters\Auth::class, 'permission' => \App\Filters\Permission::class];
     /**
      * List of special required filters.
      *
@@ -52,18 +37,17 @@ class Filters extends BaseFilters
      *
      * @var array{before: list<string>, after: list<string>}
      */
-    public array $required = [
-        'before' => [
-            'forcehttps', // Force Global Secure Requests
-            'pagecache',  // Web Page Caching
-        ],
-        'after' => [
-            'pagecache',   // Web Page Caching
-            'performance', // Performance Metrics
-            'toolbar',     // Debug Toolbar
-        ],
-    ];
-
+    public array $required = ['before' => [
+        'forcehttps',
+        // Force Global Secure Requests
+        'pagecache',
+    ], 'after' => [
+        'pagecache',
+        // Web Page Caching
+        'performance',
+        // Performance Metrics
+        'toolbar',
+    ]];
     /**
      * List of filter aliases that are always
      * applied before and after every request.
@@ -73,18 +57,10 @@ class Filters extends BaseFilters
      *     after: array<string, array{except: list<string>|string}>|list<string>
      * }
      */
-    public array $globals = [
-        'before' => [
-            // 'honeypot',
-            'csrf',
-            // 'invalidchars',
-        ],
-        'after' => [
-            // 'honeypot',
-            // 'secureheaders',
-        ],
-    ];
-
+    public array $globals = ['before' => [
+        // 'honeypot',
+        'csrf' => ['except' => ['api/v1/*']],
+    ], 'after' => []];
     /**
      * List of filter aliases that works on a
      * particular HTTP method (GET, POST, etc.).
@@ -99,7 +75,6 @@ class Filters extends BaseFilters
      * @var array<string, list<string>>
      */
     public array $methods = [];
-
     /**
      * List of filter aliases that should run on any
      * before or after URI patterns.

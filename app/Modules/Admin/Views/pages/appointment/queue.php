@@ -22,7 +22,7 @@
             </div>
             <div class="col-md-4">
                 <label for="queueDate">Date</label>
-                <input type="date" id="queueDate" name="appointment_date" class="form-control" value="<?= esc($selectedDate) ?>">
+                <input type="text" id="queueDate" name="appointment_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off" value="<?= esc($selectedDate) ?>">
             </div>
             <div class="col-md-3">
                 <button type="button" class="btn theme-btn" id="loadAppointmentQueue">Load Queue</button>
@@ -32,7 +32,7 @@
     <?= form_close() ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable" id="appointmentQueueTable">
+        <table class="table table-bordered table-hover" id="appointmentQueueTable">
             <thead class="thead-light">
                 <tr>
                     <th width="80">Position</th>

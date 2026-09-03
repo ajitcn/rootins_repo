@@ -17,7 +17,8 @@
 
 
     <!-- main content -->
-    <div class="action-btn-container">
+    <div class="action-btn-container d-flex justify-content-end mb-3">
+        <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorDocumentFilter', 'filters' => $filters ?? []]) ?>
 
         <button class="btn btn-sm theme-btn open_doctor_document_modal">
             + New Doctor Document
@@ -264,7 +265,7 @@
                                         'admin/doctor-documents/download/' .
                                         $row['id']
                                     ) ?>"
-                                    class="btn btn-sm btn-success"
+                                    class="btn btn-sm btn-outline-success"
                                     title="Download">
 
                                     <i class="fa fa-download"></i>
@@ -274,7 +275,7 @@
 
                                 <!-- Edit -->
                                 <button
-                                    class="btn btn-sm btn-primary"
+                                    class="btn btn-sm btn-outline-primary"
                                     title="Edit"
                                     onclick="editDoctorDocumentForm(<?= $row['id'] ?>)">
 
@@ -289,7 +290,7 @@
                                         'admin/doctor-documents/delete/' .
                                         $row['id']
                                     ) ?>"
-                                    class="btn btn-sm btn-danger"
+                                    class="btn btn-sm btn-outline-danger"
                                     title="Delete"
                                     onclick="return confirm('Are you sure you want to delete this document?')">
 
@@ -328,6 +329,7 @@
 
     </div>
 
+<?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_documents', 'filters' => $filters ?? []]) ?>
 </main>
 
 

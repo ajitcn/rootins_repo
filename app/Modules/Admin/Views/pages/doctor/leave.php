@@ -17,7 +17,8 @@
  	?>
 
  	<!-- main content -->
-  		<div class="action-btn-container">
+        <div class="action-btn-container d-flex justify-content-end mb-3">
+            <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorLeaveFilter', 'filters' => $filters ?? []]) ?>
   			<button class="btn btn-sm theme-btn open_doctor_leave_modal">+ New Leave</button>
   		</div>
 
@@ -105,13 +106,13 @@
                             <td>
 
                                 <button
-                                    class="btn btn-sm btn-primary"
+                                    class="btn btn-sm btn-outline-primary"
                                     onclick="openLeaveStatusForm(<?= $row['id'] ?>, '<?= $row['status'] ?>')">
                                     <i class="fa fa-edit"></i>
                                 </button>
 
                                 <a href="<?= base_url('admin/doctor-leaves/delete/' . $row['id']) ?>"
-                                   class="btn btn-sm btn-danger"
+                                   class="btn btn-sm btn-outline-danger"
                                    onclick="return confirm('Are you sure?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
@@ -139,15 +140,15 @@
         </div>
  
 
+<?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_leaves', 'filters' => $filters ?? []]) ?>
 </main>
-
 
 
 <?= view(ADMIN_VIEW.'pages/doctor/modals/_leave')?>
 
 
+
 	<?= $this->section('scripts') ?>
 	<script src="<?= base_url('assets/js/admin/doctor/doctor_leave.js') ?>"></script>
 	<?= $this->endSection() ?>
-
  <?= $this->endSection()?>

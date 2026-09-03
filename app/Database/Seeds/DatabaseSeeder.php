@@ -3,7 +3,6 @@
 namespace App\Database\Seeds;
 
 use CodeIgniter\Database\Seeder;
-
 class DatabaseSeeder extends Seeder
 {
     public function run()
@@ -12,6 +11,6 @@ class DatabaseSeeder extends Seeder
         $this->call('PermissionSeeder');
         $this->call('RolePermissionSeeder');
         $this->call('DoctorSpecializationSeeder');
-        
+        $this->call('AdminConfigurationSeeder');
     }
 }

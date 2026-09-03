@@ -2,6 +2,7 @@
 
 <?= $this->section('main-content') ?>
 
+<?php $filters = $filters ?? []; ?>
 <main class="dashboard-container">
     <?= view('templates/_breadcrumb', [
         'module'     => 'admin',
@@ -9,16 +10,22 @@
         'page'       => 'Appointments',
     ]) ?>
 
-    <div class="action-btn-container">
-        <button type="button" class="btn btn-sm theme-btn" id="openAppointmentModal">
-            + New Appointment
-        </button>
+    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-2 mb-md-0">Appointments</h1>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#appointmentFilterModal">
+                <i class="bi bi-funnel" aria-hidden="true"></i> Filters
+            </button>
+            <button type="button" class="btn btn-sm theme-btn" id="openAppointmentModal">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> New Appointment
+            </button>
+        </div>
     </div>
 
     <?= display_session_msg() ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
+        <table class="table table-bordered table-hover" id="appointments-table">
             <thead class="thead-light">
                 <tr>
                     <th width="130">Appointment No.</th>
@@ -33,6 +40,9 @@
                 </tr>
             </thead>
             <tbody>
+                <?php if ($appointments === []): ?>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No appointments match the selected filters.</td></tr>
+                <?php endif; ?>
                 <?php foreach ($appointments as $appointment): ?>
                     <?php
                     $patientName = trim(implode(' ', array_filter([
@@ -62,15 +72,22 @@
                             </span>
                         </td>
                         <td>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="tooltip"
+                                    title="Created: <?= esc((string) ($appointment['created_at'] ?? '—')) ?> | Updated: <?= esc((string) ($appointment['updated_at'] ?? '—')) ?>"
+                                    aria-label="Show created and updated dates"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button>
+                            <a href="<?= base_url('admin/appointments/view/' . (int) $appointment['id']) ?>"
+                               class="btn btn-sm btn-outline-primary" aria-label="View appointment <?= esc($appointment['appointment_number']) ?>">
+                                View
+                            </a>
                             <button type="button"
-                                    class="btn btn-sm btn-primary edit-appointment"
-                                    data-id="<?= (int) $appointment['id'] ?>">
-                                <i class="bi bi-pencil-square"></i>
+                                    class="btn btn-sm btn-outline-primary edit-appointment"
+                                    data-id="<?= (int) $appointment['id'] ?>" aria-label="Edit appointment <?= esc($appointment['appointment_number']) ?>">
+                                Edit
                             </button>
                             <button type="button"
-                                    class="btn btn-sm btn-danger delete-appointment"
-                                    data-id="<?= (int) $appointment['id'] ?>">
-                                <i class="bi bi-trash"></i>
+                                    class="btn btn-sm btn-outline-danger delete-appointment"
+                                    data-id="<?= (int) $appointment['id'] ?>" aria-label="Delete appointment <?= esc($appointment['appointment_number']) ?>">
+                                Delete
                             </button>
                         </td>
                     </tr>
@@ -78,7 +95,83 @@
             </tbody>
         </table>
     </div>
+    <?= view(ADMIN_VIEW . 'parts/doctor_pagination', [
+        'pager'   => $pager ?? null,
+        'group'   => 'appointments',
+        'filters' => $filters,
+    ]) ?>
 </main>
+
+<div class="modal fade" id="appointmentFilterModal" tabindex="-1" role="dialog" aria-labelledby="appointmentFilterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="appointmentFilterTitle">Filter appointments</h2>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form method="get" action="<?= current_url() ?>">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="appointmentFilterSearch">Search</label>
+                            <input type="search" class="form-control" id="appointmentFilterSearch" name="search" value="<?= esc($filters['search'] ?? '') ?>" placeholder="Appointment no., patient, doctor, clinic">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="appointmentFilterStatus">Status</label>
+                            <select class="form-control btSelect" id="appointmentFilterStatus" name="status" title="All statuses">
+                                <option value="">All statuses</option>
+                                <?php foreach (['scheduled', 'confirmed', 'checked_in', 'in_queue', 'completed', 'cancelled', 'no_show'] as $status): ?>
+                                    <option value="<?= esc($status) ?>" <?= ($filters['status'] ?? '') === $status ? 'selected' : '' ?>><?= esc(ucwords(str_replace('_', ' ', $status))) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="appointmentFilterType">Type</label>
+                            <select class="form-control btSelect" id="appointmentFilterType" name="appointment_type" title="All types">
+                                <option value="">All types</option>
+                                <?php foreach (['in_person', 'video', 'phone'] as $type): ?>
+                                    <option value="<?= esc($type) ?>" <?= ($filters['appointment_type'] ?? '') === $type ? 'selected' : '' ?>><?= esc(ucwords(str_replace('_', ' ', $type))) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="appointmentFilterClinic">Clinic</label>
+                            <select class="form-control btSelect" id="appointmentFilterClinic" name="clinic_id" title="All clinics">
+                                <option value="">All clinics</option>
+                                <?php foreach ($clinics as $clinic): ?>
+                                    <option value="<?= (int) $clinic['id'] ?>" <?= (string) ($filters['clinic_id'] ?? '') === (string) $clinic['id'] ? 'selected' : '' ?>><?= esc($clinic['clinic_name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="appointmentFilterDoctor">Doctor</label>
+                            <select class="form-control btSelect" id="appointmentFilterDoctor" name="doctor_id" title="All doctors">
+                                <option value="">All doctors</option>
+                                <?php foreach ($doctors as $doctor): ?>
+                                    <?php $doctorLabel = trim($doctor['first_name'] . ' ' . $doctor['last_name']); ?>
+                                    <option value="<?= (int) $doctor['id'] ?>" <?= (string) ($filters['doctor_id'] ?? '') === (string) $doctor['id'] ? 'selected' : '' ?>>Dr. <?= esc($doctorLabel . ' (' . $doctor['doctor_code'] . ')') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="appointmentFilterFrom">Date from</label>
+                            <input type="text" class="form-control datepicker" id="appointmentFilterFrom" name="date_from" value="<?= esc($filters['date_from'] ?? '') ?>" placeholder="dd-mm-yyyy" autocomplete="off">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="appointmentFilterTo">Date to</label>
+                            <input type="text" class="form-control datepicker" id="appointmentFilterTo" name="date_to" value="<?= esc($filters['date_to'] ?? '') ?>" placeholder="dd-mm-yyyy" autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="<?= current_url() ?>" class="btn btn-outline-secondary">Clear</a>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Apply filters</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -137,7 +230,7 @@
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="appointment_date">Date <span class="text-danger">*</span></label>
-                                <input type="date" name="appointment_date" id="appointment_date" class="form-control">
+                            <input type="text" name="appointment_date" id="appointment_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
                                 <div class="validation-error" id="appointment_dateErr"></div>
                             </div>
                         </div>

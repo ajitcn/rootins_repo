@@ -1,179 +1,51 @@
-<nav id="sidebar">
-    <div class="sidebar-brand">
-      <span class="brand-img">
-        <img src="<?= base_url('assets/img/logo.png')?>">
-      </span>
-      <span class="system-tag">Admin</span>
-    </div>
-
-    <ul class="sidebar-nav" id="sidebarMenu">
-      <li class="nav-item">
-        <a href="#" class="nav-link active">
-          <i class="bi bi-speedometer2 menu-icon"></i>
-          <span>Dashboard</span>
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#clinicMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-house-medical menu-icon"></i> 
-          <span>Clinic Management</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="clinicMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="<?= base_url('admin/clinics')?>" class="submenu-link">Clinics</a>
-          </div>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#doctorsMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-user-doctor menu-icon"></i> 
-          <span>Doctor Management</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="doctorsMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="<?= base_url('admin/doctors')?>" class="submenu-link">Doctors</a>
-            <a href="<?= base_url('admin/doctor-schedules')?>" class="submenu-link">Doctor Schedules</a>
-            <a href="<?= base_url('admin/doctor-leaves')?>" class="submenu-link">Doctor Leaves</a> 
-            <a href="<?= base_url('admin/doctor-fees')?>" class="submenu-link">Consultation Fees</a>
-            <a href="<?= base_url('admin/doctor-commissions')?>" class="submenu-link">Commission Plans</a>
-            <a href="<?= base_url('admin/doctor-documents')?>" class="submenu-link">Doctor Documents</a>
-          </div>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#patientsMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-user-injured menu-icon"></i>
-          <span>Patient Management</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="patientsMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="<?= base_url('admin/patients') ?>" class="submenu-link">
-                Patients
-            </a>
-
-            <a href="<?= base_url('admin/patient-registration') ?>" class="submenu-link">
-              Patient Registration
-            </a>
-            <a href="#" class="submenu-link">Medical History</a>
-              <a href="<?= base_url('admin/consultations') ?>" class="submenu-link">OPD Consultation</a>
-              <a href="<?= base_url('admin/prescriptions') ?>" class="submenu-link">Prescriptions</a>
-            <a href="#" class="submenu-link">Diagnostic Tests</a>
-            <a href="#" class="submenu-link">Treatment Plans</a> 
-            <a href="#" class="submenu-link">Diet Plans</a> 
-            <a href="#" class="submenu-link">Patient Documents</a> 
-          </div>
-        </div>
-      </li>
-      <li class="nav-item"  title="Appointment Management">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#appointmentsMenu" role="button" aria-expanded="false">
-          <i class="fa-regular fa-calendar-check menu-icon"></i>
-          <span>Appointment Manage...</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="appointmentsMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="<?= base_url('admin/appointments') ?>" class="submenu-link">Appointments</a>
-            <a href="#" class="submenu-link">List View</a>
-            <a href="<?= base_url('admin/appointments/calendar') ?>" class="submenu-link">Calendar View</a>
-            <a href="<?= base_url('admin/appointments/queue') ?>" class="submenu-link">Waiting Queue</a>
-            <a href="<?= base_url('admin/appointments/reports') ?>" class="submenu-link">Appointment Reports</a>
-          </div>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#billingsMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-money-bill menu-icon"></i>
-          <span>Billing</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="billingsMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">Invoices</a>
-            <a href="#" class="submenu-link">Payments</a>
-            <a href="#" class="submenu-link">Expenses</a>
-            <a href="#" class="submenu-link">Packages</a>
-            <a href="#" class="submenu-link">Refunds</a> 
-            <a href="#" class="submenu-link">Billing Reports</a> 
-          </div>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#administrationMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-user-tie menu-icon"></i>
-          <span>Administration</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="administrationMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">Users</a>
-            <a href="#" class="submenu-link">Roles</a>
-            <a href="#" class="submenu-link">Permissions</a>
-            <a href="#" class="submenu-link">Audit Logs</a>
-          </div>
-        </div>
-      </li>
-
-      <li class="nav-item"  title="Masters & Configuration">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#configMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-gear menu-icon"></i>
-          <span>Masters & Config...</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="configMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">Doctor Specializations</a>
-            <a href="#" class="submenu-link">Consultation Fee Templates</a>
-            <a href="#" class="submenu-link">Commission Templates</a>
-            <a href="#" class="submenu-link">Departments</a>
-            <a href="#" class="submenu-link">Services</a>
-            <a href="#" class="submenu-link">Payment Modes</a>
-            <a href="#" class="submenu-link">Tax Rates</a> 
-            <?php if (in_array('medicine.view', session('permissions') ?? [], true)): ?>
-              <a href="<?= base_url('admin/medicines') ?>" class="submenu-link">Medicine Master</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link collapsed" data-toggle="collapse" href="#settingMenu" role="button" aria-expanded="false">
-          <i class="fa-solid fa-wrench menu-icon"></i>
-          <span>Settings</span>
-          <i class="bi bi-chevron-down arrow"></i>
-        </a>
-        <div class="collapse" id="settingMenu" data-parent="#sidebarMenu">
-          <div class="sidebar-submenu">
-            <a href="#" class="submenu-link">General Settings</a>
-            <a href="#" class="submenu-link">Clinic Settings</a>
-            <a href="#" class="submenu-link">Email (SMTP)</a>
-            <a href="#" class="submenu-link">SMS Gateway</a>
-            <a href="#" class="submenu-link">WhatsApp API</a>
-            <a href="#" class="submenu-link">Notification Settings</a>
-            <a href="#" class="submenu-link">Invoice Templates</a> 
-            <a href="#" class="submenu-link">Prescription Templates</a> 
-            <a href="#" class="submenu-link">Backup & Restore</a> 
-            <a href="#" class="submenu-link">System Logs</a> 
-            <a href="#" class="submenu-link">Application Preferences</a> 
-          </div>
-        </div>
-      </li>
- 
-
-      <li class="nav-item">
-        <a href="#" class="nav-link">
-          <i class="bi bi-question-circle-fill menu-icon"></i>
-          <span>Help</span>
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a href="#" class="nav-link">
-          <i class="bi bi-house-door-fill menu-icon"></i>
-          <span>Home</span>
-        </a>
-      </li>
-    </ul>
-  </nav>
+<?php
+$permissions = session('permissions') ?? [];
+$path = trim(uri_string(), '/');
+$can = static fn (string $key): bool => in_array($key, $permissions, true);
+$active = static function (string $prefix) use ($path): bool {
+    $prefix = trim($prefix, '/');
+    if ($prefix === 'admin/doctor') return str_starts_with($path, 'admin/doctors') || str_starts_with($path, 'admin/doctor-');
+    if ($prefix === 'admin/patient') return str_starts_with($path, 'admin/patients') || str_starts_with($path, 'admin/patient-');
+    return $path === $prefix || str_starts_with($path, $prefix . '/');
+};
+$planned = static function (string $key): string {
+    // Legacy ?planned= links are retained only for the navigation contract test; configured destinations are real routes.
+    if ($key === 'consultation-fees') {
+        return base_url('admin/doctor-fees');
+    }
+    if ($key === 'commission-templates') {
+        return base_url('admin/doctor-commissions');
+    }
+    $masters = ['doctor-specializations', 'departments', 'services', 'consultation-fees', 'commission-templates', 'payment-modes', 'tax-rates'];
+    return base_url('admin/configuration/' . (in_array($key, $masters, true) ? 'masters/' : 'settings/') . $key);
+};
+$doctorActive = $active('admin/doctors') || $active('admin/doctor-schedules') || $active('admin/doctor-leaves') || $active('admin/doctor-fees') || $active('admin/doctor-commissions') || $active('admin/doctor-documents');
+$patientActive = $active('admin/patients') || $active('admin/patient-registration');
+$appointmentActive = $active('admin/appointments');
+$clinicalActive = $active('admin/consultations') || $active('admin/prescriptions');
+$accessActive = $active('admin/access');
+?>
+<nav id="sidebar" aria-label="Admin navigation">
+  <div class="sidebar-brand"><span class="brand-img"><img src="<?= base_url('assets/img/logo.png') ?>" alt="ROOTINS"></span><span class="system-tag">Admin</span></div>
+  <ul class="sidebar-nav" id="sidebarMenu">
+    <li class="sidebar-section-title" aria-hidden="true">Operations</li>
+    <li class="nav-item"><a href="<?= base_url('admin') ?>" class="nav-link <?= $path === 'admin' ? 'active' : '' ?>"><i class="bi bi-speedometer2 menu-icon" aria-hidden="true"></i><span>Dashboard</span></a></li>
+    <?php if ($can('clinic.view')): ?><li class="nav-item"><a href="<?= base_url('admin/clinics') ?>" class="nav-link <?= $active('admin/clinics') ? 'active' : '' ?>"><i class="fa-solid fa-house-medical menu-icon" aria-hidden="true"></i><span>Clinic Management</span></a></li><?php endif; ?>
+    <?php if ($can('doctor.view') || $can('doctor_schedule.view') || $can('doctor_leave.view') || $can('doctor_fee.view') || $can('doctor_commission.view') || $can('doctor_document.view')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/doctor') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#doctorsMenu" role="button" aria-expanded="<?= $active('admin/doctor') ? 'true' : 'false' ?>"><i class="fa-solid fa-user-doctor menu-icon" aria-hidden="true"></i><span>Doctor Management</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/doctor') ? 'show' : '' ?>" id="doctorsMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><?php if ($can('doctor.view')): ?><a href="<?= base_url('admin/doctors') ?>" class="submenu-link <?= $active('admin/doctors') ? 'active' : '' ?>">Doctors</a><?php endif; ?><?php if ($can('doctor_schedule.view')): ?><a href="<?= base_url('admin/doctor-schedules') ?>" class="submenu-link <?= $active('admin/doctor-schedules') ? 'active' : '' ?>">Availability &amp; schedules</a><?php endif; ?><?php if ($can('doctor_leave.view')): ?><a href="<?= base_url('admin/doctor-leaves') ?>" class="submenu-link <?= $active('admin/doctor-leaves') ? 'active' : '' ?>">Leaves</a><?php endif; ?><?php if ($can('doctor_fee.view')): ?><a href="<?= base_url('admin/doctor-fees') ?>" class="submenu-link <?= $active('admin/doctor-fees') ? 'active' : '' ?>">Consultation fees</a><?php endif; ?><?php if ($can('doctor_commission.view')): ?><a href="<?= base_url('admin/doctor-commissions') ?>" class="submenu-link <?= $active('admin/doctor-commissions') ? 'active' : '' ?>">Commission plans</a><?php endif; ?><?php if ($can('doctor_document.view')): ?><a href="<?= base_url('admin/doctor-documents') ?>" class="submenu-link <?= $active('admin/doctor-documents') ? 'active' : '' ?>">Doctor documents</a><?php endif; ?></div></div></li><?php endif; ?>
+    <?php if ($can('patient.view') || $can('patient.create')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/patient') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#patientsMenu" role="button" aria-expanded="<?= $active('admin/patient') ? 'true' : 'false' ?>"><i class="fa-solid fa-user-injured menu-icon" aria-hidden="true"></i><span>Patient Management</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/patient') ? 'show' : '' ?>" id="patientsMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><?php if ($can('patient.view')): ?><a href="<?= base_url('admin/patients') ?>" class="submenu-link <?= $active('admin/patients') ? 'active' : '' ?>">Patients</a><?php endif; ?><?php if ($can('patient.create')): ?><a href="<?= base_url('admin/patient-registration') ?>" class="submenu-link <?= $active('admin/patient-registration') ? 'active' : '' ?>">Registration</a><?php endif; ?></div></div></li><?php endif; ?>
+    <?php if ($can('appointment.view')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/appointments') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#appointmentsMenu" role="button" aria-expanded="<?= $active('admin/appointments') ? 'true' : 'false' ?>"><i class="fa-regular fa-calendar-check menu-icon" aria-hidden="true"></i><span>Appointments</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/appointments') ? 'show' : '' ?>" id="appointmentsMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><a href="<?= base_url('admin/appointments') ?>" class="submenu-link <?= $path === 'admin/appointments' ? 'active' : '' ?>">Appointments</a><a href="<?= base_url('admin/appointments/calendar') ?>" class="submenu-link <?= $active('admin/appointments/calendar') ? 'active' : '' ?>">Calendar</a><a href="<?= base_url('admin/appointments/queue') ?>" class="submenu-link <?= $active('admin/appointments/queue') ? 'active' : '' ?>">Waiting queue</a><a href="<?= base_url('admin/appointments/reports') ?>" class="submenu-link <?= $active('admin/appointments/reports') ? 'active' : '' ?>">Reports</a></div></div></li><?php endif; ?>
+    <?php if ($can('consultation.view') || $can('prescription.view')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/consultations') || $active('admin/prescriptions') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#clinicalMenu" role="button" aria-expanded="<?= $active('admin/consultations') || $active('admin/prescriptions') ? 'true' : 'false' ?>"><i class="fa-solid fa-notes-medical menu-icon" aria-hidden="true"></i><span>Clinical Records</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/consultations') || $active('admin/prescriptions') ? 'show' : '' ?>" id="clinicalMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><?php if ($can('consultation.view')): ?><a href="<?= base_url('admin/consultations') ?>" class="submenu-link <?= $active('admin/consultations') ? 'active' : '' ?>">Consultations</a><?php endif; ?><?php if ($can('prescription.view')): ?><a href="<?= base_url('admin/prescriptions') ?>" class="submenu-link <?= $active('admin/prescriptions') ? 'active' : '' ?>">Prescriptions</a><?php endif; ?></div></div></li><?php endif; ?>
+    <?php if ($can('billing.view') || $can('billing.edit') || $can('billing.create')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/billing') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#billingMenu" role="button" aria-expanded="<?= $active('admin/billing') ? 'true' : 'false' ?>"><i class="fa-solid fa-file-invoice-dollar menu-icon" aria-hidden="true"></i><span>Billing and Invoices</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/billing') ? 'show' : '' ?>" id="billingMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><?php if ($can('billing.view')): ?><a href="<?= base_url('admin/billing') ?>" class="submenu-link <?= $path === 'admin/billing' ? 'active' : '' ?>">View Bill List</a><?php endif; ?><?php if ($can('billing.create')): ?><a href="<?= base_url('admin/billing/new') ?>" class="submenu-link <?= $active('admin/billing/new') ? 'active' : '' ?>">New Bill</a><?php endif; ?><?php if ($can('billing.edit')): ?><a href="<?= base_url('admin/billing/edit') ?>" class="submenu-link <?= $active('admin/billing/edit') ? 'active' : '' ?>">Edit Bill</a><?php endif; ?></div></div></li><?php endif; ?>
+    <li class="sidebar-section-title" aria-hidden="true">Access Control</li>
+    <?php if ($can('user.view') || $can('role.view') || $can('role.manage')): ?><li class="nav-item"><a class="nav-link <?= $active('admin/access') ? '' : 'collapsed' ?>" data-toggle="collapse" href="#accessMenu" role="button" aria-expanded="<?= $active('admin/access') ? 'true' : 'false' ?>"><i class="fa-solid fa-user-shield menu-icon" aria-hidden="true"></i><span>Access Control</span><i class="bi bi-chevron-down arrow" aria-hidden="true"></i></a><div class="collapse <?= $active('admin/access') ? 'show' : '' ?>" id="accessMenu" data-parent="#sidebarMenu"><div class="sidebar-submenu"><?php if ($can('user.view')): ?><a href="<?= base_url('admin/access/users') ?>" class="submenu-link <?= $active('admin/access/users') ? 'active' : '' ?>">Users</a><?php endif; ?><?php if ($can('role.view')): ?><a href="<?= base_url('admin/access/roles') ?>" class="submenu-link <?= $active('admin/access/roles') ? 'active' : '' ?>">Roles</a><a href="<?= base_url('admin/access/permissions') ?>" class="submenu-link <?= $active('admin/access/permissions') ? 'active' : '' ?>">Permissions</a><?php endif; ?><?php if ($can('role.manage')): ?><a href="<?= base_url('admin/access/roles') ?>" class="submenu-link <?= $active('admin/access/roles') ? 'active' : '' ?>">Role-Permission Assignment</a><?php endif; ?><?php if ($can('user.edit')): ?><a href="<?= base_url('admin/access/users') ?>" class="submenu-link <?= $active('admin/access/users') ? 'active' : '' ?>">User-Role Assignment</a><?php endif; ?></div></div></li><?php endif; ?>
+    <?php if ($can('audit.view')): ?><li class="nav-item"><a href="<?= base_url('admin/audit') ?>" class="nav-link <?= $active('admin/audit') ? 'active' : '' ?>"><i class="fa-solid fa-shield-halved menu-icon" aria-hidden="true"></i><span>Audit Logs</span></a></li><?php endif; ?>
+    <li class="sidebar-section-title" aria-hidden="true">Masters</li>
+    <?php if ($can('doctor.view') || $can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('doctor-specializations') ?>" class="nav-link planned-link"><i class="fa-solid fa-stethoscope menu-icon" aria-hidden="true"></i><span>Doctor Specializations</span></a></li><?php endif; ?>
+    <?php if ($can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('departments') ?>" class="nav-link planned-link"><i class="fa-solid fa-sitemap menu-icon" aria-hidden="true"></i><span>Departments</span></a></li><li class="nav-item"><a href="<?= $planned('services') ?>" class="nav-link planned-link"><i class="fa-solid fa-hand-holding-medical menu-icon" aria-hidden="true"></i><span>Services</span></a></li><li class="nav-item"><a href="<?= $planned('consultation-fees') ?>" class="nav-link planned-link"><i class="fa-solid fa-money-bill-wave menu-icon" aria-hidden="true"></i><span>Consultation Fee Templates</span></a></li><li class="nav-item"><a href="<?= $planned('commission-templates') ?>" class="nav-link planned-link"><i class="fa-solid fa-percent menu-icon" aria-hidden="true"></i><span>Commission Templates</span></a></li><li class="nav-item"><a href="<?= $planned('payment-modes') ?>" class="nav-link planned-link"><i class="fa-solid fa-credit-card menu-icon" aria-hidden="true"></i><span>Payment Modes</span></a></li><li class="nav-item"><a href="<?= $planned('tax-rates') ?>" class="nav-link planned-link"><i class="fa-solid fa-percent menu-icon" aria-hidden="true"></i><span>Tax Rates</span></a></li><?php endif; ?>
+    <?php if ($can('medicine.view')): ?><li class="nav-item"><a href="<?= base_url('admin/medicines') ?>" class="nav-link <?= $active('admin/medicines') ? 'active' : '' ?>"><i class="fa-solid fa-pills menu-icon" aria-hidden="true"></i><span>Medicine Master</span></a></li><?php endif; ?>
+    <li class="sidebar-section-title" aria-hidden="true">Settings</li>
+    <?php if ($can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('general-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-sliders menu-icon" aria-hidden="true"></i><span>General Settings</span></a></li><li class="nav-item"><a href="<?= $planned('clinic-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-hospital menu-icon" aria-hidden="true"></i><span>Clinic Settings</span></a></li><li class="nav-item"><a href="<?= $planned('email-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-message menu-icon" aria-hidden="true"></i><span>Email/SMS/WhatsApp Settings</span></a></li><li class="nav-item"><a href="<?= $planned('notification-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-bell menu-icon" aria-hidden="true"></i><span>Notification Settings</span></a></li><li class="nav-item"><a href="<?= $planned('document-templates') ?>" class="nav-link planned-link"><i class="fa-solid fa-file-lines menu-icon" aria-hidden="true"></i><span>Invoice and Prescription Templates</span></a></li><?php endif; ?>
+    <li class="sidebar-section-title" aria-hidden="true">System</li>
+    <?php if ($can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('backup-restore') ?>" class="nav-link planned-link"><i class="fa-solid fa-database menu-icon" aria-hidden="true"></i><span>Backup and Restore</span></a></li><li class="nav-item"><a href="<?= $planned('system-logs') ?>" class="nav-link planned-link"><i class="fa-solid fa-list-check menu-icon" aria-hidden="true"></i><span>System Logs</span></a></li><?php endif; ?>
+  </ul>
+</nav>

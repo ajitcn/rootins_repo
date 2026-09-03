@@ -1,0 +1,15 @@
+<?= $this->extend(ADMIN_VIEW . 'layout') ?>
+<?= $this->section('main-content') ?>
+<main class="dashboard-container" aria-labelledby="billing-edit-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Billing and Invoices', 'page' => 'Edit Draft Invoice']) ?>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3"><div><h1 id="billing-edit-title" class="h4 mb-1">Edit Draft Invoice</h1><p class="text-muted mb-0"><?= esc($invoice['invoice_number']) ?> · INR</p></div><a href="<?= base_url('admin/billing') ?>" class="btn btn-outline-secondary">Back to bill list</a></div>
+    <div id="billing-alert" role="status" aria-live="polite"></div>
+    <div class="card"><div class="card-body"><form id="invoice-edit-form"><input type="hidden" name="csrf_rtn" value="<?= csrf_hash() ?>">
+        <div class="form-row"><div class="form-group col-md-4"><label for="edit-invoice-description">Description</label><input id="edit-invoice-description" class="form-control" name="items[0][description]" value="<?= esc($items[0]['description'] ?? '') ?>" required></div><div class="form-group col-md-2"><label for="edit-invoice-qty">Quantity</label><input id="edit-invoice-qty" class="form-control" name="items[0][quantity]" type="number" min="0.01" step="0.01" value="<?= esc($items[0]['quantity'] ?? 1) ?>" required></div><div class="form-group col-md-2"><label for="edit-invoice-price">Unit price (INR)</label><input id="edit-invoice-price" class="form-control" name="items[0][unit_price]" type="number" min="0" step="0.01" value="<?= esc($items[0]['unit_price'] ?? 0) ?>" required></div><div class="form-group col-md-2"><label for="edit-invoice-tax">Tax</label><input id="edit-invoice-tax" class="form-control" name="tax" type="number" min="0" step="0.01" value="<?= esc($invoice['tax']) ?>"></div><div class="form-group col-md-2"><label for="edit-invoice-discount">Discount</label><input id="edit-invoice-discount" class="form-control" name="discount" type="number" min="0" step="0.01" value="<?= esc($invoice['discount']) ?>"></div></div>
+        <div class="validation-error mb-3" id="itemsErr"></div><button class="btn btn-primary" type="submit">Save draft</button><a href="<?= base_url('admin/billing') ?>" class="btn btn-outline-secondary ml-2">Cancel</a>
+    </form></div></div>
+</main>
+<?= $this->section('scripts') ?><script>
+$(function(){$('#invoice-edit-form').on('submit',function(e){e.preventDefault();ajaxRequest({url:'<?= base_url('admin/billing/update/' . (int) $invoice['id']) ?>',data:$(this).serialize(),success:function(r){if(r.status){showSuccess(r.msg);window.location.href='<?= base_url('admin/billing') ?>';}else{showError(r.msg);if(r.errors)bindFormError('#invoice-edit-form',r.errors);}}});});});
+</script><?= $this->endSection() ?>
+<?= $this->endSection() ?>

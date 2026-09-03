@@ -2,7 +2,7 @@
 <div class="modal fade" id="clinicModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-md">
         <div class="modal-content">
-            <?= form_open('admin/clinic/store', 'id="clinicForm" autocomplete="off" ')?>
+            <?= form_open('admin/clinics/create', 'id="clinicForm" autocomplete="off" ')?>
                 <input type="hidden" name="clinic_id">
                 <div class="modal-header">
                     <h5 class="modal-title"> Add New Clinic </h5>
@@ -72,8 +72,8 @@
                         </div>
                         <!-- Status -->
                         <div class="col-md-6">
-                            <label class="form-label"> Status </label>
-                            <select class="form-control" name="status">
+                            <label class="form-label" for="clinic_status"> Status </label>
+                            <select class="form-control" name="status" id="clinic_status">
                                 <option value="1"> Active </option>
                                 <option value="0"> Inactive </option>
                             </select>

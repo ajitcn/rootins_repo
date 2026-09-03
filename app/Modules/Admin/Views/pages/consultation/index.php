@@ -1,25 +1,24 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
+<?php $filters = $filters ?? []; ?>
 <main class="dashboard-container">
     <?= view('templates/_breadcrumb', [
         'module'     => 'admin',
-        'menu_title' => 'Patient Management',
+        'menu_title' => 'Clinical Records',
         'page'       => 'OPD Consultations',
     ]) ?>
 
-    <?php if ($canCreate): ?>
-        <div class="action-btn-container">
-            <button type="button" class="btn btn-sm theme-btn" id="openConsultationModal">
-                + New Consultation
-            </button>
-        </div>
-    <?php endif; ?>
+    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-2 mb-md-0">Consultations</h1>
+        <div><button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#consultationFilterModal"><i class="bi bi-funnel" aria-hidden="true"></i> Filters</button>
+        <?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openConsultationModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> New Consultation</button><?php endif; ?></div>
+    </div>
 
     <?= display_session_msg() ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
+        <table class="table table-bordered table-hover" id="consultations-table">
             <thead class="thead-light">
                 <tr>
                     <th>Consultation No.</th>
@@ -33,6 +32,7 @@
                 </tr>
             </thead>
             <tbody>
+                <?php if ($consultations === []): ?><tr><td colspan="8" class="text-center text-muted py-4">No consultations match the selected filters.</td></tr><?php endif; ?>
                 <?php foreach ($consultations as $consultation): ?>
                     <?php
                     $patientName = trim(implode(' ', array_filter([
@@ -63,21 +63,13 @@
                         <td><?= esc(substr((string) $consultation['consultation_time'], 0, 5)) ?></td>
                         <td><span class="badge <?= $statusClass ?>"><?= esc(ucwords(str_replace('_', ' ', $consultation['status']))) ?></span></td>
                         <td>
-                            <a href="<?= base_url('admin/consultations/view/' . (int) $consultation['id']) ?>"
-                               class="btn btn-sm btn-info" title="View Consultation">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="tooltip" title="Created: <?= esc($consultation['created_at'] ?? '—') ?> | Updated: <?= esc($consultation['updated_at'] ?? '—') ?>" aria-label="Show created and updated dates"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button>
+                            <a href="<?= base_url('admin/consultations/view/' . (int) $consultation['id']) ?>" class="btn btn-sm btn-outline-primary" aria-label="View consultation <?= esc($consultation['consultation_number']) ?>">View</a>
                             <?php if ($canEdit && $consultation['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-primary edit-consultation"
-                                        data-id="<?= (int) $consultation['id'] ?>" title="Edit Consultation">
-                                    <i class="bi bi-pencil-square"></i>
-                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-primary edit-consultation" data-id="<?= (int) $consultation['id'] ?>" aria-label="Edit consultation <?= esc($consultation['consultation_number']) ?>">Edit</button>
                             <?php endif; ?>
                             <?php if ($canDelete && $consultation['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-danger delete-consultation"
-                                        data-id="<?= (int) $consultation['id'] ?>" title="Delete Consultation">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-consultation" data-id="<?= (int) $consultation['id'] ?>" aria-label="Delete consultation <?= esc($consultation['consultation_number']) ?>">Delete</button>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -85,8 +77,10 @@
             </tbody>
         </table>
     </div>
+    <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'consultations', 'filters' => $filters]) ?>
 </main>
 
+<?= view(ADMIN_VIEW . 'parts/clinical_filter', ['prefix' => 'consultation', 'title' => 'Filter consultations', 'statuses' => ['draft', 'in_progress', 'completed', 'cancelled'], 'clinics' => $clinics, 'doctors' => $doctors, 'filters' => $filters]) ?>
 <?= form_open('', 'id="consultationCsrfForm" class="d-none"') ?>
 <?= form_close() ?>
 
@@ -158,7 +152,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="consultation_date">Consultation Date <span class="text-danger">*</span></label>
-                                    <input type="date" name="consultation_date" id="consultation_date" class="form-control">
+                                    <input type="text" name="consultation_date" id="consultation_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
                                     <div class="validation-error" id="consultation_dateErr"></div>
                                 </div>
                             </div>
@@ -198,7 +192,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="follow_up_date">Follow-up Date</label>
-                                    <input type="date" name="follow_up_date" id="follow_up_date" class="form-control">
+                                    <input type="text" name="follow_up_date" id="follow_up_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
                                     <div class="validation-error" id="follow_up_dateErr"></div>
                                 </div>
                             </div>

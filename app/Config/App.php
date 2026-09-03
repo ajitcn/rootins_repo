@@ -3,7 +3,6 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-
 class App extends BaseConfig
 {
     /**
@@ -17,7 +16,6 @@ class App extends BaseConfig
      * E.g., http://example.com/
      */
     public string $baseURL = 'http://localhost:8080/';
-
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.
      * If you want to accept multiple Hostnames, set this.
@@ -30,7 +28,6 @@ class App extends BaseConfig
      * @var list<string>
      */
     public array $allowedHostnames = [];
-
     /**
      * --------------------------------------------------------------------------
      * Index File
@@ -41,7 +38,6 @@ class App extends BaseConfig
      * from your site URIs, set this variable to an empty string.
      */
     public string $indexPage = '';
-
     /**
      * --------------------------------------------------------------------------
      * URI PROTOCOL
@@ -58,7 +54,6 @@ class App extends BaseConfig
      * WARNING: If you set this to 'PATH_INFO', URIs will always be URL-decoded!
      */
     public string $uriProtocol = 'REQUEST_URI';
-
     /*
     |--------------------------------------------------------------------------
     | Allowed URL Characters
@@ -82,7 +77,6 @@ class App extends BaseConfig
     |
     */
     public string $permittedURIChars = 'a-z 0-9~%.:_\-';
-
     /**
      * --------------------------------------------------------------------------
      * Default Locale
@@ -94,7 +88,6 @@ class App extends BaseConfig
      * should run under for this request.
      */
     public string $defaultLocale = 'en';
-
     /**
      * --------------------------------------------------------------------------
      * Negotiate Locale
@@ -106,7 +99,6 @@ class App extends BaseConfig
      * If false, no automatic detection will be performed.
      */
     public bool $negotiateLocale = false;
-
     /**
      * --------------------------------------------------------------------------
      * Supported Locales
@@ -121,7 +113,6 @@ class App extends BaseConfig
      * @var list<string>
      */
     public array $supportedLocales = ['en'];
-
     /**
      * --------------------------------------------------------------------------
      * Application Timezone
@@ -134,7 +125,6 @@ class App extends BaseConfig
      *      supported by PHP.
      */
     public string $appTimezone = 'Asia/Kolkata';
-
     /**
      * --------------------------------------------------------------------------
      * Default Character Set
@@ -146,7 +136,6 @@ class App extends BaseConfig
      * @see http://php.net/htmlspecialchars for a list of supported charsets.
      */
     public string $charset = 'UTF-8';
-
     /**
      * --------------------------------------------------------------------------
      * Force Global Secure Requests
@@ -158,7 +147,6 @@ class App extends BaseConfig
      * and the HTTP Strict Transport Security (HSTS) header will be set.
      */
     public bool $forceGlobalSecureRequests = false;
-
     /**
      * --------------------------------------------------------------------------
      * Reverse Proxy IPs
@@ -181,7 +169,6 @@ class App extends BaseConfig
      * @var array<string, string>
      */
     public array $proxyIPs = [];
-
     /**
      * --------------------------------------------------------------------------
      * Content Security Policy

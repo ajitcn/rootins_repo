@@ -1,91 +1,15 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-
 <?= $this->section('main-content') ?>
-
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Patient Management',
-        'page'       => 'Patients',
-    ]) ?>
-
-    <div class="action-btn-container">
-        <button class="btn btn-sm theme-btn open_patient_modal">+ New Patient</button>
-    </div>
-
+<?php $filters = $filters ?? ['search' => '', 'status' => '', 'page_size' => 15]; $pagination = ['page' => $pager->getCurrentPage('patients'), 'pages' => $pager->getPageCount('patients'), 'total' => $pager->getTotal('patients'), 'page_size' => $filters['page_size']]; ?>
+<main class="dashboard-container" aria-labelledby="patient-management-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Patients']) ?>
+    <h1 id="patient-management-title" class="sr-only">Patient Management</h1>
+    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3"><p class="text-muted mb-2 mb-md-0">Manage patient records and clinic-scoped history.</p><div class="d-flex flex-wrap"><button type="button" class="btn btn-outline-secondary mr-2" data-toggle="modal" data-target="#patientFilterModal" aria-controls="patientFilterModal"><i class="bi bi-funnel mr-1" aria-hidden="true"></i> Filters</button><?php if ($canCreate ?? false): ?><button type="button" class="btn theme-btn open_patient_modal" aria-controls="patientModal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i> New Patient</button><?php endif; ?></div></div>
     <?= display_session_msg() ?>
-
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover datatable">
-            <thead class="thead-light">
-                <tr>
-                    <th width="60">#</th>
-                    <th>Registration Number</th>
-                    <th>Patient Name</th>
-                    <th>Mobile</th>
-                    <th>Email</th>
-                    <th>Gender</th>
-                    <th>Date of Birth</th>
-                    <th>Clinic</th>
-                    <th>City</th>
-                    <th>Status</th>
-                    <th width="90">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (! empty($patients)): ?>
-                    <?php foreach ($patients as $key => $row): ?>
-                        <?php
-                        $patientName = trim(implode(' ', array_filter([
-                            $row['first_name'] ?? '',
-                            $row['middle_name'] ?? '',
-                            $row['last_name'] ?? '',
-                        ], static fn ($part) => $part !== null && $part !== '')));
-                        ?>
-                        <tr>
-                            <td><?= $key + 1 ?></td>
-                            <td><?= esc($row['registration_number'] ?? '') ?></td>
-                            <td><strong><?= esc($patientName) ?></strong></td>
-                            <td><?= esc($row['mobile_number'] ?? '') ?></td>
-                            <td><?= esc($row['email'] ?? '') ?></td>
-                            <td><?= esc($row['gender'] ?? '') ?></td>
-                            <td><?= esc($row['date_of_birth'] ?? '') ?></td>
-                            <td><?= esc($row['clinic_name'] ?? '') ?></td>
-                            <td><?= esc($row['city_name'] ?? '') ?></td>
-                            <td>
-                                <?php if ((int) ($row['status'] ?? 0) === 1): ?>
-                                    <span class="badge badge-success">Active</span>
-                                <?php else: ?>
-                                    <span class="badge badge-danger">Inactive</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <a href="<?= base_url('admin/patients/view/' . (int) $row['id']) ?>"
-                                   class="btn btn-sm btn-info"
-                                   title="View Patient">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                                <button type="button"
-                                        class="btn btn-sm btn-primary"
-                                        onclick="editPatientForm(<?= (int) $row['id'] ?>)">
-                                    <i class="bi bi-pencil-square"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+    <div class="card"><div class="table-responsive"><table class="table table-bordered table-hover align-middle mb-0" id="patients-table"><caption class="sr-only">Patient records</caption><thead class="thead-light"><tr><th scope="col">#</th><th scope="col">Registration Number</th><th scope="col">Patient Name</th><th scope="col">Mobile</th><th scope="col">Email</th><th scope="col">Gender</th><th scope="col">Date of Birth</th><th scope="col">Clinic</th><th scope="col">City</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody><?php if ($patients !== []): ?><?php $number = (($pagination['page'] - 1) * $pagination['page_size']) + 1; foreach ($patients as $row): ?><?php $patientName = trim(implode(' ', array_filter([$row['first_name'] ?? '', $row['middle_name'] ?? '', $row['last_name'] ?? ''], static fn ($part) => $part !== null && $part !== ''))); ?><tr><td><?= esc((string) $number++) ?></td><td><?= esc($row['registration_number'] ?? '') ?></td><td><strong><?= esc($patientName) ?></strong></td><td><?= esc($row['mobile_number'] ?? '') ?></td><td><?= esc($row['email'] ?? '') ?></td><td><?= esc($row['gender'] ?? '') ?></td><td><?= esc($row['date_of_birth'] ?? '') ?></td><td><?= esc($row['clinic_name'] ?? '') ?></td><td><?= esc($row['city_name'] ?? '') ?></td><td><span class="badge badge-<?= (int) ($row['status'] ?? 0) === 1 ? 'success' : 'danger' ?>"><?= (int) ($row['status'] ?? 0) === 1 ? 'Active' : 'Inactive' ?></span></td><td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-info" data-toggle="tooltip" title="Created: <?= esc($row['created_at'] ?? 'Unavailable') ?> | Updated: <?= esc($row['updated_at'] ?? 'Unavailable') ?>" aria-label="Created and updated dates for <?= esc($patientName) ?>"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button> <a href="<?= base_url('admin/patients/view/' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-secondary" aria-label="View <?= esc($patientName) ?>"><i class="bi bi-eye" aria-hidden="true"></i></a><?php if ($canEdit ?? false): ?><button type="button" class="btn btn-sm btn-outline-primary" onclick="editPatientForm(<?= (int) $row['id'] ?>)" aria-label="Edit <?= esc($patientName) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-outline-<?= (int) ($row['status'] ?? 0) === 1 ? 'danger' : 'success' ?> patient-status-toggle" data-id="<?= (int) $row['id'] ?>" data-status="<?= (int) ($row['status'] ?? 0) === 1 ? 0 : 1 ?>" aria-label="<?= (int) ($row['status'] ?? 0) === 1 ? 'Deactivate' : 'Activate' ?> <?= esc($patientName) ?>"><i class="bi bi-toggle-<?= (int) ($row['status'] ?? 0) === 1 ? 'off' : 'on' ?>" aria-hidden="true"></i></button><?php endif; ?></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="11" class="text-center text-muted py-4">No patients match the current filters.</td></tr><?php endif; ?></tbody></table></div>
+    <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager, 'group' => 'patients', 'filters' => $filters]) ?></div>
 </main>
-
-<?= view(ADMIN_VIEW . 'pages/patient/modals/form', [
-    'clinics'  => $clinics,
-    'countries' => $countries,
-]) ?>
-
-<?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/patient/patient.js') ?>"></script>
-<?= $this->endSection() ?>
-
+<div class="modal fade" id="patientFilterModal" tabindex="-1" role="dialog" aria-labelledby="patientFilterModalTitle" aria-hidden="true"><div class="modal-dialog" role="document"><div class="modal-content"><form method="get" action="<?= current_url() ?>"><div class="modal-header"><h2 class="modal-title h5" id="patientFilterModalTitle">Filter patients</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close filters"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><div class="form-group"><label for="patient-filter-search">Search</label><input class="form-control" id="patient-filter-search" name="search" type="search" value="<?= esc($filters['search']) ?>" placeholder="Name, registration, mobile, email, or clinic"></div><div class="form-group"><label for="patient-filter-status">Status</label><select class="custom-select" id="patient-filter-status" name="status"><option value="">All statuses</option><option value="1" <?= $filters['status'] === '1' ? 'selected' : '' ?>>Active</option><option value="0" <?= $filters['status'] === '0' ? 'selected' : '' ?>>Inactive</option></select></div><input type="hidden" name="page_size" value="<?= esc((string) $filters['page_size']) ?>"></div><div class="modal-footer"><a href="<?= current_url() ?>" class="btn btn-link mr-auto">Clear</a><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn theme-btn">Apply filters</button></div></form></div></div></div>
+<?= view(ADMIN_VIEW . 'pages/patient/modals/form', ['clinics' => $clinics, 'countries' => $countries]) ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/patient/patient.js') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

@@ -1,6 +1,6 @@
 # ROOTINS Architecture and Product Decisions
 
-**Status:** Baseline decision log v0.4  
+**Status:** Baseline decision log v0.5
 **Date:** 2026-08-29
 
 | ID | Decision | Rationale | Consequence / follow-up |
@@ -70,3 +70,4 @@
 | ID | Change | Evidence | Remaining work |
 |---|---|---|---|
 | IM-001 | Protect the Admin dashboard route with the existing `auth` filter. | `php spark routes` shows `admin` with `csrf auth`; route syntax passes PHP lint. | Runtime unauthenticated/authorized behavior and any dashboard-specific permission remain to be verified or decided. |
+| IM-002 | Protect Clinic and Doctor Admin route groups with existing `auth` and seeded `clinic.*`/`doctor.*` permission filters. | `php spark routes` shows the route groups with `csrf auth permission:...`; route syntax passes PHP lint. | Runtime denial/scope tests remain required; no new permission names or business rules were introduced. |

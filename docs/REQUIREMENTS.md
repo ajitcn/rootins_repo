@@ -85,12 +85,17 @@
 | NFR-005 | Provide backup, restore verification, monitoring, and operational recovery procedures. | P1 | Recovery-point and recovery-time targets are approved and demonstrated before production. |
 | NFR-006 | Support Indian-standard payment failure, refund, cancellation, dispute, settlement, reconciliation, and idempotency controls. | P0 | Local financial state never reports false success and matches provider reconciliation evidence. |
 | NFR-007 | Encrypt backups and restrict access to health, identity, payment, and audit data in storage and transit. | P0 | Encryption, access, key ownership, restore testing, and transfer controls are verified before release. |
+| NFR-008 | Apply the mandatory shared UI/UX standard across all four panels. | P0 | Screens use consistent shared components, responsive layouts, accessible interactions, searchable large-data controls, pagination/server-side search where needed, and explicit loading/empty/error/success states. |
 
 ## Requirement lifecycle and traceability
 
 Each requirement must have one of these implementation states: `Planned`, `In progress`, `Implemented`, `Verified`, or `Deferred`. A requirement is complete only when its route/UI or API behavior, authorization, validation, persistence, failure handling, tests, and documentation are verified. Development tasks, migrations, tests, and review notes should reference the requirement ID.
 
 Requirement changes must update this register, `docs/SRS.md`, and—when architecture or scope changes—`docs/DECISIONS.md` and `docs/MODULE-STATUS.md`.
+
+## UI/UX acceptance traceability
+
+`NFR-008` applies to every `CORE`, `ADM`, `DOC`, `PAT`, `FARM`, and `CFG` workflow with a user interface. Evidence must cover shared layout/navigation, responsive behavior, accessibility, searchable/filterable large-data selection, pagination or server-side search, validation, safe errors, loading/empty/success states, permission and clinic scope, and duplicate-submit handling. A workflow without this evidence cannot be marked `Verified`.
 
 ## Baseline classifications
 

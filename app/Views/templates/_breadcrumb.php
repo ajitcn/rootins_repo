@@ -2,7 +2,7 @@
     <ol class="breadcrumb">
 
         <li class="breadcrumb-item">
-            <a href="<?= base_url($module.'/dashboard') ?>">
+            <a href="<?= base_url($module) ?>">
                 <i class="bi bi-house-door-fill"></i> Dashboard
             </a>
         </li>

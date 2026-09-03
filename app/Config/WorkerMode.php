@@ -29,17 +29,7 @@ class WorkerMode
      *
      * @var list<string>
      */
-    public array $persistentServices = [
-        'autoloader',
-        'locator',
-        'exceptions',
-        'commands',
-        'codeigniter',
-        'superglobals',
-        'routes',
-        'cache',
-    ];
-
+    public array $persistentServices = ['autoloader', 'locator', 'exceptions', 'commands', 'codeigniter', 'superglobals', 'routes', 'cache'];
     /**
      * Reset Event Listeners
      *
@@ -51,7 +41,6 @@ class WorkerMode
      * @var list<string>
      */
     public array $resetEventListeners = [];
-
     /**
      * Force Garbage Collection
      *

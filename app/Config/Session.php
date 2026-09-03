@@ -5,7 +5,6 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Session\Handlers\BaseHandler;
 use CodeIgniter\Session\Handlers\FileHandler;
-
 class Session extends BaseConfig
 {
     /**
@@ -23,7 +22,6 @@ class Session extends BaseConfig
      * @var class-string<BaseHandler>
      */
     public string $driver = FileHandler::class;
-
     /**
      * --------------------------------------------------------------------------
      * Session Cookie Name
@@ -32,7 +30,6 @@ class Session extends BaseConfig
      * The session cookie name, must contain only [0-9a-z_-] characters
      */
     public string $cookieName = 'ci_session';
-
     /**
      * --------------------------------------------------------------------------
      * Session Expiration
@@ -42,7 +39,6 @@ class Session extends BaseConfig
      * Setting to 0 (zero) means expire when the browser is closed.
      */
     public int $expiration = 7200;
-
     /**
      * --------------------------------------------------------------------------
      * Session Save Path
@@ -59,7 +55,6 @@ class Session extends BaseConfig
      * IMPORTANT: You are REQUIRED to set a valid save path!
      */
     public string $savePath = WRITEPATH . 'session';
-
     /**
      * --------------------------------------------------------------------------
      * Session Match IP
@@ -71,7 +66,6 @@ class Session extends BaseConfig
      *          your session table's PRIMARY KEY when changing this setting.
      */
     public bool $matchIP = false;
-
     /**
      * --------------------------------------------------------------------------
      * Session Time to Update
@@ -80,7 +74,6 @@ class Session extends BaseConfig
      * How many seconds between CI regenerating the session ID.
      */
     public int $timeToUpdate = 300;
-
     /**
      * --------------------------------------------------------------------------
      * Session Regenerate Destroy
@@ -91,7 +84,6 @@ class Session extends BaseConfig
      * will be later deleted by the garbage collector.
      */
     public bool $regenerateDestroy = false;
-
     /**
      * --------------------------------------------------------------------------
      * Session Database Group
@@ -100,7 +92,6 @@ class Session extends BaseConfig
      * DB Group for the database session.
      */
     public ?string $DBGroup = null;
-
     /**
      * --------------------------------------------------------------------------
      * Lock Retry Interval (microseconds)
@@ -111,8 +102,7 @@ class Session extends BaseConfig
      * Time (microseconds) to wait if lock cannot be acquired.
      * The default is 100,000 microseconds (= 0.1 seconds).
      */
-    public int $lockRetryInterval = 100_000;
-
+    public int $lockRetryInterval = 100000;
     /**
      * --------------------------------------------------------------------------
      * Lock Max Retries

@@ -1,19 +1,12 @@
 $(function () {
-    const table = $('#appointmentQueueTable').DataTable({
-        data: [],
-        columns: [
-            { data: 'queue_position' },
-            { data: 'appointment_number' },
-            { data: 'patient' },
-            { data: 'doctor' },
-            { data: 'appointment_time' },
-            { data: 'appointment_type' },
-            { data: 'checked_in_at' },
-            { data: 'status' },
-            { data: 'actions', orderable: false, searchable: false }
-        ],
-        language: { emptyTable: 'No patients are currently in the queue.' }
-    });
+    const table = {
+        rows: [],
+        clear() { this.rows = []; return this; },
+        add(rows) { this.rows = this.rows.concat(rows); return this; },
+        draw() {
+            $('#appointmentQueueTable tbody').html(this.rows.length ? this.rows.map(row => '<tr><td>' + row.queue_position + '</td><td>' + row.appointment_number + '</td><td>' + row.patient + '</td><td>' + row.doctor + '</td><td>' + row.appointment_time + '</td><td>' + row.appointment_type + '</td><td>' + row.checked_in_at + '</td><td>' + row.status + '</td><td>' + row.actions + '</td></tr>').join('') : '<tr><td colspan="9" class="text-center text-muted py-4">No patients are currently in the queue.</td></tr>');
+        }
+    };
 
     const csrf = () => ({ csrf_rtn: $('#appointmentQueueForm input[name="csrf_rtn"]').val() });
     const label = value => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
@@ -25,7 +18,7 @@ $(function () {
             method: 'GET',
             data: {
                 clinic_id: $('#queueClinic').val(),
-                appointment_date: $('#queueDate').val()
+                appointment_date: window.rootinsDateToIso ? window.rootinsDateToIso('#queueDate') : $('#queueDate').val()
             },
             success: function (response) {
                 if (!response.status) {
@@ -34,7 +27,7 @@ $(function () {
                 }
 
                 table.clear();
-                table.rows.add((response.data || []).map(row => ({
+                table.add((response.data || []).map(row => ({
                     id: row.id,
                     queue_position: row.queue_position,
                     appointment_number: escapeHtml(row.appointment_number),

@@ -20,7 +20,6 @@ class Optimize
      * @see https://codeigniter.com/user_guide/concepts/factories.html#config-caching
      */
     public bool $configCacheEnabled = false;
-
     /**
      * --------------------------------------------------------------------------
      * Config Caching

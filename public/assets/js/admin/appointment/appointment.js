@@ -76,7 +76,11 @@ $(function () {
                 $('#appointment_patient_id').val(appointment.patient_id).selectpicker('refresh');
                 $('#appointment_doctor_id').val(appointment.doctor_id).selectpicker('refresh');
                 $('#appointment_clinic_id').val(appointment.clinic_id).selectpicker('refresh');
-                $('#appointment_date').val(appointment.appointment_date);
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#appointment_date', appointment.appointment_date);
+                } else {
+                    $('#appointment_date').val(appointment.appointment_date);
+                }
                 $('#appointment_time').val((appointment.appointment_time || '').substring(0, 5));
                 $('#duration_minutes').val(appointment.duration_minutes);
                 $('#appointment_type').val(appointment.appointment_type).selectpicker('refresh');
@@ -116,10 +120,6 @@ $(function () {
             }
         });
     });
-
-    if ($.fn.DataTable) {
-        $('.datatable').DataTable();
-    }
 
     const editId = new URLSearchParams(window.location.search).get('edit');
     if (/^\d+$/.test(editId || '')) {

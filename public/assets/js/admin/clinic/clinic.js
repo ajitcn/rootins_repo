@@ -5,7 +5,7 @@
      */
     $(document).on('click', '.open_clinic_modal', function(){
         $('#clinicModal .modal-title').text('Add New Clinic');
-        $('#clinicModal .save').text('Save Clinic');
+    $('#clinicModal .save').text('Save Clinic');
         $('[name=clinic_id]').val('');
         $('#clinicModal').modal('show');
         resetForm('#clinicForm');
@@ -45,6 +45,7 @@
                 } else {
 
                     showError(response.msg);
+                    if (response.errors) bindFormError('#clinicForm', response.errors);
 
                 }
 
@@ -63,7 +64,7 @@
      *-----------------------------------------------------------------------
      */
     
-    function editClinicForm(clinicId) {
+function editClinicForm(clinicId) {
         ajaxRequest({
 
             url: ROUTES.clinic.edit + clinicId,
@@ -115,7 +116,7 @@
                     });
 
                     // Status
-                    $('#status')
+                    $('#clinic_status')
                         .val(clinic.status)
                         .selectpicker('refresh');
 
@@ -128,7 +129,7 @@
 
                     showError(response.msg);
 
-                }
+}
 
             }
 
