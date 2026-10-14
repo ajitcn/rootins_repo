@@ -1,3 +1,5 @@
+<?php
+
 use CodeIgniter\CLI\CLI;
 // The main Exception
 CLI::write('[' . $exception::class . ']', 'light_gray', 'red');

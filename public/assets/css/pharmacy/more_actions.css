@@ -1,0 +1,66 @@
+.pharmacy-more-actions {
+    position: relative;
+    z-index: 1200;
+    min-width: 0;
+}
+
+.pharmacy-more-actions .pharmacy-more-actions-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    min-height: 32px;
+    padding: 6px 9px !important;
+    gap: 2px;
+    overflow: hidden;
+    font-size: 11px !important;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.pharmacy-more-actions-toggle {
+    vertical-align: middle;
+}
+
+.pharmacy-more-actions-menu {
+    position: fixed !important;
+    z-index: 1200 !important;
+    min-width: 220px !important;
+    max-width: min(320px, calc(100vw - 16px)) !important;
+    max-height: calc(100vh - 16px);
+    padding: 5px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.pharmacy-more-actions-menu.show {
+    display: block !important;
+}
+
+.pharmacy-more-actions-menu .dropdown-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    min-height: 34px;
+    padding: 8px 10px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+.pharmacy-more-actions-menu .dropdown-item:focus {
+    outline: 2px solid rgba(31, 41, 64, .35);
+    outline-offset: -2px;
+}
+
+.pharmacy-more-actions-menu .dropdown-item.text-danger {
+    color: #b4232e;
+}
+
+@media (max-width: 767.98px) {
+    .pharmacy-more-actions-menu {
+        position: fixed !important;
+        max-width: calc(100vw - 16px) !important;
+        transform: none !important;
+    }
+}

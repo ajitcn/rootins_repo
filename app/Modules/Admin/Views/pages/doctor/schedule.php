@@ -1,20 +1,20 @@
-<?= $this->extend(ADMIN_VIEW.'layout')?>
+<?= $this->extend(ADMIN_VIEW . 'layout')?>
 
 
  <?= $this->section('main-content')?>
 
 <main class="dashboard-container">
 	<!-- breadcrumb -->
- 	<?= 
- 		view('templates/_breadcrumb', 
-
- 			[
-				'module' 		=> 'admin',
-				'menu_title'	=> 'Doctor Management',
-				'page'			=> 'Doctor Schedules' 
- 			]
- 		)
- 	?>
+    <?=
+        view(
+            'templates/_breadcrumb',
+            [
+                'module' => 'admin',
+                'menu_title' => 'Doctor Management',
+                'page' => 'Doctor Schedules',
+            ],
+        )
+?>
 
  	<!-- main content -->
         <div class="action-btn-container d-flex justify-content-end mb-3">
@@ -56,7 +56,7 @@
 
                             <td>
                                 <strong><?= esc($row['doctor_code']) ?></strong><br>
-                                <?= esc($row['first_name'].' '.$row['last_name']) ?>
+                                <?= esc($row['first_name'] . ' ' . $row['last_name']) ?>
                             </td>
 
                             <td>
@@ -78,7 +78,7 @@
                             </td>
 
                             <td>
-                                <?= $row['max_patients']==0 ? 'Unlimited' : $row['max_patients'] ?>
+                                <?= $row['max_patients'] == 0 ? 'Unlimited' : $row['max_patients'] ?>
                             </td>
 
                             <td>
@@ -103,7 +103,7 @@
                                     <i class="fa fa-edit"></i>
                                 </button>
 
-                                <a href="<?= base_url('admin/doctor-schedules/delete/'.$row['id']) ?>"
+                                <a href="<?= base_url('admin/doctor-schedules/delete/' . $row['id']) ?>"
                                    class="btn btn-sm btn-outline-danger"
                                    onclick="return confirm('Are you sure?')">
                                     <i class="bi bi-trash"></i>
@@ -128,7 +128,7 @@
 </main>
 
 
-<?= view(ADMIN_VIEW.'pages/doctor/modals/_schedule')?>
+<?= view(ADMIN_VIEW . 'pages/doctor/modals/_schedule')?>
 
 
 

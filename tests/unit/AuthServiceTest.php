@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+
 final class AuthServiceTest extends TestCase
 {
     public function testLoginBuildsServerDerivedScopedSessionContext(): void
@@ -14,6 +15,7 @@ final class AuthServiceTest extends TestCase
         self::assertStringContainsString("->where('user_id', \$userId)", $source);
         self::assertStringNotContainsString("'password' => \$this->userData", $source);
     }
+
     public function testPendingOrderMigrationMatchesCurrentOrderModelContract(): void
     {
         $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-08-29-100000_CreateMedicineOrdersAndInventory.php');

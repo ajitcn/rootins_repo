@@ -2,46 +2,58 @@
 
 <?= $this->section('main-content') ?>
 
-<?php $filters = $filters ?? []; ?>
-<main class="dashboard-container">
+<?php
+$filters = $filters ?? [];
+$permissions = session('permissions') ?? [];
+$canCreate = $canCreate ?? in_array('appointment.create', $permissions, true);
+$canEdit = $canEdit ?? in_array('appointment.edit', $permissions, true);
+$canDelete = $canDelete ?? in_array('appointment.delete', $permissions, true);
+$canConsult = $canConsult ?? in_array('consultation.view', $permissions, true) && in_array('consultation.create', $permissions, true);
+$canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
+?>
+<main class="dashboard-container admin-appointment-page">
     <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
+        'module' => 'admin',
         'menu_title' => 'Appointment Management',
-        'page'       => 'Appointments',
+        'page' => 'Appointments',
     ]) ?>
 
-    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-2 mb-md-0">Appointments</h1>
-        <div>
+    <div class="ri-page-header action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3" id="appointments-title">
+        <div class="ri-page-header-copy"><p class="text-muted text-uppercase small mb-1">Appointment Management</p><h1 class="h4 mb-1">Appointments</h1><p class="text-muted mb-0">Patient, doctor, schedule, and current appointment status.</p></div>
+        <div class="ri-page-header-actions">
             <button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#appointmentFilterModal">
                 <i class="bi bi-funnel" aria-hidden="true"></i> Filters
             </button>
-            <button type="button" class="btn btn-sm theme-btn" id="openAppointmentModal">
+            <?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openAppointmentModal">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i> New Appointment
-            </button>
+            </button><?php endif; ?>
         </div>
     </div>
 
     <?= display_session_msg() ?>
 
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover" id="appointments-table">
+    <div class="admin-appointment-table-wrap table-responsive" role="region" aria-labelledby="appointments-table-caption" tabindex="0">
+        <table class="table table-bordered table-hover admin-appointment-table" id="appointments-table">
+            <caption id="appointments-table-caption" class="sr-only">Appointments grouped by patient, doctor, appointment schedule, status, and available actions.</caption>
+            <colgroup>
+                <col class="admin-appointment-col-patient">
+                <col class="admin-appointment-col-doctor">
+                <col class="admin-appointment-col-appointment">
+                <col class="admin-appointment-col-status">
+                <col class="admin-appointment-col-actions">
+            </colgroup>
             <thead class="thead-light">
                 <tr>
-                    <th width="130">Appointment No.</th>
-                    <th>Patient</th>
-                    <th>Doctor</th>
-                    <th>Clinic</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th width="120">Action</th>
+                    <th scope="col">Patient</th>
+                    <th scope="col">Doctor</th>
+                    <th scope="col">Appointment</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($appointments === []): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-4">No appointments match the selected filters.</td></tr>
+                    <tr><td colspan="5" class="admin-appointment-empty text-center text-muted py-5"><i class="bi bi-calendar-x d-block mb-2" aria-hidden="true"></i><strong class="d-block mb-1">No appointments found</strong>No appointments match the selected filters.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($appointments as $appointment): ?>
                     <?php
@@ -54,41 +66,63 @@
                         $appointment['doctor_first_name'] ?? '',
                         $appointment['doctor_last_name'] ?? '',
                     ], static fn ($part) => $part !== null && $part !== '')));
+                    $patientMobile = trim((string) ($appointment['patient_mobile'] ?? ''));
+                    $doctorCode = trim((string) ($appointment['doctor_code'] ?? ''));
+                    $serviceName = trim((string) ($appointment['service_name'] ?? '')) ?: 'Service not specified';
+                    $statusKey = (string) ($appointment['status'] ?? '');
+                    $statusTone = ['scheduled' => 'blue', 'confirmed' => 'blue', 'checked_in' => 'amber', 'in_queue' => 'orange', 'completed' => 'green', 'cancelled' => 'red', 'no_show' => 'gray'][$statusKey] ?? 'charcoal';
+                    $statusLabel = ucwords(str_replace('_', ' ', $statusKey));
+                    $appointmentNumber = (string) ($appointment['appointment_number'] ?? 'Appointment');
+                    $isClosed = in_array($statusKey, ['completed', 'cancelled', 'no_show'], true);
+                    $canReschedule = $canEdit && ! $isClosed;
+                    $canCancel = $canEdit && in_array($statusKey, ['scheduled', 'confirmed', 'checked_in', 'in_queue'], true);
+                    $queuePosition = ($appointment['queue_position'] ?? null) === null || ($appointment['queue_position'] ?? '') === '' ? null : (int) $appointment['queue_position'];
                     ?>
-                    <tr>
-                        <td><strong><?= esc($appointment['appointment_number']) ?></strong></td>
-                        <td>
-                            <strong><?= esc($patientName) ?></strong><br>
-                            <small class="text-muted"><?= esc($appointment['registration_number']) ?></small>
+                    <tr class="admin-appointment-row" data-appointment-id="<?= (int) $appointment['id'] ?>">
+                        <td class="admin-appointment-cell admin-appointment-cell-patient" data-label="Patient">
+                            <strong class="admin-appointment-primary" title="<?= esc($patientName) ?>"><?= esc($patientName) ?></strong>
+                            <span class="admin-appointment-meta" title="Patient number: <?= esc((string) ($appointment['registration_number'] ?? 'Not provided')) ?>"><span class="admin-appointment-meta-label">Patient no.</span> <?= esc($appointment['registration_number'] ?? 'Not provided') ?></span>
+                            <span class="admin-appointment-meta" title="<?= esc($patientMobile !== '' ? $patientMobile : 'Mobile unavailable') ?>"><i class="bi bi-telephone mr-1" aria-hidden="true"></i><?= esc($patientMobile !== '' ? $patientMobile : 'Mobile unavailable') ?></span>
                         </td>
-                        <td><?= esc($doctorName) ?></td>
-                        <td><?= esc($appointment['clinic_name']) ?></td>
-                        <td><?= esc($appointment['appointment_date']) ?></td>
-                        <td><?= esc(substr((string) $appointment['appointment_time'], 0, 5)) ?></td>
-                        <td><?= esc(ucwords(str_replace('_', ' ', $appointment['appointment_type']))) ?></td>
-                        <td>
-                            <span class="badge <?= $appointment['status'] === 'cancelled' ? 'badge-danger' : 'badge-info' ?>">
-                                <?= esc(ucwords(str_replace('_', ' ', $appointment['status']))) ?>
+                        <td class="admin-appointment-cell admin-appointment-cell-doctor" data-label="Doctor">
+                            <strong class="admin-appointment-primary" title="<?= esc($doctorName) ?>"><?= esc($doctorName) ?></strong>
+                            <span class="admin-appointment-meta"><span class="admin-appointment-meta-label">Code</span> <?= esc($doctorCode !== '' ? $doctorCode : 'Not provided') ?></span>
+                        </td>
+                        <td class="admin-appointment-cell admin-appointment-cell-appointment" data-label="Appointment">
+                            <div class="admin-appointment-date-time">
+                                <span class="admin-appointment-number" title="<?= esc($appointmentNumber) ?>"><?= esc($appointmentNumber) ?></span>
+                                <time class="admin-appointment-date" datetime="<?= esc($appointment['appointment_date'] ?? '') ?>"><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?></time>
+                                <time class="admin-appointment-time" datetime="<?= esc(($appointment['appointment_date'] ?? '') . 'T' . ($appointment['appointment_time'] ?? '')) ?>"><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></time>
+                            </div>
+                            <span class="admin-appointment-meta admin-appointment-service" title="<?= esc($serviceName) ?>"><i class="bi bi-briefcase mr-1" aria-hidden="true"></i><?= esc($serviceName) ?></span>
+                            <span class="badge badge-light admin-appointment-queue" title="<?= $queuePosition !== null ? 'Queue #' . $queuePosition : 'No queue position' ?>">Queue <?= $queuePosition !== null ? '#' . $queuePosition : '—' ?></span>
+                        </td>
+                        <td class="admin-appointment-cell admin-appointment-cell-status" data-label="Status">
+                            <span class="badge ri-status ri-status--<?= esc($statusTone) ?>">
+                                <?= esc($statusLabel) ?>
                             </span>
+                            <?php if (! empty($appointment['consultation_eligible'])): ?>
+                                <span class="admin-appointment-indicator admin-appointment-indicator--eligible" title="Consultation can be started for this appointment"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i>Consult eligible</span>
+                            <?php elseif (! empty($appointment['consultation_date_passed']) && ! $isClosed): ?>
+                                <span class="admin-appointment-indicator admin-appointment-indicator--past" title="<?= esc($appointment['consultation_unavailable_reason'] ?? 'Past appointment') ?>"><i class="bi bi-clock-history mr-1" aria-hidden="true"></i>Past appointment</span>
+                            <?php endif; ?>
                         </td>
-                        <td>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="tooltip"
-                                    title="Created: <?= esc((string) ($appointment['created_at'] ?? '—')) ?> | Updated: <?= esc((string) ($appointment['updated_at'] ?? '—')) ?>"
-                                    aria-label="Show created and updated dates"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button>
+                        <td class="admin-appointment-actions text-right" data-label="Actions">
+                            <div class="dropdown ri-actions-wrapper">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle ri-more-actions-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="More Actions for appointment <?= esc($appointmentNumber) ?>">
+                                    <i class="fa-solid fa-ellipsis-vertical ri-actions-icon mr-1" aria-hidden="true"></i>More Actions
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right ri-actions-menu" role="menu">
                             <a href="<?= base_url('admin/appointments/view/' . (int) $appointment['id']) ?>"
-                               class="btn btn-sm btn-outline-primary" aria-label="View appointment <?= esc($appointment['appointment_number']) ?>">
-                                View
+                               class="dropdown-item" role="menuitem" aria-label="View appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-eye mr-2" aria-hidden="true"></i>View appointment
                             </a>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-primary edit-appointment"
-                                    data-id="<?= (int) $appointment['id'] ?>" aria-label="Edit appointment <?= esc($appointment['appointment_number']) ?>">
-                                Edit
-                            </button>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-danger delete-appointment"
-                                    data-id="<?= (int) $appointment['id'] ?>" aria-label="Delete appointment <?= esc($appointment['appointment_number']) ?>">
-                                Delete
-                            </button>
+                            <?php if ($canReschedule): ?><button type="button" class="dropdown-item edit-appointment" data-id="<?= (int) $appointment['id'] ?>" aria-label="Edit or reschedule appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-calendar2-week mr-2" aria-hidden="true"></i>Edit / reschedule</button><?php endif; ?>
+                            <?php if ($canCancel): ?><button type="button" class="dropdown-item text-danger cancel-appointment" data-id="<?= (int) $appointment['id'] ?>" data-appointment-number="<?= esc($appointmentNumber) ?>" aria-label="Cancel appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-x-circle mr-2" aria-hidden="true"></i>Cancel appointment</button><?php endif; ?>
+                            <?php if ($canConsult && ! empty($appointment['consultation_eligible'])): ?><a href="<?= base_url('admin/consultations') . '?appointment_id=' . (int) $appointment['id'] ?>" class="dropdown-item" role="menuitem"><i class="bi bi-clipboard2-pulse mr-2" aria-hidden="true"></i>Consult</a><?php endif; ?>
+                            <?php if ($canBilling): ?><a href="<?= base_url('admin/billing') . '?appointment_id=' . (int) $appointment['id'] ?>" class="dropdown-item" role="menuitem"><i class="bi bi-receipt mr-2" aria-hidden="true"></i>Billing / payment</a><?php endif; ?>
+                            <?php if ($canDelete): ?><button type="button" class="dropdown-item text-danger delete-appointment" data-id="<?= (int) $appointment['id'] ?>" data-appointment-number="<?= esc($appointmentNumber) ?>" aria-label="Delete appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-trash mr-2" aria-hidden="true"></i>Delete</button><?php endif; ?>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -96,14 +130,14 @@
         </table>
     </div>
     <?= view(ADMIN_VIEW . 'parts/doctor_pagination', [
-        'pager'   => $pager ?? null,
-        'group'   => 'appointments',
+        'pager' => $pager ?? null,
+        'group' => 'appointments',
         'filters' => $filters,
     ]) ?>
 </main>
 
 <div class="modal fade" id="appointmentFilterModal" tabindex="-1" role="dialog" aria-labelledby="appointmentFilterTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title h5" id="appointmentFilterTitle">Filter appointments</h2>
@@ -174,7 +208,7 @@
 </div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable ri-scroll-modal" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add Appointment</h5>

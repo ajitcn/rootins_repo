@@ -3,6 +3,7 @@
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\App;
 use Tests\Support\Libraries\ConfigReader;
+
 /**
  * @internal
  */
@@ -12,14 +13,17 @@ final class HealthTest extends CIUnitTestCase
     {
         $this->assertTrue(defined('APPPATH'));
     }
+
     public function testBaseUrlHasBeenSet(): void
     {
         $validation = service('validation');
         $env = false;
+
         // Check the baseURL in .env
         if (is_file(HOMEPATH . '.env')) {
             $env = preg_grep('/^app\.baseURL = ./', file(HOMEPATH . '.env')) !== false;
         }
+
         if ($env) {
             // BaseURL in .env is a valid URL?
             // phpunit.dist.xml sets app.baseURL in $_SERVER

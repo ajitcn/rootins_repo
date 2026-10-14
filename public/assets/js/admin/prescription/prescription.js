@@ -47,11 +47,16 @@ $(function () {
     });
 
     const consultationId = new URLSearchParams(window.location.search).get('consultation_id');
+    const editId = new URLSearchParams(window.location.search).get('edit_id');
 
     if (consultationId && $('#prescription_consultation_id option[value="' + consultationId + '"]').length) {
         resetPrescriptionForm();
         $('#prescription_consultation_id').val(consultationId).trigger('change');
         $('#prescriptionModal').modal('show');
+    }
+
+    if (editId && $('.edit-prescription[data-id="' + editId + '"]').length) {
+        $('.edit-prescription[data-id="' + editId + '"]').trigger('click');
     }
 
     $('#addPrescriptionItem').on('click', function () {

@@ -16,30 +16,36 @@ class Patients extends BaseController
         }
         $token = trim((string) $this->request->getHeaderLine('Authorization'));
         $expected = trim((string) env('ROOTINS_API_TOKEN', ''));
+
         if ($expected === '' || !hash_equals('Bearer ' . $expected, $token)) {
             return $this->response->setStatusCode(401)->setJSON(['status' => false, 'msg' => 'API authentication failed.']);
         }
         $key = 'rootins-api-patient-' . hash('sha256', $expected);
         $attempts = (int) (cache()->get($key) ?? 0);
+
         if ($attempts >= 60) {
             return $this->response->setStatusCode(429)->setJSON(['status' => false, 'msg' => 'Too many requests.']);
         }
         cache()->save($key, $attempts + 1, 60);
         $payload = $this->request->getJSON(true) ?: $this->request->getPost();
+
         if (!is_array($payload)) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'A valid patient payload is required.']);
         }
         $clinicId = (int) ($payload['clinic_id'] ?? 0);
         $required = ['first_name', 'last_name', 'country_code', 'mobile_number'];
         $errors = [];
+
         foreach ($required as $field) {
             if (trim((string) ($payload[$field] ?? '')) === '') {
                 $errors[$field] = ucfirst(str_replace('_', ' ', $field)) . ' is required.';
             }
         }
+
         if ($clinicId < 1) {
             $errors['clinic_id'] = 'Clinic is required.';
         }
+
         if ($errors !== []) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => reset($errors), 'errors' => $errors]);
         }
@@ -56,16 +62,20 @@ class Patients extends BaseController
         ] : null;
         $patientData = $payload;
         $patientData['clinic_id'] = $clinicId;
+
         if ($appointment !== null) {
             $patientData['_appointment'] = $appointment;
         }
         unset($patientData['create_appointment_now'], $patientData['appointment']);
+
         try {
-            $result = (new PatientRegistrationService())->register($patientData, null, ['source_type' => 'api', 'source_reference' => substr(trim((string) ($payload['source_reference'] ?? '')), 0, 100)]);
+            $result = (new PatientRegistrationService())->register($patientData, null, ['source_type' => 'self', 'source_reference' => substr(trim((string) ($payload['source_reference'] ?? '')), 0, 100)]);
             service('audit')->record('api.patient_created', ['patient_id' => $result['id'], 'clinic_id' => $clinicId, 'source_reference' => $patientData['source_reference'] ?? null]);
+
             return $this->response->setStatusCode(201)->setJSON(['status' => true, 'msg' => 'Patient created successfully.', 'data' => $result]);
         } catch (Throwable $e) {
             log_message('error', 'API patient creation failed: ' . $e->getMessage());
+
             return $this->response->setStatusCode(409)->setJSON(['status' => false, 'msg' => 'Patient could not be created safely.']);
         }
     }

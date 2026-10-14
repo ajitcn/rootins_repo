@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateDoctorSpecializationMap extends Migration
 {
     public function up()
@@ -17,6 +18,7 @@ class CreateDoctorSpecializationMap extends Migration
         $this->forge->addForeignKey('specialization_id', 'doctor_specializations', 'id', 'RESTRICT', 'CASCADE');
         $this->forge->createTable('doctor_specialization_map');
     }
+
     public function down()
     {
         $this->forge->dropTable('doctor_specialization_map');

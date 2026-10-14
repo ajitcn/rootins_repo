@@ -4,20 +4,22 @@ namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
 use DateTimeInterface;
+
 class Cookie extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * Cookie Prefix
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Set a cookie name prefix if you need to avoid collisions.
      */
     public string $prefix = '';
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Expires Timestamp
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Default expires timestamp for cookies. Setting this to `0` will mean the
      * cookie will not have the `Expires` attribute and will behave as a session
@@ -26,42 +28,47 @@ class Cookie extends BaseConfig
      * @var DateTimeInterface|int|string
      */
     public $expires = 0;
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Path
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Typically will be a forward slash.
      */
     public string $path = '/';
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Domain
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Set to `.your-domain.com` for site-wide cookies.
      */
     public string $domain = '';
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Secure
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Cookie will only be set if a secure HTTPS connection exists.
      */
     public bool $secure = false;
+
     /**
      * --------------------------------------------------------------------------
      * Cookie HTTPOnly
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Cookie will only be accessible via HTTP(S) (no JavaScript).
      */
     public bool $httponly = true;
+
     /**
      * --------------------------------------------------------------------------
      * Cookie SameSite
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Configure cookie SameSite setting. Allowed values are:
      * - None
@@ -81,10 +88,11 @@ class Cookie extends BaseConfig
      * @var ''|'Lax'|'None'|'Strict'
      */
     public string $samesite = 'Lax';
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Raw
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * This flag allows setting a "raw" cookie, i.e., its name and value are
      * not URL encoded using `rawurlencode()`.

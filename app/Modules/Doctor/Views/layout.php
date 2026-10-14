@@ -4,6 +4,8 @@
 <?php
 $path = trim(uri_string(), '/');
 $permissions = session('permissions') ?? [];
+$sessionUser = session('user') ?? [];
+$displayName = trim((string) ($sessionUser['username'] ?? $sessionUser['email'] ?? 'Doctor')) ?: 'Doctor';
 $can = static fn (string $permission): bool => in_array($permission, $permissions, true);
 $active = static function (string $prefix) use ($path): bool {
     $prefix = trim($prefix, '/');
@@ -17,7 +19,9 @@ $active = static function (string $prefix) use ($path): bool {
             <img src="<?= base_url('assets/img/logo.png') ?>" alt="ROOTINS">
         </span>
         <span class="system-tag">Doctor</span>
+        <button type="button" class="sidebar-close d-lg-none" data-sidebar-close aria-label="Close navigation"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     </div>
+    <div class="sidebar-user"><span class="sidebar-avatar" aria-hidden="true"><?= esc(strtoupper(substr($displayName, 0, 1))) ?></span><span class="sidebar-user-copy"><strong><?= esc($displayName) ?></strong><small>Doctor workspace</small></span></div>
 
     <ul class="sidebar-nav" id="sidebarMenu" aria-label="Doctor navigation">
             <li class="sidebar-section-title" aria-hidden="true">Workspace</li>
@@ -84,6 +88,18 @@ $active = static function (string $prefix) use ($path): bool {
                     >
                         <i class="bi bi-camera-video menu-icon" aria-hidden="true"></i>
                         <span>Video consultations</span>
+                    </a>
+                </li>
+            <?php endif; ?>
+
+            <?php if ($can('doctor.view')): ?>
+                <li class="nav-item">
+                    <a
+                        class="nav-link <?= $active('doctor/availability') ? 'active' : '' ?>"
+                        href="<?= base_url('doctor/availability') ?>"
+                    >
+                        <i class="bi bi-calendar-week menu-icon" aria-hidden="true"></i>
+                        <span>Availability &amp; leave</span>
                     </a>
                 </li>
             <?php endif; ?>
@@ -157,6 +173,13 @@ $active = static function (string $prefix) use ($path): bool {
         </div>
 
         <div class="d-flex align-items-center gap-2">
+            <form class="doctor-top-patient-search d-none d-md-flex align-items-center" method="get" action="<?= base_url('doctor/patients') ?>">
+                <label class="sr-only" for="doctor-top-patient-search">Search patients</label>
+                <div class="input-group input-group-sm">
+                    <div class="input-group-prepend"><span class="input-group-text bg-transparent border-right-0"><i class="bi bi-search" aria-hidden="true"></i></span></div>
+                    <input id="doctor-top-patient-search" class="form-control border-left-0" type="search" name="search" placeholder="Search patients" autocomplete="off">
+                </div>
+            </form>
             <a
                 class="btn-tabler-icon"
                 href="<?= base_url('doctor/notifications') ?>"
@@ -165,6 +188,16 @@ $active = static function (string $prefix) use ($path): bool {
             >
                 <i class="bi bi-bell" aria-hidden="true"></i>
             </a>
+            <?php if ($can('doctor.view')): ?>
+                <a
+                    class="btn-tabler-icon"
+                    href="<?= base_url('doctor/profile') ?>"
+                    title="Doctor profile"
+                    aria-label="Doctor profile"
+                >
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
             <div class="vr mx-1 opacity-25"></div>
             <a
                 class="btn btn-sm btn-light"

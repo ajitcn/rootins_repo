@@ -1,0 +1,9 @@
+.pharmacy-delivery-table { width: 100%; table-layout: fixed; }
+.pharmacy-delivery-table th, .pharmacy-delivery-table td { vertical-align: top; overflow-wrap: anywhere; }
+.pharmacy-delivery-card, .pharmacy-delivery-grid { overflow: visible; }
+.pharmacy-delivery-item { min-width: 0; }
+.pharmacy-delivery-actions { position: relative; }
+.pharmacy-delivery-actions .dropdown-menu { min-width: 220px; }
+.pharmacy-delivery-modal table { min-width: 520px; }
+.pharmacy-delivery-modal .modal-body { overflow-y: auto; }
+.validation-error { min-height: 1.2rem; margin-top: 4px; color: #dc3545; font-size: 12px; }

@@ -9,7 +9,7 @@ namespace Config;
 class WorkerMode
 {
     /**
-     * Persistent Services
+     * Persistent Services.
      *
      * List of service names that should persist across requests.
      * These services will NOT be reset between requests.
@@ -30,8 +30,9 @@ class WorkerMode
      * @var list<string>
      */
     public array $persistentServices = ['autoloader', 'locator', 'exceptions', 'commands', 'codeigniter', 'superglobals', 'routes', 'cache'];
+
     /**
-     * Reset Event Listeners
+     * Reset Event Listeners.
      *
      * List of event names whose listeners should be removed between requests.
      * Use this if you register event listeners inside other event callbacks
@@ -41,8 +42,9 @@ class WorkerMode
      * @var list<string>
      */
     public array $resetEventListeners = [];
+
     /**
-     * Force Garbage Collection
+     * Force Garbage Collection.
      *
      * Whether to force garbage collection after each request.
      * Helps prevent memory leaks at a small performance cost.

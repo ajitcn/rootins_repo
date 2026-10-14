@@ -12,7 +12,7 @@ ROOTINS is a healthcare operations platform for clinic administration, doctor co
 
 - Use CodeIgniter 4.7.4-compatible patterns and PHP 8.2+.
 - Maintain the modular HMVC structure: shared application code in `app/`, feature code in `app/Modules/`.
-- The primary modules are `Admin`, `Doctor`, `Patient`, and `Farmassist`; each module owns its dashboard and user-facing workflows.
+- The primary modules are `Admin`, `Doctor`, `Patient`, and `Pharmacy`; each module owns its dashboard and user-facing workflows. The Pharmacy staff role is presented as `Pharmacy Assistant`.
 - Use explicit routes. Do not introduce auto-routed public actions.
 - Follow the existing server-rendered views plus jQuery/AJAX conventions unless a separately approved architectural change is made.
 - Reuse existing controllers, models, services, views, validation, and AJAX helpers before creating new components.
@@ -65,7 +65,7 @@ ROOTINS is a healthcare operations platform for clinic administration, doctor co
 - Validate upload type, size, ownership, and access authorization before serving files.
 - Do not make production, DNS, database, queue, webhook, Shopify, R2, SMS, WhatsApp, or email configuration changes as part of ordinary feature work.
 - Treat provider credentials, merchant onboarding, telehealth configuration, retention schedules, and compliance settings as `NEEDS_REVIEW` until formally approved.
-- Farmassist is an internal clinic/platform fulfilment role for the `[PROPOSED]` baseline; external legal-entity fulfilment is out of scope until contracts, adapters, and legal review are approved.
+- Pharmacy is an internal clinic/platform fulfilment role for the `[PROPOSED]` baseline; the staff role is presented as Pharmacy Assistant. External legal-entity fulfilment is out of scope until contracts, adapters, and legal review are approved.
 - Use the `[PROPOSED]` prescription states `draft`, `submitted`, `clarification_requested`, `approved`, `rejected`, `cancelled`, and `fulfilled`; preserve doctor instructions and require medical/admin authority for post-review amendment or reversal.
 - Track medicine batch/expiry and prevent fulfilment from expired or unavailable stock. Require recorded substitution approval and use the `[PROPOSED]` delivery states `pending`, `packed`, `dispatched`, `out_for_delivery`, `delivered`, `failed`, and `returned`.
 - Treat retention, deletion, and withdrawal as policy-controlled and configurable; never hard-code a legal retention period before Indian legal/compliance review. Preserve audit, financial, and clinically required records through controlled workflows.
@@ -81,7 +81,7 @@ ROOTINS is a healthcare operations platform for clinic administration, doctor co
 
 ## 8. Mandatory UI/UX standard
 
-This is a project-wide release requirement for Admin, Doctor, Patient, and Farmassist. A module is not UI-complete merely because its route, controller, or database workflow exists.
+This is a project-wide release requirement for Admin, Doctor, Patient, and Pharmacy. A module is not UI-complete merely because its route, controller, or database workflow exists.
 
 - Provide a modern, clean, interactive experience using the established server-rendered Bootstrap/jQuery stack. Keep layout, navigation, breadcrumbs, page titles, cards, forms, tables, buttons, badges, alerts, modals, validation, and status language consistent across panels.
 - Every interactive screen must provide intentional loading, empty, validation, success, permission-denied, and recoverable-error states. Safe user-facing messages must not expose exceptions, identifiers, medical data, credentials, or provider secrets.
@@ -95,6 +95,28 @@ This is a project-wide release requirement for Admin, Doctor, Patient, and Farma
 ### UI review checklist
 
 Before marking a module or workflow `Implemented` or `Verified`, reviewers must record evidence for: responsive layout; shared components/styles; searchable/filterable large-data controls; pagination or server-side search; loading/empty/error/success states; validation and safe errors; keyboard/focus/contrast checks; permission and clinic-scope behavior; duplicate-submit protection; and desktop/tablet/mobile smoke coverage. Any unmet item remains `Partial`, `Unverified`, or `NEEDS_REVIEW` in `MODULE-STATUS.md`.
+
+### Doctor modal-first UX rule
+
+For the Doctor panel, use an accessible popup modal by default for record details,
+forms, previews, and quick actions so the doctor remains on the current list or
+workspace. A separate page is permitted only when the content is too large or
+complex, or when it is a dedicated workflow such as the Clinical Workspace,
+full patient/appointment history, or a provider-controlled video session.
+
+Doctor modals must use the shared modal shell with a semantic header, a vertically
+scrollable body, and a visible footer for actions. They must support focus trapping,
+Escape and keyboard operation, focus restoration to the opener, background scroll
+lock, responsive sizing, and safe loading, empty, validation, success, and error
+states. Heavy details should load lazily through an authorized AJAX endpoint where
+that improves usability; the endpoint must retain authentication, permission,
+clinic/data scope, CSRF, audit, and safe-error contracts.
+
+Successful modal writes must remain on the current Doctor page and refresh only the
+affected list or context. Existing routes and business workflows remain the source
+of truth; this rule changes presentation and interaction, not authorization or
+clinical state rules. The shared `ri-scroll-modal` class and `RootinsModal`
+behavior are the reference implementation for new Doctor modals.
 
 ## 9. Quality gates
 

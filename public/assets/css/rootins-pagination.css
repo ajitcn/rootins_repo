@@ -1,0 +1,178 @@
+/* Shared ROOTINS pagination contract. Markup may remain module-owned, but all
+   pagination controls use the same neutral black/white/charcoal treatment. */
+.ri-pagination,
+.pharmacy-pagination,
+.pharmacy-review-pagination,
+.pagination-card,
+.card-footer:has(> nav[aria-label*="pagination" i]) {
+    min-width: 0;
+}
+.ri-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 58px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--ri-color-border, #e5e7eb);
+    background: #fff;
+}
+.ri-pagination-summary,
+.pharmacy-pagination > span,
+.pharmacy-review-pagination > span,
+.pagination-card .small.text-muted,
+.card-footer > nav .small.text-muted {
+    min-width: 0;
+    color: var(--ri-color-muted, #68707a);
+    font-size: 12px;
+    line-height: 1.35;
+}
+.ri-pagination-controls,
+.ri-pagination-size,
+.pharmacy-pagination .btn-group,
+.pharmacy-review-pagination .btn-group,
+.pagination-card nav,
+.card-footer > nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+.ri-pagination-size label,
+.ri-pagination-size select,
+.pharmacy-pagination label,
+.pharmacy-review-pagination label,
+.card-footer form label {
+    color: var(--ri-color-muted, #68707a);
+    font-size: 12px;
+}
+.ri-pagination-size select,
+.pharmacy-pagination select,
+.pharmacy-review-pagination select,
+.card-footer form select {
+    width: auto;
+    min-width: 62px;
+    height: 32px;
+    padding: 4px 24px 4px 9px;
+    border: 1px solid var(--ri-color-border, #d9dde2);
+    border-radius: 6px;
+    color: var(--ri-color-charcoal, #2b2f33);
+    background: #fff;
+    font-size: 12px;
+}
+.ri-page-link,
+.pharmacy-pagination .btn,
+.pharmacy-review-pagination .btn,
+.pagination-card nav .btn,
+.card-footer > nav .btn {
+    display: inline-flex;
+    min-width: 32px;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    border: 1px solid var(--ri-color-border, #d9dde2);
+    border-radius: 6px;
+    color: var(--ri-color-charcoal, #2b2f33);
+    background: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.ri-page-link:hover,
+.ri-page-link:focus,
+.pharmacy-pagination .btn:hover,
+.pharmacy-pagination .btn:focus,
+.pharmacy-review-pagination .btn:hover,
+.pharmacy-review-pagination .btn:focus,
+.pagination-card nav .btn:hover,
+.pagination-card nav .btn:focus,
+.card-footer > nav .btn:hover,
+.card-footer > nav .btn:focus {
+    color: #111;
+    border-color: #7d858e;
+    background: #f4f5f6;
+    text-decoration: none;
+}
+.ri-page-link.is-active,
+.pagination .page-item.active .page-link {
+    color: #fff;
+    border-color: #202428;
+    background: #202428;
+}
+.ri-page-link.is-disabled,
+.ri-page-link[aria-disabled="true"],
+.ri-pagination .disabled,
+.pharmacy-pagination .btn.disabled,
+.pharmacy-review-pagination .btn.disabled,
+.pagination-card nav .btn.disabled,
+.card-footer > nav .btn.disabled,
+.pagination .page-item.disabled .page-link {
+    pointer-events: none;
+    cursor: default;
+    color: #9aa1a8;
+    border-color: #e7e9eb;
+    background: #f5f6f7;
+    opacity: 1;
+}
+.ri-page-ellipsis {
+    display: inline-flex;
+    min-width: 25px;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    color: #7b838b;
+    font-size: 12px;
+}
+.pharmacy-pagination,
+.pharmacy-review-pagination,
+.pagination-card .card-body,
+.card-footer {
+    min-width: 0;
+    gap: 10px;
+}
+.pharmacy-pagination,
+.pharmacy-review-pagination,
+.pagination-card .card-body,
+.card-footer {
+    flex-wrap: wrap;
+}
+@media (max-width: 575.98px) {
+    .ri-pagination,
+    .pharmacy-pagination,
+    .pharmacy-review-pagination,
+    .pagination-card .card-body,
+    .card-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .ri-pagination-summary,
+    .ri-pagination-size,
+    .ri-pagination-controls,
+    .pharmacy-pagination > span,
+    .pharmacy-pagination .btn-group,
+    .pharmacy-review-pagination > span,
+    .pharmacy-review-pagination .btn-group,
+    .pagination-card nav,
+    .card-footer > nav,
+    .card-footer form {
+        width: 100%;
+    }
+    .ri-pagination-controls,
+    .pharmacy-pagination .btn-group,
+    .pharmacy-review-pagination .btn-group,
+    .pagination-card nav,
+    .card-footer > nav {
+        justify-content: flex-end;
+    }
+    .ri-pagination-controls .ri-page-link,
+    .pharmacy-pagination .btn,
+    .pharmacy-review-pagination .btn,
+    .pagination-card nav .btn,
+    .card-footer > nav .btn {
+        min-width: 34px;
+    }
+}

@@ -1,0 +1,78 @@
+/* Pharmacy component normalization. Loaded after feature styles so module
+   details cannot reintroduce a competing button or section color system. */
+.pharmacy-dashboard,
+.pharmacy-page,
+.pharmacy-notifications-page,
+.pharmacy-audit-page {
+    color: var(--ri-color-black);
+    background: transparent;
+}
+
+.pharmacy-page .card,
+.pharmacy-dashboard .card,
+.pharmacy-notifications-page .card,
+.pharmacy-audit-page .card,
+.pharmacy-page .pharmacy-filter-card,
+.pharmacy-page .pharmacy-orders-filters,
+.pharmacy-page .pharmacy-billing-filters,
+.pharmacy-page .pharmacy-delivery-filters,
+.pharmacy-dashboard .pharmacy-inventory-summary {
+    background: var(--ri-color-white) !important;
+    border-color: var(--ri-color-border) !important;
+    box-shadow: var(--ri-shadow) !important;
+}
+
+.pharmacy-page .table thead th,
+.pharmacy-dashboard .table thead th,
+.pharmacy-audit-page .table thead th,
+.pharmacy-page .pharmacy-inventory-summary-card {
+    background: var(--ri-color-page) !important;
+    border-color: var(--ri-color-border) !important;
+}
+
+.pharmacy-prescription-modal-header,
+.pharmacy-order-modal-header,
+.pharmacy-label-modal-header,
+.pharmacy-billing-modal-header {
+    background: var(--ri-color-charcoal) !important;
+}
+
+.pharmacy-prescription-modal-body,
+.pharmacy-order-modal-body,
+.pharmacy-label-modal-body,
+.pharmacy-billing-modal-body {
+    background: var(--ri-color-page) !important;
+}
+
+.pharmacy-page .dropdown-menu,
+.pharmacy-dashboard .dropdown-menu,
+.pharmacy-page .modal-content,
+.pharmacy-dashboard .modal-content {
+    border-color: var(--ri-color-border) !important;
+    box-shadow: var(--ri-shadow) !important;
+}
+
+.pharmacy-page .dropdown-item:hover,
+.pharmacy-page .dropdown-item:focus,
+.pharmacy-dashboard .dropdown-item:hover,
+.pharmacy-dashboard .dropdown-item:focus {
+    color: var(--ri-color-black) !important;
+    background: var(--ri-primary-soft) !important;
+}
+
+.pharmacy-page .payment-status-badge,
+.pharmacy-page .delivery-status-badge,
+.pharmacy-page .badge-info,
+.pharmacy-page .pharmacy-review-page .badge-info {
+    color: var(--ri-color-info) !important;
+    background: #eef1f3 !important;
+}
+
+.pharmacy-page .btn,
+.pharmacy-dashboard .btn,
+.pharmacy-notifications-page .btn,
+.pharmacy-audit-page .btn {
+    min-height: var(--ri-button-height) !important;
+    border-radius: var(--ri-button-radius) !important;
+    font-size: var(--ri-button-font-size) !important;
+}

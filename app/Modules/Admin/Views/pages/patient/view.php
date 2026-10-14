@@ -3,142 +3,38 @@
 <?= $this->section('main-content') ?>
 
 <?php
-$patientName = trim(implode(' ', array_filter([
-    $patient['first_name'] ?? '',
-    $patient['middle_name'] ?? '',
-    $patient['last_name'] ?? '',
-], static fn ($part) => $part !== null && $part !== '')));
+$patientName = trim(implode(' ', array_filter([$patient['first_name'] ?? '', $patient['middle_name'] ?? '', $patient['last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+$formatDate = static function ($value): string { $timestamp = strtotime((string) $value); return $timestamp ? date('d-m-Y', $timestamp) : 'Not provided'; };
+$value = static fn ($field): string => trim((string) ($patient[$field] ?? '')) !== '' ? trim((string) $patient[$field]) : 'Not provided';
+$patientAge = null;
+if (! empty($patient['date_of_birth'])) { try { $patientAge = (new DateTimeImmutable((string) $patient['date_of_birth']))->diff(new DateTimeImmutable('today'))->y; } catch (Throwable) { $patientAge = null; } }
+$statusActive = (int) ($patient['status'] ?? 0) === 1;
+$sourceLabel = patient_source_label($patient['source_type'] ?? null);
+$sourceClass = patient_source_badge_class($patient['source_type'] ?? null);
+$mobile = trim((string) ($patient['country_code'] ?? '') . ' ' . (string) ($patient['mobile_number'] ?? ''));
+$upcoming = $activity['upcoming_appointment'] ?? [];
+$lastAppointment = $activity['last_appointment'] ?? [];
+$appointmentLabel = static function (array $appointment, string $fallback = 'Not provided') use ($formatDate): string { if ($appointment === []) { return $fallback; } $date = $formatDate($appointment['appointment_date'] ?? null); $time = trim((string) ($appointment['appointment_time'] ?? '')); return $date . ($time !== '' ? ' · ' . date('h:i A', strtotime($time)) : ''); };
+$detailItem = static function (string $label, string $content, string $class = ''): string { return '<div class="admin-patient-detail-item ' . esc($class) . '"><dt>' . esc($label) . '</dt><dd>' . $content . '</dd></div>'; };
 ?>
 
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Patient Management',
-        'page'       => 'Patient Details',
-    ]) ?>
-
-    <div class="action-btn-container">
-        <a href="<?= base_url('admin/patients') ?>" class="btn btn-sm theme-btn">
-            <i class="bi bi-arrow-left"></i> Back to Patients
-        </a>
-        <a href="<?= base_url('admin/patients/' . (int) $patient['id'] . '/medical-history') ?>"
-           class="btn btn-sm btn-info">
-            <i class="bi bi-file-medical"></i> Medical History
-        </a>
-        <a href="<?= base_url('admin/patients/' . (int) $patient['id'] . '/documents') ?>"
-           class="btn btn-sm btn-secondary">
-            <i class="bi bi-file-earmark-text"></i> Documents
-        </a>
-    </div>
-
+<main class="dashboard-container admin-patient-detail-page" aria-labelledby="patient-detail-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Patient Details']) ?>
+    <section class="admin-patient-detail-toolbar" aria-label="Patient detail actions">
+        <div class="admin-patient-detail-toolbar-copy"><span class="page-eyebrow">Patient record</span><h1 id="patient-detail-title">Patient details</h1><p><?= esc($patientName ?: 'Unknown patient') ?> <span aria-hidden="true">·</span> <?= esc($value('registration_number')) ?></p></div>
+        <div class="admin-patient-detail-actions"><a href="<?= base_url('admin/patients') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i>Back</a><?php if ($canEdit): ?><a href="<?= base_url('admin/patients/edit/' . (int) $patient['id']) ?>" class="btn btn-sm theme-btn"><i class="bi bi-pencil-square mr-1" aria-hidden="true"></i>Edit patient</a><?php endif; ?></div>
+    </section>
     <?= display_session_msg() ?>
-
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Patient Details</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <strong>Registration Number</strong>
-                    <div><?= esc($patient['registration_number'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Patient Name</strong>
-                    <div><?= esc($patientName) ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Gender</strong>
-                    <div><?= esc($patient['gender'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Date of Birth</strong>
-                    <div><?= esc($patient['date_of_birth'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Mobile</strong>
-                    <div><?= esc(trim(($patient['country_code'] ?? '') . ' ' . ($patient['mobile_number'] ?? ''))) ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Email</strong>
-                    <div><?= esc($patient['email'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Clinic</strong>
-                    <div><?= esc($patient['clinic_name'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Status</strong>
-                    <div>
-                        <?php if ((int) ($patient['status'] ?? 0) === 1): ?>
-                            <span class="badge badge-success">Active</span>
-                        <?php else: ?>
-                            <span class="badge badge-danger">Inactive</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="col-12 mb-3">
-                    <strong>Address</strong>
-                    <div><?= nl2br(esc($patient['address'] ?? '')) ?></div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <strong>Country</strong>
-                    <div><?= esc($patient['country_name'] ?? '') ?></div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <strong>State</strong>
-                    <div><?= esc($patient['state_name'] ?? '') ?></div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <strong>City</strong>
-                    <div><?= esc($patient['city_name'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Postal Code</strong>
-                    <div><?= esc($patient['postal_code'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Registered On</strong>
-                    <div><?= esc($patient['created_at'] ?? '') ?></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Last Updated</strong>
-                    <div><?= esc($patient['updated_at'] ?? '') ?></div>
-                </div>
-            </div>
-        </div>
+    <section class="admin-patient-detail-hero" aria-label="Patient identity summary"><div class="admin-patient-detail-avatar" aria-hidden="true"><?= esc(strtoupper(substr($patientName ?: 'P', 0, 1))) ?></div><div class="admin-patient-detail-hero-copy"><div class="admin-patient-detail-kicker">Patient identity</div><h2><?= esc($patientName ?: 'Unknown patient') ?></h2><p><?= esc($value('registration_number')) ?></p></div><div class="admin-patient-detail-hero-badges"><span class="badge <?= esc($sourceClass) ?>"><?= esc($sourceLabel) ?></span><span class="admin-patient-detail-status <?= $statusActive ? 'is-success' : 'is-danger' ?>"><i aria-hidden="true"></i><?= $statusActive ? 'Active' : 'Inactive' ?></span></div></section>
+    <div class="admin-patient-detail-grid">
+        <section class="admin-patient-detail-card admin-patient-detail-card-wide" aria-labelledby="patient-identity-section"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span><div><h2 id="patient-identity-section">Patient identity</h2><p>Identifiers and record source</p></div></div><dl class="admin-patient-detail-list"><?= $detailItem('Full name', esc($patientName ?: 'Not provided')) ?><?= $detailItem('Patient number', esc($value('registration_number'))) ?><?= $detailItem('Registration number', esc($value('registration_number'))) ?><?= $detailItem('Source', '<span class="badge ' . esc($sourceClass) . '">' . esc($sourceLabel) . '</span>') ?><?= $detailItem('Patient status', '<span class="admin-patient-detail-status ' . ($statusActive ? 'is-success' : 'is-danger') . '"><i aria-hidden="true"></i>' . ($statusActive ? 'Active' : 'Inactive') . '</span>') ?></dl></section>
+        <section class="admin-patient-detail-card" aria-labelledby="patient-contact-section"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-telephone" aria-hidden="true"></i></span><div><h2 id="patient-contact-section">Contact</h2><p>Reach this patient</p></div></div><dl class="admin-patient-detail-list"><?= $detailItem('Mobile number', $mobile !== '' ? '<a href="tel:' . esc($mobile) . '">' . esc($mobile) . '</a>' : 'Not provided') ?><?= $detailItem('Email address', $value('email') !== 'Not provided' ? '<a class="admin-patient-detail-wrap" href="mailto:' . esc($patient['email']) . '">' . esc($patient['email']) . '</a>' : 'Not provided') ?><?= $detailItem('Alternate contact', 'Not provided') ?></dl></section>
+        <section class="admin-patient-detail-card" aria-labelledby="patient-demographics-section"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-calendar3" aria-hidden="true"></i></span><div><h2 id="patient-demographics-section">Demographics</h2><p>Personal details</p></div></div><dl class="admin-patient-detail-list"><?= $detailItem('Date of birth', esc($formatDate($patient['date_of_birth'] ?? null))) ?><?= $detailItem('Age', $patientAge !== null ? esc((string) $patientAge . ' years') : 'Not provided') ?><?= $detailItem('Gender', esc($value('gender'))) ?><?= $detailItem('Blood group', 'Not provided') ?></dl></section>
+        <section class="admin-patient-detail-card admin-patient-detail-card-wide" aria-labelledby="patient-address-section"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span><div><h2 id="patient-address-section">Complete address</h2><p>Location and postal details</p></div></div><dl class="admin-patient-detail-list admin-patient-detail-address-list"><?= $detailItem('Address line', nl2br(esc($value('address'))), 'is-long') ?><?= $detailItem('Locality', esc($value('locality_name'))) ?><?= $detailItem('City', esc($value('city_name'))) ?><?= $detailItem('State', esc($value('state_name'))) ?><?= $detailItem('Country', esc($value('country_name'))) ?><?= $detailItem('Postal code', esc($value('postal_code'))) ?></dl></section>
+        <section class="admin-patient-detail-card admin-patient-detail-card-wide" aria-labelledby="patient-activity-section"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-activity" aria-hidden="true"></i></span><div><h2 id="patient-activity-section">Activity summary</h2><p>Recent care activity in this clinic</p></div></div><div class="admin-patient-activity-summary"><div><span>Total appointments</span><strong><?= esc((string) ($activity['total_appointments'] ?? 0)) ?></strong></div><div><span>Last appointment</span><strong><?= esc($appointmentLabel($lastAppointment)) ?></strong></div><div><span>Upcoming appointment</span><strong><?= esc($appointmentLabel($upcoming)) ?></strong></div><div><span>Prescriptions</span><strong><?= esc((string) ($activity['prescription_count'] ?? 0)) ?></strong></div><div><span>Orders</span><strong>Not available</strong></div><div><span>Last activity</span><strong><?= esc($formatDate($activity['last_activity'] ?? null)) ?></strong></div></div></section>
     </div>
-
-    <div class="card mt-4">
-        <div class="card-header"><h5 class="mb-0">Clinical Timeline</h5></div>
-        <div class="card-body">
-            <?php if ($timeline === []): ?>
-                <p class="text-muted mb-0">No clinical records found for this patient.</p>
-            <?php else: ?>
-                <div class="list-group list-group-flush">
-                    <?php foreach ($timeline as $record): ?>
-                        <div class="list-group-item px-0">
-                            <div class="d-flex justify-content-between align-items-start flex-wrap">
-                                <div>
-                                    <span class="badge badge-info mr-2"><?= esc($record['type']) ?></span>
-                                    <strong><?= esc($record['title']) ?></strong>
-                                </div>
-                                <small class="text-muted"><?= esc(date('d M Y, h:i A', strtotime((string) $record['occurred_at']))) ?></small>
-                            </div>
-                            <div class="mt-2 small">
-                                <?php if (! empty($record['doctor'])): ?><span class="mr-3"><strong>Doctor:</strong> <?= esc($record['doctor']) ?></span><?php endif; ?>
-                                <?php if (! empty($record['appointment_no'])): ?><span class="mr-3"><strong>Appointment:</strong> <?= esc($record['appointment_no']) ?></span><?php endif; ?>
-                                <?php if (! empty($record['consultation_no'])): ?><span class="mr-3"><strong>Consultation:</strong> <?= esc($record['consultation_no']) ?></span><?php endif; ?>
-                                <?php if (! empty($record['prescription_no'])): ?><span class="mr-3"><strong>Prescription:</strong> <?= esc($record['prescription_no']) ?></span><?php endif; ?>
-                            </div>
-                            <?php if (! empty($record['summary'])): ?><div class="text-muted mt-1"><?= nl2br(esc($record['summary'])) ?></div><?php endif; ?>
-                            <?php if (! empty($record['url']) && $record['can_view']): ?><a href="<?= esc($record['url']) ?>" class="btn btn-sm btn-outline-primary mt-2">View Original Record</a><?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+    <section class="admin-patient-related-actions" aria-labelledby="patient-related-actions-title"><div><h2 id="patient-related-actions-title">Related actions</h2><p>Open scoped records linked to this patient.</p></div><div class="admin-patient-related-action-list"><?php if ($canEdit): ?><a class="btn btn-sm theme-btn" href="<?= base_url('admin/patients/edit/' . (int) $patient['id']) ?>"><i class="bi bi-pencil-square mr-1" aria-hidden="true"></i>Edit patient</a><?php endif; ?><?php if ($canViewAppointments): ?><a class="btn btn-sm btn-outline-secondary" href="<?= base_url('admin/appointments?search=' . rawurlencode((string) ($patient['registration_number'] ?? ''))) ?>"><i class="bi bi-calendar-check mr-1" aria-hidden="true"></i>Appointments</a><?php endif; ?><?php if ($canViewPrescriptions): ?><a class="btn btn-sm btn-outline-secondary" href="<?= base_url('admin/prescriptions?search=' . rawurlencode((string) ($patient['registration_number'] ?? ''))) ?>"><i class="bi bi-capsule mr-1" aria-hidden="true"></i>Prescriptions</a><?php endif; ?><a class="btn btn-sm btn-outline-secondary" href="<?= base_url('admin/patients/' . (int) $patient['id'] . '/documents') ?>"><i class="bi bi-file-earmark-text mr-1" aria-hidden="true"></i>Documents</a></div></section>
+    <section class="admin-patient-timeline-card" aria-labelledby="patient-timeline-title"><div class="admin-patient-detail-card-header"><span class="admin-patient-detail-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span><div><h2 id="patient-timeline-title">Clinical timeline</h2><p>Authorized linked records only</p></div></div><?php if ($timeline === []): ?><div class="admin-patient-timeline-empty">No clinical records found for this patient.</div><?php else: ?><div class="admin-patient-timeline-list"><?php foreach ($timeline as $record): ?><article class="admin-patient-timeline-item"><div class="admin-patient-timeline-marker" aria-hidden="true"></div><div class="admin-patient-timeline-copy"><div class="admin-patient-timeline-heading"><div><span class="badge badge-light mr-2"><?= esc($record['type']) ?></span><strong><?= esc($record['title']) ?></strong></div><time><?= esc($formatDate($record['occurred_at'] ?? null)) ?></time></div><div class="admin-patient-timeline-meta"><?php if (! empty($record['doctor'])): ?><span>Doctor: <?= esc($record['doctor']) ?></span><?php endif; ?><?php if (! empty($record['appointment_no'])): ?><span>Appointment: <?= esc($record['appointment_no']) ?></span><?php endif; ?><?php if (! empty($record['consultation_no'])): ?><span>Consultation: <?= esc($record['consultation_no']) ?></span><?php endif; ?><?php if (! empty($record['prescription_no'])): ?><span>Prescription: <?= esc($record['prescription_no']) ?></span><?php endif; ?></div><?php if (! empty($record['summary'])): ?><p><?= nl2br(esc($record['summary'])) ?></p><?php endif; ?><?php if (! empty($record['url']) && ! empty($record['can_view'])): ?><a href="<?= esc($record['url']) ?>" class="btn btn-sm btn-outline-secondary">View original record</a><?php endif; ?></div></article><?php endforeach; ?></div><?php endif; ?></section>
 </main>
 
 <?= $this->endSection() ?>

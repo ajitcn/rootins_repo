@@ -1,2 +1,17 @@
 <?= $this->extend(DOCTOR_VIEW . 'layout') ?>
-<?= $this->section('main-content') ?><main class="dashboard-container" aria-labelledby="doctor-video-title"><div class="page-heading"><div><a href="<?= base_url('doctor/appointments/' . (int) $appointment['id']) ?>" class="btn btn-sm btn-light mb-3"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i>Back to appointment</a><div class="page-eyebrow">Tele-consultation</div><h1 id="doctor-video-title" class="h3 mb-1">Video consultation</h1><div class="text-muted">Appointment <?= esc($appointment['appointment_number']) ?> · <?= esc(trim(($appointment['patient_first_name'] ?? '') . ' ' . ($appointment['patient_last_name'] ?? ''))) ?></div></div><span class="badge badge-light">Provider boundary</span></div><div class="card"><div class="card-body"><div class="empty-state"><i class="bi bi-camera-video d-block h2 mb-2" aria-hidden="true"></i><h2 class="h5">Video room is not configured</h2><p class="text-muted mb-0">The <?= esc($provider) ?> adapter is integration-ready. No room or token is created until deployment credentials, consent, and provider configuration are approved.</p></div></div></div></main><?= $this->endSection() ?>
+
+<?= $this->section('main-content') ?>
+<main class="dashboard-container doctor-video-page" aria-labelledby="doctor-video-title">
+    <div class="page-heading">
+        <div>
+            <a href="<?= base_url('doctor/appointments') ?>" class="btn btn-sm btn-light mb-3"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i>Back to appointments</a>
+            <div class="page-eyebrow">Tele-consultation</div>
+            <h1 id="doctor-video-title" class="h3 mb-1">Video consultation</h1>
+        </div>
+        <span class="badge badge-light">Secure provider boundary</span>
+    </div>
+    <section class="card doctor-video-card">
+        <div class="card-body"><?= view(DOCTOR_VIEW . 'pages/video_panel', get_defined_vars()) ?></div>
+    </section>
+</main>
+<?= $this->endSection() ?>

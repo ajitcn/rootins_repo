@@ -4,13 +4,16 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\Database\Seeds\ExampleSeeder;
 use Tests\Support\Models\ExampleModel;
+
 /**
  * @internal
  */
 final class ExampleDatabaseTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+
     protected $seed = ExampleSeeder::class;
+
     public function testModelFindAll(): void
     {
         $model = new ExampleModel();
@@ -19,6 +22,7 @@ final class ExampleDatabaseTest extends CIUnitTestCase
         // Make sure the count is as expected
         $this->assertCount(3, $objects);
     }
+
     public function testSoftDeleteLeavesRow(): void
     {
         $model = new ExampleModel();

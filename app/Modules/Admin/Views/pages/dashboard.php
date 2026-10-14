@@ -1,6 +1,7 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
+<?php $dashboardPermissions = session('permissions') ?? []; $canDashboard = static fn (string $permission): bool => in_array($permission, $dashboardPermissions, true); ?>
 <main class="dashboard-container" aria-labelledby="admin-dashboard-title">
     <div class="page-heading">
         <div>
@@ -20,7 +21,7 @@
             ['patients', 'Active patients', 'bi-people', 'admin/patients'],
             ['appointments', 'Appointments today', 'bi-calendar-check', 'admin/appointments'],
             ['payments', 'Paid invoices', 'bi-credit-card', 'admin/billing'],
-            ['orders', 'Medicine orders', 'bi-box-seam', 'farmassist'],
+            ['orders', 'Medicine orders', 'bi-box-seam', 'pharmacy'],
             ['audit_alerts', 'Audit alerts today', 'bi-shield-exclamation', 'admin/audit'],
         ] as [$key, $label, $icon, $url]): ?>
             <div class="col-12 col-sm-6 col-xl-3 mb-3">
@@ -53,6 +54,8 @@
                 </div>
                 <div class="card-body">
                     <div class="d-flex flex-wrap gap-2">
+                        <?php if ($canDashboard('doctor.view')): ?><a class="btn btn-outline-primary" href="<?= base_url('admin/doctors') ?>"><i class="fa-solid fa-user-doctor mr-1" aria-hidden="true"></i>Doctor Management</a><?php endif; ?>
+                        <?php if ($canDashboard('doctor_commission.view')): ?><a class="btn btn-outline-primary" href="<?= base_url('admin/doctor-commissions') ?>"><i class="fa-solid fa-percent mr-1" aria-hidden="true"></i>Doctor Commission</a><?php endif; ?>
                         <a class="btn btn-outline-primary" href="<?= base_url('admin/audit') ?>"><i class="bi bi-shield-check mr-1" aria-hidden="true"></i>Review audit logs</a>
                         <a class="btn btn-outline-primary" href="<?= base_url('admin/billing') ?>"><i class="bi bi-receipt mr-1" aria-hidden="true"></i>Review billing</a>
                         <a class="btn btn-outline-primary" href="<?= base_url('admin/access/users') ?>"><i class="bi bi-person-gear mr-1" aria-hidden="true"></i>Manage users</a>

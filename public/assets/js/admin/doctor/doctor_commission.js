@@ -6,11 +6,12 @@
     $(document).on('click', '.open_doctor_commission_modal', function(){
         $('#doctorCommissionModal .modal-title').text('Add Consultation Commission');
         $('#doctorCommissionModal .save').text('Save Commission');
-        $('[name=doctor_commission_id]').val(''); 
+        $('#doctor_commission_id').val('');
 
         $('#doctorCommissionModal').modal('show');
         resetForm('#doctorCommissionForm');
         clearFormErrors();
+        $('#commission_type').trigger('change');
     });
     
 
@@ -41,7 +42,6 @@
             success: function (response) {
 
                 if (response.status) {
-                    hide_loader();
                     showSuccess(response.msg); 
                     reload_page(500);   
 
@@ -89,8 +89,13 @@
                 $('#commission_for').val(commission.commission_for).selectpicker('refresh'); 
                 $('#commission_type').val(commission.commission_type).selectpicker('refresh'); 
                 $('#commission_value').val(commission.commission_value);
-                $('#effective_from').datepicker('update', commission.effective_from);;
-                $('#status').val(commission.status);
+                if (window.setSharedDateValue) {
+                    setSharedDateValue('#effective_from', commission.effective_from);
+                } else {
+                    $('#effective_from').val(commission.effective_from);
+                }
+                $('#doctor_commission_status').val(commission.status).selectpicker('refresh');
+                $('#commission_type').trigger('change');
                  
                  
  
@@ -104,6 +109,12 @@
 
         });
     }
+
+$(document).on('change', '#commission_type', function () {
+    const isPercentage = $(this).val() === 'PERCENTAGE';
+    $('#commissionValuePrefix').html(isPercentage ? '%' : '&#8377;');
+    $('#commission_value').attr('max', isPercentage ? '100' : null);
+});
         
 
 

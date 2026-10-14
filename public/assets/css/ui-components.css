@@ -1,0 +1,452 @@
+/* ROOTINS shared UI components. Loaded after the base theme and before any
+   module-specific content styles. */
+:root {
+    --ri-ui-charcoal: var(--ri-color-charcoal, #242424);
+    --ri-ui-black: var(--ri-color-black, #111111);
+    --ri-ui-white: var(--ri-color-white, #ffffff);
+    --ri-ui-page: var(--ri-color-page, #f3f4f5);
+    --ri-ui-border: var(--ri-color-border, #d7d9dc);
+    --ri-ui-muted: var(--ri-color-muted, #62666b);
+    --ri-ui-focus: var(--ri-color-focus, #806b36);
+    --ri-ui-success: var(--ri-color-success, #3f7658);
+    --ri-ui-warning: var(--ri-color-warning, #8a671f);
+    --ri-ui-danger: var(--ri-color-danger, #a34d4d);
+    --ri-ui-info: var(--ri-color-info, #5f6d7a);
+    --ri-ui-radius: 8px;
+    --ri-ui-shadow: 0 2px 10px rgba(0, 0, 0, .05);
+}
+
+/* Buttons and action controls */
+.btn,
+button.btn,
+a.btn {
+    min-height: 36px;
+    padding: .5rem .85rem;
+    border-radius: var(--ri-ui-radius);
+    font-size: .78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: none;
+    transition: color .15s ease, background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.btn:hover,
+.btn:active,
+.btn:focus { transform: none; box-shadow: none; }
+.btn:focus-visible,
+.btn.focus-visible,
+.dropdown-item:focus-visible,
+.close:focus-visible { outline: 3px solid var(--ri-focus); outline-offset: 2px; }
+.btn:disabled,
+.btn.disabled,
+fieldset:disabled .btn { cursor: not-allowed; opacity: .58; }
+.btn.is-loading,
+.btn[aria-busy="true"] { cursor: wait; opacity: .72; pointer-events: none; }
+.btn-primary,
+.theme-btn { color: var(--ri-ui-white) !important; background: var(--ri-ui-charcoal) !important; border-color: var(--ri-ui-charcoal) !important; }
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.theme-btn:hover,
+.theme-btn:focus,
+.theme-btn:active { color: var(--ri-ui-white) !important; background: var(--ri-ui-black) !important; border-color: var(--ri-ui-black) !important; }
+.btn-secondary,
+.btn-light,
+.btn-outline-secondary { color: var(--ri-ui-charcoal) !important; background: var(--ri-ui-white) !important; border-color: var(--ri-ui-charcoal) !important; }
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-light:hover,
+.btn-light:focus,
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus { color: var(--ri-ui-white) !important; background: var(--ri-ui-charcoal) !important; border-color: var(--ri-ui-charcoal) !important; }
+.btn-outline-primary { color: var(--ri-ui-charcoal) !important; background: transparent !important; border-color: var(--ri-ui-charcoal) !important; }
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active { color: var(--ri-ui-white) !important; background: var(--ri-ui-charcoal) !important; border-color: var(--ri-ui-charcoal) !important; }
+.btn-success { color: #fff !important; background: var(--ri-ui-success) !important; border-color: var(--ri-ui-success) !important; }
+.btn-danger { color: #fff !important; background: var(--ri-ui-danger) !important; border-color: var(--ri-ui-danger) !important; }
+.btn-warning { color: #fff !important; background: var(--ri-ui-warning) !important; border-color: var(--ri-ui-warning) !important; }
+.btn-info { color: #fff !important; background: var(--ri-ui-info) !important; border-color: var(--ri-ui-info) !important; }
+
+/* Status, source, and permission badges */
+.badge,
+.status-badge,
+.source-badge,
+.permission-badge {
+    display: inline-flex;
+    max-width: 100%;
+    min-height: 22px;
+    align-items: center;
+    justify-content: center;
+    gap: .25rem;
+    padding: .28rem .55rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ri-ui-muted);
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    vertical-align: middle;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.badge-success, .status-success, .status-active, .status-delivered { color: #2f6548 !important; background: #e7f2eb !important; border-color: #bdd9c6 !important; }
+.badge-warning, .status-warning, .status-pending, .status-processing { color: #765715 !important; background: #fbf2d8 !important; border-color: #e6d49d !important; }
+.badge-danger, .status-danger, .status-failed, .status-cancelled { color: #873f3f !important; background: #f8e7e7 !important; border-color: #e3bbbb !important; }
+.badge-info, .status-info, .source-badge.shopify { color: #4e5e6b !important; background: #edf1f3 !important; border-color: #cbd4da !important; }
+.badge-secondary, .badge-light, .status-neutral, .status-inactive, .permission-badge { color: #596067 !important; background: #eef0f1 !important; border-color: #d4d8db !important; }
+.source-badge { color: var(--ri-ui-charcoal); background: #f1f2f2; border-color: var(--ri-ui-border); }
+
+/* Tables, action columns, lists, and grid cards */
+.table-responsive { max-width: 100%; overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
+.table { width: 100%; color: var(--ri-ui-black); }
+.table thead th { padding: .7rem .85rem; background: var(--ri-ui-page); border-color: var(--ri-ui-border); color: var(--ri-ui-muted); font-size: .68rem; font-weight: 800; letter-spacing: .05em; line-height: 1.25; text-transform: uppercase; white-space: nowrap; vertical-align: middle; }
+.table td { max-width: 22rem; padding: .7rem .85rem; border-color: #e7e9eb; overflow-wrap: anywhere; vertical-align: middle; }
+.table td:last-child, .table th:last-child { white-space: nowrap; }
+.table tbody tr:hover { background: #fafafa; }
+.table .dropdown, .table .btn-group { position: relative; }
+.card, .tblr-card, .access-card { border: 1px solid var(--ri-ui-border); border-radius: var(--ri-ui-radius); background: var(--ri-ui-white); box-shadow: var(--ri-ui-shadow); }
+.card-header, .card-footer, .section-header, .toolbar-card { background: var(--ri-ui-white); border-color: var(--ri-ui-border); }
+.card-header { padding: .85rem 1rem; }
+.card-header h1, .card-header h2, .card-header h3, .card-header h4, .card-header h5, .card-header h6 { margin-bottom: 0; color: var(--ri-ui-black); font-weight: 800; }
+.card-footer { padding: .75rem 1rem; }
+
+/* Search/filter toolbars and forms */
+.toolbar-card,
+.filter-card,
+.list-toolbar,
+.patient-list-toolbar,
+.doctor-list-toolbar,
+.pharmacy-filter-card { background: var(--ri-ui-white); border: 1px solid var(--ri-ui-border); border-radius: var(--ri-ui-radius); box-shadow: var(--ri-ui-shadow); }
+label { color: var(--ri-ui-black); font-size: .78rem; font-weight: 700; }
+.form-control, .custom-select, .custom-control-input, .bootstrap-select > .dropdown-toggle { border-color: var(--ri-ui-border); border-radius: var(--ri-ui-radius); color: var(--ri-ui-black); }
+.form-control:focus, .custom-select:focus, .bootstrap-select > .dropdown-toggle:focus { border-color: var(--ri-ui-focus); box-shadow: 0 0 0 3px var(--ri-focus, rgba(128,107,54,.34)); }
+.form-control::placeholder { color: #888d92; }
+.validation-error { min-height: 1.1rem; color: var(--ri-ui-danger); font-size: .72rem; line-height: 1.3; }
+.alert { border: 1px solid var(--ri-ui-border); border-radius: var(--ri-ui-radius); box-shadow: none; }
+.alert-success { color: #2f6548; background: #e7f2eb; border-color: #bdd9c6; }
+.alert-warning { color: #765715; background: #fbf2d8; border-color: #e6d49d; }
+.alert-danger { color: #873f3f; background: #f8e7e7; border-color: #e3bbbb; }
+.alert-info { color: #4e5e6b; background: #edf1f3; border-color: #cbd4da; }
+
+/* Dropdowns, pagination, modals, empty, and loading states */
+.dropdown-menu { max-width: min(22rem, calc(100vw - 1.5rem)); padding: .3rem; border: 1px solid var(--ri-ui-border); border-radius: var(--ri-ui-radius); background: var(--ri-ui-white); box-shadow: 0 8px 22px rgba(0, 0, 0, .12); }
+.dropdown-item { padding: .5rem .65rem; border-radius: 6px; color: var(--ri-ui-black); font-size: .78rem; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+.dropdown-item:hover, .dropdown-item:focus { color: var(--ri-ui-black); background: #eef0f1; }
+.pagination { flex-wrap: wrap; gap: .25rem; margin-bottom: 0; }
+.pagination .page-link { color: var(--ri-ui-charcoal); border-color: var(--ri-ui-border); border-radius: 6px; }
+.pagination .page-item.active .page-link { color: #fff; background: var(--ri-ui-charcoal); border-color: var(--ri-ui-charcoal); }
+.pagination .page-item.disabled .page-link { color: var(--ri-ui-muted); background: var(--ri-ui-page); }
+.modal-content { overflow: hidden; border: 1px solid var(--ri-ui-border); border-radius: var(--ri-ui-radius); background: var(--ri-ui-white); box-shadow: 0 12px 32px rgba(0, 0, 0, .16); }
+.modal-header, .modal-footer { flex: 0 0 auto; border-color: var(--ri-ui-border); background: var(--ri-ui-white); }
+.modal-header { padding: .85rem 1rem; }
+.modal-body { min-height: 0; }
+.modal-dialog-scrollable .modal-content { max-height: calc(100vh - 2rem); }
+.modal-dialog-scrollable .modal-body { overflow-y: auto; }
+.modal-header .close, .modal-header button.close { color: var(--ri-ui-muted); opacity: 1; }
+.modal-header .close:hover, .modal-header button.close:hover { color: var(--ri-ui-black); }
+.empty-state, .patient-empty-state, .pharmacy-empty, .pharmacy-orders-empty, .pharmacy-review-empty, .pharmacy-inventory-empty, .pharmacy-billing-empty, .pharmacy-delivery-empty { color: var(--ri-ui-muted); text-align: center; }
+.empty-state i, .patient-empty-state i, .pharmacy-empty i, .pharmacy-orders-empty i, .pharmacy-review-empty i, .pharmacy-inventory-empty i, .pharmacy-billing-empty i, .pharmacy-delivery-empty i { color: #92979c; }
+.preloader { background: rgba(17, 17, 17, .78); }
+
+@media (max-width: 767.98px) {
+    .table td, .table th { padding: .6rem .65rem; }
+    .table td:last-child, .table th:last-child { white-space: normal; }
+    .modal-dialog { margin: .5rem; }
+    .modal-footer { flex-wrap: wrap; gap: .4rem; }
+    .modal-footer .btn { flex: 1 1 auto; }
+}
+
+@media (max-width: 575.98px) {
+    .btn, button.btn, a.btn { min-height: 34px; padding-inline: .7rem; }
+    .dropdown-menu { max-width: calc(100vw - 1rem); }
+    .modal-dialog { max-width: none; }
+}
+
+/* Admin record lists. Keep this scoped so module-specific pages can opt out
+   without changing the shared component contract. */
+.admin-shell #main-content {
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.admin-shell .dashboard-container,
+.admin-shell #core-api-page,
+.admin-shell #shopify-integration-page,
+.admin-shell #shopify-order-imports {
+    min-width: 0;
+}
+
+.admin-shell .dashboard-container .action-btn-container {
+    min-width: 0;
+    margin-bottom: 1rem !important;
+    padding: .8rem 1rem;
+    border: 1px solid var(--ri-ui-border);
+    border-radius: var(--ri-ui-radius);
+    background: var(--ri-ui-white);
+    box-shadow: var(--ri-ui-shadow);
+}
+
+.admin-shell .dashboard-container .action-btn-container > p {
+    min-width: 0;
+    margin-right: 1rem;
+    color: var(--ri-ui-muted);
+    font-size: .78rem;
+    line-height: 1.45;
+}
+
+.admin-shell .dashboard-container .card,
+.admin-shell .dashboard-container .access-card,
+.admin-shell #core-api-page .core-api-panel,
+.admin-shell #shopify-integration-page .card,
+.admin-shell #shopify-order-imports .card {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.admin-shell .table-responsive {
+    position: relative;
+    max-width: 100%;
+    border-color: var(--ri-ui-border);
+    scrollbar-color: #9ca1a5 var(--ri-ui-page);
+    scrollbar-width: thin;
+}
+
+.admin-shell .table-responsive::-webkit-scrollbar { height: 9px; }
+.admin-shell .table-responsive::-webkit-scrollbar-track { background: var(--ri-ui-page); }
+.admin-shell .table-responsive::-webkit-scrollbar-thumb { border-radius: 999px; background: #9ca1a5; }
+
+.admin-shell .table-responsive > .table,
+.admin-shell .table-responsive > table {
+    min-width: 48rem;
+    margin-bottom: 0;
+    table-layout: auto;
+}
+
+.admin-shell .table-responsive > .table thead th,
+.admin-shell .table-responsive > table thead th {
+    height: 2.8rem;
+    white-space: nowrap;
+}
+
+.admin-shell .table-responsive > .table tbody tr,
+.admin-shell .table-responsive > table tbody tr {
+    min-height: 3.25rem;
+}
+
+.admin-shell .table-responsive > .table tbody td,
+.admin-shell .table-responsive > table tbody td {
+    min-width: 0;
+    line-height: 1.4;
+}
+
+.admin-shell .table-responsive > .table tbody tr:last-child td,
+.admin-shell .table-responsive > table tbody tr:last-child td { border-bottom: 0; }
+
+.admin-shell .table-responsive > .table tbody tr:hover,
+.admin-shell .table-responsive > table tbody tr:hover { background: #f8f9fa; }
+
+.admin-shell .table-responsive > .table td:last-child,
+.admin-shell .table-responsive > table td:last-child {
+    min-width: 8rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.admin-shell .table-responsive > .table td:last-child .btn,
+.admin-shell .table-responsive > table td:last-child .btn {
+    min-width: 2.15rem;
+    min-height: 32px;
+    margin: .1rem 0;
+    padding: .4rem .55rem;
+}
+
+.admin-shell .admin-row-actions-more {
+    display: inline-block;
+    margin-left: .2rem;
+    vertical-align: middle;
+}
+
+.admin-shell .admin-row-actions-more > .dropdown-toggle {
+    min-width: auto !important;
+    padding-inline: .65rem !important;
+}
+
+.admin-shell .admin-row-actions-more .dropdown-menu {
+    min-width: 11rem;
+    margin-top: .25rem;
+}
+
+.admin-shell .admin-row-actions-more .admin-action-form { margin: 0; }
+
+.admin-shell .admin-row-actions-more .admin-action-form .btn,
+.admin-shell .admin-row-actions-more .dropdown-item {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    margin: 0;
+    border: 0;
+    border-radius: 6px;
+    text-align: left;
+}
+
+.admin-shell .card-footer > form,
+.admin-shell .card-footer > nav,
+.admin-shell .card-footer > .pagination,
+.admin-shell .card-footer > .form-inline { min-width: 0; }
+
+.admin-shell .card-footer nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+.admin-shell .card-footer nav .btn { margin: 0; }
+
+.admin-shell .empty-state,
+.admin-shell .access-empty,
+.admin-shell .patient-empty-state {
+    min-height: 9rem;
+    padding: 2rem 1rem;
+    border-top: 1px solid var(--ri-ui-border);
+    background: var(--ri-ui-page);
+}
+
+.admin-shell .table .badge,
+.admin-shell .table .status-badge,
+.admin-shell .table .source-badge,
+.admin-shell .table .permission-badge { max-width: 10rem; }
+
+@media (max-width: 767.98px) {
+    .admin-shell .dashboard-container .action-btn-container {
+        align-items: stretch !important;
+        gap: .7rem;
+        padding: .75rem;
+    }
+
+    .admin-shell .dashboard-container .action-btn-container > p,
+    .admin-shell .dashboard-container .action-btn-container > div {
+        width: 100%;
+        margin-right: 0;
+    }
+
+    .admin-shell .dashboard-container .action-btn-container > div {
+        display: flex;
+        gap: .45rem;
+    }
+
+    .admin-shell .dashboard-container .action-btn-container > div .btn {
+        flex: 1 1 auto;
+        margin-right: 0 !important;
+    }
+
+    .admin-shell .table-responsive { border-radius: 0; }
+
+    .admin-shell .table-responsive > .table,
+    .admin-shell .table-responsive > table { min-width: 44rem; }
+
+    .admin-shell .table-responsive > .table thead th,
+    .admin-shell .table-responsive > table thead th,
+    .admin-shell .table-responsive > .table tbody td,
+    .admin-shell .table-responsive > table tbody td { padding: .62rem .7rem; }
+
+    .admin-shell .card-footer {
+        align-items: stretch !important;
+        gap: .7rem;
+    }
+
+    .admin-shell .card-footer > form,
+    .admin-shell .card-footer > nav { width: 100%; }
+
+    .admin-shell .card-footer > nav { justify-content: flex-start; }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack {
+        display: block;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody,
+    .admin-shell .table-responsive > table.admin-responsive-stack tr,
+    .admin-shell .table-responsive > table.admin-responsive-stack td {
+        display: block;
+        width: 100%;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody tr {
+        margin: 0;
+        padding: .7rem .8rem;
+        border-bottom: 1px solid var(--ri-ui-border);
+        background: var(--ri-ui-white);
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody tr:last-child { border-bottom: 0; }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td {
+        display: flex;
+        min-width: 0;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .42rem 0;
+        border: 0;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td::before {
+        flex: 0 0 7.25rem;
+        color: var(--ri-ui-muted);
+        content: attr(data-label);
+        font-size: .66rem;
+        font-weight: 800;
+        line-height: 1.3;
+        text-align: left;
+        text-transform: uppercase;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td > * {
+        max-width: calc(100% - 8.25rem);
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td:last-child {
+        min-width: 0;
+        justify-content: flex-end;
+        padding-top: .7rem;
+        border-top: 1px solid #eceeef;
+        white-space: normal;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td:last-child::before {
+        margin-right: auto;
+    }
+
+    .admin-shell .table-responsive > table.admin-responsive-stack tbody td:last-child > * {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .admin-shell .table-responsive > .table,
+    .admin-shell .table-responsive > table { min-width: 40rem; }
+
+    .admin-shell .table-responsive > .table td:last-child,
+    .admin-shell .table-responsive > table td:last-child { min-width: 7.5rem; }
+
+    .admin-shell .card-footer > nav > .small {
+        flex-basis: 100%;
+        margin-right: 0 !important;
+    }
+}

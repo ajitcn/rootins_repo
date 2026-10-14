@@ -5,12 +5,13 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Log\Handlers\FileHandler;
 use CodeIgniter\Log\Handlers\HandlerInterface;
+
 class Logger extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * Error Logging Threshold
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * You can enable error logging by setting a threshold over zero. The
      * threshold determines what gets logged. Any values below or equal to the
@@ -39,19 +40,21 @@ class Logger extends BaseConfig
      * @var int|list<int>
      */
     public $threshold = ENVIRONMENT === 'production' ? 4 : 9;
+
     /**
      * --------------------------------------------------------------------------
      * Date Format for Logs
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Each item that is logged has an associated date. You can use PHP date
      * codes to set your own date formatting
      */
     public string $dateFormat = 'Y-m-d H:i:s';
+
     /**
      * --------------------------------------------------------------------------
      * Log Handlers
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * The logging system supports multiple actions to be taken when something
      * is logged. This is done by allowing for multiple Handlers, special classes

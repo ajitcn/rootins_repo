@@ -145,15 +145,13 @@
                             </div>
                         </div>
 
-                        <!-- Mobile -->
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Mobile <span class="text-danger">*</span></label>
-
-                                <input type="text" class="form-control" name="mobile" id="mobile">
-                                <div class="validation-error" id="mobileErr"></div>
-                            </div>
-                        </div>
+                        <?= view('templates/_telephone_contact', [
+                            'idPrefix' => 'doctor',
+                            'mobileName' => 'mobile',
+                            'mobileId' => 'doctor-mobile',
+                            'telephoneCodes' => $telephoneCodes ?? [],
+                            'mobileRequired' => true,
+                        ]) ?>
 
                         <!-- Email -->
                         <div class="col-md-6">

@@ -12,9 +12,9 @@ $patientName = trim(implode(' ', array_filter([
 
 <main class="dashboard-container">
     <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
+        'module' => 'admin',
         'menu_title' => 'Patient Management',
-        'page'       => 'Medical History',
+        'page' => 'Medical History',
     ]) ?>
 
     <div class="action-btn-container">

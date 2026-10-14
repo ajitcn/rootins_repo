@@ -3,6 +3,7 @@
 namespace App\Database\Seeds;
 
 use CodeIgniter\Database\Seeder;
+
 class PermissionSeeder extends Seeder
 {
     public function run()
@@ -53,6 +54,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Role', 'permission_name' => 'Manage Roles', 'permission_key' => 'role.manage'],
             // Settings
             ['module' => 'Settings', 'permission_name' => 'Manage Settings', 'permission_key' => 'settings.manage'],
+            ['module' => 'Delivery Provider', 'permission_name' => 'View Delivery Providers', 'permission_key' => 'delivery_provider.view'],
+            ['module' => 'Delivery Provider', 'permission_name' => 'Manage Delivery Providers', 'permission_key' => 'delivery_provider.manage'],
+            ['module' => 'Payment Status', 'permission_name' => 'View Payment Statuses', 'permission_key' => 'payment_status.view'],
+            ['module' => 'Payment Status', 'permission_name' => 'Manage Payment Statuses', 'permission_key' => 'payment_status.manage'],
+            ['module' => 'Payment Provider', 'permission_name' => 'View Payment Providers', 'permission_key' => 'payment_provider.view'],
+            ['module' => 'Payment Provider', 'permission_name' => 'Manage Payment Providers', 'permission_key' => 'payment_provider.manage'],
         ];
         $this->db->table('permissions')->insertBatch($permissions);
     }

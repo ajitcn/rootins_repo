@@ -5,10 +5,14 @@ $filters = $filters ?? [];
 $page = $pager?->getCurrentPage($group) ?? 1;
 $pages = $pager?->getPageCount($group) ?? 1;
 $total = $pager?->getTotal($group) ?? 0;
+$pages = max(1, (int) $pages);
+$page = min(max(1, (int) $page), $pages);
+$start = max(1, $page - 2);
+$end = min($pages, $page + 2);
 $queryFilters = array_filter($filters, static fn ($value) => $value !== '' && $value !== null);
 $url = static fn (int $number): string => current_url() . '?' . http_build_query($queryFilters + ['page_' . $group => $number]);
 ?>
-<div class="card-footer d-flex flex-wrap justify-content-between align-items-center">
+<div class="ri-pagination card-footer">
     <form method="get" action="<?= current_url() ?>" class="form-inline mb-2 mb-md-0" aria-label="Page size">
         <?php foreach ($queryFilters as $name => $value): ?>
             <?php if ($name !== 'page_size'): ?>
@@ -22,9 +26,12 @@ $url = static fn (int $number): string => current_url() . '?' . http_build_query
             <?php endforeach; ?>
         </select>
     </form>
-    <nav aria-label="Pagination">
-        <span class="small text-muted mr-3">Page <?= esc((string) $page) ?> of <?= esc((string) max(1, $pages)) ?> (<?= esc((string) $total) ?> total)</span>
-        <a class="btn btn-sm btn-outline-secondary <?= $page <= 1 ? 'disabled' : '' ?>" href="<?= $page > 1 ? esc($url($page - 1)) : '#' ?>" aria-label="Previous page">Previous</a>
-        <a class="btn btn-sm btn-outline-secondary <?= $page >= $pages ? 'disabled' : '' ?>" href="<?= $page < $pages ? esc($url($page + 1)) : '#' ?>" aria-label="Next page">Next</a>
+    <nav class="ri-pagination-controls" aria-label="Pagination">
+        <span class="ri-pagination-summary">Page <?= esc((string) $page) ?> of <?= esc((string) $pages) ?> (<?= esc((string) $total) ?> total)</span>
+        <a class="ri-page-link <?= $page <= 1 ? 'is-disabled' : '' ?>" href="<?= $page > 1 ? esc($url($page - 1)) : '#' ?>" aria-label="Previous page" <?= $page <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>Previous</a>
+        <?php if ($start > 1): ?><a class="ri-page-link" href="<?= esc($url(1)) ?>">1</a><?php if ($start > 2): ?><span class="ri-page-ellipsis" aria-hidden="true">…</span><?php endif; ?><?php endif; ?>
+        <?php for ($number = $start; $number <= $end; $number++): ?><a class="ri-page-link <?= $number === $page ? 'is-active' : '' ?>" href="<?= esc($url($number)) ?>" <?= $number === $page ? 'aria-current="page"' : '' ?>><?= $number ?></a><?php endfor; ?>
+        <?php if ($end < $pages): ?><?php if ($end < $pages - 1): ?><span class="ri-page-ellipsis" aria-hidden="true">…</span><?php endif; ?><a class="ri-page-link" href="<?= esc($url($pages)) ?>"><?= $pages ?></a><?php endif; ?>
+        <a class="ri-page-link <?= $page >= $pages ? 'is-disabled' : '' ?>" href="<?= $page < $pages ? esc($url($page + 1)) : '#' ?>" aria-label="Next page" <?= $page >= $pages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>Next</a>
     </nav>
 </div>

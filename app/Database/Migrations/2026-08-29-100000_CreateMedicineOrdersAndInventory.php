@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateMedicineOrdersAndInventory extends Migration
 {
     public function up()
@@ -34,6 +35,7 @@ class CreateMedicineOrdersAndInventory extends Migration
         $this->forge->addForeignKey('medicine_id', 'medicines', 'id', 'RESTRICT', 'CASCADE');
         $this->forge->createTable('medicine_order_items');
     }
+
     public function down()
     {
         $this->forge->dropTable('medicine_order_items', true);

@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateRolePermissions extends Migration
 {
     public function up()
@@ -17,6 +18,7 @@ class CreateRolePermissions extends Migration
         $this->forge->addForeignKey('permission_id', 'permissions', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('role_permissions');
     }
+
     public function down()
     {
         $this->forge->dropTable('role_permissions');

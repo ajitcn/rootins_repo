@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateInvoicesAndAuditLogs extends Migration
 {
     public function up()
@@ -27,24 +28,30 @@ class CreateInvoicesAndAuditLogs extends Migration
         $this->forge->addKey(['clinic_id', 'occurred_at']);
         $this->forge->addKey(['action', 'occurred_at']);
         $this->forge->createTable('audit_logs');
+
         foreach ([['Billing', 'View Billing', 'billing.view'], ['Billing', 'Create Invoice', 'billing.create'], ['Billing', 'Update Payment', 'billing.edit'], ['Audit', 'View Audit Logs', 'audit.view']] as [$module, $name, $key]) {
             $permission = $this->db->table('permissions')->where('permission_key', $key)->get()->getRowArray();
+
             if ($permission === null) {
                 $this->db->table('permissions')->insert(['module' => $module, 'permission_name' => $name, 'permission_key' => $key, 'status' => 1, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
                 $permission = ['id' => $this->db->insertID()];
             }
+
             foreach (['SUPER_ADMIN', 'ADMIN'] as $roleCode) {
                 $role = $this->db->table('roles')->where('role_code', $roleCode)->get()->getRowArray();
+
                 if ($role === null) {
                     continue;
                 }
                 $mapping = $this->db->table('role_permissions')->where('role_id', $role['id'])->where('permission_id', $permission['id'])->get()->getRowArray();
+
                 if ($mapping === null) {
                     $this->db->table('role_permissions')->insert(['role_id' => $role['id'], 'permission_id' => $permission['id'], 'created_at' => date('Y-m-d H:i:s')]);
                 }
             }
         }
     }
+
     public function down()
     {
         $this->forge->dropTable('audit_logs', true);

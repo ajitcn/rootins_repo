@@ -35,14 +35,14 @@ ROOTINS provides one controlled workflow from patient registration and appointme
 | Super Admin/Admin | Configure clinics, masters, users, access, operations, reporting, and audit |
 | Doctor | Manage assigned appointments, consultations, clinical notes, prescriptions, and availability |
 | Patient | Maintain profile, upload prescriptions/documents, book and attend visits, view permitted records and bills |
-| Farmassist | Review prescription fulfilment, approve/cancel according to policy, manage medicine/billing/order steps |
+| Pharmacy | Pharmacy Assistant staff review prescriptions, approve/cancel according to policy, and manage medicine/billing/order steps |
 | System/Integration | Send notifications, process callbacks/webhooks, create audit events, and reconcile external status |
 
 Access is role- and scope-based. A role does not automatically grant access to every clinic or patient record.
 
 ### 3.1 Baseline permission model
 
-| Capability | Admin | Doctor | Patient | Farmassist |
+| Capability | Admin | Doctor | Patient | Pharmacy |
 |---|---:|---:|---:|---:|
 | Manage system configuration and access | Yes | No | No | No |
 | Manage clinics, doctors, patients, and masters | Yes | Limited assigned data | Own profile only | Limited fulfilment data |
@@ -68,11 +68,11 @@ Show today's schedule, queue, upcoming appointments, pending consultations, pres
 
 Show upcoming and past appointments, visit timeline, consultation reports, prescriptions, uploaded documents, bills/payments, notifications, and profile/clinic information. Support appointment booking for available in-person, video, and telephone/tele-consultation services.
 
-### Farmassist dashboard
+### Pharmacy dashboard
 
 Show prescriptions awaiting review, approved/cancelled items, medicine availability, fulfilment/order status, billing work, exceptions, and communication tasks. Preserve doctor prescription content and require explicit, attributable actions for review outcomes.
 
-For the baseline, Farmassist is a `[PROPOSED]` internal pharmacy/fulfilment role operated by the clinic/platform owner. External legal-entity support is out of scope for the baseline and would require separately approved contracts, scope, and adapters.
+For the baseline, Pharmacy is a `[PROPOSED]` internal pharmacy/fulfilment workspace operated by the clinic/platform owner and Pharmacy Assistant staff. External legal-entity support is out of scope for the baseline and would require separately approved contracts, scope, and adapters.
 
 ## 5. Core workflows
 
@@ -97,15 +97,15 @@ The system must reject invalid transitions, record the actor and timestamp, and 
 
 ### 5.3 Prescription fulfilment
 
-A patient may upload a prescription for review, or a doctor may create one from a consultation. The system validates ownership and file/content requirements, routes it to Farmassist, records review decisions, supports approved/cancelled outcomes, calculates billable items, and hands off to the configured medicine/order workflow. Repeated submissions and duplicate processing must be safe.
+A patient may upload a prescription for review, or a doctor may create one from a consultation. The system validates ownership and file/content requirements, routes it to Pharmacy Assistant staff, records review decisions, supports approved/cancelled outcomes, calculates billable items, and hands off to the configured medicine/order workflow. Repeated submissions and duplicate processing must be safe.
 
 The `[PROPOSED]` baseline prescription states are `draft` → `submitted` → `clarification_requested` → `approved`/`rejected` → `cancelled`/`fulfilled`. Exact state semantics and authority are `[NEEDS_REVIEW]`. The system must preserve doctor-authored medicine, dosage, duration, and instructions. Proposed reversal/amendment authority is the doctor before fulfilment and an authorized medical/admin role after review; this requires medical/legal confirmation.
 
 #### Prescription review rules
 
 - Uploaded prescriptions enter a pending-review state and retain the original file/content.
-- Farmassist may approve, cancel, or request clarification when those actions are enabled by policy; every action requires an actor, reason where applicable, and timestamp.
-- Farmassist must not silently change the doctor's medicine, dosage, duration, or clinical instructions. Any clarification or substitution follows an approved business policy and remains visible in the record.
+- Pharmacy Assistant staff may approve, cancel, or request clarification when those actions are enabled by policy; every action requires an actor, reason where applicable, and timestamp.
+- Pharmacy Assistant staff must not silently change the doctor's medicine, dosage, duration, or clinical instructions. Any clarification or substitution follows an approved business policy and remains visible in the record.
 - Approved prescriptions may enter billing/fulfilment states; cancelled prescriptions cannot be fulfilled without an authorized new submission or reversal process.
 - Finalized prescriptions are read-only to ordinary users. Amendments create an attributable revision rather than erasing the original.
 
@@ -180,7 +180,7 @@ The following items remain open: `[NEEDS_REVIEW]` supported compliance obligatio
 
 ## 11. Glossary
 
-- **Farmassist:** Role responsible for prescription review, medicine fulfilment, and related billing/order workflow.
+- **Pharmacy Assistant:** Staff role responsible for prescription review, medicine fulfilment, and related billing/order workflow.
 - **Appointment states:** Lifecycle statuses for a booked visit, including requested, confirmed, checked-in, queued, in-consultation, completed, cancelled, and no-show.
 - **Consultation:** The clinical interaction associated with an appointment; it may produce notes, reports, follow-up instructions, and a prescription.
 - **Prescription revision:** An attributable amendment that preserves the original finalized prescription and records the reason and actor.

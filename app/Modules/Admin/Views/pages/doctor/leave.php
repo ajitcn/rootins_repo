@@ -1,30 +1,30 @@
-<?= $this->extend(ADMIN_VIEW.'layout')?>
+<?= $this->extend(ADMIN_VIEW . 'layout')?>
 
 
  <?= $this->section('main-content')?>
 
-<main class="dashboard-container">
+<main class="dashboard-container" aria-labelledby="doctor-leaves-title">
 	<!-- breadcrumb -->
- 	<?= 
- 		view('templates/_breadcrumb', 
-
- 			[
-				'module' 		=> 'admin',
-				'menu_title'	=> 'Doctor Management',
-				'page'			=> 'Doctor Leaves' 
- 			]
- 		)
- 	?>
+    <?=
+        view(
+            'templates/_breadcrumb',
+            [
+                'module' => 'admin',
+                'menu_title' => 'Doctor Management',
+                'page' => 'Doctor Leaves',
+            ],
+        )
+?>
 
  	<!-- main content -->
-        <div class="action-btn-container d-flex justify-content-end mb-3">
+        <div class="page-heading mb-3"><div><h1 id="doctor-leaves-title" class="h3 mb-1">Doctor Leaves</h1><p class="text-muted mb-0">Manage doctor leave periods and approval status.</p></div><div class="d-flex flex-wrap align-items-center">
             <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorLeaveFilter', 'filters' => $filters ?? []]) ?>
-  			<button class="btn btn-sm theme-btn open_doctor_leave_modal">+ New Leave</button>
-  		</div>
+  			<button type="button" class="btn btn-primary ml-2 mb-2 mb-md-0 open_doctor_leave_modal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New Leave</button>
+  		</div></div>
 
         <?= display_session_msg()?>
 
-          <div class="table-responsive">
+          <div class="card"><div class="card-header"><h2 class="h6 mb-0">Leave records</h2></div><div class="card-body p-0"><div class="table-responsive">
 
             <table class="table table-bordered table-hover table-striped">
 
@@ -63,19 +63,19 @@
                             </td>
 
                             <td>
-                                <?= date('d M Y', strtotime($row['start_date'])) ?>
+                        <?= esc(_dateOnly($row['start_date'])) ?>
                                 <br>
                                 <small class="text-muted">
                                     to
-                                    <?= date('d M Y', strtotime($row['end_date'])) ?>
+                                    <?= esc(_dateOnly($row['end_date'])) ?>
                                 </small>
                             </td>
 
                             <td>
                                 <?php
-                                    $days = (strtotime($row['end_date']) - strtotime($row['start_date'])) / 86400 + 1;
-                                    echo $days . ' Day' . ($days > 1 ? 's' : '');
-                                ?>
+                                $days = (strtotime($row['end_date']) - strtotime($row['start_date'])) / 86400 + 1;
+                        echo $days . ' Day' . ($days > 1 ? 's' : '');
+                        ?>
                             </td>
 
                             <td>
@@ -84,18 +84,18 @@
 
                             <td>
 
-                                <?php if ($row['status']==1): ?>
+                                <?php if ($row['status'] == 1): ?>
 
-                                    <span class="badge badge-success">
+                                <span class="badge ri-status ri-status--green">
                                         Approved
                                     </span>
-                                <?php elseif ($row['status']==2): ?>
-                                    <span class="badge badge-warning">
+                                <?php elseif ($row['status'] == 2): ?>
+                                    <span class="badge ri-status ri-status--amber">
                                         Pending
                                     </span>
                                 <?php else: ?>
 
-                                    <span class="badge badge-danger">
+                                    <span class="badge ri-status ri-status--red">
                                         Cancelled
                                     </span>
 
@@ -126,7 +126,7 @@
                 <?php else: ?>
 
                     <tr>
-                        <td colspan="8" class="text-center">
+                            <td colspan="8" class="text-center text-muted py-4">
                             No leave records found.
                         </td>
                     </tr>
@@ -137,14 +137,14 @@
 
             </table>
 
-        </div>
+        </div></div></div>
  
 
 <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_leaves', 'filters' => $filters ?? []]) ?>
 </main>
 
 
-<?= view(ADMIN_VIEW.'pages/doctor/modals/_leave')?>
+<?= view(ADMIN_VIEW . 'pages/doctor/modals/_leave')?>
 
 
 

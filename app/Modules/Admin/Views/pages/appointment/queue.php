@@ -1,15 +1,15 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
-<main class="dashboard-container">
+<main class="dashboard-container admin-appointment-queue-page">
     <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
+        'module' => 'admin',
         'menu_title' => 'Appointment Management',
-        'page'       => 'Waiting Queue',
+        'page' => 'Waiting Queue',
     ]) ?>
 
     <?= form_open('', 'id="appointmentQueueForm" autocomplete="off"') ?>
-        <div class="row align-items-end mb-3">
+        <div class="row align-items-end mb-3 ri-filter-card">
             <div class="col-md-5">
                 <label for="queueClinic">Clinic</label>
                 <select id="queueClinic" name="clinic_id" class="form-control btSelect" title="Select Clinic">
@@ -32,7 +32,7 @@
     <?= form_close() ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover" id="appointmentQueueTable">
+        <table class="table table-bordered table-hover admin-appointment-table" id="appointmentQueueTable">
             <thead class="thead-light">
                 <tr>
                     <th width="80">Position</th>
@@ -43,7 +43,7 @@
                     <th>Type</th>
                     <th>Checked In</th>
                     <th>Status</th>
-                    <th width="240">Action</th>
+                    <th>More Actions</th>
                 </tr>
             </thead>
             <tbody></tbody>

@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 final class AddPatientLocationLocalities extends Migration
 {
     public function up()
@@ -16,6 +17,7 @@ final class AddPatientLocationLocalities extends Migration
                 $this->forge->processIndexes($table);
             }
         }
+
         if (!$this->db->tableExists('localities')) {
             $this->forge->addField(['id' => ['type' => 'INT', 'constraint' => 10, 'unsigned' => true, 'auto_increment' => true], 'city_id' => ['type' => 'INT', 'constraint' => 10, 'unsigned' => true], 'name' => ['type' => 'VARCHAR', 'constraint' => 150], 'normalized_name' => ['type' => 'VARCHAR', 'constraint' => 191], 'status' => ['type' => 'TINYINT', 'constraint' => 1, 'default' => 1], 'created_at' => ['type' => 'DATETIME', 'null' => true], 'updated_at' => ['type' => 'DATETIME', 'null' => true]]);
             $this->forge->addKey('id', true);
@@ -25,6 +27,7 @@ final class AddPatientLocationLocalities extends Migration
             $this->forge->addForeignKey('city_id', 'cities', 'id', 'CASCADE', 'RESTRICT', 'localities_city_fk');
             $this->forge->createTable('localities');
         }
+
         if (!$this->db->fieldExists('locality_id', 'patients')) {
             $this->forge->addColumn('patients', ['locality_id' => ['type' => 'INT', 'constraint' => 10, 'unsigned' => true, 'null' => true]]);
             $this->forge->addKey('locality_id');
@@ -32,6 +35,7 @@ final class AddPatientLocationLocalities extends Migration
             $this->forge->processIndexes('patients');
         }
     }
+
     public function down()
     {
         if ($this->db->fieldExists('locality_id', 'patients')) {
@@ -39,9 +43,11 @@ final class AddPatientLocationLocalities extends Migration
             $this->forge->dropKey('patients', 'locality_id');
             $this->forge->dropColumn('patients', 'locality_id');
         }
+
         if ($this->db->tableExists('localities')) {
             $this->forge->dropTable('localities', true);
         }
+
         foreach (['countries', 'states', 'cities'] as $table) {
             if ($this->db->fieldExists('normalized_name', $table)) {
                 $this->forge->dropKey($table, $table . '_parent_normalized_unique');

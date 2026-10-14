@@ -1,4 +1,4 @@
-<div class="modal fade" id="doctorLeaveModal" tabindex="-1">
+<div class="modal fade" id="doctorLeaveModal" tabindex="-1" aria-labelledby="doctorLeaveModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
 
@@ -6,7 +6,7 @@
  
 
                 <div class="modal-header">
-                    <h5 class="modal-title">
+                    <h5 class="modal-title" id="doctorLeaveModalLabel">
                         Add Doctor Leave
                     </h5>
 
@@ -27,7 +27,7 @@
 
                                     <?php foreach ($doctors as $doctor): ?>
                                         <option value="<?= $doctor['id'] ?>">
-                                            <?= esc($doctor['first_name'].' '.$doctor['last_name']) ?>
+                                            <?= esc($doctor['first_name'] . ' ' . $doctor['last_name']) ?>
                                         </option>
                                         <?php endforeach; ?>
 
@@ -64,7 +64,7 @@
                             <div class="form-group">
                                 <label>Start Date <span class="text-danger">*</span></label>
 
-                                <input type="text" class="form-control datepicker" name="start_date" id="start_date" placeholder="dd-mm-yyyy">
+                                <input type="text" class="form-control datepicker" name="start_date" id="start_date" placeholder="dd-mm-yyyy" data-submit-display-date="true" autocomplete="off">
                                 <div class="validation-error" id="start_dateErr"></div>
 
                             </div>
@@ -74,7 +74,7 @@
                             <div class="form-group">
                                 <label>End Date <span class="text-danger">*</span></label>
 
-                                <input type="text" class="form-control datepicker" name="end_date" id="end_date" placeholder="dd-mm-yyyy">
+                                <input type="text" class="form-control datepicker" name="end_date" id="end_date" placeholder="dd-mm-yyyy" data-submit-display-date="true" autocomplete="off">
                                 <div class="validation-error" id="end_dateErr"></div>
 
                             </div>
@@ -136,7 +136,7 @@
 
 
 
-<div class="modal fade" id="doctorLeaveUpdateModal" tabindex="-1">
+<div class="modal fade" id="doctorLeaveUpdateModal" tabindex="-1" aria-labelledby="doctorLeaveUpdateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
 
@@ -145,7 +145,7 @@
                 <input type="hidden" name="leave_id" id="leave_id">
 
                 <div class="modal-header">
-                    <h5 class="modal-title">
+                    <h5 class="modal-title" id="doctorLeaveUpdateModalLabel">
                         Update Leave Status
                     </h5>
 

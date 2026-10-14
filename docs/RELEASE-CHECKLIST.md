@@ -20,7 +20,7 @@ This checklist records repository evidence; `PASS` is not production approval. `
 | Consultation/prescription | UNVERIFIED | Admin consultation/prescription routes/controllers/models/views | Completion, finalization/history, authorization, and linkage tests |
 | Doctor module | PARTIAL | Authenticated scoped dashboard, appointment detail, and clinical workspace; queue, consultation, prescription, availability/leave, and history boundaries enforce doctor/clinic/patient scope | Database-backed workflow tests, telehealth, billing, and UAT |
 | Patient module | PARTIAL | Authenticated clinic-scoped portal supports profile, doctor browsing, appointment booking/rescheduling/cancellation, consultation/prescription history, and private document operations | Database/browser isolation tests, invoice/payment-history contract, durable notifications, and UAT |
-| Farmassist review | PARTIAL | Authenticated queue and approve/reject/clarification action; role and cross-record clinic checks | Runtime/UAT evidence and durable audit |
+| Pharmacy review | PARTIAL | Authenticated queue and approve/reject/clarification action; Pharmacy Assistant role and cross-record clinic checks | Runtime/UAT evidence and durable audit |
 | Medicine inventory/orders | PARTIAL | Unapplied schema foundation, batch/expiry allocation, duplicate-safe order creation, and clinic scope exist | Migration review/application and runtime fulfilment tests |
 | Billing/payments | PARTIAL | Provider-neutral Cashfree/Razorpay payment-status reconciliation with duplicate handling exists | Invoice totals, callbacks, refunds, tax, settlement reconciliation, and production onboarding |
 | Notifications | PARTIAL | Dry-run provider-independent dispatcher; idempotency/retry metadata; unit tests | Consent, durable delivery tracking, provider configuration, live integration |
@@ -30,7 +30,7 @@ This checklist records repository evidence; `PASS` is not production approval. `
 
 ## 2. Exact verification evidence
 
-- `php spark routes` completed successfully; Admin, Doctor, and Farmassist routes were listed with CSRF/auth protection, and Admin clinic/doctor areas also showed permission filters.
+- `php spark routes` completed successfully; Admin, Doctor, and Pharmacy routes were listed with CSRF/auth protection, and Admin clinic/doctor areas also showed permission filters.
 - PHP lint passed for the changed/current PHP files, including configuration, filters, routes, controllers, services, migration syntax, models, and focused tests.
 - `vendor/bin/phpunit tests/unit --testdox` passed: 16 tests and 47 assertions. Full PHPUnit passed 17 non-database tests; 2 CI4 example database tests errored because the `sqlite3` extension is unavailable. Coverage was not measured because no coverage driver is installed.
 - `php spark migrate:status` completed without applying migrations. All listed application migrations through `CreateMedicines` are marked migrated; `2026-08-29-100000_CreateMedicineOrdersAndInventory` is present but unapplied and requires review/rehearsal before deployment.
@@ -42,16 +42,16 @@ This checklist records repository evidence; `PASS` is not production approval. `
 
 ## 3. Development completion versus release readiness
 
-The Admin, Doctor, Patient, and Farmassist code contains bounded routed workflows, but each remains `PARTIAL` until database-backed acceptance, authorization/isolation regression, browser/UAT, and operational evidence are complete. The following are development-complete boundaries for this baseline: Patient portal profile/appointments/records/private documents; Doctor queue/consultation/prescription workspace; Farmassist review/order/payment-status/delivery boundaries; and dry-run notification/audit services. They are not production approvals.
+The Admin, Doctor, Patient, and Pharmacy code contains bounded routed workflows, but each remains `PARTIAL` until database-backed acceptance, authorization/isolation regression, browser/UAT, and operational evidence are complete. The following are development-complete boundaries for this baseline: Patient portal profile/appointments/records/private documents; Doctor queue/consultation/prescription workspace; Pharmacy review/order/payment-status/delivery boundaries; and dry-run notification/audit services. They are not production approvals.
 
-The unapplied medicine-order/inventory migration is a deployment-controlled prerequisite for runtime Farmassist order flows. It must be reviewed against the target database, backed up, rehearsed, applied during a change window, and verified before enabling those routes.
+The unapplied medicine-order/inventory migration is a deployment-controlled prerequisite for runtime Pharmacy order flows. It must be reviewed against the target database, backed up, rehearsed, applied during a change window, and verified before enabling those routes.
 
 ## 3. Development blockers
 
 - Complete Patient database/browser acceptance with strict patient-record isolation and secure private document access.
 - Complete Doctor database-backed acceptance/UAT, richer prescription handling, telehealth, and billing with doctor/clinic/patient scope.
 - Add feature/integration tests for authentication, authorization, CSRF, scope, conflicts, clinical finalization, review transitions, duplicate requests, and file access.
-- Complete Farmassist inventory batch/expiry validation, medicine orders, delivery transitions, and durable audit events.
+- Complete Pharmacy inventory batch/expiry validation, medicine orders, delivery transitions, and durable audit events.
 - Implement billing/payment persistence and reconciliation without inventing unreviewed tax, refund, or cancellation policy.
 - Add durable audit storage and cover clinical, financial, configuration, and status-sensitive events.
 
@@ -61,7 +61,7 @@ The unapplied medicine-order/inventory migration is a deployment-controlled prer
 - Approve consent notices, purposes, withdrawal/deletion workflow, grievance ownership, and configurable retention schedules.
 - Complete Cashfree/Razorpay merchant onboarding, contracts, webhook ownership, settlement, dispute, refund, reconciliation, and secret-management review.
 - Complete Twilio Video, Twilio Messaging/WhatsApp, SendGrid, and Shiprocket contracts, credentials, sender/template/DLT, consent, serviceability, webhook, retry, and reconciliation setup.
-- Approve the proposed internal Farmassist operating model and prescription amendment/reversal authority.
+- Approve the proposed internal Pharmacy Assistant operating model and prescription amendment/reversal authority.
 - Approve pharmacy licensing, substitution, batch/expiry, returns, cancellation, refund, delivery, and support procedures.
 - Establish encrypted backup ownership, key management, retention, restore drills, monitoring, and final RPO/RTO. The 24-hour RPO and 8-hour RTO remain `PROPOSED`.
 
@@ -89,7 +89,7 @@ The unapplied medicine-order/inventory migration is a deployment-controlled prer
 
 - [ ] Every protected route has authentication and the intended permission/role/scope check.
 - [ ] Patients cannot read or download another patient’s clinical, document, or billing records.
-- [ ] Doctors and Farmassist users cannot cross clinic or assigned-record boundaries.
+- [ ] Doctors and Pharmacy Assistant users cannot cross clinic or assigned-record boundaries.
 - [ ] All writes enforce server-side validation, CSRF, transactions, duplicate protection, and safe errors.
 - [ ] Private uploads use authorized download endpoints and storage keys, not public paths.
 - [ ] Logs redact credentials, tokens, contact data, and clinical content; correlation IDs are bounded and safe.
@@ -122,13 +122,13 @@ Sandbox sign-off requires non-production credentials, verified signature/authent
 
 - [x] PHP syntax checks passed for audited changed/current PHP files.
 - [x] Route listing passed.
-- [x] Focused unit tests passed: 14 tests, 38 assertions, including Patient, Farmassist, notification, audit, and permission boundary checks.
+- [x] Focused unit tests passed: 14 tests, 38 assertions, including Patient, Pharmacy, notification, audit, and permission boundary checks.
 - [x] Diff whitespace check passed.
 - [x] Migration status inspected without applying migrations; one new medicine-order/inventory migration remains unapplied.
 - [ ] Authentication and permission integration tests for every protected module.
 - [ ] Clinic scope and patient isolation tests, including private file access.
 - [ ] Appointment conflicts/transitions and consultation/prescription finalization tests.
-- [ ] Farmassist review, inventory, order, payment, delivery, webhook, and duplicate handling tests.
+- [ ] Pharmacy review, inventory, order, payment, delivery, webhook, and duplicate handling tests.
 - [ ] Browser/UAT, static analysis, performance, backup/restore, and provider sandbox evidence.
 
 Acceptance evidence must attach test data, actor/role, clinic scope, expected result, actual result, timestamp, and any audit/correlation identifier. A unit test alone cannot close a workflow acceptance row.

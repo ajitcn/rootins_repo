@@ -1,0 +1,120 @@
+.pharmacy-billing-page { min-width: 0; }
+.pharmacy-billing-page .pharmacy-billing-filters { min-width: 0; align-items: flex-end; }
+.pharmacy-billing-page .pharmacy-billing-filters .form-group { min-width: 0; }
+.pharmacy-billing-page .pharmacy-billing-filters .form-control { width: 100%; min-width: 0; }
+.pharmacy-billing-page .pharmacy-filter-actions { min-width: 0; flex-wrap: wrap; }
+.pharmacy-billing-card { overflow: visible; }
+.pharmacy-billing-table-wrap { max-width: 100%; overflow-x: auto; overflow-y: visible; }
+.pharmacy-billing-table { width: 100%; min-width: 980px; table-layout: fixed; }
+.pharmacy-billing-table th, .pharmacy-billing-table td { min-width: 0; vertical-align: top !important; }
+.pharmacy-billing-table th:nth-child(1) { width: 23%; }
+.pharmacy-billing-table th:nth-child(2) { width: 18%; }
+.pharmacy-billing-table th:nth-child(3) { width: 17%; }
+.pharmacy-billing-table th:nth-child(4) { width: 13%; }
+.pharmacy-billing-table th:nth-child(5) { width: 13%; }
+.pharmacy-billing-table th:nth-child(6) { width: 16%; }
+.pharmacy-billing-table tbody tr { background: #fff; }
+.pharmacy-billing-table tbody tr:hover { background: #fafafa; }
+.pharmacy-billing-table tbody td { padding-top: 13px; padding-bottom: 13px; }
+.billing-value { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.billing-meta { max-width: 100%; overflow-wrap: anywhere; }
+.billing-amount { display: block; color: var(--ri-color-black, #1f2940); font-size: .82rem; }
+.billing-payment-badge, .billing-delivery-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.billing-payment-pending { color: #765100; background: #fff1c9; }
+.billing-payment-paid { color: #1d7a4c; background: #e5f6ed; }
+.billing-payment-failed { color: #a43737; background: #fde8e8; }
+.billing-payment-refunded { color: #5c4b8a; background: #eee9fb; }
+.billing-payment-unavailable { color: #697588; background: #eef1f5; }
+.pharmacy-billing-table td:last-child { overflow: visible; }
+.pharmacy-billing-page .pharmacy-billing-actions { z-index: 1200; }
+.pharmacy-billing-page .pharmacy-billing-actions .dropdown-menu { z-index: 1200 !important; }
+.pharmacy-billing-grid { align-items: stretch; }
+.pharmacy-billing-item { height: 100%; min-width: 0; min-height: 0; gap: 0; }
+.billing-card-header { flex: 0 0 auto; min-height: 70px; padding-bottom: 12px; }
+.billing-card-header > div, .billing-card-section, .billing-card-section > div { min-width: 0; }
+.billing-card-meta, .billing-card-meta-list { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px 10px; color: #8791a1; font-size: 10px; line-height: 1.4; }
+.billing-card-meta span, .billing-card-meta-list span { min-width: 0; overflow-wrap: anywhere; }
+.billing-card-section { padding: 12px 0; border-top: 1px solid #edf0f4; }
+.pharmacy-billing-item .billing-card-patient { margin: 0; padding: 12px 0; border-bottom: 0; }
+.billing-card-patient > .billing-value { display: block; margin-top: 4px; }
+.billing-card-meta-list { margin-top: 4px; }
+.billing-card-amount { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; }
+.billing-card-amount > div:first-child { grid-column: 1 / -1; }
+.billing-card-amount .billing-meta { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.billing-card-statuses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.billing-card-statuses > div { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 5px; }
+.billing-card-statuses .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.billing-card-footer { display: flex; min-width: 0; align-items: flex-end; justify-content: flex-end; margin-top: auto; padding-top: 14px; }
+.billing-card-footer .pharmacy-billing-actions { max-width: 100%; }
+.billing-card-footer .dropdown-toggle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pharmacy-billing-detail-modal, .pharmacy-billing-form-modal, .pharmacy-billing-related-modal { position: fixed !important; z-index: 2060 !important; inset: 0; overflow-x: hidden; overflow-y: auto; pointer-events: auto; }
+.pharmacy-billing-detail-modal.show, .pharmacy-billing-form-modal.show, .pharmacy-billing-related-modal.show { visibility: visible; }
+.pharmacy-billing-detail-modal .modal-dialog, .pharmacy-billing-related-modal .modal-dialog { position: relative; z-index: 2061; pointer-events: auto; }
+.pharmacy-billing-detail-modal .modal-content, .pharmacy-billing-related-modal .modal-content { display: flex; min-height: 0; height: auto; max-height: calc(100vh - 2rem); flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; border-radius: .8rem; background: #fff; color: #1f2937; box-shadow: 0 24px 60px rgba(31, 41, 64, .2); pointer-events: auto; }
+.pharmacy-billing-detail-modal .modal-header, .pharmacy-billing-related-modal .modal-header, .pharmacy-billing-detail-modal .modal-footer, .pharmacy-billing-related-modal .modal-footer { position: relative; z-index: 1; flex: 0 0 auto; }
+.pharmacy-billing-detail-modal .modal-body, .pharmacy-billing-related-modal .modal-body { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; background: #fff; color: #1f2937; }
+body:has(.pharmacy-billing-detail-modal.show) .modal-backdrop, body:has(.pharmacy-billing-form-modal.show) .modal-backdrop, body:has(.pharmacy-billing-related-modal.show) .modal-backdrop { z-index: 2050 !important; background: rgba(31, 41, 64, .24) !important; opacity: 1 !important; }
+body:has(.pharmacy-billing-detail-modal.show) .modal-backdrop, body:has(.pharmacy-billing-form-modal.show) .modal-backdrop, body:has(.pharmacy-billing-related-modal.show) .modal-backdrop { pointer-events: none !important; }
+.pharmacy-billing-modal, .pharmacy-billing-form-modal .modal-content { min-height: 0; max-height: calc(100vh - 2rem); overflow: hidden; }
+.pharmacy-billing-modal-body, .billing-form-body { min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.pharmacy-billing-form-modal .modal-dialog { width: calc(100% - 24px); max-width: 560px; margin: 1.25rem auto; }
+.pharmacy-billing-form-modal .modal-content { display: flex; }
+.pharmacy-billing-form-modal .modal-header, .pharmacy-billing-form-modal .modal-footer { flex: 0 0 auto; }
+.pharmacy-billing-form-modal .billing-form-body { flex: 1 1 auto; max-height: calc(100vh - 190px); }
+.billing-status-help { margin-top: 4px; color: #8791a1; font-size: 11px; }
+.pharmacy-billing-form-modal, body.modal-open .pharmacy-billing-form-modal.show { z-index: 2060 !important; pointer-events: auto; }
+html body.modal-open #pharmacyPaymentModal.pharmacy-billing-form-modal.show,
+html body.modal-open #pharmacyRefundModal.pharmacy-billing-form-modal.show { z-index: 2060 !important; }
+.pharmacy-billing-form-modal .modal-dialog { position: relative; z-index: 2061; pointer-events: auto; }
+.pharmacy-billing-form-modal .modal-dialog { width: calc(100% - 2rem); max-width: 900px; height: calc(100vh - 2rem); max-height: calc(100vh - 2rem); }
+.pharmacy-billing-form-modal .modal-content { display: flex; height: 100%; min-height: 0; border: 1px solid var(--ri-border, #d8d8d8); border-radius: .8rem; box-shadow: 0 24px 60px rgba(17, 17, 17, .2); }
+.pharmacy-billing-form-modal .modal-header { flex: 0 0 auto; padding: 1.15rem 1.35rem; color: #fff; background: var(--ri-color-charcoal, #242424); border-bottom: 0; }
+.pharmacy-billing-form-modal .modal-header .modal-title, .pharmacy-billing-form-modal .modal-header .close { color: #fff; }
+.pharmacy-billing-form-modal .modal-header .close { opacity: .85; }
+.pharmacy-billing-form-modal .modal-footer { flex: 0 0 auto; padding: .9rem 1.35rem; border-top: 1px solid var(--ri-border, #d8d8d8); background: #fff; }
+.pharmacy-billing-form-modal .billing-form-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; padding: 1.15rem 1.35rem 1.4rem; background: var(--ri-surface-muted, #f7f7f7); }
+.pharmacy-billing-form-modal .billing-form-summary { margin-bottom: 1rem; }
+.pharmacy-billing-form-modal .billing-form-status-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.pharmacy-billing-form-modal .billing-form-status-card { min-width: 0; padding: .7rem .8rem; border: 1px solid var(--ri-border, #d8d8d8); border-radius: .55rem; background: #fff; }
+.pharmacy-billing-form-modal .billing-form-status-card .billing-card-label { margin-bottom: .35rem; }
+.pharmacy-billing-form-modal .billing-form-status-card .badge { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pharmacy-billing-form-modal .billing-form-section { margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--ri-border, #d8d8d8); border-radius: .65rem; background: #fff; }
+.pharmacy-billing-form-modal .billing-form-section:last-child { margin-bottom: 0; }
+.pharmacy-billing-form-modal .billing-form-heading { margin: 0 0 .85rem; color: var(--ri-text, #171717); font-size: .85rem; font-weight: 800; }
+.pharmacy-billing-form-modal .billing-form-info-grid, .pharmacy-billing-form-modal .billing-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem 1rem; }
+.pharmacy-billing-form-modal .billing-form-info-grid > div { min-width: 0; padding: .55rem .65rem; border: 1px solid #ececec; border-radius: .45rem; background: #fbfbfb; }
+.pharmacy-billing-form-modal .billing-form-info-grid strong, .pharmacy-billing-form-modal .billing-form-info-grid small { display: block; min-width: 0; overflow-wrap: anywhere; }
+.pharmacy-billing-form-modal .billing-form-grid .form-group { min-width: 0; margin-bottom: 0; }
+.pharmacy-billing-form-modal .billing-form-wide { grid-column: 1 / -1; }
+.pharmacy-billing-form-modal .form-control { min-height: 40px; border-color: var(--ri-border, #d8d8d8); border-radius: .45rem; }
+.pharmacy-billing-form-modal textarea.form-control { min-height: 72px; resize: vertical; }
+.pharmacy-billing-form-modal .billing-confirmation-panel { margin-top: 1rem; padding: .85rem 1rem .7rem 2rem; border: 1px solid var(--ri-border, #d8d8d8); border-radius: .55rem; background: var(--ri-surface-muted, #f5f5f5); }
+.pharmacy-billing-form-modal .billing-confirmation-panel .validation-error { margin-top: .45rem; }
+.pharmacy-billing-form-modal .is-invalid { border-color: var(--ri-danger, #a33a3a); }
+.pharmacy-billing-form-modal .custom-control-input.is-invalid ~ .custom-control-label { color: var(--ri-danger, #a33a3a); }
+body:has(.pharmacy-billing-form-modal.show) .modal-backdrop { z-index: 2050 !important; background: rgba(31, 41, 64, .24) !important; opacity: 1 !important; }
+html body.modal-open:has(#pharmacyPaymentModal.show, #pharmacyRefundModal.show) .modal-backdrop { z-index: 2050 !important; background: rgba(31, 41, 64, .24) !important; opacity: 1 !important; }
+body:has(.pharmacy-billing-form-modal.show) .preloader { z-index: 2100; }
+@media (max-width: 767.98px) { .pharmacy-billing-form-modal .billing-form-status-row { grid-template-columns: 1fr; } .pharmacy-billing-form-modal .billing-form-info-grid, .pharmacy-billing-form-modal .billing-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575.98px) { .pharmacy-billing-form-modal .modal-dialog { width: calc(100% - 1rem); height: calc(100vh - 1rem); max-height: calc(100vh - 1rem); margin: .5rem auto; } .pharmacy-billing-form-modal .modal-header, .pharmacy-billing-form-modal .billing-form-body, .pharmacy-billing-form-modal .modal-footer { padding-left: 1rem; padding-right: 1rem; } .pharmacy-billing-form-modal .billing-form-info-grid, .pharmacy-billing-form-modal .billing-form-grid { grid-template-columns: 1fr; } .pharmacy-billing-form-modal .billing-form-wide { grid-column: auto; } }
+@media (max-width: 767.98px) { .pharmacy-billing-detail-modal .modal-dialog, .pharmacy-billing-related-modal .modal-dialog { width: calc(100% - 1rem); max-width: none; margin: .5rem auto; } .pharmacy-billing-detail-modal .modal-content, .pharmacy-billing-related-modal .modal-content { max-height: calc(100vh - 1rem); } }
+@media (max-width: 991.98px) {
+    .pharmacy-billing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    .pharmacy-billing-page .pharmacy-billing-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, auto); align-items: end; }
+    .pharmacy-billing-page .pharmacy-billing-filters .form-group.flex-grow-1 { grid-column: 1 / -1; width: 100%; }
+    .pharmacy-billing-page .pharmacy-filter-actions { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+    .pharmacy-billing-page .pharmacy-filter-actions .btn { flex: 1 1 0; }
+    .pharmacy-billing-modal, .pharmacy-billing-form-modal .modal-content { max-height: calc(100vh - 1rem); }
+    .pharmacy-billing-modal-body, .billing-form-body { padding: 12px; }
+    .pharmacy-billing-actions .dropdown-menu { position: fixed !important; right: 12px !important; left: auto !important; transform: none !important; max-width: calc(100vw - 24px); }
+}
+@media (max-width: 575.98px) {
+    .pharmacy-billing-page .pharmacy-billing-filters { display: block; }
+    .pharmacy-billing-page .pharmacy-billing-filters .form-group, .pharmacy-billing-page .pharmacy-filter-actions { width: 100%; margin-bottom: 8px; }
+    .pharmacy-billing-page .pharmacy-filter-actions { margin-bottom: 0; }
+    .pharmacy-billing-item { min-height: 430px; }
+    .billing-card-statuses { grid-template-columns: 1fr; }
+    .billing-card-footer, .billing-card-footer .pharmacy-billing-actions, .billing-card-footer .dropdown-toggle { width: 100%; }
+}

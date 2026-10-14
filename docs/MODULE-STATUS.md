@@ -13,7 +13,11 @@ See `docs/RELEASE-CHECKLIST.md` for the consolidated release checklist, evidence
 | Admin | Partial | Dashboard, clinics, doctors, schedules, leave, fees, commissions, documents, patients, appointments, consultations, prescriptions, medicines, operational reporting, billing, durable audit storage, and an Admin Access page now have routed controllers/views/models/migrations in varying completeness. | ADM-001 → ADM-007 | Add database/browser acceptance, complete clinic-scope policy, settings, and report definitions. |
 | Doctor | Partial | Doctor module has authenticated dashboard, appointment-detail, and clinical-workspace routes/controllers/views; queue handling, consultation save/completion, prescription draft/submission, availability/leave, history, and scoped audit events are implemented. | DOC-001 → DOC-005 | Add database-backed integration/UAT tests, richer prescription item UI, telehealth, billing, and final clinical-policy review. |
 | Patient | Partial | Patient module now has an authenticated portal resolving the logged-in patient by `users.id`, clinic-scoped doctor browsing, profile/contact updates, appointment booking/rescheduling/cancellation with schedule/leave/conflict checks, consultation reports, prescription history, private document upload/download through short-lived storage URLs, and scoped audit events. | PAT-001 → PAT-005 | Add database/browser acceptance tests, durable notification delivery/preferences, and invoice/payment history once the billing contract exists. |
-| Farmassist | Partial | Farmassist has an authenticated dashboard and prescription review queue, approved-prescription order creation with transactional batch/expiry stock allocation and duplicate protection, provider-neutral payment reconciliation, controlled delivery transitions, and audit events with clinic scope. | FARM-001 → FARM-004 | Add runtime integration/UAT coverage and finalize legal/operational policy. |
+| Pharmacy | Partial | Pharmacy has an authenticated dashboard and prescription review queue, approved-prescription order creation with transactional batch/expiry stock allocation and duplicate protection, provider-neutral payment reconciliation, controlled delivery transitions, and audit events with clinic scope. | FARM-001 → FARM-004 | Add runtime integration/UAT coverage and finalize legal/operational policy. |
+
+### Doctor appointment milestone — repository verified, runtime UAT pending
+
+The Doctor appointment register now has scoped server-side pagination with search, consultation-type, status, and `dd-mm-yyyy` date-range filters; stable date/time/ID ordering; a searchable patient selector ordered newest-first; service and status fields on create; transactional conflict-safe create/reschedule/cancel actions; an accessible reschedule datepicker modal; queue transition actions using the existing Clinical endpoint; and related patient, consultation, prescription, follow-up, and billing links on appointment details. Routes remain explicit and protected by `auth` plus `appointment.view`, `appointment.create`, and `appointment.edit` permissions. Focused static/unit coverage passes, but authenticated browser/database UAT, availability data verification, and production policy review remain pending.
 
 ## Cross-cutting status
 
@@ -22,7 +26,7 @@ See `docs/RELEASE-CHECKLIST.md` for the consolidated release checklist, evidence
 | Authentication/session | Partial | Custom authentication and session conventions exist; role-specific module access still needs completion and verification. |
 | Authorization | Partial | Auth/permission filters and Admin permission usage exist; complete permission matrix and audit coverage are required. |
 | Database foundation | Partial / active | Clinics, users/roles/permissions, doctors, schedules, leaves, fees, commissions, documents, patients, appointments, consultations, prescriptions, prescription items, and medicines have migrations. |
-| Billing/payments | Partial | Farmassist medicine-order payment status reconciliation now supports approved Cashfree/Razorpay boundaries and idempotent repeated status submissions; invoice totals, gateway callbacks, refunds, and settlement reconciliation remain incomplete. |
+| Billing/payments | Partial | Pharmacy medicine-order manual payment reconciliation allows any active payment status, requires a Payment Provider, keeps Reference number and Reason / remarks optional, and records manual reconciliation when no active adapter/credentials are available without calling an unconfigured external provider. Invoice totals, gateway callbacks, refunds, and settlement reconciliation remain incomplete. |
 | Audit logs | Partial | Structured `ROOTINS_AUDIT` events now persist sanitized context to `audit_logs` with correlation IDs, actor IDs, safe masking, scoped Admin viewing, and bounded context. Search, retention, and full action coverage are not implemented. |
 | Notifications | Partial | Provider-independent dispatch service now validates requests, selects Twilio/SendGrid provider names, returns idempotency/retry metadata, and remains dry-run by default; live delivery, consent, and durable delivery tracking are not implemented. |
 | Backup/restore and system logs | Partial | System Logs now reads scoped `audit_logs` with server-side search/filter/pagination. Backup/Restore reports local readiness only and deliberately does not fake backup or restore operations. |
@@ -60,7 +64,7 @@ IAM route evidence: `GET /admin/access`; `POST /admin/access/users/create`; `POS
 | Backup and recovery | NEEDS_REVIEW | Encrypted backups and restore testing are required. `[PROPOSED]` baseline is RPO 24 hours/RTO 8 hours; not approved or implemented. |
 | KPIs and reports | NEEDS_REVIEW | Standard baseline KPI/report categories are proposed; exact definitions, owners, filters, and targets are not approved or verified. |
 
-| Farmassist role | PROPOSED | Baseline is an internal clinic/platform pharmacy/fulfilment role; external legal-entity support is out of scope until separately reviewed. |
+| Pharmacy Assistant role | PROPOSED | Baseline is an internal clinic/platform pharmacy/fulfilment role; external legal-entity support is out of scope until separately reviewed. |
 | Prescription state machine | PROPOSED | Proposed states are documented; exact semantics, authority, and implementation are not verified. |
 | Inventory/delivery baseline | NEEDS_REVIEW | Proposed batch/expiry and delivery states are documented; operational, legal, and implementation evidence is missing. |
 | ABDM/ABHA | PROPOSED | Out of scope for first release but integration-ready; no integration is verified. |
@@ -89,7 +93,7 @@ IAM route evidence: `GET /admin/access`; `POST /admin/access/users/create`; `POS
 
 ### Verification limitations
 
-- The repository now contains focused unit tests for audit logging, notification dispatch, permission denial/allow paths, Patient appointment contracts, and Farmassist delivery/provider boundaries; database-backed end-to-end tests for clinical and fulfilment workflows were not found.
+- The repository now contains focused unit tests for audit logging, notification dispatch, permission denial/allow paths, Patient appointment contracts, and Pharmacy delivery/provider boundaries; database-backed end-to-end tests for clinical and fulfilment workflows were not found.
 - The repository now also contains focused Access tests for password policy and IAM route permission boundaries; database-backed user/role/permission and clinic-scope tests were not found.
 - Full PHPUnit execution was attempted: all 17 non-database tests passed, while two CI4 example database tests errored because the `sqlite3` PHP extension is unavailable. Static-analysis tools are not installed, and browser/performance verification remains outstanding.
 - `Unverified` means repository artifacts and explicit routes were found; it does not mean the feature passed end-to-end acceptance.
@@ -112,7 +116,7 @@ IAM route evidence: `GET /admin/access`; `POST /admin/access/users/create`; `POS
 - CodeIgniter 4 framework constraint is `^4.7` and PHP constraint is `^8.2`.
 - Module route files are dynamically loaded by `app/Config/Routes.php`.
 - Admin currently contains routed areas for clinics, doctors, doctor schedules/leaves/fees/commissions/documents, patients, patient medical history/documents, appointments, consultations, prescriptions, and medicines.
-- Patient has a verified authenticated portal route/controller/view with profile, scoped doctor browsing, appointment booking/rescheduling/cancellation, record history, and private document actions; invoice/payment-history visibility and database/browser acceptance remain incomplete. Farmassist has authenticated prescription review routes; Doctor has a scoped dashboard route, appointment detail, and clinical actions.
+- Patient has a verified authenticated portal route/controller/view with profile, scoped doctor browsing, appointment booking/rescheduling/cancellation, record history, and private document actions; invoice/payment-history visibility and database/browser acceptance remain incomplete. Pharmacy has authenticated prescription review routes; Doctor has a scoped dashboard route, appointment detail, and clinical actions.
 - The working tree contains unrelated/uncommitted application changes. Documentation work must not overwrite or reset them.
 
 ## Release gates by module
@@ -136,7 +140,7 @@ IAM route evidence: `GET /admin/access`; `POST /admin/access/users/create`; `POS
 - Define and implement invoice/payment-history read visibility after the billing schema and refund/tax policy are approved.
 - Add durable notification preferences/delivery tracking after consent and provider deployment decisions.
 
-### Farmassist
+### Pharmacy
 
 - Define the prescription review state machine and approval/cancellation authority.
 - Implement medicine availability, fulfilment, and billing ownership rules.
@@ -152,7 +156,7 @@ This is a read-only repository audit. `PASS` means the stated evidence was obser
 | Admin | PARTIAL | Explicit authenticated and permission-filtered routes and broad Admin CRUD foundations exist; end-to-end authorization, clinic-scope, workflow, and browser acceptance are not proven. |
 | Doctor | PARTIAL | Authenticated scoped dashboard, appointment detail, and clinical workspace exist with queue, consultation, prescription, availability/leave, and history actions; database-backed acceptance remains unverified. |
 | Patient | PARTIAL | Authenticated clinic-scoped Patient portal now supports profile, appointment booking/rescheduling/cancellation, consultation/prescription history, and private document operations; runtime isolation, billing-history contract, and production storage/provider verification remain incomplete. |
-| Farmassist | PARTIAL | Authenticated dashboard/review queue, review transitions, approved-prescription order creation, payment reconciliation, and delivery transitions exist with role and cross-record clinic-scope checks; runtime/UAT remains. |
+| Pharmacy | PARTIAL | Authenticated dashboard/review queue, review transitions, approved-prescription order creation, payment reconciliation, and delivery transitions exist with Pharmacy Assistant role and cross-record clinic-scope checks; runtime/UAT remains. |
 | Billing/payments | PARTIAL | Provider-neutral Cashfree/Razorpay payment-status reconciliation with duplicate handling exists; invoice totals, callbacks, refunds, tax, and settlement reconciliation remain incomplete. |
 | Notifications | PARTIAL | Provider-independent dry-run dispatcher with idempotency/retry metadata exists; no live delivery, consent, durable delivery tracking, or provider readiness is verified. |
 | Audit/security | PARTIAL | CSRF, auth filters, permission denial, correlation IDs, masking, durable sanitized audit storage, and scoped Admin audit viewing have evidence; complete event coverage and runtime security regression tests are incomplete. |
@@ -182,7 +186,7 @@ This is a read-only repository audit. `PASS` means the stated evidence was obser
 
 - Admin route authentication/permission filters and normal-request permission denial fix.
 - Doctor authenticated, doctor/clinic-scoped dashboard.
-- Farmassist authenticated prescription review queue and approve/reject/clarification transitions, including cross-record clinic checks.
+- Pharmacy authenticated prescription review queue and approve/reject/clarification transitions, including cross-record clinic checks.
 - Patient authenticated portal with scoped profile, appointment booking/rescheduling/cancellation, consultation/prescription history, and private document upload/download.
 - Admin Access page with user management, role management, permission management, user-role assignment, role-permission assignment, scope validation, password hashing, status safeguards, and identity/access audit events.
 - Admin IAM UI split into separate searchable Users, Roles, and read-oriented Permissions screens with responsive access-specific styling.
@@ -196,14 +200,14 @@ This is a read-only repository audit. `PASS` means the stated evidence was obser
 - Admin operational overview at `GET /admin/reports/overview`, with existing appointment-view permission, role guard, optional clinic scope, cross-record clinic consistency, and read-only KPI/table output.
 - Doctor appointment detail at `GET /doctor/appointments/{id}`, with role guard, doctor/clinic/patient isolation, linked consultation/prescription status, escaped output, and an audit event.
 - Doctor clinical workspace at `GET /doctor/clinical`, with queue transitions, consultation completion, prescription draft/submission, availability/leave, consultation history, scope validation, transactions, duplicate handling, and audit events.
-- Farmassist dashboard at `GET /farmassist`, approved-prescription order creation, payment reconciliation, and delivery lifecycle endpoints with clinic scope, transaction/idempotency controls, and audit events.
+- Pharmacy dashboard at `GET /pharmacy`, approved-prescription order creation, payment reconciliation, and delivery lifecycle endpoints with clinic scope, transaction/idempotency controls, and audit events.
 
 ### Remaining unique application-code inventory
 
 - Admin: database/browser IAM acceptance tests, complete scope/permission coverage, settings, and report definitions.
 - Doctor: database-backed workflow tests, richer prescription item handling, telehealth, billing, and final clinical-policy/UAT evidence; appointment detail, queue, consultation save/completion, prescription draft/submission, availability/leave, and history are complete for this milestone.
 - Patient: database/browser acceptance for booking/reschedule/cancel and private-record isolation, notification preferences, and billing visibility.
-- Farmassist: runtime inventory/order/payment/delivery tests and final policy/UAT evidence; the medicine-order migration is applied locally.
+- Pharmacy: runtime inventory/order/payment/delivery tests and final policy/UAT evidence; the medicine-order migration is applied locally.
 - Billing: provider abstraction for Cashfree/Razorpay, settlement reconciliation, and policy-configured refunds/cancellations/tax behavior.
 - Notifications/integrations: durable delivery status, consent/opt-out enforcement, and sandbox adapters for approved providers; live credentials remain deployment-only.
 - Reporting/security/operations: additional scoped KPI/report definitions, complete security regression tests, backup/restore implementation, monitoring, and release evidence.
@@ -239,7 +243,7 @@ skipped locally rather than treated as passing evidence.
 
 ### Navigation evidence — 2026-08-29
 
-Admin, Doctor, Patient, and Farmassist now have distinct panel navigation with
+Admin, Doctor, Patient, and Pharmacy now have distinct panel navigation with
 accessible labels, active route states, valid logout routing, and role/
 permission-aware links where permissions exist. Admin dead `#` action links were
 removed; unavailable Settings screens remain explicitly marked planned. The
@@ -279,7 +283,7 @@ sign-off remain release gates.
 - `[NEEDS_DECISION]` Patient identity verification, duplicate detection, and controlled merge policy.
 - `[NEEDS_REVIEW]` Cashfree/Razorpay production configuration, merchant onboarding, settlement, refunds, partial payments, disputes, and cancellation charges.
 - `[NEEDS_REVIEW]` Deployment readiness for Twilio Video, Twilio Messaging/WhatsApp, Twilio SendGrid, internal ROOTINS pharmacy, and Shiprocket; Cashfree/Razorpay remain approved candidates pending production review.
-- `[NEEDS_REVIEW]` Legal/medical confirmation of the proposed internal Farmassist role and prescription review authority.
+- `[NEEDS_REVIEW]` Legal/medical confirmation of the proposed internal Pharmacy Assistant role and prescription review authority.
 - `[NEEDS_REVIEW]` Proposed inventory, batch, expiry, substitution, delivery, and order-reconciliation rules.
 - `[NEEDS_REVIEW]` Backup encryption/key ownership, retention, restore frequency, and final recovery targets; RPO 24 hours/RTO 8 hours remain proposed.
 
@@ -400,7 +404,7 @@ onboarding, and production recovery verification remain deployment blockers.
 ### Shared UI foundation evidence — 2026-08-31
 
 Status: `Shared shell updated / static coverage verified`. The Admin, Doctor,
-Patient, and Farmassist layouts all inherit `templates/theme1`; shared styling
+Patient, and Pharmacy layouts all inherit `templates/theme1`; shared styling
 now provides the Valex-inspired dark sidebar, light workspace, compact topbar,
 cards, tables, forms, badges, modals, focus states, and responsive desktop,
 tablet, and mobile breakpoints. DataTables CSS, JavaScript, initializers, and
@@ -411,11 +415,11 @@ PHP lint, route listing, and `git diff --check` passed. Authenticated visual
 UAT remains unverified because no signed-in local browser session was
 available; the full suite still has two unrelated SQLite-extension errors.
 
-### Doctor, Patient, and Farmassist UI rollout — 2026-09-01
+### Doctor, Patient, and Pharmacy UI rollout — 2026-09-01
 
 Status: `Partial / static coverage verified`. All three module layouts continue to
 inherit `templates/theme1` and use the shared Valex-inspired workspace treatment.
-Doctor and Farmassist dashboards now use consistent page context, responsive
+Doctor and Pharmacy dashboards now use consistent page context, responsive
 statistic cards, action links, and shared topbar controls. The Patient dashboard
 uses the same accessible page heading and secure-portal context. Existing routes,
 permissions, clinic scope, CSRF, searchable selects, pagination, and workflow
@@ -426,11 +430,11 @@ pass. Authenticated browser and responsive visual UAT remain `UNVERIFIED` becaus
 no local signed-in browser session was available. JavaScript CLI syntax validation
 is pending because the local runtime has no `node` executable.
 
-### Doctor, Patient, and Farmassist UI completion pass — 2026-09-01
+### Doctor, Patient, and Pharmacy UI completion pass — 2026-09-01
 
 Status: `Partial / static verification complete`. Remaining inconsistent pages were
 aligned with the shared UI foundation: Doctor appointment details, Patient portal,
-and Farmassist prescription review now use accessible page context, responsive
+and Pharmacy prescription review now use accessible page context, responsive
 action areas, scoped/status badges, and shared empty-state treatment. Existing
 routes, permissions, clinic scope, CSRF, searchable controls, pagination, and
 workflow behavior were not changed. No DataTables usage remains in these panels.
@@ -439,12 +443,12 @@ Authenticated browser UAT and responsive visual inspection remain `UNVERIFIED`
 because no signed-in local browser session was available. JavaScript CLI syntax
 validation remains pending because Node.js is not installed in the local runtime.
 
-### Patient and Farmassist list workflow UI — 2026-09-01
+### Patient and Pharmacy list workflow UI — 2026-09-01
 
 Status: `Partial / static and focused workflow verification complete`. Patient portal
 records now use clinic- and patient-scoped server-side pagination for appointments,
 visits, prescriptions, invoices, and private documents, with preserved search/filter
-query state and an accessible filter modal. Farmassist prescription review and order
+query state and an accessible filter modal. Pharmacy prescription review and order
 lists now use server-side pagination, searchable filters, status controls, and
 responsive pagination actions. Existing CSRF, permission, audit, and write workflow
 contracts were preserved; no DataTables usage was introduced.
@@ -453,7 +457,7 @@ Authenticated browser UAT and responsive visual inspection remain `UNVERIFIED`.
 Provider-backed notification, payment, delivery, and external integration behavior
 remains deployment/configuration dependent.
 
-### Patient notifications and Farmassist audit trail — 2026-09-01
+### Patient notifications and Pharmacy audit trail — 2026-09-01
 
 Status: `Partial / code and static verification complete`. Patient notifications now
 have a dedicated clinic/patient-scoped read model, list/read routes, unread/read
@@ -461,12 +465,12 @@ state, server-side pagination, search/status filters, accessible filter UI, and
 audited read actions. Migration `2026-09-01-100000_CreatePatientNotifications`
 is pending local application; it was not executed in this pass.
 
-Farmassist now has a permission-protected, clinic-scoped, read-only audit route at
-`/farmassist/audit` with action/status/date/search filters, server-side pagination,
+Pharmacy now has a permission-protected, clinic-scoped, read-only audit route at
+`/pharmacy/audit` with action/status/date/search filters, server-side pagination,
 detail modal, metadata icon, and no edit/delete controls. Authenticated browser UAT
 and live notification data/provider behavior remain `UNVERIFIED`.
 
-### Verification — Patient notifications and Farmassist audit — 2026-09-01
+### Verification — Patient notifications and Pharmacy audit — 2026-09-01
 
 `php spark migrate` applied `CreatePatientNotifications` successfully. The local
 MySQL schema confirms the notification table, composite indexes
@@ -474,7 +478,7 @@ MySQL schema confirms the notification table, composite indexes
 `patients.id` and `clinics.id`. Two idempotent `LOCAL UAT` notification records
 (unread/read) were created for local verification only. Focused tests, PHP lint,
 route listing, DataTables scan, and `git diff --check` passed. Authenticated browser
-UAT of list/read actions, patient isolation in a live session, Farmassist detail
+UAT of list/read actions, patient isolation in a live session, Pharmacy detail
 modal rendering, and responsive behavior remains `UNVERIFIED`.
 
 ### Patient location fields — 2026-09-01
@@ -555,7 +559,7 @@ patients, today’s appointments, finalized invoice revenue, paid invoices,
 medicine orders, and scoped audit alerts. Doctor cards use the authenticated
 doctor and clinic scope for appointments, consultations, prescriptions,
 patients, follow-ups, and invoice visibility. The Patient portal exposes live
-summary counts including unread patient notifications. Farmassist adds a
+summary counts including unread patient notifications. Pharmacy adds a
 clinic-scoped audit-alert KPI to its existing review/order/delivery dashboard.
 
 All four dashboard views retain the shared page context, responsive card
@@ -590,3 +594,227 @@ the aggregate `MasterModels.php` file rather than an autoloadable
 controller now uses the existing PSR-4-loadable `AdminMasterRecordModel` and
 explicitly scopes `master_type=services` plus clinic/global records. No
 duplicate model was added.
+
+### Doctor appointment patient search and multi-service selection — 2026-09-08
+
+Status: `Partial / static and focused verification passed`. The Doctor
+appointment create modal no longer embeds the full patient dataset. It loads
+patients through the scoped `GET /doctor/appointments/patients/search` endpoint
+with debounced search, pagination, stable newest-first ordering, and result
+labels containing patient name, mobile, and ID. Appointment creation accepts
+one or more in-scope active services through `service_ids[]`, preserves the
+legacy service-name snapshot, and records normalized selections in the new
+`appointment_services` relation within the appointment transaction. Existing
+conflict, permission, clinic-scope, CSRF, audit, and safe-error behavior is
+preserved.
+
+Migration `2026-09-08-120000_CreateAppointmentServices` is applied to the local
+database. Focused Doctor tests pass (28 tests, 455 assertions), changed PHP
+lint passes, the Doctor appointment routes are registered, and the inline
+appointment JavaScript parses successfully. Authenticated browser/network UAT,
+live availability data, and production provider configuration remain
+unverified; no live provider calls are made by this change.
+
+### Doctor Clinical Workspace completion pass — 2026-09-08
+
+Status: `Partial / static and focused verification passed`. The workspace now
+uses the scoped live patient autocomplete route, shows patient results without
+embedding the patient register, exposes appointment/patient/prescription/
+follow-up/billing/video links, validates and normalizes follow-up dates as
+`dd-mm-yyyy`, renders field-level follow-up/diagnosis/treatment errors, and
+offers a valid `in_consultation` queue transition before completion. Completing
+a consultation now marks its in-scope appointment completed in the same
+transaction, preserving audit and clinic-scope checks.
+
+Existing consultation notes, prescription draft/submission, today queue,
+history, availability, billing visibility, notifications, and provider-neutral
+video boundary remain available. Attachments, consent/recording metadata, live
+video tokens, and authenticated browser UAT remain `UNVERIFIED` or
+`NEEDS_REVIEW` because no approved storage/video contract or signed-in browser
+session is available; no fake recording or provider behavior was added.
+
+### Doctor Clinical Workspace tabs and context — 2026-09-08
+
+Status: `Partial / static and focused verification passed`. The clinical page
+now has a compact appointment context bar and seven deep-linkable workflow
+sections: Overview, Consultation, Prescription, Follow-up, Video consultation,
+Billing, and History and documents. Queue and today’s appointments are owned
+by Overview; patient search and the selected patient summary remain compact in
+the context bar. Desktop uses a vertical left workflow rail and a right active
+content pane; smaller screens collapse the rail into a horizontally scrollable
+tab strip. Only the active pane is visible; the selected appointment is carried in the
+`appointment_id` query parameter and the active section in the URL hash, so
+reload, deep links, and browser navigation retain context. Consultation and
+prescription forms are rendered only in their dedicated panes rather than
+repeated under every queue row.
+
+The tab strip is keyboard-navigable and horizontally scrollable on small
+screens. Existing scoped routes, permissions, CSRF-protected AJAX actions,
+server-side appointment/history pagination, patient autocomplete, audit calls,
+and safe provider-neutral video/billing links remain unchanged. Static and
+focused verification passed; authenticated browser UAT, live video consent or
+recording behavior, and attachment/vitals support remain `UNVERIFIED` or
+`NEEDS_REVIEW`.
+
+### Doctor Clinical Workspace progressive stepper — 2026-09-08
+
+Status: `Partial / static and focused verification passed`. The workspace now
+guides the selected appointment through Patient Summary, Consultation,
+Prescription, Follow-up, Video, Billing, and History/Documents using a visible
+progress stepper. Queue and today’s appointments are retained in a collapsed
+Overview drawer, keeping the appointment flow available without competing with
+the active clinical step. Prescription and follow-up steps are unavailable
+until the selected consultation is completed; video is unavailable for
+non-video appointments. Save Draft, Complete, Cancel, Back, and Next controls
+reuse the existing AJAX endpoints and scope/permission contracts.
+
+The selected context remains above the stepper, legacy `#overview` links map to
+Patient Summary, and URL hash navigation remains deep-linkable. Static DOM,
+JavaScript, PHP lint, route, focused test, and diff checks passed. Browser UAT,
+live provider behavior, attachments, and vitals remain `UNVERIFIED`.
+
+### Doctor modal-first UX rule — 2026-09-08
+
+Status: `Partial / static verification passed`. Doctor patient create/edit,
+appointment create/reschedule/filter, follow-up create, notification filter, and
+prescription detail preview use the shared `ri-scroll-modal` shell with a
+scrollable body and visible header/footer actions. `RootinsModal` centralizes
+initial focus, keyboard focus trapping, focus restoration, and background scroll
+lock for dynamically opened Bootstrap modals. Prescription details now open in a
+same-page modal instead of an inline expanding block.
+
+The Clinical Workspace remains a dedicated workflow exception because it contains
+multi-step consultation state. Full patient and appointment history, video
+provider entry, and other complex record workflows remain dedicated-page
+exceptions until an authorized lazy-detail endpoint and browser evidence are
+available. Static PHP/JavaScript/DOM checks and focused Doctor tests are the
+current evidence; authenticated responsive browser UAT and live provider behavior
+remain `UNVERIFIED`.
+
+### Doctor Clinical Workspace OPD picker and prefilled consultation context — 2026-09-09
+
+Status: `Partial / static and focused verification passed`. Overview now opens
+an accessible searchable `Today’s OPD / Queue` modal. Its appointment search is
+server-side, debounced, clinic/doctor scoped, permission protected, keyboard
+navigable, and stale-request safe. Selecting a result carries the appointment
+context into `/doctor/clinical`, where the compact context bar and active-pane
+workflow remain available without embedding the full appointment dataset.
+
+The selected appointment query preloads the existing scoped consultation and
+prescription/item data. Consultation fields prefill chief complaints, clinical
+notes, diagnosis, advice/treatment plan, diagnostic tests, diet plan, and follow-up
+date; prescription fields prefill the first existing prescription item where
+available. The workflow now exposes an appointment-setup panel plus nested,
+keyboard-navigable consultation tabs for the consultation form, chief complaints,
+diagnosis, advice, diagnostic tests, diet plan, and follow-up setup. Queue actions
+remain status- and permission-aware and use the existing
+audited transition endpoint.
+
+The new consultation fields require the reversible migration
+`2026-09-09-120000_AddOpdConsultationFields`; it was applied successfully to the
+local database during this pass and migration status is clean. Attachments,
+vitals, live video consent/tokens/recording metadata, and authenticated browser
+UAT remain `UNVERIFIED` or `NEEDS_REVIEW`; no live provider calls or fake recording
+behavior were added.
+
+### Doctor Clinical Workspace OPD layout and unified save — 2026-09-09
+
+Status: `Partial / static and focused verification passed`. The Doctor workspace
+follows the OPD composition: the topbar exposes patient search, notifications, and
+profile; the page header keeps the `OPD Consultation` context and `Today’s OPD`
+queue action; and the quick-action toolbar exposes only verified past-visit,
+consultation, prescription, and payment-history routes. Unsupported payment-entry
+and image routes were not invented.
+
+The main workspace uses a responsive two-column composition. The left rail contains
+Patient Info, patient identifier/age/location/appointment data, BP/Pulse cards, and
+Visit Timeline. The right rail keeps the consultation, prescription, follow-up,
+appointment, video, billing, and history panels visible in the OPD order, with teal
+headers and responsive consultation cards. The queue modal is outside the workspace
+scroll container, so its modal scrolling and backdrop behavior remain independent.
+
+Consultation and prescription fields now share one `#clinical-workspace-form` with
+one sticky `Save Consultation` action. The new `POST /doctor/clinical/save` endpoint
+validates the scoped appointment, consultation fields, optional prescription items,
+status transitions, permissions, and finalized-record protections before one database
+transaction. A failure rolls back the combined write; successful saves emit a scoped
+audit event. The former section-level save buttons and Clinical Workspace AJAX
+handlers are no longer used; legacy endpoints remain for backward compatibility with
+other callers.
+
+Static DOM/CSS/PHP checks, route checks, JavaScript syntax checks, and focused Doctor
+tests passed. Authenticated browser rendering at desktop/tablet/mobile widths and
+database-backed transaction/UAT evidence remain `UNVERIFIED` in this environment.
+
+### Doctor Prescription database-backed option catalog — 2026-09-10
+
+Status: `Implemented / static and focused verification passed`. Doctor
+Prescription duration, frequency, dose, intake, and status values load from
+dedicated database catalogs through `Admin\\Models\\PrescriptionOptionModel`;
+medicine remains an AJAX-backed active `medicines` lookup. The earlier
+`2026-09-10-160000_SeedPrescriptionOptions` migration remains the historical
+legacy seed; `2026-09-11-120000_RefactorAdminMasterRecords` backfills those
+values into the dedicated tables without deleting the legacy source.
+
+Submitted option values are checked against active, clinic/global-scope records
+before the consultation/prescription transaction. Medicine IDs are checked
+against active medicine records and resolved to the historical `medicine_name`
+snapshot, preserving the existing downstream prescription schema and history.
+Dynamic rows initialize the same database-backed selectors and the Doctor view
+contains no hard-coded prescription option arrays. Migration status, PHP/JS
+lint, route listing, focused Doctor tests, and `git diff --check` passed; browser
+UAT remains deployment/environment dependent.
+
+### Admin dedicated master catalogs — 2026-09-11
+
+Status: `Implemented / migration, backfill, seed, and focused verification passed`.
+
+The legacy `admin_master_records` table is retained for compatibility and audit
+reconciliation, but current Admin master CRUD and Doctor service/option reads no
+longer use it. The dedicated mapping is:
+
+| Master | Dedicated table |
+| --- | --- |
+| Doctor Specializations | `doctor_specializations` |
+| Departments | `admin_departments` |
+| Services | `admin_services` |
+| Consultation Fee Templates | `consultation_fee_templates` |
+| Commission Templates | `commission_templates` |
+| Payment Modes | `payment_modes` |
+| Tax Rates | `tax_rates` |
+| Medicines | `medicines` (existing domain table) |
+| Prescription Durations | `prescription_durations` |
+| Prescription Frequencies | `prescription_frequencies` |
+| Prescription Doses | `prescription_doses` |
+| Prescription Intakes | `prescription_intakes` |
+| Prescription Statuses | `prescription_status_options` |
+
+Migration `2026-09-11-120000_RefactorAdminMasterRecords` creates the dedicated
+catalogs with normalized uniqueness, status and scope indexes, clinic/user
+foreign keys, timestamps, and `legacy_master_id` compatibility mapping. It also
+updates `appointment_services.service_id` to reference `admin_services` and
+backfills existing legacy rows without deleting the legacy source. The migration
+and `AdminConfigurationSeeder` are idempotent; local migration status is clean.
+
+`Admin\Models\PrescriptionOptionModel` reads the dedicated prescription tables,
+and Admin Configuration uses one PSR-4-loadable model per catalog. Authenticated
+browser UAT remains environment-dependent; static checks, focused tests, route
+listing, database table inspection, and local migration/seed execution passed.
+
+## Central medicine stock rule
+
+`medicine_inventory_batches` is the centralized stock pool. Its legacy
+`clinic_id` is retained nullable for compatibility/reporting only and is never
+used to scope availability, FEFO allocation, or cancellation release. Orders,
+prescriptions, invoices, and audit events retain clinic ownership.
+
+Migration `2026-10-02-130000_CentralizeMedicineInventory` merges duplicate
+rows by medicine, batch, and expiry into the lowest row id, sums each existing
+quantity once, and retains zero-quantity `merged` history rows. It then applies
+the central uniqueness key. Stock adjustments are recorded in
+`inventory_stock_movements` and require the Pharmacy Assistant adjustment permission,
+a reason, confirmation, and a non-negative resulting quantity.
+
+Doctors and patients intentionally receive medicine master/order contents only;
+central batch, expiry, stock quantity, warehouse, and allocation fields are
+not part of their response contracts.

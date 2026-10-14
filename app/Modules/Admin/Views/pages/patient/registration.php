@@ -2,204 +2,75 @@
 
 <?= $this->section('main-content') ?>
 
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Patient Management',
-        'page'       => 'Patient Registration',
-    ]) ?>
+<main class="dashboard-container admin-patient-registration-page" aria-labelledby="patient-registration-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Patient Registration']) ?>
 
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <h5 class="mb-0">Patient Registration</h5>
-        </div>
+    <section class="admin-registration-heading">
+        <div><span class="page-eyebrow">Patient management</span><h1 id="patient-registration-title">Patient registration</h1><p>Create a clinic-scoped patient record with optional first appointment.</p></div>
+        <a href="<?= base_url('admin/patients') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i>Back to patients</a>
+    </section>
 
-        <div class="card-body">
-            <?= form_open('', ['id' => 'patientRegistrationForm', 'autocomplete' => 'off']) ?>
-                <div class="alert alert-info">
-                    The patient registration number will be generated after successful registration.
-                </div>
+    <section class="card admin-registration-card" aria-labelledby="patient-registration-form-title">
+        <div class="card-header admin-registration-card-header"><div><h2 id="patient-registration-form-title">Register a patient</h2><p>Required fields are marked with <span class="text-danger">*</span>. The registration number is generated after a successful save.</p></div><span class="admin-registration-step"><i class="bi bi-shield-check mr-1" aria-hidden="true"></i>Secure clinic scope</span></div>
+        <div class="card-body admin-registration-card-body">
+            <?= form_open('', ['id' => 'patientRegistrationForm', 'autocomplete' => 'off', 'novalidate' => 'novalidate']) ?>
+                <div id="patientRegistrationResult" class="alert alert-success d-none" role="status"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i>Patient registered successfully. Registration number: <strong id="patientRegistrationNumber"></strong></div>
+                <div class="admin-registration-notice"><i class="bi bi-info-circle mr-2" aria-hidden="true"></i><span>The patient source is assigned by the server for this Admin registration. It cannot be changed from the form.</span></div>
 
-                <div id="patientRegistrationResult" class="alert alert-success d-none">
-                    Patient registration number:
-                    <strong id="patientRegistrationNumber"></strong>
-                </div>
+                <fieldset class="admin-registration-section">
+                    <legend><span class="admin-registration-section-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>Patient identity</legend>
+                    <div class="admin-registration-grid admin-registration-grid-3">
+                        <div class="form-group"><label for="registration_first_name">First name <span class="text-danger">*</span></label><input type="text" class="form-control" name="first_name" id="registration_first_name" maxlength="100" autocomplete="given-name" required><div class="validation-error" id="first_nameErr"></div></div>
+                        <div class="form-group"><label for="registration_middle_name">Middle name</label><input type="text" class="form-control" name="middle_name" id="registration_middle_name" maxlength="100" autocomplete="additional-name"><div class="validation-error" id="middle_nameErr"></div></div>
+                        <div class="form-group"><label for="registration_last_name">Last name <span class="text-danger">*</span></label><input type="text" class="form-control" name="last_name" id="registration_last_name" maxlength="100" autocomplete="family-name" required><div class="validation-error" id="last_nameErr"></div></div>
+                    </div>
+                    <div class="admin-registration-grid admin-registration-grid-2">
+                        <div class="form-group"><label for="registration_gender">Gender</label><select class="form-control" name="gender" id="registration_gender"><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select><div class="validation-error" id="genderErr"></div></div>
+                        <div class="form-group"><label for="registration_date_of_birth">Date of birth <span class="text-danger">*</span></label><input type="text" class="form-control datepicker" name="date_of_birth" id="registration_date_of_birth" placeholder="dd-mm-yyyy" inputmode="numeric" autocomplete="bday" aria-describedby="registration-dob-help" required><small id="registration-dob-help" class="form-text">Use dd-mm-yyyy.</small><div class="validation-error" id="date_of_birthErr"></div></div>
+                    </div>
+                </fieldset>
 
-                <h6 class="mb-3">Personal Information</h6>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_first_name">First Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="first_name" id="registration_first_name">
-                            <div class="validation-error" id="first_nameErr"></div>
-                        </div>
+                <fieldset class="admin-registration-section">
+                    <legend><span class="admin-registration-section-icon"><i class="bi bi-telephone" aria-hidden="true"></i></span>Contact information</legend>
+                    <div class="admin-registration-grid admin-registration-grid-3 contact-grid">
+                        <div class="form-group"><label for="registration_country_code">Country code <span class="text-danger">*</span></label><select class="form-control btSelect" data-live-search="true" title="Select country code" name="telephone_country_code_id" id="registration_country_code" required><option value="">Select country code</option><?php foreach (($telephoneCodes ?? []) as $telephoneCode): ?><?php if (! empty($telephoneCode['normalized_code'])): ?><option value="<?= (int) $telephoneCode['id'] ?>" data-phone-code="<?= esc((string) $telephoneCode['normalized_code']) ?>"><?= esc($telephoneCode['country_name'] ?? $telephoneCode['name'] ?? '') ?> (+<?= esc((string) $telephoneCode['normalized_code']) ?>)</option><?php endif; ?><?php endforeach; ?></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input country-code-manual-toggle" name="country_code_manual" value="1" id="registration_country_code_manual_toggle" data-select="#registration_country_code" data-input="#registration_country_code_manual" data-name-input="#registration_telephone_country_name"><label class="custom-control-label small" for="registration_country_code_manual_toggle">Enter code manually</label></div><div class="country-code-manual-fields d-none"><label class="small mb-1" for="registration_telephone_country_name">Country name <span class="text-danger">*</span></label><input type="text" class="form-control" name="telephone_country_name" id="registration_telephone_country_name" placeholder="Country name" maxlength="191" disabled required><label class="small mb-1 mt-2" for="registration_country_code_manual">Telephone code <span class="text-danger">*</span></label><input type="text" class="form-control country-code-manual-input" name="country_code" id="registration_country_code_manual" placeholder="Example: +91" inputmode="tel" maxlength="5" disabled required><div class="validation-error" id="telephone_country_nameErr"></div></div><small class="form-text text-muted">Select a country to use its telephone code.</small><div class="validation-error" id="country_codeErr"></div></div>
+                        <div class="form-group"><label for="registration_mobile_number">Mobile number <span class="text-danger">*</span></label><input type="text" class="form-control" name="mobile_number" id="registration_mobile_number" maxlength="20" inputmode="tel" autocomplete="tel" placeholder="Mobile number" required><div class="validation-error" id="mobile_numberErr"></div></div>
+                        <div class="form-group"><label for="registration_email">Email address <span class="text-danger">*</span></label><input type="email" class="form-control" name="email" id="registration_email" maxlength="255" autocomplete="email" placeholder="name@example.com" required><div class="validation-error" id="emailErr"></div></div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_middle_name">Middle Name</label>
-                            <input type="text" class="form-control" name="middle_name" id="registration_middle_name">
-                            <div class="validation-error" id="middle_nameErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_last_name">Last Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="last_name" id="registration_last_name">
-                            <div class="validation-error" id="last_nameErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="registration_gender">Gender</label>
-                            <select class="form-control" name="gender" id="registration_gender">
-                                <option value="">Select</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
-                                </select>
-                            <div class="validation-error" id="genderErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="registration_date_of_birth">Date of Birth <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control datepicker" name="date_of_birth" id="registration_date_of_birth" placeholder="dd-mm-yyyy" autocomplete="off">
-                            <div class="validation-error" id="date_of_birthErr"></div>
-                        </div>
-                    </div>
-                </div>
+                    <div class="admin-registration-grid admin-registration-grid-address"><div class="form-group"><label for="registration_address">Address</label><textarea class="form-control" rows="3" name="address" id="registration_address" maxlength="2000" autocomplete="street-address" placeholder="House, street, or building"></textarea><div class="validation-error" id="addressErr"></div></div><div class="form-group"><label for="registration_postal_code">Postal code</label><input type="text" class="form-control" name="postal_code" id="registration_postal_code" maxlength="20" autocomplete="postal-code"><div class="validation-error" id="postal_codeErr"></div></div></div>
+                </fieldset>
 
-                <h6 class="mb-3 mt-3">Contact Information</h6>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_country_code">Country Code <span class="text-danger">*</span></label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select Country Code" name="country_code" id="registration_country_code" required>
-                                <option value="">Select Country Code</option>
-                                <?php foreach ($countries as $country): ?>
-                                    <?php if (! empty($country['phone_code'])): ?>
-                                        <option value="<?= (int) $country['id'] ?>" data-phone-code="<?= esc(ltrim((string) $country['phone_code'], '+')) ?>">
-                                            <?= esc($country['name']) ?> (<?= esc($country['phone_code']) ?>)
-                                        </option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input country-code-manual-toggle" id="registration_country_code_manual_toggle" data-select="#registration_country_code" data-input="#registration_country_code_manual"><label class="custom-control-label small" for="registration_country_code_manual_toggle">Enter code manually</label></div>
-                            <input type="text" class="form-control mt-2 d-none" name="country_code" id="registration_country_code_manual" placeholder="Example: +91" inputmode="tel" maxlength="10" disabled aria-describedby="registration-country-code-hint">
-                            <small id="registration-country-code-hint" class="form-text text-muted">Select a country to use its telephone code.</small>
-                            <div class="validation-error" id="country_codeErr"></div>
-                        </div>
+                <fieldset class="admin-registration-section">
+                    <legend><span class="admin-registration-section-icon"><i class="bi bi-building" aria-hidden="true"></i></span>Clinic and location</legend>
+                    <div class="admin-registration-grid admin-registration-grid-2"><div class="form-group"><label for="registration_clinic_id">Clinic <span class="text-danger">*</span></label><select class="form-control btSelect" data-live-search="true" title="Select clinic" name="clinic_id" id="registration_clinic_id" required><option value="">Select clinic</option><?php foreach (($clinics ?? []) as $clinic): ?><option value="<?= (int) $clinic['id'] ?>"><?= esc($clinic['clinic_name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="clinic_idErr"></div></div></div>
+                    <div class="admin-registration-grid admin-registration-grid-4">
+                        <div class="form-group"><label for="registration_country_id">Country</label><select class="form-control btSelect" data-live-search="true" title="Select country" name="country_id" id="registration_country_id"><option value="">Select country</option><?php foreach (($countries ?? []) as $country): ?><option value="<?= (int) $country['id'] ?>"><?= esc($country['name']) ?></option><?php endforeach; ?></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_country_manual" data-select="#registration_country_id" data-input="#registration_country_name"><label class="custom-control-label small" for="registration_country_manual">Enter country manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="country_name" id="registration_country_name" placeholder="Country name" maxlength="191"><div class="validation-error" id="country_idErr"></div></div>
+                        <div class="form-group"><label for="registration_state_id">State</label><select class="form-control btSelect" data-live-search="true" title="Select state" name="state_id" id="registration_state_id"><option value="">Select state</option></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_state_manual" data-select="#registration_state_id" data-input="#registration_state_name"><label class="custom-control-label small" for="registration_state_manual">Enter manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="state_name" id="registration_state_name" placeholder="State or division" maxlength="191"><div class="validation-error" id="state_idErr"></div></div>
+                        <div class="form-group"><label for="registration_city_id">City</label><select class="form-control btSelect" data-live-search="true" title="Select city" name="city_id" id="registration_city_id"><option value="">Select city</option></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_city_manual" data-select="#registration_city_id" data-input="#registration_city_name"><label class="custom-control-label small" for="registration_city_manual">Enter manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="city_name" id="registration_city_name" placeholder="City name" maxlength="191"><div class="validation-error" id="city_idErr"></div></div>
+                        <div class="form-group"><label for="registration_locality_id">Locality</label><select class="form-control btSelect" data-live-search="true" title="Select locality" name="locality_id" id="registration_locality_id"><option value="">Select locality</option></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_locality_manual" data-select="#registration_locality_id" data-input="#registration_locality_name"><label class="custom-control-label small" for="registration_locality_manual">Enter manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="locality_name" id="registration_locality_name" placeholder="Locality or neighborhood" maxlength="191"><div class="validation-error" id="locality_idErr"></div><div class="validation-error" id="locality_nameErr"></div></div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_mobile_number">Mobile Number <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="mobile_number" id="registration_mobile_number">
-                            <div class="validation-error" id="mobile_numberErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_email">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" name="email" id="registration_email">
-                            <div class="validation-error" id="emailErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-8">
-                        <div class="form-group">
-                            <label for="registration_address">Address</label>
-                            <textarea class="form-control" rows="2" name="address" id="registration_address"></textarea>
-                            <div class="validation-error" id="addressErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_postal_code">Postal Code</label>
-                            <input type="text" class="form-control" name="postal_code" id="registration_postal_code">
-                            <div class="validation-error" id="postal_codeErr"></div>
-                        </div>
-                    </div>
-                </div>
+                </fieldset>
 
-                <h6 class="mb-3 mt-3">Initial Clinic Assignment</h6>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="registration_clinic_id">Clinic <span class="text-danger">*</span></label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select Clinic" name="clinic_id" id="registration_clinic_id">
-                                <option value="">Select Clinic</option>
-                                <?php foreach ($clinics as $clinic): ?>
-                                    <option value="<?= (int) $clinic['id'] ?>"><?= esc($clinic['clinic_name']) ?></option>
-                                <?php endforeach; ?>
-                                </select>
-                            <div class="validation-error" id="clinic_idErr"></div>
-                        </div>
+                <?php if (! empty($canCreateAppointment)): ?>
+                <fieldset class="admin-registration-section admin-registration-appointment-section">
+                    <legend><span class="admin-registration-section-icon"><i class="bi bi-calendar2-plus" aria-hidden="true"></i></span>First appointment <span class="admin-registration-optional">Optional</span></legend>
+                    <div class="admin-registration-appointment-toggle"><div><strong>Create the first appointment in the same transaction</strong><small>Patient creation and appointment creation will succeed or roll back together.</small></div><div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" name="create_appointment_now" value="1" id="registration_create_appointment_now"><label class="custom-control-label" for="registration_create_appointment_now">Create appointment</label></div></div>
+                    <div id="registration-appointment-fields" class="admin-registration-appointment-fields d-none" aria-hidden="true">
+                        <div class="admin-registration-grid admin-registration-grid-4"><div class="form-group"><label for="registration_appointment_date">Appointment date <span class="text-danger">*</span></label><input type="text" class="form-control datepicker" name="appointment_date" id="registration_appointment_date" placeholder="dd-mm-yyyy" inputmode="numeric" disabled><div class="validation-error" id="appointment_dateErr"></div></div><div class="form-group"><label for="registration_appointment_time">Appointment time <span class="text-danger">*</span></label><input type="time" class="form-control" name="appointment_time" id="registration_appointment_time" disabled><div class="validation-error" id="appointment_timeErr"></div></div><div class="form-group"><label for="registration_appointment_service_id">Service <span class="text-danger">*</span></label><select class="form-control btSelect" data-live-search="true" title="Select service" name="appointment_service_id" id="registration_appointment_service_id" disabled><option value="">Select service</option><?php foreach (($services ?? []) as $service): ?><option value="<?= (int) $service['id'] ?>" data-clinic-id="<?= (int) ($service['clinic_id'] ?? 0) ?>"><?= esc($service['name']) ?><?= ! empty($service['code']) ? ' · ' . esc($service['code']) : '' ?></option><?php endforeach; ?></select><div class="validation-error" id="appointment_service_idErr"></div></div><div class="form-group"><label for="registration_appointment_doctor_id">Doctor <span class="text-danger">*</span></label><select class="form-control btSelect" data-live-search="true" title="Select doctor" name="appointment_doctor_id" id="registration_appointment_doctor_id" disabled><option value="">Select doctor</option><?php foreach (($doctors ?? []) as $doctor): ?><option value="<?= (int) $doctor['id'] ?>" data-clinic-id="<?= (int) $doctor['clinic_id'] ?>"><?= esc(trim(($doctor['first_name'] ?? '') . ' ' . ($doctor['last_name'] ?? ''))) ?><?= ! empty($doctor['doctor_code']) ? ' · ' . esc($doctor['doctor_code']) : '' ?></option><?php endforeach; ?></select><div class="validation-error" id="appointment_doctor_idErr"></div></div></div>
+                        <div class="form-group mb-0"><label for="registration_appointment_reason">Reason for visit</label><input type="text" class="form-control" name="appointment_reason" id="registration_appointment_reason" maxlength="500" placeholder="Optional reason" disabled><div class="validation-error" id="appointment_reasonErr"></div></div>
                     </div>
-                </div>
+                    <div class="validation-error" id="create_appointment_nowErr"></div>
+                </fieldset>
+                <?php else: ?><div class="admin-registration-permission-note"><i class="bi bi-info-circle mr-2" aria-hidden="true"></i>Appointment creation is unavailable for your current permissions.</div><?php endif; ?>
 
-                <h6 class="mb-3 mt-3">Location</h6>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_country_id">Country</label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select Country" name="country_id" id="registration_country_id">
-                                <option value="">Select Country</option>
-                                <?php foreach ($countries as $country): ?>
-                                    <option value="<?= (int) $country['id'] ?>"><?= esc($country['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_country_manual" data-select="#registration_country_id" data-input="#registration_country_name"><label class="custom-control-label small" for="registration_country_manual">Enter country manually</label></div>
-                            <input type="text" class="form-control mt-2 location-manual d-none" name="country_name" id="registration_country_name" placeholder="Country name" maxlength="191">
-                            <div class="validation-error" id="country_idErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_state_id">State</label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select State" name="state_id" id="registration_state_id">
-                                <option value="">Select State</option>
-                            </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_state_manual" data-select="#registration_state_id" data-input="#registration_state_name"><label class="custom-control-label small" for="registration_state_manual">Enter manually</label></div>
-                            <input type="text" class="form-control mt-2 location-manual d-none" name="state_name" id="registration_state_name" placeholder="State or division name" maxlength="191">
-                            <div class="validation-error" id="state_idErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_city_id">City</label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select City" name="city_id" id="registration_city_id">
-                                <option value="">Select City</option>
-                            </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_city_manual" data-select="#registration_city_id" data-input="#registration_city_name"><label class="custom-control-label small" for="registration_city_manual">Enter manually</label></div>
-                            <input type="text" class="form-control mt-2 location-manual d-none" name="city_name" id="registration_city_name" placeholder="City name" maxlength="191">
-                            <div class="validation-error" id="city_idErr"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="registration_locality_id">Locality</label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select Locality" name="locality_id" id="registration_locality_id">
-                                <option value="">Select Locality</option>
-                            </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_locality_manual" data-select="#registration_locality_id" data-input="#registration_locality_name"><label class="custom-control-label small" for="registration_locality_manual">Enter manually</label></div>
-                            <input type="text" class="form-control mt-2 location-manual d-none" name="locality_name" id="registration_locality_name" placeholder="Locality or neighborhood" maxlength="191">
-                            <div class="validation-error" id="locality_idErr"></div>
-                            <div class="validation-error" id="locality_nameErr"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-4">
-                    <button type="submit" class="btn theme-btn">
-                        <i class="bi bi-check-circle"></i> Register Patient
-                    </button>
-                </div>
+                <div class="admin-registration-footer"><p class="mb-0"><span class="text-danger">*</span> Required fields</p><button type="submit" class="btn theme-btn admin-registration-submit"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i><span class="admin-registration-submit-label">Register patient</span></button></div>
             <?= form_close() ?>
         </div>
-    </div>
+    </section>
 </main>
 
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/patient/patient_registration.js') ?>"></script>
+<script src="<?= base_url('assets/js/admin/patient/patient_registration.js?v=20261010.2') ?>"></script>
 <?= $this->endSection() ?>

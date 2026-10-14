@@ -1,6 +1,7 @@
 <?php
 
 use CodeIgniter\Router\RouteCollection;
+
 /** @var RouteCollection $routes */
 $routes->group('admin', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Dashboard::index');
@@ -40,6 +41,24 @@ $routes->group('admin/configuration', ['namespace' => 'Admin\Controllers', 'filt
     $routes->post('masters/delete/(:num)', 'Configuration::deleteMaster/$1', ['filter' => 'permission:settings.manage']);
     $routes->get('settings/(:segment)', 'Configuration::settings/$1', ['filter' => 'permission:settings.manage']);
     $routes->post('settings/save', 'Configuration::saveSetting', ['filter' => 'permission:settings.manage']);
+});
+$routes->group('admin/delivery-providers', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'DeliveryProvider::index', ['filter' => 'permission:delivery_provider.view']);
+    $routes->post('save', 'DeliveryProvider::save', ['filter' => 'permission:delivery_provider.manage']);
+    $routes->post('toggle/(:num)', 'DeliveryProvider::toggle/$1', ['filter' => 'permission:delivery_provider.manage']);
+    $routes->post('delete/(:num)', 'DeliveryProvider::delete/$1', ['filter' => 'permission:delivery_provider.manage']);
+});
+$routes->group('admin/payment-statuses', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'PaymentStatus::index', ['filter' => 'permission:payment_status.view']);
+    $routes->post('save', 'PaymentStatus::save', ['filter' => 'permission:payment_status.manage']);
+    $routes->post('toggle/(:num)', 'PaymentStatus::toggle/$1', ['filter' => 'permission:payment_status.manage']);
+    $routes->post('archive/(:num)', 'PaymentStatus::archive/$1', ['filter' => 'permission:payment_status.manage']);
+});
+$routes->group('admin/payment-providers', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'PaymentProvider::index', ['filter' => 'permission:payment_provider.view']);
+    $routes->post('save', 'PaymentProvider::save', ['filter' => 'permission:payment_provider.manage']);
+    $routes->post('toggle/(:num)', 'PaymentProvider::toggle/$1', ['filter' => 'permission:payment_provider.manage']);
+    $routes->post('archive/(:num)', 'PaymentProvider::archive/$1', ['filter' => 'permission:payment_provider.manage']);
 });
 /*=====================================
 =            Clinic Routes            =
@@ -115,6 +134,7 @@ $routes->group('admin/doctor-documents', ['namespace' => 'Admin\Controllers\Doct
     $routes->get('/', 'DoctorDocument::index', ['filter' => 'permission:doctor_document.view']);
     $routes->post('create', 'DoctorDocument::create', ['filter' => 'permission:doctor_document.create']);
     $routes->get('document-by-id/(:num)', 'DoctorDocument::documentById/$1', ['filter' => 'permission:doctor_document.edit']);
+    $routes->get('download/(:num)', 'DoctorDocument::download/$1', ['filter' => 'permission:doctor_document.view']);
     $routes->post('update', 'DoctorDocument::update', ['filter' => 'permission:doctor_document.update']);
     $routes->post('delete/(:num)', 'DoctorDocument::delete/$1', ['filter' => 'permission:doctor_document.delete']);
 });
@@ -219,3 +239,17 @@ $routes->group('admin/medicines', ['namespace' => 'Admin\Controllers\Medicine', 
     $routes->post('delete/(:num)', 'Medicine::delete/$1', ['filter' => 'permission:medicine.delete']);
 });
 /*=====  End of Medicine Routes  ======*/
+$routes->group('admin/medicine-lookups', ['namespace' => 'Admin\Controllers\Medicine', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'MedicineLookup::index', ['filter' => 'permission:settings.manage']);
+    $routes->get('edit/(:segment)/(:num)', 'MedicineLookup::edit/$1/$2', ['filter' => 'permission:settings.manage']);
+    $routes->post('save/(:segment)', 'MedicineLookup::save/$1', ['filter' => 'permission:settings.manage']);
+    $routes->post('status/(:segment)/(:num)', 'MedicineLookup::status/$1/$2', ['filter' => 'permission:settings.manage']);
+    $routes->post('delete/(:segment)/(:num)', 'MedicineLookup::delete/$1/$2', ['filter' => 'permission:settings.manage']);
+});
+$routes->group('admin/integrations/core-api', ['namespace' => 'Admin\Controllers\Integration', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'CoreApi::index', ['filter' => 'permission:core_api.view']);
+    $routes->post('create', 'CoreApi::create', ['filter' => 'permission:core_api.create']);
+    $routes->post('(:num)/revoke', 'CoreApi::revoke/$1', ['filter' => 'permission:core_api.manage']);
+    $routes->post('(:num)/rotate', 'CoreApi::rotate/$1', ['filter' => 'permission:core_api.manage']);
+    $routes->post('(:num)/test', 'CoreApi::test/$1', ['filter' => 'permission:core_api.manage']);
+});

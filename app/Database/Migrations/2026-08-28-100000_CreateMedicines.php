@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateMedicines extends Migration
 {
     public function up()
@@ -17,6 +18,7 @@ class CreateMedicines extends Migration
         $this->forge->addUniqueKey('medicine_code');
         $this->forge->createTable('medicines');
     }
+
     public function down()
     {
         $this->forge->dropTable('medicines', true);

@@ -3,12 +3,13 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
+
 class Migrations extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * Enable/Disable Migrations
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Migrations are enabled by default.
      *
@@ -16,20 +17,22 @@ class Migrations extends BaseConfig
      * and disable it back when you're done.
      */
     public bool $enabled = true;
+
     /**
      * --------------------------------------------------------------------------
      * Migrations Table
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * This is the name of the table that will store the current migrations state.
      * When migrations runs it will store in a database table which migration
      * files have already been run.
      */
     public string $table = 'migrations';
+
     /**
      * --------------------------------------------------------------------------
      * Timestamp Format
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * This is the format that will be used when creating new migrations
      * using the CLI command:
@@ -44,10 +47,11 @@ class Migrations extends BaseConfig
      * - Y_m_d_His_
      */
     public string $timestampFormat = 'Y-m-d-His_';
+
     /**
      * --------------------------------------------------------------------------
      * Enable/Disable Migration Lock
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Locking is disabled by default.
      *

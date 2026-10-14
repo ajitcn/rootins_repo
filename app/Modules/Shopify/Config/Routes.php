@@ -1,0 +1,31 @@
+<?php
+
+use CodeIgniter\Router\RouteCollection;
+
+/** @var RouteCollection $routes */
+$routes->group('admin/integrations/shopify', [
+    'namespace' => 'App\Modules\Shopify\Controllers',
+    'filter' => 'auth',
+], static function ($routes): void {
+    $routes->get('/', 'Integration::index', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('orders', 'Integration::orders', ['filter' => 'permission:shopify.integration.view']);
+    $routes->post('test-connection', 'Integration::testConnection', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('configuration/save', 'Integration::saveConfiguration', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('configuration/rotate-secret', 'Integration::rotateSecret', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('customers/link', 'Integration::linkCustomer', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('customers/create', 'Integration::createPatient', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('customers/reject', 'Integration::rejectCustomer', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('customers/unlink', 'Integration::unlinkCustomer', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('orders/import', 'Integration::importOrder', ['filter' => 'permission:shopify.order.import']);
+    $routes->post('orders/reconcile', 'Integration::importOrder', ['filter' => 'permission:shopify.order.reconcile']);
+});
+
+$routes->post('integrations/shopify/webhooks/(:any)', '\App\Modules\Shopify\Controllers\Webhook::receive/$1');
+$routes->get('patient/login/shopify', '\App\Modules\Shopify\Controllers\Handoff::patientLogin');
+$routes->get('integrations/shopify/appointments/availability', '\App\Modules\Shopify\Controllers\Appointment::availability');
+$routes->post('integrations/shopify/appointments/book', '\App\Modules\Shopify\Controllers\Appointment::book');
+$routes->post('integrations/shopify/appointments/(:num)/cancel', '\App\Modules\Shopify\Controllers\Appointment::cancel/$1');
+$routes->post('integrations/shopify/appointments/(:num)/reschedule', '\App\Modules\Shopify\Controllers\Appointment::reschedule/$1');
+$routes->post('integrations/shopify/prescription-uploads', '\App\Modules\Shopify\Controllers\PrescriptionUpload::upload');
+$routes->get('integrations/shopify/prescription-uploads/(:num)/download', '\App\Modules\Shopify\Controllers\PrescriptionUpload::download/$1');
+$routes->post('integrations/shopify/prescription-uploads/review', '\App\Modules\Shopify\Controllers\PrescriptionUpload::review', ['filter' => ['auth', 'permission:pharmacy.prescription.review.view']]);

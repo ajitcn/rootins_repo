@@ -29,7 +29,7 @@
 
                                     <?php foreach ($doctors as $doctor): ?>
                                         <option value="<?= $doctor['id'] ?>">
-                                            <?= esc($doctor['first_name'].' '.$doctor['last_name']) ?>
+                                            <?= esc($doctor['first_name'] . ' ' . $doctor['last_name']) ?>
                                         </option>
                                         <?php endforeach; ?>
 

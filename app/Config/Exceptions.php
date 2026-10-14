@@ -7,6 +7,7 @@ use CodeIgniter\Debug\ExceptionHandler;
 use CodeIgniter\Debug\ExceptionHandlerInterface;
 use Psr\Log\LogLevel;
 use Throwable;
+
 /**
  * Setup how the exception handler works.
  */
@@ -22,6 +23,7 @@ class Exceptions extends BaseConfig
      * Default: true
      */
     public bool $log = true;
+
     /**
      * --------------------------------------------------------------------------
      * DO NOT LOG STATUS CODES
@@ -32,6 +34,7 @@ class Exceptions extends BaseConfig
      * @var list<int>
      */
     public array $ignoreCodes = [404];
+
     /**
      * --------------------------------------------------------------------------
      * Error Views Path
@@ -42,17 +45,19 @@ class Exceptions extends BaseConfig
      * Default: APPPATH.'Views/errors'
      */
     public string $errorViewPath = APPPATH . 'Views/errors';
+
     /**
      * --------------------------------------------------------------------------
      * HIDE FROM DEBUG TRACE
      * --------------------------------------------------------------------------
      * Any data that you would like to hide from the debug trace.
      * In order to specify 2 levels, use "/" to separate.
-     * ex. ['server', 'setup/password', 'secret_token']
+     * ex. ['server', 'setup/password', 'secret_token'].
      *
      * @var list<string>
      */
     public array $sensitiveDataInTrace = [];
+
     /**
      * --------------------------------------------------------------------------
      * WHETHER TO THROW AN EXCEPTION ON DEPRECATED ERRORS
@@ -61,6 +66,7 @@ class Exceptions extends BaseConfig
      * thrown. This option also works for user deprecations.
      */
     public bool $logDeprecations = true;
+
     /**
      * --------------------------------------------------------------------------
      * LOG LEVEL THRESHOLD FOR DEPRECATIONS
@@ -73,6 +79,7 @@ class Exceptions extends BaseConfig
      * to capture logging the deprecations.
      */
     public string $deprecationLogLevel = LogLevel::WARNING;
+
     /*
      * DEFINE THE HANDLERS USED
      * --------------------------------------------------------------------------

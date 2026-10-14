@@ -1,114 +1,28 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-
 <?= $this->section('main-content') ?>
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Appointment Management',
-        'page'       => 'Appointment Reports',
-    ]) ?>
-
-    <?= form_open('', 'id="appointmentReportForm" autocomplete="off"') ?>
-        <div class="row align-items-end mb-3">
-            <div class="col-md-3">
-                <label for="reportDateFrom">Date From</label>
-                <input type="text" name="date_from" id="reportDateFrom" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
-            </div>
-            <div class="col-md-3">
-                <label for="reportDateTo">Date To</label>
-                <input type="text" name="date_to" id="reportDateTo" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
-            </div>
-            <div class="col-md-3">
-                <label for="reportClinic">Clinic</label>
-                <select name="clinic_id" id="reportClinic" class="form-control btSelect" title="All Clinics">
-                    <option value="">All Clinics</option>
-                    <?php foreach ($clinics as $clinic): ?>
-                        <option value="<?= (int) $clinic['id'] ?>"><?= esc($clinic['clinic_name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label for="reportDoctor">Doctor</label>
-                <select name="doctor_id" id="reportDoctor" class="form-control btSelect" title="All Doctors">
-                    <option value="">All Doctors</option>
-                    <?php foreach ($doctors as $doctor): ?>
-                        <option value="<?= (int) $doctor['id'] ?>">
-                            Dr. <?= esc(trim($doctor['first_name'] . ' ' . $doctor['last_name']) . ' (' . $doctor['doctor_code'] . ')') ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3 mt-3">
-                <label for="reportType">Appointment Type</label>
-                <select name="appointment_type" id="reportType" class="form-control btSelect" title="All Types">
-                    <option value="">All Types</option>
-                    <option value="in_person">In Person</option>
-                    <option value="video">Video</option>
-                    <option value="phone">Phone</option>
-                </select>
-            </div>
-            <div class="col-md-3 mt-3">
-                <label for="reportStatus">Status</label>
-                <select name="status" id="reportStatus" class="form-control btSelect" title="All Statuses">
-                    <option value="">All Statuses</option>
-                    <?php foreach (['scheduled', 'confirmed', 'checked_in', 'in_queue', 'completed', 'cancelled', 'no_show'] as $status): ?>
-                        <option value="<?= esc($status) ?>"><?= esc(ucwords(str_replace('_', ' ', $status))) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3 mt-3">
-                <label for="reportSource">Booking Source</label>
-                <select name="booking_source" id="reportSource" class="form-control btSelect" title="All Sources">
-                    <option value="">All Sources</option>
-                    <?php foreach ($bookingSources as $source): ?>
-                        <option value="<?= esc($source) ?>"><?= esc(ucwords(str_replace('_', ' ', $source))) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3 mt-3">
-                <label for="reportCreatorType">Created By Type</label>
-                <select name="created_by_type" id="reportCreatorType" class="form-control btSelect" title="All Creator Types">
-                    <option value="">All Creator Types</option>
-                    <?php foreach ($creatorTypes as $type): ?>
-                        <option value="<?= esc($type) ?>"><?= esc(ucwords(str_replace('_', ' ', $type))) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-12 mt-3">
-                <button type="submit" class="btn theme-btn">Run Report</button>
-                <button type="button" class="btn btn-outline-secondary" id="resetAppointmentReport">Reset</button>
-            </div>
-        </div>
-    <?= form_close() ?>
-
-    <div class="row mb-3" id="appointmentReportSummary">
-        <?php foreach ([
-            'total' => 'Total Appointments', 'scheduled' => 'Scheduled', 'confirmed' => 'Confirmed',
-            'checked_in' => 'Checked In', 'completed' => 'Completed', 'cancelled' => 'Cancelled', 'no_show' => 'No Show',
-        ] as $key => $title): ?>
-            <div class="col-md-3 col-lg mb-2">
-                <div class="card h-100"><div class="card-body py-3">
-                    <small class="text-muted d-block"><?= esc($title) ?></small>
-                    <strong class="h4 mb-0" data-summary="<?= esc($key) ?>">0</strong>
-                </div></div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover" id="appointmentReportTable">
-            <thead class="thead-light"><tr>
-                <th>Appointment No.</th><th>Date</th><th>Time</th><th>Patient Reg. No.</th>
-                <th>Patient</th><th>Doctor</th><th>Clinic</th><th>Type</th><th>Status</th>
-                <th>Booking Source</th><th>Created By</th><th>Created At</th>
-            </tr></thead>
-            <tbody></tbody>
-        </table>
-    </div>
+<?php
+$statuses = ['scheduled', 'confirmed', 'checked_in', 'in_queue', 'completed', 'cancelled', 'no_show'];
+$filters = $filters ?? [];
+?>
+<main class="dashboard-container admin-report-page" id="appointment-reports-page">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Appointment Management', 'page' => 'Appointment Reports']) ?>
+    <div class="ri-page-header action-btn-container"><div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Appointment Management</p><h1 class="h3 mb-1">Appointment Reports</h1><p class="text-muted mb-0">Filter appointment activity by date, patient, doctor, service, and status.</p></div><div class="ri-page-header-actions"><button type="button" class="btn btn-sm btn-outline-secondary" id="printAppointmentReport"><i class="bi bi-printer mr-1" aria-hidden="true"></i>Print report</button></div></div>
+    <section class="ri-list-card admin-report-filter-card" aria-labelledby="appointment-report-filter-title"><div class="ri-list-card-header"><div><h2 class="h6 mb-1" id="appointment-report-filter-title">Report filters</h2><p class="text-muted small mb-0">Dates use dd-mm-yyyy. To Date cannot be earlier than From Date.</p></div><span class="ri-list-count" id="appointmentReportResultLabel">Ready to run</span></div>
+        <form id="appointmentReportForm" autocomplete="off" novalidate><div class="admin-report-filter-grid">
+            <div class="form-group"><label for="reportSearch">Search</label><input type="search" name="search" id="reportSearch" class="form-control" placeholder="Appointment, patient, doctor, service" maxlength="120"><div class="validation-error" id="searchErr"></div></div>
+            <div class="form-group"><label for="reportDateFrom">From Date</label><input type="text" name="date_from" id="reportDateFrom" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off"><div class="validation-error" id="date_fromErr"></div></div>
+            <div class="form-group"><label for="reportDateTo">To Date</label><input type="text" name="date_to" id="reportDateTo" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off"><div class="validation-error" id="date_toErr"></div></div>
+            <div class="form-group"><label for="reportDoctor">Doctor</label><select name="doctor_id" id="reportDoctor" class="form-control btSelect" title="All doctors"><option value="">All doctors</option><?php foreach ($doctors as $doctor): ?><option value="<?= (int) $doctor['id'] ?>">Dr. <?= esc(trim($doctor['first_name'] . ' ' . $doctor['last_name']) . ' (' . $doctor['doctor_code'] . ')') ?></option><?php endforeach; ?></select><div class="validation-error" id="doctor_idErr"></div></div>
+            <div class="form-group"><label for="reportService">Service</label><select name="service_name" id="reportService" class="form-control btSelect" title="All services"><option value="">All services</option><?php foreach ($services as $service): ?><option value="<?= esc($service) ?>"><?= esc($service) ?></option><?php endforeach; ?></select><div class="validation-error" id="service_nameErr"></div></div>
+            <div class="form-group"><label for="reportStatus">Status</label><select name="status" id="reportStatus" class="form-control btSelect" title="All statuses"><option value="">All statuses</option><?php foreach ($statuses as $status): ?><option value="<?= esc($status) ?>"><?= esc(ucwords(str_replace('_', ' ', $status))) ?></option><?php endforeach; ?></select><div class="validation-error" id="statusErr"></div></div>
+            <div class="form-group"><label for="reportClinic">Clinic</label><select name="clinic_id" id="reportClinic" class="form-control btSelect" title="All clinics"><option value="">All clinics</option><?php foreach ($clinics as $clinic): ?><option value="<?= (int) $clinic['id'] ?>"><?= esc($clinic['clinic_name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="clinic_idErr"></div></div>
+            <div class="form-group"><label for="reportType">Appointment type</label><select name="appointment_type" id="reportType" class="form-control btSelect" title="All types"><option value="">All types</option><option value="in_person">In person</option><option value="video">Video</option><option value="phone">Phone</option></select><div class="validation-error" id="appointment_typeErr"></div></div>
+            <div class="form-group"><label for="reportSource">Booking source</label><select name="booking_source" id="reportSource" class="form-control btSelect" title="All sources"><option value="">All sources</option><?php foreach ($bookingSources as $source): ?><option value="<?= esc($source) ?>"><?= esc(ucwords(str_replace('_', ' ', $source))) ?></option><?php endforeach; ?></select><div class="validation-error" id="booking_sourceErr"></div></div>
+            <div class="form-group"><label for="reportCreatorType">Created by</label><select name="created_by_type" id="reportCreatorType" class="form-control btSelect" title="All creator types"><option value="">All creator types</option><?php foreach ($creatorTypes as $type): ?><option value="<?= esc($type) ?>"><?= esc(ucwords(str_replace('_', ' ', $type))) ?></option><?php endforeach; ?></select><div class="validation-error" id="created_by_typeErr"></div></div>
+        </div><div class="admin-report-filter-actions"><button type="submit" class="btn btn-sm theme-btn" id="runAppointmentReport"><i class="bi bi-search mr-1" aria-hidden="true"></i>Apply filters</button><button type="button" class="btn btn-sm btn-outline-secondary" id="resetAppointmentReport">Clear</button></div><div class="validation-error admin-report-form-error" id="appointmentReportFormErr" role="alert" aria-live="polite"></div></form>
+    </section>
+    <section class="admin-report-summary" id="appointmentReportSummary" aria-label="Appointment report summary"><?php foreach (['total' => 'Total appointments', 'scheduled' => 'Scheduled', 'confirmed' => 'Confirmed', 'checked_in' => 'Checked in', 'in_queue' => 'In queue', 'completed' => 'Completed', 'cancelled' => 'Cancelled', 'no_show' => 'No show'] as $key => $title): ?><article class="admin-report-summary-card"><span><?= esc($title) ?></span><strong data-summary="<?= esc($key) ?>">0</strong></article><?php endforeach; ?></section>
+    <section class="ri-list-card admin-report-results-card" aria-labelledby="appointment-report-results-title"><div class="ri-list-card-header"><div><h2 class="h6 mb-1" id="appointment-report-results-title">Appointment activity</h2><p class="text-muted small mb-0">Patient, schedule, service, queue, and clinical/payment state.</p></div><span class="ri-list-count" id="appointmentReportLoading" aria-live="polite">Loading…</span></div><div class="table-responsive admin-report-table-wrap" role="region" aria-label="Appointment report results" tabindex="0"><table class="table table-hover admin-report-table" id="appointmentReportTable"><caption class="sr-only">Appointment report results</caption><thead><tr><th>Appointment</th><th>Patient</th><th>Doctor</th><th>Service</th><th>Status</th><th>Clinical / payment</th><th class="text-right">Actions</th></tr></thead><tbody></tbody></table></div><div id="appointmentReportPagination" class="admin-report-pagination" aria-label="Appointment report pagination"></div></section>
 </main>
-
-<?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/appointment/appointment_reports.js') ?>"></script>
-<?= $this->endSection() ?>
-
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/appointment/appointment_reports.js?v=20261010-report5') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

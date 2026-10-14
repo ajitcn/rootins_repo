@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="base-url" content="<?= base_url() ?>">
   <title>ROOTINS::Dashboard</title>
-  <!-- Bootstrap 5 CSS -->
+  <!-- Bootstrap 4.6.2 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
@@ -34,15 +34,23 @@
 
   <!-- custom css -->
   <link href="<?= base_url('assets/css/theme1.css')?>" rel="stylesheet" />
-  <link href="<?= base_url('assets/css/style.css')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/style.css?v=20261014-local-lookup-modal1')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/ui-components.css?v=20261008-audit')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/rootins-pagination.css?v=20261010-pagination1')?>" rel="stylesheet" />
+  <?= $this->renderSection('styles') ?>
+  <link href="<?= base_url('assets/css/rootins-monochrome.css?v=20261010-calendar-filters1')?>" rel="stylesheet" />
  
 </head>
-<body>
+<?php $currentUiPath = trim(uri_string(), '/'); ?>
+<body class="<?= trim(implode(' ', array_filter([
+    $currentUiPath === 'patient/login' ? 'patient-login-shell' : '',
+    str_starts_with($currentUiPath, 'admin') ? 'admin-shell' : '',
+]))) ?>">
   <a class="sr-only sr-only-focusable" href="#main-content">Skip to main content</a>
 
 
 
-  <div class="preloader parent_div" style="/* display: none; */">
+  <div class="preloader parent_div" style="display: none;">
     <div class="child_div">
        <div class="preloader_icon" style="display: block;">
           <div style="width: 150px;font-size: 20px;color: #ffffff;position: relative;top: 60px;left: -20px;">Please Wait...</div>
@@ -56,6 +64,12 @@
 
   <!-- ================= PRESERVED SIDEBAR MENU ================= -->
   <?= $this->renderSection('side-menu')?>
+  <div
+    class="rootins-shell-overlay"
+    id="sidebarOverlay"
+    data-sidebar-close
+    aria-hidden="true"
+  ></div>
   
 
   <!-- ================= MAIN CONTENT WRAPPER ================= -->
@@ -69,11 +83,13 @@
       <?= $this->renderSection('main-content')?>
     </div>
 
+    <?= $this->renderSection('footer')?>
+
   </div>
 
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
-  <!-- Bootstrap 5 Bundle JS -->
+  <!-- Bootstrap 4.6.2 Bundle JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 
 
@@ -93,7 +109,10 @@
   <!-- custom js -->
   <script src="<?= base_url('assets/js/app.js')?>"></script>
   <script src="<?= base_url('assets/js/routes.js')?>"></script>
-  <script src="<?= base_url('assets/js/common.js')?>"></script>
+  <script src="<?= base_url('assets/js/common.js?v=20261009-preloader1')?>"></script>
+  <script src="<?= base_url('assets/js/status-colors.js?v=20261009-status4')?>"></script>
+  <script src="<?= base_url('assets/js/actions-menu.js?v=20261009-actions4')?>"></script>
+  <script src="<?= base_url('assets/js/modal-layer.js?v=20261009-modal2')?>"></script>
   
 
   <?= $this->renderSection('scripts')?>
@@ -111,7 +130,7 @@
       const section = document.createElement('div');
       section.className = 'sidebar-section-title';
       section.setAttribute('aria-hidden', 'true');
-      section.textContent = sidebar.querySelector('.system-tag')?.textContent?.trim() === 'Farmassist' ? 'Fulfilment' : 'Workspace';
+      section.textContent = sidebar.querySelector('.system-tag')?.textContent?.trim() === 'Pharmacy' ? 'Fulfilment' : 'Workspace';
       sidebarNav.prepend(section);
     }
     if (topHeader && !document.getElementById('sidebarCollapseToggle')) {
@@ -125,9 +144,39 @@
       collapseButton.innerHTML = '<i class="bi bi-chevron-double-left" aria-hidden="true"></i>';
       topHeader.querySelector('.d-flex.align-items-center')?.prepend(collapseButton);
     }
-    document.getElementById('sidebarToggle')?.addEventListener('click', function () {
-      sidebar?.classList.toggle('show');
-      this.setAttribute('aria-expanded', sidebar?.classList.contains('show') ? 'true' : 'false');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay')
+      || document.getElementById('pharmacyShellOverlay');
+    const sidebarCloseButtons = document.querySelectorAll('[data-sidebar-close]');
+    function setSidebarOpen(open) {
+      sidebar?.classList.toggle('show', open);
+      const mobileOpen = open && window.innerWidth < 992;
+      document.body.classList.toggle('rootins-nav-open', mobileOpen);
+      document.body.classList.toggle(
+        'pharmacy-nav-open',
+        mobileOpen && !!sidebar?.classList.contains('app-sidebar'),
+      );
+      sidebar?.setAttribute(
+        'aria-hidden',
+        mobileOpen || window.innerWidth >= 992 ? 'false' : 'true',
+      );
+      sidebarToggle?.setAttribute('aria-expanded', mobileOpen ? 'true' : 'false');
+      sidebarToggle?.setAttribute('aria-label', mobileOpen ? 'Close navigation' : 'Open navigation');
+    }
+    sidebarToggle?.addEventListener('click', function () { setSidebarOpen(!sidebar?.classList.contains('show')); });
+    sidebarOverlay?.addEventListener('click', function () { setSidebarOpen(false); });
+    sidebarCloseButtons.forEach(function (button) { button.addEventListener('click', function () { setSidebarOpen(false); }); });
+    if (window.innerWidth < 992) sidebar?.setAttribute('aria-hidden', 'true');
+    sidebar?.querySelectorAll('a.nav-link, a.submenu-link').forEach(function (link) { link.addEventListener('click', function () { if (window.innerWidth < 992) setSidebarOpen(false); }); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && sidebar?.classList.contains('show')) setSidebarOpen(false); });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth >= 992) {
+        sidebar?.classList.remove('show');
+        document.body.classList.remove('rootins-nav-open', 'pharmacy-nav-open');
+        sidebar?.setAttribute('aria-hidden', 'false');
+        sidebarToggle?.setAttribute('aria-expanded', 'false');
+        sidebarToggle?.setAttribute('aria-label', 'Open navigation');
+      }
     });
     document.getElementById('sidebarCollapseToggle')?.addEventListener('click', function () {
       document.body.classList.toggle('sidebar-collapsed');
@@ -140,6 +189,65 @@
     });
     try { if (localStorage.getItem('rootins-sidebar-collapsed') === '1') document.body.classList.add('sidebar-collapsed'); } catch (e) {}
 
+    /* Keep secondary record actions together without changing their existing
+       links, form submissions, or delegated event targets. */
+    function compactAdminRowActions() {
+      if (!document.body.classList.contains('admin-shell')) return;
+      document.querySelectorAll('.table-responsive table tbody tr td:last-child').forEach(function (cell) {
+        if (cell.querySelector('.admin-row-actions-more')) return;
+        const controls = Array.from(cell.children).filter(function (element) {
+          return element.matches('a.btn, button.btn, form');
+        });
+        if (controls.length < 3) return;
+        const menu = document.createElement('div');
+        menu.className = 'dropdown-menu dropdown-menu-right';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dropdown admin-row-actions-more';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'btn btn-sm btn-outline-secondary dropdown-toggle';
+        toggle.setAttribute('data-toggle', 'dropdown');
+        toggle.setAttribute('aria-haspopup', 'true');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.innerHTML = '<i class="fa-solid fa-ellipsis-vertical mr-1" aria-hidden="true"></i>More';
+        wrapper.appendChild(toggle);
+        wrapper.appendChild(menu);
+        controls.slice(2).forEach(function (control) {
+          if (control.tagName === 'FORM') {
+            control.classList.add('admin-action-form');
+            menu.appendChild(control);
+          } else {
+            control.classList.remove('btn-sm');
+            control.classList.add('dropdown-item');
+            menu.appendChild(control);
+          }
+        });
+        cell.appendChild(wrapper);
+      });
+    }
+    function prepareAdminResponsiveTables() {
+      if (!document.body.classList.contains('admin-shell')) return;
+      document.querySelectorAll('.table-responsive table').forEach(function (table) {
+        const labels = Array.from(table.querySelectorAll('thead th')).map(function (header) {
+          return header.textContent.trim();
+        });
+        table.querySelectorAll('tbody tr').forEach(function (row) {
+          if (row.querySelector('td[colspan]')) return;
+          row.querySelectorAll('td').forEach(function (cell, index) {
+            if (labels[index] && !cell.hasAttribute('data-label')) cell.setAttribute('data-label', labels[index]);
+          });
+        });
+        table.classList.toggle('admin-responsive-stack', window.innerWidth <= 767);
+      });
+    }
+    function refreshAdminListPresentation() {
+      prepareAdminResponsiveTables();
+      compactAdminRowActions();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', refreshAdminListPresentation);
+    else refreshAdminListPresentation();
+    window.addEventListener('resize', prepareAdminResponsiveTables);
+
     /*bt Select init*/
     $(function () {
       $('select[data-live-search], .btSelect').each(function () {
@@ -147,15 +255,20 @@
           $(this).selectpicker({noneSelectedText: 'Select an option', liveSearchPlaceholder: 'Type to search...'});
         }
       });
+      if (typeof bindCountryCodeToggles === 'function') bindCountryCodeToggles(document);
     });
 
 
     /* Shared datepicker init. Keep the submitted value in the server's ISO format. */
     function isoDate(value) {
       const text = String(value || '').trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+      const isValid = function (year, month, day) {
+        const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+        return date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day);
+      };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text) && isValid(text.slice(0, 4), text.slice(5, 7), text.slice(8, 10))) return text;
       const match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-      return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+      return match && isValid(match[3], match[2], match[1]) ? `${match[3]}-${match[2]}-${match[1]}` : '';
     }
 
     function displayDate(value) {
@@ -187,12 +300,18 @@
         const field = $(this);
         field.attr('placeholder', 'dd-mm-yyyy');
         if (!field.data('datepicker-bound')) {
-          const name = field.attr('name');
+            const name = field.attr('name');
           if (name) {
             const id = field.attr('id') || `datepicker-${Math.random().toString(36).slice(2)}`;
             field.attr('id', id);
-            const hidden = $('<input>', {type: 'hidden', name: name, 'data-datepicker-hidden-for': id});
-            field.removeAttr('name').after(hidden).data('datepicker-hidden', hidden);
+            field.attr('data-validation-name', name);
+            const submitDisplayDate = field.attr('data-submit-display-date') === 'true';
+            const hidden = $('<input>', {type: 'hidden', 'data-datepicker-hidden-for': id});
+            if (!submitDisplayDate) {
+              hidden.attr('name', name);
+              field.removeAttr('name');
+            }
+            field.after(hidden).data('datepicker-hidden', hidden);
             field.val(displayDate(field.val()));
             field.on('change.sharedDate changeDate.sharedDate', function () {
               hidden.val(isoDate(field.val()));
@@ -210,6 +329,7 @@
             orientation: 'auto',
             keyboardNavigation: true
           };
+          if (field.attr('data-datepicker-container')) options.container = field.attr('data-datepicker-container');
           if (field.attr('min')) options.startDate = displayDate(field.attr('min'));
           if (field.attr('max')) options.endDate = displayDate(field.attr('max'));
           field.datepicker(options);

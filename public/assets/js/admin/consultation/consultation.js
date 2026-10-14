@@ -79,6 +79,8 @@ $(function () {
                 $('#consultation_clinical_notes').val(consultation.clinical_notes || '');
                 $('#consultation_diagnosis').val(consultation.diagnosis || '');
                 $('#consultation_treatment_plan').val(consultation.treatment_plan || '');
+                $('#consultation_diagnostic_tests').val(consultation.diagnostic_tests || '');
+                $('#consultation_diet_plan').val(consultation.diet_plan || '');
                 if (window.setSharedDateValue) {
                     setSharedDateValue('#follow_up_date', consultation.follow_up_date || '');
                 } else {

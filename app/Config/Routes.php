@@ -1,12 +1,13 @@
 <?php
 
 use CodeIgniter\Router\RouteCollection;
+
 /** @var RouteCollection $routes */
 $routes->get('/', 'Home::index');
 /**
  *-------------------------------------------------------------------
  * Common Routes
- *-------------------------------------------------------------------
+ *-------------------------------------------------------------------.
  */
 $routes->get('system/login', 'UserAuth::index');
 $routes->get('system/logout', 'UserAuth::logout');
@@ -17,6 +18,7 @@ $routes->get('location/states/(:num)', 'Location::getStates/$1');
 $routes->get('location/cities/(:num)', 'Location::getCities/$1');
 $routes->get('location/localities/(:num)', 'Location::getLocalities/$1');
 $routes->post('api/v1/patients', '\\Doctor\\Controllers\\Api\\Patients::create');
+
 // Import module routes
 foreach (glob(APPPATH . 'Modules/*/Config/Routes.php') as $moduleRoute) {
     require $moduleRoute;

@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateCities extends Migration
 {
     public function up()
@@ -19,10 +20,11 @@ class CreateCities extends Migration
             'id',
             'CASCADE',
             // Update state id
-            'RESTRICT'
+            'RESTRICT',
         );
         $this->forge->createTable('cities');
     }
+
     public function down()
     {
         $this->forge->dropTable('cities');

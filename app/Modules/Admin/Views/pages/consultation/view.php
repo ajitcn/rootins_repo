@@ -1,75 +1,26 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-
 <?= $this->section('main-content') ?>
 <?php
-$patientName = trim(implode(' ', array_filter([
-    $consultation['patient_first_name'] ?? '',
-    $consultation['patient_middle_name'] ?? '',
-    $consultation['patient_last_name'] ?? '',
-], static fn ($part) => $part !== null && $part !== '')));
-$doctorName = trim(implode(' ', array_filter([
-    $consultation['doctor_first_name'] ?? '',
-    $consultation['doctor_last_name'] ?? '',
-], static fn ($part) => $part !== null && $part !== '')));
+$patientName = trim(implode(' ', array_filter([$consultation['patient_first_name'] ?? '', $consultation['patient_middle_name'] ?? '', $consultation['patient_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+$doctorName = trim(implode(' ', array_filter([$consultation['doctor_first_name'] ?? '', $consultation['doctor_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+$statusTone = match ($consultation['status'] ?? '') { 'completed' => 'green', 'cancelled' => 'red', 'in_progress' => 'blue', 'draft' => 'amber', default => 'charcoal' };
+$sourceTone = match ($consultation['patient_source'] ?? '') { 'shopify' => 'purple', 'self' => 'charcoal', default => 'gray' };
+$canDocuments = in_array('patient.view', session('permissions') ?? [], true);
+$value = static fn ($value): string => trim((string) $value) !== '' ? trim((string) $value) : 'Not provided';
+$clinicalText = static fn ($value): string => trim((string) $value) !== '' ? nl2br(esc($value)) : '<span class="clinical-not-provided">Not provided</span>';
 ?>
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Patient Management',
-        'page'       => 'Consultation Details',
-    ]) ?>
-
-    <div class="action-btn-container">
-        <a href="<?= base_url('admin/consultations') ?>" class="btn btn-sm theme-btn">
-            <i class="bi bi-arrow-left"></i> Back to Consultations
-        </a>
-        <?php if ($canCreatePrescription): ?>
-            <a href="<?= base_url('admin/prescriptions') ?>?consultation_id=<?= (int) $consultation['id'] ?>" class="btn btn-sm theme-btn">
-                <i class="bi bi-prescription2"></i> Create Prescription
-            </a>
-        <?php endif; ?>
-        <?php if ($canEdit && $consultation['status'] !== 'completed'): ?>
-            <a href="<?= base_url('admin/consultations') ?>?edit_id=<?= (int) $consultation['id'] ?>" class="btn btn-sm btn-primary">
-                <i class="bi bi-pencil-square"></i> Edit Consultation
-            </a>
-        <?php endif; ?>
-        <?php if ($canDelete && $consultation['status'] !== 'completed'): ?>
-            <button type="button" class="btn btn-sm btn-danger delete-consultation" data-id="<?= (int) $consultation['id'] ?>">
-                <i class="bi bi-trash"></i> Delete Consultation
-            </button>
-        <?php endif; ?>
+<main class="dashboard-container admin-clinical-page admin-clinical-detail">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Clinical Records', 'page' => 'Consultation details']) ?>
+    <div class="ri-page-header action-btn-container"><div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Clinical Records / Consultation</p><h1 class="h3 mb-1"><?= esc($consultation['consultation_number'] ?? 'Consultation details') ?></h1><p class="text-muted mb-0">Patient visit record and clinical context.</p></div><div class="ri-page-header-actions"><a href="<?= base_url('admin/consultations') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left mr-1"></i>Back to consultations</a><div class="dropdown ri-actions-wrapper"><button type="button" class="btn btn-sm ri-more-actions-toggle dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span class="ri-actions-icon" aria-hidden="true"></span>More Actions</button><div class="dropdown-menu dropdown-menu-right ri-actions-menu"><?php if ($canCreatePrescription): ?><a class="dropdown-item" href="<?= esc(base_url('admin/prescriptions') . '?consultation_id=' . (int) $consultation['id']) ?>"><i class="bi bi-capsule" aria-hidden="true"></i>Create prescription</a><?php endif; ?><?php if ($canEdit && ($consultation['status'] ?? '') !== 'completed'): ?><a class="dropdown-item" href="<?= esc(base_url('admin/consultations') . '?edit_id=' . (int) $consultation['id']) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit consultation</a><?php endif; ?><?php if ($canDocuments && !empty($consultation['patient_id'])): ?><a class="dropdown-item" href="<?= esc(base_url('admin/patients/' . (int) $consultation['patient_id'] . '/documents')) ?>"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Patient documents</a><?php endif; ?><?php if ($canDelete && ($consultation['status'] ?? '') !== 'completed'): ?><button type="button" class="dropdown-item text-danger delete-consultation" data-id="<?= (int) $consultation['id'] ?>"><i class="bi bi-trash" aria-hidden="true"></i>Delete consultation</button><?php endif; ?></div></div></div></div>
+    <?= display_session_msg() ?>
+    <section class="clinical-detail-hero"><div><p class="ri-eyebrow mb-1">Visit status</p><h2><?= esc($patientName ?: 'Unknown patient') ?></h2><p class="clinical-secondary mb-0"><?= esc($consultation['registration_number'] ?? 'Registration unavailable') ?> · <?= esc($consultation['patient_mobile'] ?? 'Mobile unavailable') ?></p></div><span class="badge ri-status ri-status--<?= esc($statusTone) ?>"><?= esc(ucwords(str_replace('_', ' ', $consultation['status'] ?? 'Unknown'))) ?></span></section>
+    <div class="clinical-context-strip"><strong>Patient source</strong><span class="badge ri-status ri-status--<?= esc($sourceTone) ?> clinical-source-badge"><?= esc(patient_source_label($consultation['patient_source'] ?? null)) ?></span><strong>Last activity</strong><span><?= esc(rootins_format_date($consultation['updated_at'] ?? $consultation['created_at'] ?? '') ?: 'Not provided') ?></span></div>
+    <div class="clinical-detail-grid">
+        <section class="clinical-detail-card"><div class="clinical-detail-card-heading"><i class="bi bi-person-vcard" aria-hidden="true"></i><div><h2>Patient context</h2><p>Identity and contact used for this visit.</p></div></div><dl class="clinical-detail-list"><div><dt>Patient name</dt><dd><?= esc($value($patientName)) ?></dd></div><div><dt>Patient number</dt><dd><?= esc($value($consultation['registration_number'] ?? '')) ?></dd></div><div><dt>Mobile</dt><dd><?= esc($value($consultation['patient_mobile'] ?? '')) ?></dd></div><div><dt>Email</dt><dd class="clinical-wrap"><?= esc($value($consultation['patient_email'] ?? '')) ?></dd></div></dl></section>
+        <section class="clinical-detail-card"><div class="clinical-detail-card-heading"><i class="bi bi-calendar2-week" aria-hidden="true"></i><div><h2>Appointment context</h2><p>Scheduled and recorded visit information.</p></div></div><dl class="clinical-detail-list"><div><dt>Doctor</dt><dd><?= esc($doctorName ?: 'Not provided') ?><small><?= esc($consultation['doctor_code'] ?? 'Code unavailable') ?></small></dd></div><div><dt>Clinic</dt><dd><?= esc($value($consultation['clinic_name'] ?? '')) ?></dd></div><div><dt>Visit date / time</dt><dd><?= esc(rootins_format_date($consultation['consultation_date'] ?? '') ?: 'Not provided') ?> · <?= esc(substr((string) ($consultation['consultation_time'] ?? ''), 0, 5) ?: 'Time not recorded') ?></dd></div><div><dt>Appointment</dt><dd><?= esc($value($consultation['appointment_number'] ?? '')) ?><?php if (!empty($consultation['appointment_date'])): ?><small><?= esc(rootins_format_date($consultation['appointment_date'])) ?> <?= esc(substr((string) ($consultation['appointment_time'] ?? ''), 0, 5)) ?></small><?php endif; ?></dd></div><div><dt>Service / queue</dt><dd><?= esc($value($consultation['service_name'] ?? '')) ?><?php if (!empty($consultation['queue_position'])): ?><small>Queue <?= esc((string) $consultation['queue_position']) ?></small><?php endif; ?></dd></div><div><dt>Follow-up date</dt><dd><?= esc(rootins_format_date($consultation['follow_up_date'] ?? '') ?: 'Not provided') ?></dd></div></dl></section>
     </div>
-
-    <div class="card">
-        <div class="card-header"><h5 class="mb-0">Consultation <?= esc($consultation['consultation_number']) ?></h5></div>
-        <div class="card-body">
-            <div class="row">
-                <?php foreach ([
-                    'Patient' => $patientName . ' (' . ($consultation['registration_number'] ?? '') . ')',
-                    'Doctor'  => $doctorName . ' (' . ($consultation['doctor_code'] ?? '') . ')',
-                    'Clinic'  => $consultation['clinic_name'] ?? '',
-                    'Appointment' => $consultation['appointment_number'] ?? '—',
-                    'Date' => $consultation['consultation_date'] ?? '',
-                    'Time' => substr((string) ($consultation['consultation_time'] ?? ''), 0, 5) ?: '—',
-                    'Status' => ucwords(str_replace('_', ' ', $consultation['status'] ?? '')),
-                    'Follow-up Date' => $consultation['follow_up_date'] ?: '—',
-                ] as $label => $value): ?>
-                    <div class="col-md-6 mb-3"><strong><?= esc($label) ?></strong><div><?= esc($value) ?></div></div>
-                <?php endforeach; ?>
-                <?php foreach ([
-                    'Chief Complaint' => 'chief_complaint',
-                    'Clinical Notes'  => 'clinical_notes',
-                    'Diagnosis'       => 'diagnosis',
-                    'Treatment Plan'  => 'treatment_plan',
-                ] as $label => $field): ?>
-                    <div class="col-md-6 mb-3"><strong><?= esc($label) ?></strong><div><?= nl2br(esc($consultation[$field] ?? '—')) ?></div></div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
+    <section class="clinical-detail-card clinical-detail-wide"><div class="clinical-detail-card-heading"><i class="bi bi-clipboard2-pulse" aria-hidden="true"></i><div><h2>Clinical record</h2><p>Chief complaints, diagnoses, advice, tests, diet, and treatment notes.</p></div></div><div class="clinical-narrative-grid"><article><h3>Chief complaint</h3><p><?= $clinicalText($consultation['chief_complaint'] ?? '') ?></p></article><article><h3>Clinical notes</h3><p><?= $clinicalText($consultation['clinical_notes'] ?? '') ?></p></article><article><h3>Diagnoses</h3><p><?= $clinicalText($consultation['diagnosis'] ?? '') ?></p></article><article><h3>Advice and treatment plan</h3><p><?= $clinicalText($consultation['treatment_plan'] ?? '') ?></p></article><article><h3>Diagnostic tests</h3><p><?= $clinicalText($consultation['diagnostic_tests'] ?? '') ?></p></article><article><h3>Diet plan</h3><p><?= $clinicalText($consultation['diet_plan'] ?? '') ?></p></article></div></section>
 </main>
 <?= form_open('', 'id="consultationCsrfForm" class="d-none"') ?><?= form_close() ?>
-<?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/consultation/consultation.js') ?>"></script>
-<?= $this->endSection() ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/consultation/consultation.js') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

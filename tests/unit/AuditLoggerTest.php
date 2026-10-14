@@ -2,6 +2,7 @@
 
 use App\Services\Audit\AuditLogger;
 use CodeIgniter\Test\CIUnitTestCase;
+
 /** @internal */
 final class AuditLoggerTest extends CIUnitTestCase
 {
@@ -13,6 +14,7 @@ final class AuditLoggerTest extends CIUnitTestCase
         $this->assertSame($first, $second);
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9._:-]{1,64}$/', $first);
     }
+
     public function testAuditEventReturnsCorrelationId(): void
     {
         $logger = new AuditLogger();

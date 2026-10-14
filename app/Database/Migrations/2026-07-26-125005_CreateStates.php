@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateStates extends Migration
 {
     public function up()
@@ -15,6 +16,7 @@ class CreateStates extends Migration
         $this->forge->addForeignKey('country_id', 'countries', 'id', 'CASCADE', 'RESTRICT');
         $this->forge->createTable('states');
     }
+
     public function down()
     {
         $this->forge->dropTable('states');

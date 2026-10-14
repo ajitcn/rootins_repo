@@ -3,12 +3,13 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
+
 class CURLRequest extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * CURLRequest Share Connection Options
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Share connection options between requests.
      *
@@ -17,10 +18,11 @@ class CURLRequest extends BaseConfig
      * @see https://www.php.net/manual/en/curl.constants.php#constant.curl-lock-data-connect
      */
     public array $shareConnectionOptions = [CURL_LOCK_DATA_CONNECT, CURL_LOCK_DATA_DNS];
+
     /**
      * --------------------------------------------------------------------------
      * CURLRequest Share Options
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Whether share options between requests or not.
      *

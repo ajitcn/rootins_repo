@@ -2,6 +2,7 @@
 
 use App\Services\Notification\NotificationDispatcher;
 use CodeIgniter\Test\CIUnitTestCase;
+
 /** @internal */
 final class NotificationDispatcherTest extends CIUnitTestCase
 {
@@ -15,6 +16,7 @@ final class NotificationDispatcherTest extends CIUnitTestCase
         $this->assertSame(0, $first['attempts']);
         $this->assertSame($first['notification_id'], $second['notification_id']);
     }
+
     public function testInvalidRequestReturnsFieldErrors(): void
     {
         $result = (new NotificationDispatcher())->dispatch('push', [], 'bad template');

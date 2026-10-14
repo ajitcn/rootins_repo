@@ -78,7 +78,8 @@ function editPatientForm(patientId) {
             } else {
                 $('#date_of_birth').val(patient.date_of_birth);
             }
-            $('#country_code').val(patient.country_code_id || '').selectpicker('refresh');
+            $('#country_code').val(patient.telephone_country_code_id || '').selectpicker('refresh');
+            $('#patient_telephone_country_name').val(patient.telephone_country_name || '');
             $('#mobile_number').val(patient.mobile_number);
             $('#email').val(patient.email);
             $('#address').val(patient.address);

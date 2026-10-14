@@ -1,0 +1,8 @@
+@import url("../admin/crm.css");
+@import url("modal.css");
+@import url("lead-hierarchy.css");
+@import url("followup-workflow.css?v=20261013.3");
+
+.crm-phone-group{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.85rem;align-items:start}.crm-phone-code,.crm-phone-mobile{min-width:0}
+.crm-form-row{margin-left:-.425rem;margin-right:-.425rem}.crm-form-row>[class*="col-"]{padding-left:.425rem;padding-right:.425rem}.crm-form-row .form-group{height:100%;margin-bottom:.85rem}.crm-form-row .crm-error{min-height:1.1rem}.crm-form-row .form-text{min-height:1.1rem;margin-bottom:0}.crm-modal .modal-body{padding:1.25rem}.crm-modal .modal-footer{padding:1rem 1.25rem}
+@media(max-width:575.98px){.crm-phone-group{grid-template-columns:1fr}}

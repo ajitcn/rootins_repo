@@ -6,7 +6,7 @@
     $(document).on('click', '.open_doctor_fee_modal', function(){
         $('#consultationFeeModal .modal-title').text('Add Consultation Fee');
         $('#consultationFeeModal .save').text('Save Fee');
-        $('[name=consultation_fee_id]').val(''); 
+        $('#consultation_fee_id').val('');
 
         $('#consultationFeeModal').modal('show');
         resetForm('#consultationFeeForm');
@@ -41,7 +41,6 @@
             success: function (response) {
 
                 if (response.status) {
-                    hide_loader();
                     showSuccess(response.msg); 
                     reload_page(500);   
 
@@ -94,7 +93,7 @@
                 } else {
                     $('#effective_from').val(fee.effective_from);
                 }
-                $('#status').val(fee.status);
+                $('#consultation_fee_status').val(fee.status).selectpicker('refresh');
                  
                  
  

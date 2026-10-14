@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 final class CreatePatientNotifications extends Migration
 {
     public function up()
@@ -15,6 +16,7 @@ final class CreatePatientNotifications extends Migration
         $this->forge->addForeignKey('clinic_id', 'clinics', 'id', 'RESTRICT', 'CASCADE');
         $this->forge->createTable('patient_notifications');
     }
+
     public function down()
     {
         $this->forge->dropTable('patient_notifications', true);

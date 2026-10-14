@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreatePatientDocuments extends Migration
 {
     public function up()
@@ -14,6 +15,7 @@ class CreatePatientDocuments extends Migration
         $this->forge->addForeignKey('patient_id', 'patients', 'id', 'RESTRICT', 'CASCADE');
         $this->forge->createTable('patient_documents');
     }
+
     public function down()
     {
         $this->forge->dropTable('patient_documents', true);

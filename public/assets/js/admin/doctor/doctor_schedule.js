@@ -51,7 +51,6 @@
             success: function (response) {
 
                 if (response.status) {
-                    hide_loader();
                     showSuccess(response.msg); 
                     reload_page(500);   
 

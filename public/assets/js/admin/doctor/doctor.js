@@ -40,7 +40,6 @@
             success: function (response) {
 
                 if (response.status) {
-                    hide_loader();
                     showSuccess(response.msg); 
                     reload_page(500);   
 
@@ -103,7 +102,12 @@
                 $('#qualification').val(doctor.qualification);
                 $('#experience').val(doctor.experience);
                 $('#registration_number').val(doctor.registration_number);
-                $('#mobile').val(doctor.mobile);
+                $('#doctor-mobile').val(doctor.mobile);
+                $('#doctor-country-code').val(doctor.telephone_country_code_id || '').selectpicker('refresh');
+                $('#doctor-country-name').val(doctor.telephone_country_name || '');
+                $('#doctor-country-code-input').val(doctor.telephone_country_code || '');
+                $('#doctor-country-code-manual').prop('checked', !doctor.telephone_country_code_id && !!doctor.telephone_country_code);
+                bindCountryCodeToggles('#doctorForm');
                 $('#email').val(doctor.email);
                 $('#address').val(doctor.address);
                 $('#consultation_duration').val(doctor.consultation_duration);

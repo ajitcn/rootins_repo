@@ -7,7 +7,7 @@
         $doctor['first_name'] ?? '',
         $doctor['last_name'] ?? '',
     ], static fn ($part) => $part !== null && $part !== '')));
-    ?>
+?>
 
     <div class="page-heading">
         <div><div class="page-eyebrow">Doctor workspace</div>
@@ -60,10 +60,11 @@
                                 $appointment['patient_middle_name'] ?? '',
                                 $appointment['patient_last_name'] ?? '',
                             ], static fn ($part) => $part !== null && $part !== ''))); ?>
+                            <?php $patientContact = service('telephoneContact')->formatDisplay($appointment['patient_telephone_country_code'] ?? null, $appointment['patient_mobile_normalized'] ?? $appointment['patient_mobile_number'] ?? null, $appointment['patient_legacy_country_code'] ?? null); ?>
                             <tr>
                                 <td><a href="<?= base_url('doctor/appointments/' . (int) ($appointment['id'] ?? 0)) ?>"><?= esc($appointment['appointment_number'] ?? '') ?></a></td>
-                                <td><?= esc($patientName) ?> <span class="text-muted small"><?= esc($appointment['registration_number'] ?? '') ?></span></td>
-                                <td><?= esc($appointment['appointment_date'] ?? '') ?></td>
+                                <td><?= esc($patientName) ?> <span class="text-muted small"><?= esc($appointment['registration_number'] ?? '') ?></span><br><small class="text-muted"><?= esc($patientContact) ?></small></td>
+                                <td><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?></td>
                                 <td><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></td>
                                 <td><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['appointment_type'] ?? '')))) ?></td>
                                 <td><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['status'] ?? '')))) ?></td>

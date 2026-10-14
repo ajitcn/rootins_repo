@@ -6,6 +6,7 @@ use CodeIgniter\Controller;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use Psr\Log\LoggerInterface;
+
 /**
  * BaseController provides a convenient place for loading components
  * and performing functions that are needed by all your controllers.

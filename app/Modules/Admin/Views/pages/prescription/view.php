@@ -1,44 +1,25 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-<?php
-$patientName = trim(implode(' ', array_filter([
-    $prescription['patient_first_name'] ?? '', $prescription['patient_middle_name'] ?? '', $prescription['patient_last_name'] ?? '',
-], static fn ($part) => $part !== null && $part !== '')));
-$doctorName = trim(implode(' ', array_filter([
-    $prescription['doctor_first_name'] ?? '', $prescription['doctor_last_name'] ?? '',
-], static fn ($part) => $part !== null && $part !== '')));
-?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Prescription Details']) ?>
-    <div class="action-btn-container">
-        <a href="<?= base_url('admin/prescriptions') ?>" class="btn btn-sm theme-btn"><i class="bi bi-arrow-left"></i> Back to Prescriptions</a>
-        <?php if ($prescription['status'] === 'completed'): ?>
-            <a href="<?= base_url('admin/prescriptions/pdf/' . (int) $prescription['id']) ?>" class="btn btn-sm theme-btn" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print / View PDF</a>
-        <?php endif; ?>
+<?php
+$patientName = trim(implode(' ', array_filter([$prescription['patient_first_name'] ?? '', $prescription['patient_middle_name'] ?? '', $prescription['patient_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+$doctorName = trim(implode(' ', array_filter([$prescription['doctor_first_name'] ?? '', $prescription['doctor_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+$statusTone = match ($prescription['status'] ?? '') { 'completed', 'approved' => 'green', 'draft', 'pending' => 'amber', 'cancelled', 'rejected' => 'red', default => 'charcoal' };
+$sourceTone = match ($prescription['patient_source'] ?? '') { 'shopify' => 'purple', 'self' => 'charcoal', default => 'gray' };
+$value = static fn ($value): string => trim((string) $value) !== '' ? trim((string) $value) : 'Not provided';
+$canDocuments = $canDocuments ?? in_array('patient.view', session('permissions') ?? [], true);
+?>
+<main class="dashboard-container admin-clinical-page admin-clinical-detail">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Clinical Records', 'page' => 'Prescription details']) ?>
+    <div class="ri-page-header action-btn-container"><div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Clinical Records / Prescription</p><h1 class="h3 mb-1"><?= esc($prescription['prescription_number'] ?? 'Prescription details') ?></h1><p class="text-muted mb-0">Medicine instructions linked to a consultation.</p></div><div class="ri-page-header-actions"><a href="<?= base_url('admin/prescriptions') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left mr-1"></i>Back to prescriptions</a><div class="dropdown ri-actions-wrapper"><button type="button" class="btn btn-sm ri-more-actions-toggle dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span class="ri-actions-icon" aria-hidden="true"></span>More Actions</button><div class="dropdown-menu dropdown-menu-right ri-actions-menu"><?php if (($prescription['status'] ?? '') === 'completed'): ?><a class="dropdown-item" href="<?= esc(base_url('admin/prescriptions/pdf/' . (int) $prescription['id'])) ?>" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Print / view PDF</a><?php endif; ?><?php if ($canEdit && ($prescription['status'] ?? '') !== 'completed'): ?><a class="dropdown-item" href="<?= esc(base_url('admin/prescriptions') . '?edit_id=' . (int) $prescription['id']) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit prescription</a><?php endif; ?><?php if ($canDocuments && !empty($prescription['patient_id'])): ?><a class="dropdown-item" href="<?= esc(base_url('admin/patients/' . (int) $prescription['patient_id'] . '/documents')) ?>"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Patient documents</a><?php endif; ?><?php if ($canDelete && ($prescription['status'] ?? '') !== 'completed'): ?><button type="button" class="dropdown-item text-danger delete-prescription" data-id="<?= (int) $prescription['id'] ?>"><i class="bi bi-trash" aria-hidden="true"></i>Delete prescription</button><?php endif; ?></div></div></div></div>
+    <?= display_session_msg() ?>
+    <section class="clinical-detail-hero"><div><p class="ri-eyebrow mb-1">Prescription status</p><h2><?= esc($patientName ?: 'Unknown patient') ?></h2><p class="clinical-secondary mb-0"><?= esc($prescription['registration_number'] ?? 'Registration unavailable') ?> · <?= esc($prescription['patient_mobile'] ?? 'Mobile unavailable') ?></p></div><span class="badge ri-status ri-status--<?= esc($statusTone) ?>"><?= esc(ucwords(str_replace('_', ' ', $prescription['status'] ?? 'Unknown'))) ?></span></section>
+    <div class="clinical-context-strip"><strong>Patient source</strong><span class="badge ri-status ri-status--<?= esc($sourceTone) ?> clinical-source-badge"><?= esc(patient_source_label($prescription['patient_source'] ?? null)) ?></span><strong>Last activity</strong><span><?= esc(rootins_format_date($prescription['updated_at'] ?? $prescription['created_at'] ?? '') ?: 'Not provided') ?></span></div>
+    <div class="clinical-detail-grid">
+        <section class="clinical-detail-card"><div class="clinical-detail-card-heading"><i class="bi bi-person-vcard" aria-hidden="true"></i><div><h2>Patient and doctor</h2><p>Context for the prescription.</p></div></div><dl class="clinical-detail-list"><div><dt>Patient</dt><dd><?= esc($value($patientName)) ?><small><?= esc($value($prescription['registration_number'] ?? '')) ?> · <?= esc($value($prescription['patient_mobile'] ?? '')) ?></small><small class="clinical-wrap"><?= esc($value($prescription['patient_email'] ?? '')) ?></small></dd></div><div><dt>Doctor</dt><dd><?= esc($value($doctorName)) ?><small><?= esc($value($prescription['doctor_code'] ?? '')) ?></small></dd></div><div><dt>Clinic</dt><dd><?= esc($value($prescription['clinic_name'] ?? '')) ?></dd></div></dl></section>
+        <section class="clinical-detail-card"><div class="clinical-detail-card-heading"><i class="bi bi-calendar2-week" aria-hidden="true"></i><div><h2>Consultation context</h2><p>Visit and appointment details.</p></div></div><dl class="clinical-detail-list"><div><dt>Consultation</dt><dd><?= esc($value($prescription['consultation_number'] ?? '')) ?></dd></div><div><dt>Prescription date</dt><dd><?= esc(rootins_format_date($prescription['prescription_date'] ?? '') ?: 'Not provided') ?></dd></div><div><dt>Visit date / time</dt><dd><?= esc(rootins_format_date($prescription['consultation_date'] ?? '') ?: 'Not provided') ?> · <?= esc(substr((string) ($prescription['consultation_time'] ?? ''), 0, 5) ?: 'Time not recorded') ?></dd></div><div><dt>Appointment</dt><dd><?= esc($value($prescription['appointment_number'] ?? '')) ?><?php if (!empty($prescription['appointment_date'])): ?><small><?= esc(rootins_format_date($prescription['appointment_date'])) ?> <?= esc(substr((string) ($prescription['appointment_time'] ?? ''), 0, 5)) ?></small><?php endif; ?></dd></div><div><dt>Service / queue</dt><dd><?= esc($value($prescription['service_name'] ?? '')) ?><?php if (!empty($prescription['queue_position'])): ?><small>Queue <?= esc((string) $prescription['queue_position']) ?></small><?php endif; ?></dd></div></dl></section>
     </div>
-    <div class="card">
-        <div class="card-header"><h5 class="mb-0">Prescription <?= esc($prescription['prescription_number']) ?></h5></div>
-        <div class="card-body">
-            <div class="row">
-                <?php foreach ([
-                    'Consultation' => $prescription['consultation_number'],
-                    'Patient' => $patientName . ' (' . $prescription['registration_number'] . ')',
-                    'Doctor' => $doctorName,
-                    'Clinic' => $prescription['clinic_name'],
-                    'Date' => $prescription['prescription_date'],
-                    'Status' => ucwords(str_replace('_', ' ', $prescription['status'])),
-                ] as $label => $value): ?>
-                    <div class="col-md-6 mb-3"><strong><?= esc($label) ?></strong><div><?= esc($value) ?></div></div>
-                <?php endforeach; ?>
-                <div class="col-12 mb-3"><strong>Notes</strong><div><?= nl2br(esc($prescription['notes'] ?: '—')) ?></div></div>
-            </div>
-            <h6>Prescription Items</h6>
-            <div class="table-responsive"><table class="table table-bordered table-sm"><thead class="thead-light"><tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Quantity</th><th>Instructions</th><th>Notes</th></tr></thead><tbody>
-                <?php foreach ($items as $item): ?>
-                    <tr><td><?= esc($item['medicine_name']) ?></td><td><?= esc($item['dosage'] ?: '—') ?></td><td><?= esc($item['frequency'] ?: '—') ?></td><td><?= esc(trim(($item['duration'] ?: '') . ' ' . ($item['duration_unit'] ?: '')) ?: '—') ?></td><td><?= esc($item['quantity'] ?? '—') ?></td><td><?= nl2br(esc($item['instructions'] ?: '—')) ?></td><td><?= nl2br(esc($item['notes'] ?: '—')) ?></td></tr>
-                <?php endforeach; ?>
-            </tbody></table></div>
-        </div>
-    </div>
+    <section class="clinical-detail-card clinical-detail-wide"><div class="clinical-detail-card-heading"><i class="bi bi-capsule" aria-hidden="true"></i><div><h2>Medicine plan</h2><p>Dosage, frequency, duration, quantity, and instructions.</p></div></div><div class="table-responsive clinical-items-table-wrap"><table class="table table-hover clinical-items-table"><thead><tr><th>Medicine</th><th>Dosage / frequency</th><th>Duration</th><th>Quantity</th><th>Instructions</th><th>Notes</th></tr></thead><tbody><?php if ($items === []): ?><tr><td colspan="6"><div class="ri-empty-state compact"><i class="bi bi-capsule" aria-hidden="true"></i><p>No medicine items recorded.</p></div></td></tr><?php endif; ?><?php foreach ($items as $item): ?><tr><td><strong><?= esc($item['medicine_name'] ?? 'Not provided') ?></strong></td><td><?= esc($item['dosage'] ?: 'Not provided') ?><small><?= esc($item['frequency'] ?: 'Frequency not provided') ?></small></td><td><?= esc(trim(($item['duration'] ?: '') . ' ' . ($item['duration_unit'] ?: '')) ?: 'Not provided') ?></td><td><?= esc($item['quantity'] ?? 'Not provided') ?></td><td class="clinical-wrap"><?= nl2br(esc($item['instructions'] ?: 'Not provided')) ?></td><td class="clinical-wrap"><?= nl2br(esc($item['notes'] ?: 'Not provided')) ?></td></tr><?php endforeach; ?></tbody></table></div><div class="clinical-notes-block"><h3>Prescription notes</h3><p class="clinical-wrap"><?= nl2br(esc($prescription['notes'] ?: 'Not provided')) ?></p></div></section>
 </main>
+<?= form_open('', 'id="prescriptionCsrfForm" class="d-none"') ?><?= form_close() ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/prescription/prescription.js') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

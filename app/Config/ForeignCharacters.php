@@ -3,6 +3,7 @@
 namespace Config;
 
 use CodeIgniter\Config\ForeignCharacters as BaseForeignCharacters;
+
 /**
  * @immutable
  */

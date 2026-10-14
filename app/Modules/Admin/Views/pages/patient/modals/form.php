@@ -64,18 +64,24 @@
                         <div class="col-md-4">
                             <div class="form-group">
                             <label>Country Code <span class="text-danger">*</span></label>
-                            <select class="form-control btSelect" data-live-search="true" title="Select Country Code" name="country_code" id="country_code" required>
+                            <select class="form-control btSelect" data-live-search="true" title="Select Country Code" name="telephone_country_code_id" id="country_code" required>
                                 <option value="">Select Country Code</option>
-                                <?php foreach ($countries as $country): ?>
-                                    <?php if (! empty($country['phone_code'])): ?>
-                                        <option value="<?= (int) $country['id'] ?>" data-phone-code="<?= esc(ltrim((string) $country['phone_code'], '+')) ?>">
-                                            <?= esc($country['name']) ?> (<?= esc($country['phone_code']) ?>)
+                                <?php foreach (($telephoneCodes ?? []) as $telephoneCode): ?>
+                                    <?php if (! empty($telephoneCode['normalized_code'])): ?>
+                                        <option value="<?= (int) $telephoneCode['id'] ?>" data-phone-code="<?= esc((string) $telephoneCode['normalized_code']) ?>">
+                                            <?= esc($telephoneCode['country_name'] ?? $telephoneCode['name'] ?? '') ?> (+<?= esc((string) $telephoneCode['normalized_code']) ?>)
                                         </option>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input country-code-manual-toggle" id="patient_country_code_manual_toggle" data-select="#country_code" data-input="#patient_country_code_manual"><label class="custom-control-label small" for="patient_country_code_manual_toggle">Enter code manually</label></div>
-                            <input type="text" class="form-control mt-2 d-none" name="country_code" id="patient_country_code_manual" placeholder="Example: +91" inputmode="tel" maxlength="10" disabled aria-describedby="patient-country-code-hint">
+                            <div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input country-code-manual-toggle" id="patient_country_code_manual_toggle" data-select="#country_code" data-input="#patient_country_code_manual" data-name-input="#patient_telephone_country_name"><label class="custom-control-label small" for="patient_country_code_manual_toggle">Enter code manually</label></div>
+                            <div class="country-code-manual-fields d-none">
+                                <label class="small mb-1" for="patient_telephone_country_name">Country name <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input type="text" class="form-control" name="telephone_country_name" id="patient_telephone_country_name" placeholder="Country name" maxlength="191" disabled required>
+                                <div class="validation-error" id="telephone_country_nameErr"></div>
+                                <label class="small mb-1 mt-2" for="patient_country_code_manual">Telephone country code <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input type="text" class="form-control country-code-manual-input" name="country_code" id="patient_country_code_manual" placeholder="Example: +91" inputmode="tel" maxlength="5" pattern="\+?[0-9][0-9]{0,3}" title="Enter 1 to 4 digits, optionally prefixed with +." disabled required aria-describedby="patient-country-code-hint">
+                            </div>
                             <small id="patient-country-code-hint" class="form-text text-muted">Select a country to use its telephone code.</small>
                                 <div class="validation-error" id="country_codeErr"></div>
                             </div>

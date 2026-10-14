@@ -1,6 +1,7 @@
 <?php
 
 use CodeIgniter\Test\CIUnitTestCase;
+
 /**
  * @internal
  */

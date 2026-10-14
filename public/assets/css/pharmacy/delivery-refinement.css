@@ -1,0 +1,312 @@
+.pharmacy-delivery-page { min-width: 0; }
+.pharmacy-delivery-page .pharmacy-delivery-filters { min-width: 0; align-items: flex-end; }
+.pharmacy-delivery-page .pharmacy-delivery-filters .form-group { min-width: 0; }
+.pharmacy-delivery-page .pharmacy-delivery-filters .form-control { width: 100%; min-width: 0; }
+.pharmacy-delivery-page .pharmacy-filter-actions { min-width: 0; flex-wrap: wrap; }
+.pharmacy-delivery-card { overflow: visible; }
+.pharmacy-delivery-table-wrap { max-width: 100%; overflow-x: auto; overflow-y: visible; }
+.pharmacy-delivery-table { width: 100%; min-width: 1000px; table-layout: fixed; }
+.pharmacy-delivery-table th, .pharmacy-delivery-table td { min-width: 0; vertical-align: top !important; }
+.pharmacy-delivery-table tbody tr { background: #fff; }
+.pharmacy-delivery-table tbody tr:hover { background: #fafafa; }
+.pharmacy-delivery-table tbody td { padding-top: 13px; padding-bottom: 13px; }
+.delivery-value, .delivery-meta, .delivery-wrap { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.delivery-value { display: block; white-space: normal; }
+.delivery-meta { color: #8791a1; font-size: 10px; line-height: 1.45; }
+.delivery-label, .delivery-card-label { display: block; color: #8791a1; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.delivery-status-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.delivery-status-stack > div { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 5px; }
+.delivery-status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.delivery-actions-cell, .pharmacy-delivery-table td:last-child { overflow: visible; }
+.pharmacy-delivery-page .pharmacy-delivery-actions { z-index: 1200; }
+.pharmacy-delivery-page .pharmacy-delivery-actions .dropdown-menu { z-index: 1200 !important; }
+.pharmacy-delivery-grid { align-items: stretch; }
+.pharmacy-delivery-item { height: 100%; min-width: 0; min-height: 0; gap: 0; padding: 15px; }
+.delivery-card-header { flex: 0 0 auto; min-height: 70px; padding-bottom: 12px; }
+.delivery-card-header > div, .delivery-card-section, .delivery-card-section > div { min-width: 0; }
+.delivery-card-meta, .delivery-card-meta-list { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px 10px; color: #8791a1; font-size: 10px; line-height: 1.4; }
+.delivery-card-meta span, .delivery-card-meta-list span { min-width: 0; overflow-wrap: anywhere; }
+.delivery-card-section { padding: 12px 0; border-top: 1px solid #edf0f4; }
+.pharmacy-delivery-item .delivery-card-patient { margin: 0; padding: 12px 0; }
+.delivery-card-patient > .delivery-value { margin-top: 4px; }
+.delivery-card-meta-list { margin-top: 4px; }
+.delivery-card-delivery { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 11px 14px; }
+.delivery-card-delivery > div:last-child { grid-column: 1 / -1; }
+.delivery-card-delivery .delivery-meta { display: block; margin-top: 4px; }
+.delivery-card-statuses { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.delivery-card-statuses > div { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 5px; }
+.delivery-card-statuses .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.delivery-card-footer { display: flex; min-width: 0; align-items: flex-end; justify-content: flex-end; margin-top: auto; padding-top: 14px; }
+.delivery-card-footer .pharmacy-delivery-actions { max-width: 100%; }
+.delivery-card-footer .dropdown-toggle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pharmacy-delivery-page .modal { z-index: var(--ri-z-modal, 1050) !important; }
+body:has(#pharmacyDeliveryDetailModal) .modal-backdrop, body:has(#pharmacyDeliveryUpdateModal) .modal-backdrop, body:has(#pharmacyDeliveryRelatedModal) .modal-backdrop { z-index: var(--ri-z-modal-backdrop, 1040) !important; background: #151515; opacity: .58; }
+.pharmacy-delivery-modal, #pharmacyDeliveryUpdateModal .modal-content, #pharmacyDeliveryRelatedModal .modal-content { min-height: 0; max-height: calc(100vh - 2rem); overflow: hidden; }
+#deliveryDetailBody, #pharmacyDeliveryUpdateModal .modal-body, #pharmacyDeliveryRelatedBody { min-height: 0; overflow-x: hidden; overflow-y: auto; }
+#pharmacyDeliveryUpdateModal .modal-content { display: flex; }
+#pharmacyDeliveryUpdateModal .modal-header, #pharmacyDeliveryUpdateModal .modal-footer { flex: 0 0 auto; }
+#pharmacyDeliveryUpdateModal .modal-body { flex: 1 1 auto; max-height: calc(100vh - 190px); }
+@media (max-width: 991.98px) { .pharmacy-delivery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767.98px) {
+    .pharmacy-delivery-page .pharmacy-delivery-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, auto); align-items: end; }
+    .pharmacy-delivery-page .pharmacy-delivery-filters .form-group.flex-grow-1 { grid-column: 1 / -1; width: 100%; }
+    .pharmacy-delivery-page .pharmacy-filter-actions { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+    .pharmacy-delivery-page .pharmacy-filter-actions .btn { flex: 1 1 0; }
+    .pharmacy-delivery-table-wrap { overflow: visible; }
+    .pharmacy-delivery-table { display: block; min-width: 0; table-layout: auto; }
+    .pharmacy-delivery-table thead { display: none; }
+    .pharmacy-delivery-table tbody, .pharmacy-delivery-table tr { display: block; width: 100%; }
+    .pharmacy-delivery-table tr { margin: 0 0 12px; padding: 8px; border: 1px solid #e5eaf1; border-radius: 8px; background: #fff; box-shadow: 0 3px 10px rgba(31,41,64,.04); }
+    .pharmacy-delivery-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; width: 100%; padding: 9px 4px; border-bottom: 1px solid #edf0f4; text-align: right; }
+    .pharmacy-delivery-table td::before { flex: 0 0 102px; color: #8791a1; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; content: attr(data-label); }
+    .pharmacy-delivery-table td:last-child { border-bottom: 0; }
+    .pharmacy-delivery-table td > * { min-width: 0; max-width: calc(100% - 114px); }
+    .pharmacy-delivery-table td.delivery-actions-cell { display: block; text-align: left; }
+    .pharmacy-delivery-table td.delivery-actions-cell::before { display: block; margin-bottom: 7px; }
+    .pharmacy-delivery-table td.delivery-actions-cell .dropdown { display: flex; justify-content: flex-end; }
+    .pharmacy-delivery-table td.delivery-actions-cell .dropdown-toggle { max-width: 180px; }
+    .pharmacy-delivery-actions .dropdown-menu { position: fixed !important; right: 12px !important; left: auto !important; transform: none !important; max-width: calc(100vw - 24px); }
+    .pharmacy-delivery-modal, #pharmacyDeliveryUpdateModal .modal-content, #pharmacyDeliveryRelatedModal .modal-content { max-height: calc(100vh - 1rem); }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .pharmacy-delivery-list-page .pharmacy-delivery-table th:last-child,
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td:last-child {
+        position: sticky;
+        right: 0;
+        z-index: 3;
+        background: #fff;
+        box-shadow: -8px 0 12px rgba(31, 41, 64, .06);
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table tbody tr:hover td:last-child { background: #fafafa; }
+}
+@media (max-width: 575.98px) {
+    .pharmacy-delivery-page .pharmacy-delivery-filters { display: block; }
+    .pharmacy-delivery-page .pharmacy-delivery-filters .form-group, .pharmacy-delivery-page .pharmacy-filter-actions { width: 100%; margin-bottom: 8px; }
+    .pharmacy-delivery-page .pharmacy-filter-actions { margin-bottom: 0; }
+    .pharmacy-delivery-item { min-height: 500px; }
+    .delivery-card-statuses { grid-template-columns: 1fr; }
+    .delivery-card-footer, .delivery-card-footer .pharmacy-delivery-actions, .delivery-card-footer .dropdown-toggle { width: 100%; }
+}
+
+/* Exact delivery table contract: eight neutral data columns plus one action control. */
+.pharmacy-delivery-table { min-width: 1240px; }
+.pharmacy-delivery-table th:nth-child(1) { width: 17%; }
+.pharmacy-delivery-table th:nth-child(2) { width: 15%; }
+.pharmacy-delivery-table th:nth-child(3) { width: 17%; }
+.pharmacy-delivery-table th:nth-child(4) { width: 18%; }
+.pharmacy-delivery-table th:nth-child(5), .pharmacy-delivery-table th:nth-child(6), .pharmacy-delivery-table th:nth-child(7) { width: 9%; }
+.pharmacy-delivery-table th:nth-child(8) { width: 6%; }
+.pharmacy-delivery-table td[data-label="Order status"], .pharmacy-delivery-table td[data-label="Payment status"], .pharmacy-delivery-table td[data-label="Delivery status"] { vertical-align: middle !important; }
+.delivery-card-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px 14px; }
+.delivery-card-contact > div { min-width: 0; }
+.delivery-card-contact .delivery-meta, .delivery-card-contact .delivery-value { display: block; margin-top: 4px; }
+@media (max-width: 767.98px) {
+    .pharmacy-delivery-table { min-width: 0; }
+    .pharmacy-delivery-table td[data-label="Order status"], .pharmacy-delivery-table td[data-label="Payment status"], .pharmacy-delivery-table td[data-label="Delivery status"] { align-items: center; }
+    .pharmacy-delivery-table td[data-label="Order status"] .badge, .pharmacy-delivery-table td[data-label="Payment status"] .badge, .pharmacy-delivery-table td[data-label="Delivery status"] .badge { max-width: calc(100% - 114px); }
+}
+@media (max-width: 575.98px) {
+    .delivery-card-contact { grid-template-columns: 1fr; }
+}
+
+/* List-only contract: keep the eight-column table readable without changing the grid view. */
+.pharmacy-delivery-list-page .pharmacy-delivery-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-table {
+    width: 100%;
+    min-width: 1240px;
+    table-layout: fixed;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-table th,
+.pharmacy-delivery-list-page .pharmacy-delivery-table td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(1) { width: 19%; }
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(2) { width: 18%; }
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(3) { width: 27%; }
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(4),
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(5),
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(6) { width: 8%; }
+.pharmacy-delivery-list-page .pharmacy-delivery-table th:nth-child(7) { width: 12%; }
+.pharmacy-delivery-list-page .pharmacy-delivery-table tbody td {
+    padding: 13px 12px;
+    background: #fff;
+    vertical-align: top;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-table tbody tr:hover td { background: #fafafa; }
+.pharmacy-delivery-list-page .delivery-value,
+.pharmacy-delivery-list-page .delivery-meta,
+.pharmacy-delivery-list-page .delivery-wrap {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.pharmacy-delivery-list-page .delivery-status-badge {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.pharmacy-delivery-list-page .delivery-actions-cell {
+    position: relative;
+    z-index: 2;
+    min-width: 140px;
+    overflow: visible !important;
+    vertical-align: middle !important;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-list-actions {
+    display: flex;
+    min-width: 124px;
+    justify-content: flex-end;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-list-actions .pharmacy-more-actions-toggle {
+    display: inline-flex !important;
+    min-width: 124px;
+    min-height: 32px !important;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.2;
+    overflow: visible;
+    white-space: nowrap;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-actions {
+    position: relative;
+    z-index: 1200;
+}
+.pharmacy-delivery-list-page .pharmacy-delivery-actions .dropdown-menu {
+    z-index: 1200 !important;
+    max-width: calc(100vw - 24px);
+}
+body > .pharmacy-delivery-list-actions-menu {
+    z-index: 1300 !important;
+}
+.pharmacy-delivery-update-modal .modal-content {
+    display: flex;
+    max-height: calc(100vh - 2rem);
+    min-height: 0;
+    overflow: hidden;
+}
+.pharmacy-delivery-update-modal .modal-header,
+.pharmacy-delivery-update-modal .modal-footer {
+    flex: 0 0 auto;
+}
+.pharmacy-delivery-update-modal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+.pharmacy-delivery-update-modal .delivery-update-section {
+    margin-bottom: 14px;
+    padding: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+}
+.pharmacy-delivery-update-modal .delivery-update-section:last-child { margin-bottom: 0; }
+.pharmacy-delivery-update-modal .delivery-update-heading {
+    margin: 0 0 12px;
+    color: #20242a;
+    font-size: 13px;
+    font-weight: 700;
+}
+.pharmacy-delivery-update-modal .delivery-update-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.pharmacy-delivery-update-modal .delivery-update-grid > div { min-width: 0; }
+.pharmacy-delivery-update-modal .delivery-update-grid input,
+.pharmacy-delivery-update-modal .delivery-update-grid select,
+.pharmacy-delivery-update-modal .delivery-update-grid textarea {
+    width: 100%;
+    min-width: 0;
+}
+.pharmacy-delivery-update-modal .delivery-update-grid strong,
+.pharmacy-delivery-update-modal .delivery-update-grid .badge {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.pharmacy-delivery-update-modal .delivery-update-wide { grid-column: 1 / -1; }
+@media (max-width: 767.98px) {
+    .pharmacy-delivery-update-modal .modal-content { max-height: calc(100vh - 1rem); }
+    .pharmacy-delivery-update-modal .delivery-update-grid { grid-template-columns: minmax(0, 1fr); }
+    .pharmacy-delivery-update-modal .delivery-update-wide { grid-column: auto; }
+}
+@media (max-width: 767.98px) {
+    .pharmacy-delivery-list-page .pharmacy-delivery-table-wrap { overflow: visible; }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table {
+        display: block;
+        min-width: 0;
+        table-layout: auto;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table thead { display: none; }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table tbody,
+    .pharmacy-delivery-list-page .pharmacy-delivery-table tr { display: block; width: 100%; }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table tr {
+        margin-bottom: 12px;
+        padding: 8px;
+        border: 1px solid #e5eaf1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 3px 10px rgba(31, 41, 64, .04);
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td {
+        display: flex;
+        width: 100%;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 4px;
+        border-bottom: 1px solid #edf0f4;
+        text-align: right;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td::before {
+        flex: 0 0 102px;
+        color: #8791a1;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-align: left;
+        text-transform: uppercase;
+        content: attr(data-label);
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td > * { max-width: calc(100% - 114px); }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td.delivery-actions-cell {
+        display: block;
+        min-width: 0;
+        text-align: left;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td.delivery-actions-cell::before {
+        display: block;
+        margin-bottom: 7px;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-table td.delivery-actions-cell .dropdown {
+        display: flex;
+        justify-content: flex-end;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-list-actions {
+        display: flex;
+        min-width: 0;
+        justify-content: flex-end;
+    }
+    .pharmacy-delivery-list-page .pharmacy-delivery-actions .dropdown-menu {
+        position: fixed !important;
+        top: auto !important;
+        right: 12px !important;
+        bottom: auto !important;
+        left: auto !important;
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        transform: none !important;
+    }
+}

@@ -5,12 +5,13 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Format\JSONFormatter;
 use CodeIgniter\Format\XMLFormatter;
+
 class Format extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * Available Response Formats
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * When you perform content negotiation with the request, these are the
      * available formats that your application supports. This is currently
@@ -28,10 +29,11 @@ class Format extends BaseConfig
         // machine-readable XML
         'text/xml',
     ];
+
     /**
      * --------------------------------------------------------------------------
      * Formatters
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Lists the class to use to format responses with of a particular type.
      * For each mime type, list the class that should be used. Formatters
@@ -40,10 +42,11 @@ class Format extends BaseConfig
      * @var array<string, string>
      */
     public array $formatters = ['application/json' => JSONFormatter::class, 'application/xml' => XMLFormatter::class, 'text/xml' => XMLFormatter::class];
+
     /**
      * --------------------------------------------------------------------------
      * Formatters Options
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * Additional Options to adjust default formatters behaviour.
      * For each mime type, list the additional options that should be used.
@@ -51,10 +54,11 @@ class Format extends BaseConfig
      * @var array<string, int>
      */
     public array $formatterOptions = ['application/json' => JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES, 'application/xml' => 0, 'text/xml' => 0];
+
     /**
      * --------------------------------------------------------------------------
      * Maximum depth for JSON encoding.
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * This value determines how deep the JSON encoder will traverse nested structures.
      */

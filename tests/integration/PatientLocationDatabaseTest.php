@@ -3,6 +3,7 @@
 namespace Tests\Integration;
 
 use CodeIgniter\Test\CIUnitTestCase;
+
 final class PatientLocationDatabaseTest extends CIUnitTestCase
 {
     public function testPatientLocationJoinExecutesWithoutDuplicateLocalityAlias(): void
@@ -12,6 +13,7 @@ final class PatientLocationDatabaseTest extends CIUnitTestCase
         } catch (\Throwable $exception) {
             self::markTestSkipped('A provisioned database.tests connection is required for patient location integration checks.');
         }
+
         foreach (['patients', 'countries', 'states', 'cities', 'localities'] as $table) {
             if (!$db->tableExists($table)) {
                 self::markTestSkipped('The provisioned database.tests schema is unavailable.');

@@ -5,7 +5,15 @@ $(function () {
         resetForm(form);
         clearFormErrors();
         $('#medicine_id').val('');
-        $('[name="status"]').val('active');
+        $('#medicineModal select option[data-inactive="1"]').remove();
+        $('#medicineModal select.btSelect').each(function () {
+            const select = $(this);
+            if (typeof select.selectpicker === 'function' && !select.hasClass('selectpicker')) {
+                select.selectpicker({liveSearch: true});
+            }
+        });
+        const statusSelect = $('#medicine_status_id').val($('#medicine_status_id option:not(:first)').first().val() || '');
+        if (typeof statusSelect.selectpicker === 'function') statusSelect.selectpicker('refresh');
         $('#medicineModal .modal-title').text('Add Medicine');
         $(form + ' .save').text('Save Medicine');
     }
@@ -32,6 +40,9 @@ $(function () {
                 }
                 showError(response.msg);
                 bindFormError(form, response.errors);
+            },
+            error: function (xhr) {
+                handleFormAjaxError(form, xhr, 'Unable to create medicine safely.');
             }
         });
     });
@@ -46,9 +57,17 @@ $(function () {
                 resetMedicineForm();
                 const medicine = response.data;
                 $('#medicine_id').val(medicine.id);
-                $.each(['medicine_name', 'generic_name', 'medicine_code', 'dosage_form', 'strength', 'manufacturer', 'description', 'status'], function (_, field) {
-                    $('[name="' + field + '"]').val(medicine[field] || '');
-                });
+                    $.each(['form_id', 'strength_id', 'unit_id', 'manufacturer_id', 'status_id', 'prescription_duration_id', 'prescription_frequency_id', 'prescription_dose_id', 'prescription_intake_id'], function (_, field) {
+                        const select = $('[name="' + field + '"]');
+                        const value = medicine[field] || '';
+                        const labels = {form_id: 'form', strength_id: 'strength', unit_id: 'unit', manufacturer_id: 'manufacturer', status_id: 'status', prescription_duration_id: 'prescription_duration', prescription_frequency_id: 'prescription_frequency', prescription_dose_id: 'prescription_dose', prescription_intake_id: 'prescription_intake'};
+                        if (value && !select.find('option[value="' + value + '"]').length && medicine[labels[field]]) select.append($('<option>', {value: value, text: medicine[labels[field]] + ' (inactive)', 'data-inactive': '1'}));
+                        select.val(value);
+                    });
+                    $.each(['medicine_name', 'generic_name', 'medicine_code', 'unit_price', 'description', 'prescription_note'], function (_, field) {
+                        $('[name="' + field + '"]').val(medicine[field] || '');
+                    });
+                    $('#medicineModal select.btSelect').selectpicker('refresh');
                 $('#medicineModal .modal-title').text('Edit Medicine');
                 $(form + ' .save').text('Update Medicine');
                 $('#medicineModal').modal('show');

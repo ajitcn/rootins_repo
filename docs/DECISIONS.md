@@ -5,7 +5,7 @@
 
 | ID | Decision | Rationale | Consequence / follow-up |
 |---|---|---|---|
-| ADR-001 | Keep a modular CodeIgniter 4 application with Admin, Doctor, Patient, and Farmassist modules. | Matches the existing repository and role-oriented product model. | New features belong to the owning module; shared behavior belongs in `app/` services only when genuinely shared. |
+| ADR-001 | Keep a modular CodeIgniter 4 application with Admin, Doctor, Patient, and Pharmacy modules. | Matches the existing repository and role-oriented product model. | New features belong to the owning module; shared behavior belongs in `app/` services only when genuinely shared. |
 | ADR-002 | Use explicit routes and route-level authentication/permission filters. | Reduces accidental public exposure and matches current routing configuration. | Every new action needs a route, permission decision, and synchronized client endpoint if applicable. |
 | ADR-003 | Retain the server-rendered UI plus jQuery/AJAX pattern for adjacent work. | Existing Admin implementation already uses this pattern. | Avoid introducing a competing frontend stack without a separately approved decision. |
 | ADR-004 | Treat patient, clinical, prescription, and financial records as confidential and scope access by role and clinic. | Healthcare data requires least-privilege access and operational separation. | Queries, downloads, reports, dashboards, and logs must all enforce scope. |
@@ -30,7 +30,7 @@
 | Classification | Decision |
 |---|---|
 | `DECIDED BASELINE` | India is the initial jurisdiction baseline. Cashfree and Razorpay are approved candidate payment providers. Indian privacy, security, health-data, telemedicine, payment, tax, pharmacy/drug, consumer-protection, and e-commerce requirements are the review baseline. |
-| `PROPOSED` | Farmassist is an internal pharmacy/fulfilment role operated by the clinic/platform owner. External legal-entity support is out of scope for the baseline and would require contracts and adapters. |
+| `PROPOSED` | Pharmacy is an internal pharmacy/fulfilment workspace operated by the clinic/platform owner, with Pharmacy Assistant staff. External legal-entity support is out of scope for the baseline and would require contracts and adapters. |
 | `PROPOSED` | Prescription flow: `draft` → `submitted` → `clarification_requested` → `approved`/`rejected` → `cancelled`/`fulfilled`; doctor-authored medicine, dosage, duration, and instructions are preserved. |
 | `PROPOSED` | Reversal/amendment authority: doctor before fulfilment; authorized medical/admin role after review, subject to medical/legal review. |
 | `PROPOSED` | Track inventory batches and expiry; expired/unavailable stock cannot fulfil; substitutions require recorded approval; delivery states are `pending`, `packed`, `dispatched`, `out_for_delivery`, `delivered`, with `failed`/`returned` exception states. |
@@ -45,7 +45,7 @@
 - `[NEEDS_REVIEW]` Which compliance framework mapping and legal/medical interpretation must the production deployment satisfy?
 - `[NEEDS_REVIEW]` Final Cashfree/Razorpay production enablement, contracts, merchant configuration, credential/key ownership, settlement, disputes, refunds, reconciliation, grievance ownership, and provider applicability.
 - `[NEEDS_REVIEW]` Deployment readiness for Twilio Video, Twilio Messaging/WhatsApp, Twilio SendGrid, internal ROOTINS pharmacy, and Shiprocket, including contracts, credentials, configuration, consent/template/DLT, serviceability, webhooks, reconciliation, and final compliance review.
-- `[NEEDS_REVIEW]` Legal/medical confirmation of the proposed internal Farmassist role and any authorization boundary.
+- `[NEEDS_REVIEW]` Legal/medical confirmation of the proposed internal Pharmacy Assistant role and any authorization boundary.
 - `[NEEDS_REVIEW]` Legal/medical confirmation of the proposed prescription states and reversal/amendment authority.
 - `[NEEDS_REVIEW]` Exact inventory, batch, expiry, substitution, refund, cancellation, delivery, and pharmacy/drug operating rules.
 - `[NEEDS_REVIEW]` Final recovery targets, encryption/key ownership, backup retention, and restore-test frequency; the RPO/RTO values above remain proposed.

@@ -1,36 +1,9 @@
 <?php
 
-namespace Admin\Models\Configuration;
-
-use Admin\Models\AdminMasterRecordModel;
-abstract class FixedMasterModel extends AdminMasterRecordModel
-{
-}
-final class DoctorSpecializationModel extends FixedMasterModel
-{
-    protected string $masterType = 'doctor-specializations';
-}
-final class DepartmentModel extends FixedMasterModel
-{
-    protected string $masterType = 'departments';
-}
-final class ServiceModel extends FixedMasterModel
-{
-    protected string $masterType = 'services';
-}
-final class ConsultationFeeTemplateModel extends FixedMasterModel
-{
-    protected string $masterType = 'consultation-fees';
-}
-final class CommissionTemplateModel extends FixedMasterModel
-{
-    protected string $masterType = 'commission-templates';
-}
-final class PaymentModeModel extends FixedMasterModel
-{
-    protected string $masterType = 'payment-modes';
-}
-final class TaxRateModel extends FixedMasterModel
-{
-    protected string $masterType = 'tax-rates';
-}
+/**
+ * Deprecated aggregate placeholder.
+ *
+ * Each configuration catalog now has its own model file in this directory.
+ * This file remains so stale deployments that reference the old path fail
+ * gracefully at deployment review instead of recreating shared model logic.
+ */

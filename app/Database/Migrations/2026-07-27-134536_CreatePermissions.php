@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreatePermissions extends Migration
 {
     public function up()
@@ -13,6 +14,7 @@ class CreatePermissions extends Migration
         $this->forge->addKey('module');
         $this->forge->createTable('permissions');
     }
+
     public function down()
     {
         $this->forge->dropTable('permissions');

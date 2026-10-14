@@ -3,7 +3,7 @@
 namespace Config;
 
 /**
- * Paths
+ * Paths.
  *
  * Holds the paths that are used by the system to
  * locate the main directories, app, system, etc.
@@ -21,16 +21,17 @@ class Paths
     /**
      * ---------------------------------------------------------------
      * SYSTEM FOLDER NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * This must contain the name of your "system" folder. Include
      * the path if the folder is not in the same directory as this file.
      */
     public string $systemDirectory = __DIR__ . '/../../vendor/codeigniter4/framework/system';
+
     /**
      * ---------------------------------------------------------------
      * APPLICATION FOLDER NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * If you want this front controller to use a different "app"
      * folder than the default one you can set its name here. The folder
@@ -40,10 +41,11 @@ class Paths
      * @see http://codeigniter.com/user_guide/general/managing_apps.html
      */
     public string $appDirectory = __DIR__ . '/..';
+
     /**
      * ---------------------------------------------------------------
      * WRITABLE DIRECTORY NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * This variable must contain the name of your "writable" directory.
      * The writable directory allows you to group all directories that
@@ -52,18 +54,20 @@ class Paths
      * system directories.
      */
     public string $writableDirectory = __DIR__ . '/../../writable';
+
     /**
      * ---------------------------------------------------------------
      * TESTS DIRECTORY NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * This variable must contain the name of your "tests" directory.
      */
     public string $testsDirectory = __DIR__ . '/../../tests';
+
     /**
      * ---------------------------------------------------------------
      * VIEW DIRECTORY NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * This variable must contain the name of the directory that
      * contains the view files used by your application. By
@@ -71,10 +75,11 @@ class Paths
      * is used when no value is provided to `Services::renderer()`.
      */
     public string $viewDirectory = __DIR__ . '/../Views';
+
     /**
      * ---------------------------------------------------------------
      * ENVIRONMENT DIRECTORY NAME
-     * ---------------------------------------------------------------
+     * ---------------------------------------------------------------.
      *
      * This variable must contain the name of the directory where
      * the .env file is located.

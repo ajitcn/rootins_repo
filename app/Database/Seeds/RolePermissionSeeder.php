@@ -3,6 +3,7 @@
 namespace App\Database\Seeds;
 
 use CodeIgniter\Database\Seeder;
+
 class RolePermissionSeeder extends Seeder
 {
     public function run()
@@ -11,6 +12,7 @@ class RolePermissionSeeder extends Seeder
         // Super Admin gets every permission
         $permissions = $db->table('permissions')->get()->getResultArray();
         $rows = [];
+
         foreach ($permissions as $permission) {
             $rows[] = [
                 'role_id' => 1,

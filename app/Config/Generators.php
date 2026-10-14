@@ -3,12 +3,13 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
+
 class Generators extends BaseConfig
 {
     /**
      * --------------------------------------------------------------------------
      * Generator Commands' Views
-     * --------------------------------------------------------------------------
+     * --------------------------------------------------------------------------.
      *
      * This array defines the mapping of generator commands to the view files
      * they are using. If you need to customize them for your own, copy these

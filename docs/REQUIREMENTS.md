@@ -8,7 +8,7 @@
 
 | ID | Requirement | Priority | Acceptance summary |
 |---|---|---:|---|
-| CORE-001 | Provide separate Admin, Doctor, Patient, and Farmassist dashboards. | P0 | Authorized users land on the correct dashboard and see only permitted actions/data. |
+| CORE-001 | Provide separate Admin, Doctor, Patient, and Pharmacy dashboards. | P0 | Authorized users land on the correct dashboard and see only permitted actions/data. |
 | CORE-002 | Authenticate users and enforce role, permission, and clinic scope. | P0 | Unauthorized page, AJAX, and record access is denied consistently. |
 | CORE-003 | Record audit events for security, clinical, financial, configuration, and status-sensitive actions. | P0 | Event includes actor, action, target, time, scope, and safe metadata. |
 | CORE-004 | Enforce the approved appointment lifecycle and reject invalid state transitions. | P0 | Transitions are permission-controlled, timestamped, attributable, and safe against duplicate submission. |
@@ -52,11 +52,11 @@
 | PAT-005 | Receive appointment, consultation, prescription, billing, and delivery notifications. | P1 | Preferences and delivery status are respected. |
 | PAT-006 | Capture and manage consent, withdrawal, communication preferences, and permitted health-record sharing. | P0 | Consent is purpose-bound, attributable, reviewable, and respected by downstream workflows. |
 
-## Farmassist module
+## Pharmacy module
 
 | ID | Requirement | Priority | Acceptance summary |
 |---|---|---:|---|
-| FARM-001 | Show prescription review queue and complete attributable review actions. | P0 | Farmassist can approve, request clarification, or cancel according to policy; each action records a reason where required. |
+| FARM-001 | Show prescription review queue and complete attributable review actions. | P0 | Pharmacy Assistant staff can approve, request clarification, or cancel according to policy; each action records a reason where required. |
 | FARM-002 | View prescription items, medicine master data, availability, substitutions policy, and exceptions. | P0 | Changes cannot silently alter the doctor's clinical instruction. |
 | FARM-003 | Create/manage medicine fulfilment billing and order status. | P0 | Charges, payment state, and fulfilment state are linked and auditable. |
 | FARM-004 | Integrate or reconcile external commerce/delivery status where configured. | P1 | Duplicate/out-of-order callbacks do not duplicate or regress local records. |
@@ -102,7 +102,7 @@ Requirement changes must update this register, `docs/SRS.md`, and—when archite
 | Classification | Requirement baseline |
 |---|---|
 | `DECIDED BASELINE` | India is the initial jurisdiction; Cashfree and Razorpay are approved candidate providers; Indian privacy, health-data, telemedicine, payment, tax, pharmacy/drug, consumer-protection, and e-commerce requirements are review inputs. |
-| `PROPOSED` | Farmassist is an internal clinic/platform pharmacy/fulfilment role; external legal-entity support is out of scope for the baseline. |
+| `PROPOSED` | Pharmacy is an internal clinic/platform pharmacy/fulfilment workspace operated by Pharmacy Assistant staff; external legal-entity support is out of scope for the baseline. |
 | `PROPOSED` | Prescription states are `draft` → `submitted` → `clarification_requested` → `approved`/`rejected` → `cancelled`/`fulfilled`; doctor-authored medicine, dosage, duration, and instructions are preserved. |
 | `PROPOSED` | Inventory batches and expiry are tracked; expired/unavailable stock cannot fulfil; substitutions require approval; delivery states are `pending`, `packed`, `dispatched`, `out_for_delivery`, `delivered`, `failed`, and `returned`. |
 | `PROPOSED` | Backups are encrypted, daily-verified, and periodically restore-tested; initial RPO 24 hours/RTO 8 hours is proposed only. |
@@ -115,7 +115,7 @@ Requirement changes must update this register, `docs/SRS.md`, and—when archite
 - `[NEEDS_DECISION]` Patient identity verification, duplicate detection, and controlled merge policy.
 - `[NEEDS_REVIEW]` Cashfree/Razorpay production configuration, merchant onboarding, contracts, credentials/key ownership, settlement, disputes, refunds, reconciliation, grievance ownership, and production enablement.
 - `[NEEDS_REVIEW]` Deployment readiness for Twilio Video, Twilio Messaging/WhatsApp, Twilio SendGrid, internal ROOTINS pharmacy, and Shiprocket, including contracts, credentials, configuration, consent/template/DLT, serviceability, webhooks, reconciliation, and final compliance review.
-- `[NEEDS_REVIEW]` Legal/medical confirmation of Farmassist authority and proposed prescription states/reversal/amendment authority.
+- `[NEEDS_REVIEW]` Legal/medical confirmation of Pharmacy Assistant authority and proposed prescription states/reversal/amendment authority.
 - `[NEEDS_REVIEW]` Exact pharmacy/drug, inventory, batch/expiry, substitution, delivery, returns, cancellation, refund, and customer-support rules.
 - `[NEEDS_REVIEW]` Notification consent, opt-out, template, retry, and sensitive-content rules.
 - `[NEEDS_REVIEW]` Configurable retention periods, deletion/withdrawal exceptions, backup encryption/key ownership, restore frequency, and final recovery targets.

@@ -4,6 +4,9 @@
      *-----------------------------------------------------------
      */
     $(document).on('click', '.open_doctor_leave_modal', function(){ 
+        resetForm('#doctorLeaveForm');
+        $('#doctorLeaveModal .modal-title').text('Add Doctor Leave');
+        $('#doctorLeaveForm .save').text('Save Leave');
         $('#doctorLeaveModal').modal('show'); 
         clearFormErrors();
     });
@@ -34,7 +37,6 @@
             success: function (response) {
 
                 if (response.status) {
-                    hide_loader();
                     showSuccess(response.msg); 
                     reload_page(500);   
 

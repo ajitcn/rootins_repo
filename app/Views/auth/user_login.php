@@ -173,7 +173,7 @@
                             <input type="email" class="form-control" name="user_id" placeholder="Enter email">
 
                         </div>
-                        <div class="validation-error"><?= display_form_error(validation_errors(), 'user_id')?></div>
+                        <div class="validation-error" id="user_idErr"><?= display_form_error(validation_errors(), 'user_id')?></div>
                     </div>
 
                     <div class="form-group">
@@ -186,7 +186,7 @@
                             </div>
                             <input type="password" class="form-control" name="user_password" placeholder="Enter password">
                         </div>
-                        <div class="validation-error"><?= display_form_error(validation_errors(), 'user_password')?></div>
+                        <div class="validation-error" id="user_passwordErr"><?= display_form_error(validation_errors(), 'user_password')?></div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-4">

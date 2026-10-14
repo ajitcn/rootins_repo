@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class AddPatientRegistrationAndClinicTransfers extends Migration
 {
     public function up()
@@ -11,6 +12,7 @@ class AddPatientRegistrationAndClinicTransfers extends Migration
             $this->forge->addColumn('patients', ['registration_number' => ['type' => 'VARCHAR', 'constraint' => 20, 'null' => true, 'after' => 'id']]);
         }
         $patients = $this->db->table('patients')->select('id')->where('registration_number IS NULL', null, false)->get()->getResultArray();
+
         foreach ($patients as $patient) {
             $this->db->table('patients')->where('id', (int) $patient['id'])->update(['registration_number' => sprintf('PAT-%06d', (int) $patient['id'])]);
         }
@@ -31,6 +33,7 @@ class AddPatientRegistrationAndClinicTransfers extends Migration
         $this->forge->addForeignKey('transferred_by', 'users', 'id', 'SET NULL', 'CASCADE');
         $this->forge->createTable('patient_clinic_transfers');
     }
+
     public function down()
     {
         $this->forge->dropTable('patient_clinic_transfers', true);

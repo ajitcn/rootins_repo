@@ -96,6 +96,34 @@ $(function () {
         });
     });
 
+    $('.cancel-appointment').on('click', function () {
+        const button = $(this);
+        const id = button.data('id');
+        const appointmentNumber = button.data('appointment-number') || 'this appointment';
+
+        if (! window.confirm('Cancel ' + appointmentNumber + '?')) {
+            return;
+        }
+
+        ajaxRequest({
+            url: ROUTES.appointments.queueStatus + id,
+            method: 'POST',
+            data: {
+                csrf_rtn: $('#appointmentForm input[name="csrf_rtn"]').val(),
+                status: 'cancelled'
+            },
+            success: function (response) {
+                if (response.status) {
+                    showSuccess(response.msg);
+                    reload_page(500);
+                    return;
+                }
+
+                showError(response.msg);
+            }
+        });
+    });
+
     $('.delete-appointment').on('click', function () {
         const id = $(this).data('id');
 

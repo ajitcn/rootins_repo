@@ -4,6 +4,7 @@ namespace Config;
 
 use CodeIgniter\Config\View as BaseView;
 use CodeIgniter\View\ViewDecoratorInterface;
+
 class View extends BaseView
 {
     /**
@@ -17,6 +18,7 @@ class View extends BaseView
      * @var bool
      */
     public $saveData = true;
+
     /**
      * Parser Filters map a filter name with any PHP callable. When the
      * Parser prepares a variable for display, it will chain it
@@ -31,6 +33,7 @@ class View extends BaseView
      * @var array<string, (callable(mixed): mixed)&string>
      */
     public $filters = [];
+
     /**
      * Parser Plugins provide a way to extend the functionality provided
      * by the core Parser by creating aliases that will be replaced with
@@ -39,6 +42,7 @@ class View extends BaseView
      * @var array<string, (callable(mixed...): mixed)|((callable(mixed...): mixed)&string)|list<(callable(mixed...): mixed)&string>>
      */
     public $plugins = [];
+
     /**
      * View Decorators are class methods that will be run in sequence to
      * have a chance to alter the generated output just prior to caching
@@ -49,6 +53,7 @@ class View extends BaseView
      * @var list<class-string<ViewDecoratorInterface>>
      */
     public array $decorators = [];
+
     /**
      * Subdirectory within app/Views for namespaced view overrides.
      *

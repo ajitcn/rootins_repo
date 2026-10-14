@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateAdminMasterSettings extends Migration
 {
     public function up()
@@ -18,6 +19,7 @@ class CreateAdminMasterSettings extends Migration
         $this->forge->addKey('clinic_id');
         $this->forge->createTable('admin_setting_records');
     }
+
     public function down()
     {
         $this->forge->dropTable('admin_setting_records', true);

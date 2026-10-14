@@ -6,6 +6,7 @@
         <form method="get" class="form-inline" aria-label="Filter settings">
             <label class="mr-2" for="settingSearch">Search</label>
             <input id="settingSearch" name="search" class="form-control mr-2" value="<?= esc($filters['search']) ?>">
+            <div class="validation-error" id="searchErr"></div>
             <button class="btn btn-outline-secondary">Filter</button>
         </form>
         <button class="btn btn-primary" data-toggle="modal" data-target="#settingModal">New setting</button>
@@ -41,9 +42,12 @@
             <input type="hidden" name="csrf_rtn" value="<?= csrf_hash() ?>">
             <input type="hidden" name="setting_group" value="<?= esc($group) ?>">
             <label for="settingKey">Setting key</label><input id="settingKey" name="setting_key" class="form-control" required>
+            <div class="validation-error" id="setting_keyErr"></div>
             <label for="settingValue">Setting value</label><textarea id="settingValue" name="setting_value" class="form-control"></textarea>
+            <div class="validation-error" id="setting_valueErr"></div>
             <small id="secretHint" class="form-text text-muted d-none">Leave blank to preserve the stored secret.</small>
             <label><input type="checkbox" name="is_secret" value="1"> Store securely as secret</label>
+            <div class="validation-error" id="is_secretErr"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-primary">Save setting</button></div>
     </form></div>

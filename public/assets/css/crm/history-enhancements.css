@@ -1,0 +1,20 @@
+.crm-history-heading h1{font-weight:850;color:#111827}
+.crm-history-summary dd .crm-status-badge{font-weight:800}
+.crm-timeline-item{--history-tone:#334155;--history-tone-soft:#f8fafc}
+.crm-timeline-item.crm-event-tone-success{--history-tone:#15803d;--history-tone-soft:#f0fdf4}
+.crm-timeline-item.crm-event-tone-pending{--history-tone:#b45309;--history-tone-soft:#fffbeb}
+.crm-timeline-item.crm-event-tone-danger{--history-tone:#b91c1c;--history-tone-soft:#fef2f2}
+.crm-timeline-card{border-left:3px solid var(--history-tone);background:linear-gradient(90deg,var(--history-tone-soft),#fff 24%)}
+.crm-timeline-card h3{font-weight:850}
+.crm-event-tone-success .crm-timeline-marker{background:#15803d}
+.crm-event-tone-pending .crm-timeline-marker{background:#b45309}
+.crm-event-tone-danger .crm-timeline-marker{background:#b91c1c}
+.crm-event-tone-neutral .crm-timeline-marker{background:#334155}
+.crm-event-tone-success .crm-category{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}
+.crm-event-tone-pending .crm-category{border-color:#fde68a;background:#fffbeb;color:#92400e}
+.crm-event-tone-danger .crm-category{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+.crm-event-tone-neutral .crm-category{border-color:#cbd5e1;background:#f8fafc;color:#334155}
+.crm-change-old{border-left-color:#94a3b8}
+.crm-change-new{border-left-color:var(--history-tone);background:#fff}
+.crm-timeline-remarks{padding:.75rem;border:1px solid #e5e7eb;border-radius:.55rem;background:#f8fafc}
+@media(max-width:575.98px){.crm-timeline-card{background:#fff}}

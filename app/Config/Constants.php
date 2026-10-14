@@ -85,6 +85,7 @@ defined('EXIT__AUTO_MIN') || define('EXIT__AUTO_MIN', 9);
 defined('EXIT__AUTO_MAX') || define('EXIT__AUTO_MAX', 125);
 // highest automatically-assigned error code
 defined('ADMIN_VIEW') || define('ADMIN_VIEW', '../Modules/Admin/Views/');
+defined('CRM_VIEW') || define('CRM_VIEW', '../Modules/CRM/Views/');
 defined('DOCTOR_VIEW') || define('DOCTOR_VIEW', '../Modules/Doctor/Views/');
 defined('PATIENT_VIEW') || define('PATIENT_VIEW', '../Modules/Patient/Views/');
-defined('FARMASSIST_VIEW') || define('FARMASSIST_VIEW', '../Modules/Farmassist/Views/');
+defined('PHARMACY_VIEW') || define('PHARMACY_VIEW', '../Modules/Pharmacy/Views/');

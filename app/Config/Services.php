@@ -3,6 +3,7 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseService;
+
 /**
  * Services Configuration file.
  *
@@ -23,33 +24,58 @@ class Services extends BaseService
         if ($getShared) {
             return static::getSharedInstance('auth');
         }
+
         return new \App\Services\AuthService();
     }
+
     /**
      *------------------------------------------------------------
      * Location Service
-     *----------------------------------------------------------
+     *----------------------------------------------------------.
      */
     public static function location(bool $getShared = true)
     {
         if ($getShared) {
             return static::getSharedInstance('location');
         }
+
         return new \App\Services\LocationService();
     }
+
     public static function notification(bool $getShared = true)
     {
         if ($getShared) {
             return static::getSharedInstance('notification');
         }
+
         return new \App\Services\Notification\NotificationDispatcher();
     }
+
     public static function audit(bool $getShared = true)
     {
         if ($getShared) {
             return static::getSharedInstance('audit');
         }
+
         return new \App\Services\Audit\AuditLogger();
+    }
+
+    public static function telephoneContact(bool $getShared = true)
+    {
+        if ($getShared) {
+            return static::getSharedInstance('telephoneContact');
+        }
+
+        return new \App\Services\TelephoneContactService();
+    }
+
+    public static function shopifyConfiguration(bool $getShared = true)
+    {
+        if ($getShared) {
+            return static::getSharedInstance('shopifyConfiguration');
+        }
+
+        return new \App\Services\Shopify\ShopifyConfiguration();
     }
     /*
      * public static function example($getShared = true)

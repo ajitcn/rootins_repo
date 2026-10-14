@@ -12,6 +12,7 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
+
 class Filters extends BaseFilters
 {
     /**
@@ -23,7 +24,8 @@ class Filters extends BaseFilters
      * [filter_name => classname]
      * or [filter_name => [classname1, classname2, ...]]
      */
-    public array $aliases = ['csrf' => CSRF::class, 'toolbar' => DebugToolbar::class, 'honeypot' => Honeypot::class, 'invalidchars' => InvalidChars::class, 'secureheaders' => SecureHeaders::class, 'cors' => Cors::class, 'forcehttps' => ForceHTTPS::class, 'pagecache' => PageCache::class, 'performance' => PerformanceMetrics::class, 'auth' => \App\Filters\Auth::class, 'permission' => \App\Filters\Permission::class];
+    public array $aliases = ['csrf' => CSRF::class, 'toolbar' => DebugToolbar::class, 'honeypot' => Honeypot::class, 'invalidchars' => InvalidChars::class, 'secureheaders' => SecureHeaders::class, 'cors' => Cors::class, 'forcehttps' => ForceHTTPS::class, 'pagecache' => PageCache::class, 'performance' => PerformanceMetrics::class, 'auth' => \App\Filters\Auth::class, 'patientauth' => \App\Filters\PatientAuth::class, 'permission' => \App\Filters\Permission::class, 'coreapi' => \App\Filters\CoreApiAuthentication::class];
+
     /**
      * List of special required filters.
      *
@@ -48,6 +50,7 @@ class Filters extends BaseFilters
         // Performance Metrics
         'toolbar',
     ]];
+
     /**
      * List of filter aliases that are always
      * applied before and after every request.
@@ -59,8 +62,9 @@ class Filters extends BaseFilters
      */
     public array $globals = ['before' => [
         // 'honeypot',
-        'csrf' => ['except' => ['api/v1/*']],
+        'csrf' => ['except' => ['api/v1/*', 'integrations/shopify/webhooks/*']],
     ], 'after' => []];
+
     /**
      * List of filter aliases that works on a
      * particular HTTP method (GET, POST, etc.).
@@ -75,6 +79,7 @@ class Filters extends BaseFilters
      * @var array<string, list<string>>
      */
     public array $methods = [];
+
     /**
      * List of filter aliases that should run on any
      * before or after URI patterns.

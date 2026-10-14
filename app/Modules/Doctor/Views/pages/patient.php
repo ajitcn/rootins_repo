@@ -8,6 +8,7 @@ $patientName = trim(implode(' ', array_filter([
     $patient['last_name'] ?? '',
 ], static fn ($part) => $part !== null && $part !== '')));
 ?>
+<?php $patientContact = service('telephoneContact')->formatDisplay($patient['telephone_country_code'] ?? null, $patient['mobile_normalized'] ?? $patient['mobile_number'] ?? null, $patient['country_code'] ?? null); ?>
 <main class="dashboard-container" aria-labelledby="doctor-patient-title">
     <div class="page-heading">
         <div>
@@ -19,7 +20,7 @@ $patientName = trim(implode(' ', array_filter([
             <h1 id="doctor-patient-title"><?= esc($patientName) ?></h1>
             <p class="text-muted mb-0">
                 <?= esc($patient['registration_number'] ?? '') ?>
-                · <?= esc($patient['mobile_number'] ?? 'No mobile number') ?>
+                · <?= esc($patientContact) ?>
             </p>
         </div>
         <button
@@ -43,10 +44,12 @@ $patientName = trim(implode(' ', array_filter([
                     <dl class="mb-0">
                         <dt>Gender</dt>
                         <dd><?= esc($patient['gender'] ?? 'Not recorded') ?></dd>
+                        <dt>Source</dt>
+                        <dd><span class="badge <?= esc(patient_source_badge_class($patient['source_type'] ?? null)) ?>"><?= esc(patient_source_label($patient['source_type'] ?? null)) ?></span></dd>
                         <dt>Status</dt>
                         <dd><?= (int) $patient['status'] === 1 ? 'Active' : 'Inactive' ?></dd>
                         <dt>Date of birth</dt>
-                        <dd><?= esc($patient['date_of_birth'] ?? 'Not recorded') ?></dd>
+                        <dd><?= esc(rootins_format_date($patient['date_of_birth'] ?? '') ?: 'Not recorded') ?></dd>
                         <dt>Location</dt>
                         <dd>
                             <?= esc($patient['locality_name'] ?? $patient['city_name'] ?? $patient['state_name'] ?? $patient['country_name'] ?? 'Not recorded') ?>
@@ -76,7 +79,7 @@ $patientName = trim(implode(' ', array_filter([
                                 <tr>
                                     <td><?= esc($item['appointment_number']) ?></td>
                                     <td>
-                                        <?= esc($item['appointment_date']) ?>
+                                        <?= esc(rootins_format_date($item['appointment_date'] ?? '')) ?>
                                         <?= esc(substr((string) $item['appointment_time'], 0, 5)) ?>
                                     </td>
                                     <td><?= esc(ucwords(str_replace('_', ' ', $item['appointment_type']))) ?></td>
@@ -106,7 +109,7 @@ $patientName = trim(implode(' ', array_filter([
                         <div class="border-bottom pb-2 mb-2">
                             <strong><?= esc($item['consultation_number']) ?></strong>
                             <div class="small text-muted">
-                                <?= esc($item['consultation_date']) ?> · <?= esc($item['status']) ?>
+                                <?= esc(rootins_format_date($item['consultation_date'] ?? '')) ?> · <?= esc($item['status']) ?>
                             </div>
                             <div><?= nl2br(esc($item['diagnosis'] ?? $item['clinical_notes'] ?? 'No notes')) ?></div>
                         </div>
@@ -128,7 +131,7 @@ $patientName = trim(implode(' ', array_filter([
                         <div class="border-bottom pb-2 mb-2">
                             <strong><?= esc($item['prescription_number']) ?></strong>
                             <div class="small text-muted">
-                                <?= esc($item['prescription_date']) ?> · <?= esc($item['status']) ?>
+                                <?= esc(rootins_format_date($item['prescription_date'] ?? '')) ?> · <?= esc($item['status']) ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -142,10 +145,11 @@ $patientName = trim(implode(' ', array_filter([
 </main>
 
 <div
-    class="modal fade doctor-patient-edit-modal ri-scroll-modal"
+    class="modal fade doctor-patient-edit-modal doctor-patient-form-modal ri-scroll-modal"
     id="edit-doctor-patient"
     tabindex="-1"
     role="dialog"
+    aria-modal="true"
     aria-labelledby="edit-doctor-patient-title"
     aria-describedby="doctor-patient-edit-status"
     data-backdrop="true"
@@ -165,41 +169,33 @@ $patientName = trim(implode(' ', array_filter([
                 <div class="modal-body">
                     <?= csrf_field() ?>
                     <div id="doctor-patient-edit-status" class="alert d-none" role="status" aria-live="polite"></div>
-                    <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label for="edit-patient-first">First name <span class="text-danger">*</span></label>
-                        <input
-                            id="edit-patient-first"
-                            class="form-control"
-                            name="first_name"
-                            value="<?= esc($patient['first_name'] ?? '') ?>"
-                            required
-                        >
-                        <div class="validation-error" id="first_nameErr"></div>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label for="edit-patient-last">Last name <span class="text-danger">*</span></label>
-                        <input
-                            id="edit-patient-last"
-                            class="form-control"
-                            name="last_name"
-                            value="<?= esc($patient['last_name'] ?? '') ?>"
-                            required
-                        >
-                        <div class="validation-error" id="last_nameErr"></div>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label for="edit-patient-middle">Middle name</label>
-                        <input
-                            id="edit-patient-middle"
-                            class="form-control"
-                            name="middle_name"
-                            value="<?= esc($patient['middle_name'] ?? '') ?>"
-                        >
-                        <div class="validation-error" id="middle_nameErr"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-6">
+                    <div class="row g-3">
+                        <div class="form-group col-md-4 col-12">
+                            <label for="edit-patient-first">First name <span class="text-danger">*</span></label>
+                            <input id="edit-patient-first" class="form-control" name="first_name" value="<?= esc($patient['first_name'] ?? '') ?>" required>
+                            <div class="validation-error" id="first_nameErr"></div>
+                        </div>
+                        <div class="form-group col-md-4 col-12">
+                            <label for="edit-patient-last">Last name <span class="text-danger">*</span></label>
+                            <input id="edit-patient-last" class="form-control" name="last_name" value="<?= esc($patient['last_name'] ?? '') ?>" required>
+                            <div class="validation-error" id="last_nameErr"></div>
+                        </div>
+                        <div class="form-group col-md-4 col-12 contact-number-field">
+                            <label for="edit-patient-mobile">Mobile number</label>
+                            <div class="input-group contact-number-input-group">
+                                <input id="edit-patient-mobile" class="form-control mobile-number-field" name="mobile_number" value="<?= esc($patient['mobile_number'] ?? '') ?>">
+                            </div>
+                            <div class="validation-error" id="country_codeErr"></div>
+                            <div class="validation-error" id="telephone_country_code_idErr"></div>
+                            <div class="validation-error" id="mobile_numberErr"></div>
+                            <div class="contact-number-meta"></div>
+                        </div>
+                        <div class="form-group col-md-4 col-12">
+                            <label for="edit-patient-email">Email</label>
+                            <input id="edit-patient-email" class="form-control" type="email" name="email" value="<?= esc($patient['email'] ?? '') ?>">
+                            <div class="validation-error" id="emailErr"></div>
+                        </div>
+                        <div class="form-group col-md-4 col-12">
                             <label for="edit-patient-gender">Gender</label>
                             <select id="edit-patient-gender" class="form-control" name="gender">
                                 <option value="">Not specified</option>
@@ -209,53 +205,22 @@ $patientName = trim(implode(' ', array_filter([
                             </select>
                             <div class="validation-error" id="genderErr"></div>
                         </div>
-                        <div class="form-group col-md-6">
-                            <label for="edit-patient-dob">Date of birth</label>
-                            <input
-                                id="edit-patient-dob"
-                                class="form-control datepicker"
-                                type="text"
-                                placeholder="dd-mm-yyyy"
-                                autocomplete="off"
-                                name="date_of_birth"
-                                value="<?= esc($patient['date_of_birth'] ?? '') ?>"
-                            >
+                        <div class="form-group col-md-4 col-12">
+                            <label for="edit-patient-dob">Date of birth <span class="text-danger" aria-hidden="true">*</span><span class="sr-only">required</span></label>
+                            <input id="edit-patient-dob" class="form-control datepicker" type="text" name="date_of_birth" data-submit-display-date="true" placeholder="dd-mm-yyyy" autocomplete="off" value="<?= esc(! empty($patient['date_of_birth']) ? date('d-m-Y', strtotime((string) $patient['date_of_birth'])) : '') ?>" required>
                             <div class="validation-error" id="date_of_birthErr"></div>
                         </div>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label for="edit-patient-email">Email</label>
-                        <input
-                            id="edit-patient-email"
-                            class="form-control"
-                            type="email"
-                            name="email"
-                            value="<?= esc($patient['email'] ?? '') ?>"
-                        >
-                        <div class="validation-error" id="emailErr"></div>
-                    </div>
-                    </div>
-                    <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label for="edit-patient-mobile">Mobile number</label>
-                        <input
-                            id="edit-patient-mobile"
-                            class="form-control"
-                            name="mobile_number"
-                            value="<?= esc($patient['mobile_number'] ?? '') ?>"
-                        >
-                        <div class="validation-error" id="mobile_numberErr"></div>
-                    </div>
-                    <div class="form-group col-md-8">
-                        <label for="edit-patient-address">Address</label>
-                        <textarea id="edit-patient-address" class="form-control" name="address"><?= esc($patient['address'] ?? '') ?></textarea>
-                        <div class="validation-error" id="addressErr"></div>
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="edit-patient-postal-code">Postal code</label>
-                        <input id="edit-patient-postal-code" class="form-control" name="postal_code" value="<?= esc($patient['postal_code'] ?? '') ?>">
-                        <div class="validation-error" id="postal_codeErr"></div>
-                    </div>
+                        <div class="col-12 doctor-patient-location-slot" aria-hidden="true"></div>
+                        <div class="form-group col-md-4 col-12">
+                            <label for="edit-patient-postal-code">Postal / PIN code</label>
+                            <input id="edit-patient-postal-code" class="form-control" name="postal_code" value="<?= esc($patient['postal_code'] ?? '') ?>">
+                            <div class="validation-error" id="postal_codeErr"></div>
+                        </div>
+                        <div class="form-group col-12">
+                            <label for="edit-patient-address">Address</label>
+                            <textarea id="edit-patient-address" class="form-control" name="address"><?= esc($patient['address'] ?? '') ?></textarea>
+                            <div class="validation-error" id="addressErr"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -279,6 +244,7 @@ DoctorPatientLocation.init(
     '#doctor-patient-edit-form',
     <?= json_encode($countries ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
     <?= json_encode($patient ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
+    , <?= json_encode($telephoneCodes ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
 );
 
 $(function () {
@@ -299,7 +265,7 @@ $(function () {
         const form = $(this);
         const submit = $('#doctor-patient-edit-submit');
         if (submit.prop('disabled')) return;
-        clearFormErrors();
+        clearFormErrors('#doctor-patient-edit-form');
         $('#doctor-patient-edit-status').removeClass('d-none alert-danger alert-success').addClass('alert-info').text('Saving patient details...');
         submit.prop('disabled', true).attr('aria-busy', 'true').find('.doctor-patient-edit-submit-label').text('Saving...');
         ajaxRequest({
@@ -321,8 +287,7 @@ $(function () {
             error: function (xhr) {
                 const response = xhr.responseJSON || {};
                 $('#doctor-patient-edit-status').removeClass('alert-info').addClass('alert-danger').text(response.msg || 'Patient could not be updated safely.');
-                if (response.errors) bindFormError('#doctor-patient-edit-form', response.errors);
-                showError(response.msg || 'Patient could not be updated safely.');
+                handleFormAjaxError('#doctor-patient-edit-form', xhr, 'Patient could not be updated safely.');
             },
             complete: function () {
                 submit.prop('disabled', false).removeAttr('aria-busy').find('.doctor-patient-edit-submit-label').text('Save changes');

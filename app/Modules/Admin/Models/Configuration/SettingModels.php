@@ -3,6 +3,7 @@
 namespace Admin\Models\Configuration;
 
 use Admin\Models\AdminSettingRecordModel;
+
 abstract class FixedSettingModel extends AdminSettingRecordModel
 {
 }

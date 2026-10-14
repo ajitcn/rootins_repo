@@ -81,6 +81,60 @@ require FCPATH . '../app/Config/Paths.php';
 
 $paths = new Paths();
 
+// XAMPP CLI can report project files as unreadable even when file_get_contents()
+// can read them. Keep this compatibility path isolated to Spark so Apache keeps
+// using the normal .env location and CodeIgniter's environment loading rules.
+$rootPath = realpath(__DIR__) ?: __DIR__;
+$rootPath = rtrim($rootPath, '\\/') . DIRECTORY_SEPARATOR;
+$paths->envDirectory = $rootPath;
+
+$envFile = $rootPath . '.env';
+
+if (is_file($envFile) && ! is_readable($envFile)) {
+    $envContents = file_get_contents($envFile);
+
+    if ($envContents === false) {
+        exit("Unable to read the CLI environment file.\n");
+    }
+
+    $temporaryEnvDirectory = rtrim(sys_get_temp_dir(), '\\/')
+        . DIRECTORY_SEPARATOR
+        . 'rootins-cli-env-' . getmypid();
+
+    if (! is_dir($temporaryEnvDirectory)
+        && ! mkdir($temporaryEnvDirectory, 0700, true)
+        && ! is_dir($temporaryEnvDirectory)) {
+        exit("Unable to prepare the CLI environment directory.\n");
+    }
+
+    $temporaryEnvFile = $temporaryEnvDirectory . DIRECTORY_SEPARATOR . '.env';
+
+    if (file_put_contents($temporaryEnvFile, $envContents, LOCK_EX) === false) {
+        exit("Unable to prepare the CLI environment file.\n");
+    }
+
+    register_shutdown_function(
+        static function () use ($temporaryEnvFile, $temporaryEnvDirectory): void {
+            if (is_file($temporaryEnvFile)) {
+                unlink($temporaryEnvFile);
+            }
+
+            if (is_dir($temporaryEnvDirectory)) {
+                rmdir($temporaryEnvDirectory);
+            }
+        },
+    );
+
+    $paths->envDirectory = rtrim($temporaryEnvDirectory, '\\/') . DIRECTORY_SEPARATOR;
+}
+
+// Composer must be registered before Boot parses .env and resolves framework exceptions.
+$composerPath = __DIR__ . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+if (is_file($composerPath)) {
+    require_once $composerPath;
+}
+
 // LOAD THE FRAMEWORK BOOTSTRAP FILE
 require $paths->systemDirectory . '/Boot.php';
 

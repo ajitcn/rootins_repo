@@ -1,149 +1,38 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-
 <?= $this->section('main-content') ?>
 <?php $filters = $filters ?? []; ?>
-<main class="dashboard-container">
-    <?= view('templates/_breadcrumb', [
-        'module'     => 'admin',
-        'menu_title' => 'Clinical Records',
-        'page'       => 'Prescriptions',
-    ]) ?>
-
-    <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-2 mb-md-0">Prescriptions</h1>
-        <div><button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#prescriptionFilterModal"><i class="bi bi-funnel" aria-hidden="true"></i> Filters</button>
-        <?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openPrescriptionModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> New Prescription</button><?php endif; ?></div>
-    </div>
-
+<main class="dashboard-container admin-clinical-page">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Clinical Records', 'page' => 'Prescriptions']) ?>
+    <div class="ri-page-header action-btn-container"><div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Clinical Records</p><h1 class="h3 mb-1">Prescriptions</h1><p class="text-muted mb-0">Review prescription history, linked consultation context, and medicine instructions.</p></div><div class="ri-page-header-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#prescriptionFilterModal"><i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters</button><?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openPrescriptionModal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New prescription</button><?php endif; ?></div></div>
     <?= display_session_msg() ?>
-
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover" id="prescriptions-table">
-            <thead class="thead-light">
-                <tr>
-                    <th>Prescription No.</th><th>Consultation</th><th>Patient</th><th>Doctor</th>
-                    <th>Clinic</th><th>Date</th><th>Status</th><th width="140">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($prescriptions === []): ?><tr><td colspan="8" class="text-center text-muted py-4">No prescriptions match the selected filters.</td></tr><?php endif; ?>
-                <?php foreach ($prescriptions as $prescription): ?>
-                    <?php
-                    $patientName = trim(implode(' ', array_filter([
-                        $prescription['patient_first_name'] ?? '', $prescription['patient_middle_name'] ?? '', $prescription['patient_last_name'] ?? '',
-                    ], static fn ($part) => $part !== null && $part !== '')));
-                    $doctorName = trim(implode(' ', array_filter([
-                        $prescription['doctor_first_name'] ?? '', $prescription['doctor_last_name'] ?? '',
-                    ], static fn ($part) => $part !== null && $part !== '')));
-                    $statusClass = $prescription['status'] === 'completed' ? 'badge-success' : 'badge-info';
-                    ?>
-                    <tr>
-                        <td><strong><?= esc($prescription['prescription_number']) ?></strong></td>
-                        <td><?= esc($prescription['consultation_number']) ?></td>
-                        <td><strong><?= esc($patientName) ?></strong><br><small class="text-muted"><?= esc($prescription['registration_number']) ?></small></td>
-                        <td><?= esc($doctorName) ?></td>
-                        <td><?= esc($prescription['clinic_name']) ?></td>
-                        <td><?= esc($prescription['prescription_date']) ?></td>
-                        <td><span class="badge <?= $statusClass ?>"><?= esc(ucwords(str_replace('_', ' ', $prescription['status']))) ?></span></td>
-                        <td>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="tooltip" title="Created: <?= esc($prescription['created_at'] ?? '—') ?> | Updated: <?= esc($prescription['updated_at'] ?? '—') ?>" aria-label="Show created and updated dates"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></button>
-                            <a href="<?= base_url('admin/prescriptions/view/' . (int) $prescription['id']) ?>" class="btn btn-sm btn-outline-primary" aria-label="View prescription <?= esc($prescription['prescription_number']) ?>">View</a>
-                            <?php if ($canEdit && $prescription['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-outline-primary edit-prescription" data-id="<?= (int) $prescription['id'] ?>" aria-label="Edit prescription <?= esc($prescription['prescription_number']) ?>">Edit</button>
-                            <?php endif; ?>
-                            <?php if ($canDelete && $prescription['status'] !== 'completed'): ?>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-prescription" data-id="<?= (int) $prescription['id'] ?>" aria-label="Delete prescription <?= esc($prescription['prescription_number']) ?>">Delete</button>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+    <section class="ri-list-card clinical-record-list-card"><div class="ri-list-card-header"><div><h2 class="h6 mb-1">Prescription history</h2><p class="text-muted small mb-0">Patient, doctor, prescription date, and completion state.</p></div><span class="ri-list-count"><?= esc((string) count($prescriptions)) ?> on this page</span></div>
+        <div class="table-responsive admin-clinical-table-wrap"><table class="table table-hover admin-clinical-table" id="prescriptions-table"><thead><tr><th class="clinical-col-patient">Patient</th><th class="clinical-col-doctor">Doctor</th><th class="clinical-col-visit">Prescription</th><th class="clinical-col-status">Status</th><th class="clinical-col-actions text-right">Actions</th></tr></thead><tbody>
+        <?php if ($prescriptions === []): ?><tr><td colspan="5"><div class="ri-empty-state"><i class="bi bi-capsule" aria-hidden="true"></i><h3>No prescriptions found</h3><p>Try changing the search or filters, or create a new prescription.</p><?php if (!empty($filters['search']) || !empty($filters['status']) || !empty($filters['date_from']) || !empty($filters['date_to'])): ?><a class="btn btn-sm btn-outline-secondary" href="<?= esc(current_url()) ?>">Clear filters</a><?php endif; ?></div></td></tr><?php endif; ?>
+        <?php foreach ($prescriptions as $prescription): ?>
+            <?php
+            $patientName = trim(implode(' ', array_filter([$prescription['patient_first_name'] ?? '', $prescription['patient_middle_name'] ?? '', $prescription['patient_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+            $doctorName = trim(implode(' ', array_filter([$prescription['doctor_first_name'] ?? '', $prescription['doctor_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== '')));
+            $statusTone = match ($prescription['status'] ?? '') { 'completed', 'approved' => 'green', 'draft', 'pending' => 'amber', 'cancelled', 'rejected' => 'red', default => 'charcoal' };
+            ?>
+            <tr><td data-label="Patient"><div class="ri-stack-cell"><strong class="clinical-primary"><?= esc($patientName ?: 'Unknown patient') ?></strong><span class="clinical-secondary"><?= esc($prescription['registration_number'] ?? 'Registration unavailable') ?></span><span class="clinical-secondary"><?= esc($prescription['patient_mobile'] ?? 'Mobile unavailable') ?></span></div></td><td data-label="Doctor"><div class="ri-stack-cell"><strong class="clinical-primary">Dr. <?= esc($doctorName ?: 'Unassigned') ?></strong><span class="clinical-secondary"><?= esc($prescription['doctor_code'] ?? 'Code unavailable') ?></span><span class="clinical-secondary"><?= esc($prescription['clinic_name'] ?? 'Clinic unavailable') ?></span></div></td><td data-label="Prescription"><div class="ri-stack-cell"><strong class="clinical-primary"><?= esc($prescription['prescription_number'] ?? 'Prescription') ?></strong><span class="clinical-secondary">Consultation <?= esc($prescription['consultation_number'] ?? 'Not linked') ?></span><strong class="clinical-date"><?= esc(rootins_format_date($prescription['prescription_date'] ?? '')) ?></strong><?php if (!empty($prescription['service_name'])): ?><span class="clinical-secondary"><?= esc($prescription['service_name']) ?><?= !empty($prescription['queue_position']) ? ' · Queue ' . esc((string) $prescription['queue_position']) : '' ?></span><?php endif; ?></div></td><td data-label="Status"><span class="badge ri-status ri-status--<?= esc($statusTone) ?>"><?= esc(ucwords(str_replace('_', ' ', $prescription['status'] ?? 'Unknown'))) ?></span></td><td data-label="Actions" class="clinical-actions-cell text-right"><div class="dropdown ri-actions-wrapper"><button type="button" class="btn btn-sm ri-more-actions-toggle dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span class="ri-actions-icon" aria-hidden="true"></span>More Actions</button><div class="dropdown-menu dropdown-menu-right ri-actions-menu"><a class="dropdown-item" href="<?= esc(base_url('admin/prescriptions/view/' . (int) $prescription['id'])) ?>"><i class="bi bi-eye" aria-hidden="true"></i>View details</a><?php if ($prescription['status'] === 'completed'): ?><a class="dropdown-item" href="<?= esc(base_url('admin/prescriptions/pdf/' . (int) $prescription['id'])) ?>" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Print / view PDF</a><?php endif; ?><?php if ($canEdit && $prescription['status'] !== 'completed'): ?><button type="button" class="dropdown-item edit-prescription" data-id="<?= (int) $prescription['id'] ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit prescription</button><?php endif; ?><?php if ($canDelete && $prescription['status'] !== 'completed'): ?><button type="button" class="dropdown-item text-danger delete-prescription" data-id="<?= (int) $prescription['id'] ?>"><i class="bi bi-trash" aria-hidden="true"></i>Delete prescription</button><?php endif; ?></div></div></td></tr>
+        <?php endforeach; ?>
+        </tbody></table></div>
+    </section>
     <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'prescriptions', 'filters' => $filters]) ?>
 </main>
-
-<?= view(ADMIN_VIEW . 'parts/clinical_filter', ['prefix' => 'prescription', 'title' => 'Filter prescriptions', 'statuses' => ['draft', 'completed'], 'clinics' => $clinics ?? [], 'doctors' => $doctors ?? [], 'filters' => $filters]) ?>
+<?= view(ADMIN_VIEW . 'parts/clinical_filter', ['prefix' => 'prescription', 'title' => 'Filter prescriptions', 'statuses' => ['draft', 'pending', 'submitted', 'completed', 'approved', 'cancelled', 'rejected'], 'clinics' => $clinics, 'doctors' => $doctors, 'filters' => $filters]) ?>
 <?= form_open('', 'id="prescriptionCsrfForm" class="d-none"') ?><?= form_close() ?>
-
 <?php if ($canCreate || $canEdit): ?>
-    <div class="modal fade" id="prescriptionModal" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog modal-xl" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Prescription</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                </div>
-                <?= form_open('', 'id="prescriptionForm" autocomplete="off" data-medicine-lookup="' . ($canMedicineLookup ? '1' : '0') . '"') ?>
-                    <input type="hidden" name="id" id="prescription_id">
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="form-group">
-                                    <label for="prescription_consultation_id">Consultation <span class="text-danger">*</span></label>
-                                    <select name="consultation_id" id="prescription_consultation_id" class="form-control btSelect" data-live-search="true" title="Select Consultation">
-                                        <option value="">Select Consultation</option>
-                                        <?php foreach ($consultations as $consultation): ?>
-                                            <?php $patientName = trim(($consultation['patient_first_name'] ?? '') . ' ' . ($consultation['patient_last_name'] ?? '')); ?>
-                                            <option value="<?= (int) $consultation['id'] ?>">
-                                                <?= esc($consultation['consultation_number'] . ' - ' . $patientName . ' - ' . $consultation['clinic_name'] . ' (' . $consultation['consultation_date'] . ')') ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <div class="validation-error" id="consultation_idErr"></div>
-                                    <small class="form-text text-muted">Patient, doctor, and clinic are taken from this consultation.</small>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label for="prescription_date">Date <span class="text-danger">*</span></label>
-                                    <input type="text" name="prescription_date" id="prescription_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off">
-                                    <div class="validation-error" id="prescription_dateErr"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label for="prescription_status">Status <span class="text-danger">*</span></label>
-                                    <select name="status" id="prescription_status" class="form-control btSelect">
-                                        <option value="draft">Draft</option>
-                                        <option value="completed">Completed</option>
-                                    </select>
-                                    <div class="validation-error" id="statusErr"></div>
-                                </div>
-                            </div>
-                            <div class="col-12"><div class="alert alert-light border" id="consultationSummary">Select a consultation to see its linked patient, doctor, and clinic.</div></div>
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0">Prescription Items</h6>
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="addPrescriptionItem"><i class="bi bi-plus"></i> Add Item</button>
-                        </div>
-                        <div class="validation-error mb-2" id="itemsErr"></div>
-                        <div id="prescriptionItemRows">
-                            <div class="prescription-item-row border rounded p-3 mb-2" data-index="0">
-                                <div class="row align-items-end">
-                                    <div class="col-md-3 position-relative"><label>Medicine Name <span class="text-danger">*</span></label><?php if ($canMedicineLookup): ?><input type="search" class="form-control medicine-search" placeholder="Search medicine master" autocomplete="off"><div class="medicine-suggestions list-group position-absolute w-100 shadow-sm bg-white" style="z-index: 1051;"></div><?php endif; ?><input name="items[0][medicine_name]" class="form-control" maxlength="255"><div class="validation-error item-error-medicine_name"></div></div>
-                                    <div class="col-md-2"><label>Dosage</label><input name="items[0][dosage]" class="form-control" maxlength="100"><div class="validation-error item-error-dosage"></div></div>
-                                    <div class="col-md-2"><label>Frequency</label><input name="items[0][frequency]" class="form-control" maxlength="100"><div class="validation-error item-error-frequency"></div></div>
-                                    <div class="col-md-1"><label>Duration</label><input name="items[0][duration]" class="form-control" maxlength="50"><div class="validation-error item-error-duration"></div></div>
-                                    <div class="col-md-2"><label>Duration Unit</label><input name="items[0][duration_unit]" class="form-control" maxlength="30"><div class="validation-error item-error-duration_unit"></div></div>
-                                    <div class="col-md-1"><label>Quantity</label><input type="number" step="0.01" min="0" name="items[0][quantity]" class="form-control"><div class="validation-error item-error-quantity"></div></div>
-                                    <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger remove-prescription-item" title="Remove item"><i class="bi bi-trash"></i></button></div>
-                                    <div class="col-md-6 mt-2"><label>Instructions</label><textarea name="items[0][instructions]" class="form-control" rows="2"></textarea></div>
-                                    <div class="col-md-6 mt-2"><label>Notes</label><textarea name="items[0][notes]" class="form-control" rows="2"></textarea></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group mt-3"><label for="prescription_notes">Prescription Notes</label><textarea name="notes" id="prescription_notes" class="form-control" rows="3"></textarea><div class="validation-error" id="notesErr"></div></div>
-                    </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn btn-primary save">Save Prescription</button></div>
-                <?= form_close() ?>
-            </div>
-        </div>
+<div class="modal fade" id="prescriptionModal" tabindex="-1" role="dialog" aria-labelledby="prescriptionModalTitle" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable ri-scroll-modal" role="document"><div class="modal-content">
+    <div class="modal-header"><div><p class="ri-eyebrow mb-1">Clinical Records</p><h2 class="modal-title h5 mb-0" id="prescriptionModalTitle">Add Prescription</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+    <?= form_open('', 'id="prescriptionForm" autocomplete="off" data-medicine-lookup="' . ($canMedicineLookup ? '1' : '0') . '"') ?><input type="hidden" name="id" id="prescription_id">
+    <div class="modal-body">
+        <div class="clinical-form-section"><div class="clinical-form-section-heading"><h3>Prescription context</h3><p>Only active clinic-scoped consultations can be selected.</p></div><div class="form-row"><div class="form-group col-md-7"><label for="prescription_consultation_id">Consultation <span class="text-danger">*</span></label><select name="consultation_id" id="prescription_consultation_id" class="form-control btSelect" data-live-search="true" title="Select Consultation"><option value="">Select Consultation</option><?php foreach ($consultations as $consultation): ?><?php $patientName = trim(implode(' ', array_filter([$consultation['patient_first_name'] ?? '', $consultation['patient_last_name'] ?? '']))); ?><option value="<?= (int) $consultation['id'] ?>"><?= esc($consultation['consultation_number'] . ' - ' . $patientName . ' · ' . rootins_format_date($consultation['consultation_date'])) ?></option><?php endforeach; ?></select><div class="validation-error" id="consultation_idErr"></div></div><div class="form-group col-md-3"><label for="prescription_date">Prescription date <span class="text-danger">*</span></label><input type="text" name="prescription_date" id="prescription_date" class="form-control datepicker" placeholder="dd-mm-yyyy" autocomplete="off"><div class="validation-error" id="prescription_dateErr"></div></div><div class="form-group col-md-2"><label for="prescription_status">Status <span class="text-danger">*</span></label><select name="status" id="prescription_status" class="form-control btSelect"><option value="draft">Draft</option><option value="completed">Completed</option></select><div class="validation-error" id="statusErr"></div></div><div class="col-12"><div class="clinical-context-note" id="consultationSummary">Select a consultation to see its linked patient, doctor, and clinic.</div></div></div></div>
+        <div class="clinical-form-section"><div class="d-flex justify-content-between align-items-center mb-3"><div class="clinical-form-section-heading mb-0"><h3>Prescription items</h3><p>Add medicine directions and quantities.</p></div><button type="button" class="btn btn-sm btn-outline-secondary" id="addPrescriptionItem"><i class="bi bi-plus mr-1"></i>Add item</button></div><div class="validation-error mb-2" id="itemsErr"></div><div id="prescriptionItemRows"><div class="prescription-item-row border rounded p-3 mb-2" data-index="0"><div class="row align-items-end"><div class="col-md-3 position-relative"><label>Medicine name <span class="text-danger">*</span></label><?php if ($canMedicineLookup): ?><input type="search" class="form-control medicine-search mb-2" placeholder="Search medicine master" autocomplete="off"><div class="medicine-suggestions list-group position-absolute w-100 shadow-sm bg-white" style="z-index: 1051;"></div><?php endif; ?><input name="items[0][medicine_name]" class="form-control" maxlength="255"><div class="validation-error item-error-medicine_name"></div></div><div class="col-md-2"><label>Dosage</label><input name="items[0][dosage]" class="form-control" maxlength="100"><div class="validation-error item-error-dosage"></div></div><div class="col-md-2"><label>Frequency</label><input name="items[0][frequency]" class="form-control" maxlength="100"><div class="validation-error item-error-frequency"></div></div><div class="col-md-1"><label>Duration</label><input name="items[0][duration]" class="form-control" maxlength="50"><div class="validation-error item-error-duration"></div></div><div class="col-md-2"><label>Unit</label><input name="items[0][duration_unit]" class="form-control" maxlength="30"><div class="validation-error item-error-duration_unit"></div></div><div class="col-md-1"><label>Qty</label><input type="number" step="0.01" min="0" name="items[0][quantity]" class="form-control"><div class="validation-error item-error-quantity"></div></div><div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger remove-prescription-item" title="Remove item"><i class="bi bi-trash"></i></button></div><div class="col-md-6 mt-2"><label>Instructions</label><textarea name="items[0][instructions]" class="form-control" rows="2"></textarea></div><div class="col-md-6 mt-2"><label>Notes</label><textarea name="items[0][notes]" class="form-control" rows="2"></textarea></div></div></div></div><div class="form-group mt-3"><label for="prescription_notes">Prescription notes</label><textarea name="notes" id="prescription_notes" class="form-control" rows="3"></textarea><div class="validation-error" id="notesErr"></div></div></div>
     </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn theme-btn save">Save prescription</button></div>
+    <?= form_close() ?>
+    </div></div></div>
 <?php endif; ?>
-
-<?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/prescription/prescription.js') ?>"></script>
-<?= $this->endSection() ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/prescription/prescription.js') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

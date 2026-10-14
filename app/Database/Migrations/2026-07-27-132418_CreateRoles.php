@@ -3,6 +3,7 @@
 namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class CreateRoles extends Migration
 {
     public function up()
@@ -12,6 +13,7 @@ class CreateRoles extends Migration
         $this->forge->addUniqueKey('role_code');
         $this->forge->createTable('roles');
     }
+
     public function down()
     {
         $this->forge->dropTable('roles');

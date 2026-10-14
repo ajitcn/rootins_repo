@@ -3,9 +3,11 @@
 namespace Tests\Support\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+
 class ExampleMigration extends Migration
 {
     protected $DBGroup = 'tests';
+
     public function up(): void
     {
         $this->forge->addField('id');
@@ -16,6 +18,7 @@ class ExampleMigration extends Migration
         $this->forge->addKey('created_at');
         $this->forge->createTable('factories');
     }
+
     public function down(): void
     {
         $this->forge->dropTable('factories');

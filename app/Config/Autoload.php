@@ -3,10 +3,11 @@
 namespace Config;
 
 use CodeIgniter\Config\AutoloadConfig;
+
 /**
  * -------------------------------------------------------------------
  * AUTOLOADER CONFIGURATION
- * -------------------------------------------------------------------
+ * -------------------------------------------------------------------.
  *
  * This file defines the namespaces and class maps so the Autoloader
  * can find the files as needed.
@@ -36,7 +37,8 @@ class Autoload extends AutoloadConfig
      *
      * @var array<string, list<string>|string>
      */
-    public $psr4 = [APP_NAMESPACE => APPPATH, 'Admin' => APPPATH . 'Modules/Admin', 'Doctor' => APPPATH . 'Modules/Doctor', 'Patient' => APPPATH . 'Modules/Patient', 'Farmassist' => APPPATH . 'Modules/Farmassist'];
+    public $psr4 = [APP_NAMESPACE => APPPATH, 'Admin' => APPPATH . 'Modules/Admin', 'CRM' => APPPATH . 'Modules/CRM', 'Doctor' => APPPATH . 'Modules/Doctor', 'Patient' => APPPATH . 'Modules/Patient', 'Pharmacy' => APPPATH . 'Modules/Pharmacy'];
+
     /**
      * -------------------------------------------------------------------
      * Class Map
@@ -55,6 +57,7 @@ class Autoload extends AutoloadConfig
      * @var array<string, string>
      */
     public $classmap = [];
+
     /**
      * -------------------------------------------------------------------
      * Files
@@ -71,6 +74,7 @@ class Autoload extends AutoloadConfig
      * @var list<string>
      */
     public $files = [];
+
     /**
      * -------------------------------------------------------------------
      * Helpers
@@ -78,7 +82,7 @@ class Autoload extends AutoloadConfig
      * Prototype:
      *   $helpers = [
      *       'form',
-     *   ];
+     *   ];.
      *
      * @var list<string>
      */

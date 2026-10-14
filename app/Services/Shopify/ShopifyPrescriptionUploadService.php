@@ -1,0 +1,535 @@
+<?php
+
+namespace App\Services\Shopify;
+
+use Admin\Models\PatientDocumentModel;
+use Admin\Models\PatientModel;
+use Admin\Models\User;
+use App\Services\Common\R2StorageLibrary;
+use App\Services\PatientScope;
+use CodeIgniter\HTTP\Files\UploadedFile;
+use Pharmacy\Services\PharmacyScope;
+use DateTimeImmutable;
+use InvalidArgumentException;
+use RuntimeException;
+
+/**
+ * Handles Shopify prescription-upload metadata and private R2 objects.
+ *
+ * Uploads are documents only. This service never creates a clinical
+ * prescription; an authorized review workflow must accept the document first.
+ */
+final class ShopifyPrescriptionUploadService
+{
+    private const MAX_BYTES = 10485760;
+
+    private const MIME_TYPES = [
+        'pdf' => 'application/pdf',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+    ];
+
+    private const STATUSES = ['uploaded', 'under_review', 'accepted', 'rejected', 'clarification_required'];
+
+    private const TRANSITIONS = [
+        'uploaded' => ['under_review'],
+        'under_review' => ['accepted', 'rejected', 'clarification_required'],
+        'accepted' => [],
+        'rejected' => [],
+        'clarification_required' => ['under_review'],
+    ];
+
+    public function __construct(
+        private readonly ?ShopifyConfiguration $configuration = null,
+        private readonly ?ShopifyHandoffService $handoffService = null,
+        private readonly PatientDocumentModel $documents = new PatientDocumentModel(),
+        private readonly R2StorageLibrary $storage = new R2StorageLibrary(),
+    ) {
+    }
+
+    /**
+     * @return array{upload_reference: string, status: string, received_at: string, message: string}
+     */
+    public function upload(array $handoff, string $handoffToken, UploadedFile $file, string $externalReference, string $title = ''): array
+    {
+        $scope = $this->scope($handoff);
+        $externalReference = trim($externalReference);
+        $title = trim($title) ?: 'Prescription upload';
+
+        if ($externalReference === '' || mb_strlen($externalReference) > 191) {
+            throw new ShopifyPrescriptionUploadValidationException(['external_upload_reference' => 'A valid external upload reference is required.']);
+        }
+
+        if (mb_strlen($title) > 255) {
+            throw new ShopifyPrescriptionUploadValidationException(['title' => 'The upload title is too long.']);
+        }
+
+        $existing = $this->documents
+            ->where('source_type', 'shopify')
+            ->where('shopify_store_domain', $scope['store_domain'])
+            ->where('external_upload_reference', $externalReference)
+            ->where('clinic_id', $scope['clinic_id'])
+            ->where('patient_id', $scope['patient_id'])
+            ->first();
+
+        if ($existing !== null) {
+            return $this->safeResponse($existing, true);
+        }
+
+        $this->validateFile($file);
+        $key = 'patients/' . $scope['patient_id'] . '/shopify-prescriptions/' . $file->getRandomName();
+        $uploaded = false;
+
+        try {
+            $this->storage->uploadFile($key, $file);
+            $uploaded = true;
+            ($this->handoffService ?? new ShopifyHandoffService())->consume($handoffToken);
+            $now = date('Y-m-d H:i:s');
+            $retentionDays = max(1, (int) env('SHOPIFY_PRESCRIPTION_RETENTION_DAYS', 365));
+            $retention = (new DateTimeImmutable($now))->modify('+' . $retentionDays . ' days')->format('Y-m-d H:i:s');
+            $db = db_connect();
+            $db->transBegin();
+            $documentId = $this->documents->insert([
+                'patient_id' => $scope['patient_id'],
+                'clinic_id' => $scope['clinic_id'],
+                'document_type' => 'prescription_upload',
+                'title' => $title,
+                'file_name' => basename($key),
+                'file_path' => $key,
+                'file_size' => $file->getSize(),
+                'mime_type' => $this->detectedMime($file),
+                'source_type' => 'shopify',
+                'shopify_store_domain' => $scope['store_domain'],
+                'shopify_customer_id' => $scope['customer_id'],
+                'external_upload_reference' => $externalReference,
+                'upload_status' => 'uploaded',
+                'retention_expires_at' => $retention,
+                'uploaded_by_type' => 'shopify',
+                'uploaded_by_id' => $scope['patient_id'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if (! $documentId || ! $db->transCommit()) {
+                throw new RuntimeException('Prescription upload metadata could not be saved.');
+            }
+        } catch (\Throwable $exception) {
+            if (isset($db)) {
+                $db->transRollback();
+            }
+
+            if ($uploaded) {
+                try {
+                    $this->storage->delete($key);
+                } catch (\Throwable $cleanupException) {
+                    log_message('error', 'Shopify prescription upload cleanup failed safely.');
+                }
+            }
+
+            throw $exception;
+        }
+
+        service('audit')->record('shopify.prescription_upload_created', [
+            'document_id' => (int) $documentId,
+            'patient_id' => $scope['patient_id'],
+            'clinic_id' => $scope['clinic_id'],
+            'store_domain' => $scope['store_domain'],
+            'external_upload_reference' => $externalReference,
+            'status' => 'uploaded',
+        ]);
+        $this->notifyReviewers($scope['clinic_id'], (int) $documentId);
+
+        return $this->safeResponse([
+            'external_upload_reference' => $externalReference,
+            'upload_status' => 'uploaded',
+            'created_at' => date('Y-m-d H:i:s'),
+        ], false);
+    }
+
+    /** @return array{document_id: int, status: string} */
+    public function review(int $documentId, string $decision, string $reason, bool $confirmed): array
+    {
+        $pharmacy = new PharmacyScope();
+        $clinicId = $pharmacy->clinicId();
+
+        if ($clinicId === null || ! $pharmacy->can('pharmacy.prescription.review.view')) {
+            throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload review is not permitted.');
+        }
+
+        $decision = strtolower(trim($decision));
+        $targets = [
+            'start' => 'under_review',
+            'approve' => 'accepted',
+            'reject' => 'rejected',
+            'clarify' => 'clarification_required',
+        ];
+
+        if (! isset($targets[$decision])) {
+            throw new ShopifyPrescriptionUploadValidationException(['decision' => 'Review action is invalid.']);
+        }
+
+        $permission = match ($decision) {
+            'approve' => 'pharmacy.prescription.review.approve',
+            'reject' => 'pharmacy.prescription.review.reject',
+            'clarify' => 'pharmacy.prescription.review.clarify',
+            default => 'pharmacy.prescription.review.view',
+        };
+
+        if (! $pharmacy->can($permission)) {
+            throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload review is not permitted.');
+        }
+
+        $reason = trim($reason);
+        $errors = [];
+
+        if (in_array($decision, ['reject', 'clarify'], true) && $reason === '') {
+            $errors['reason'] = 'A reason is required for this review action.';
+        }
+
+        if ($decision === 'approve' && ! $confirmed) {
+            $errors['confirmation'] = 'Approval confirmation is required.';
+        }
+
+        if ($errors !== []) {
+            throw new ShopifyPrescriptionUploadValidationException($errors);
+        }
+
+        $document = $this->documents
+            ->where('id', $documentId)
+            ->where('clinic_id', $clinicId)
+            ->where('source_type', 'shopify')
+            ->first();
+
+        if ($document === null) {
+            throw new ShopifyPrescriptionUploadNotFoundException('Prescription upload not found.');
+        }
+
+        $previous = (string) ($document['upload_status'] ?? '');
+        $target = $targets[$decision];
+
+        if (! in_array($target, self::TRANSITIONS[$previous] ?? [], true)) {
+            throw new ShopifyPrescriptionUploadConflictException('This upload status transition is not allowed.');
+        }
+
+        $updated = $this->documents
+            ->where('id', $documentId)
+            ->where('clinic_id', $clinicId)
+            ->where('upload_status', $previous)
+            ->set([
+                'upload_status' => $target,
+                'review_message' => $reason !== '' ? $reason : null,
+                'reviewed_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ])
+            ->update();
+
+        if (! $updated) {
+            throw new ShopifyPrescriptionUploadConflictException('The upload status changed. Refresh and try again.');
+        }
+
+        $pharmacy->audit('shopify.prescription_upload_reviewed', [
+            'document_id' => $documentId,
+            'previous_status' => $previous,
+            'new_status' => $target,
+            'reason' => $reason,
+        ]);
+        try {
+            (new \Patient\Services\PatientNotificationService())->create(
+                (int) $document['patient_id'],
+                $clinicId,
+                'Prescription upload status updated',
+                'Your prescription upload status is now ' . str_replace('_', ' ', $target) . '.',
+                'shopify-prescription-upload:' . $documentId . ':' . $target,
+                'prescription_upload',
+                $documentId,
+            );
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify prescription upload patient notification failed safely.');
+        }
+
+        return ['document_id' => $documentId, 'status' => $target];
+    }
+
+    public function find(int $documentId): ?array
+    {
+        return $this->documents
+            ->where('id', $documentId)
+            ->where('source_type', 'shopify')
+            ->first();
+    }
+
+    /**
+     * Resolve download access from a signed Patient handoff or staff scope.
+     *
+     * @return array{document: array<string, mixed>, actor: string}
+     */
+    public function authorizeDownload(int $documentId, ?string $handoffToken = null): array
+    {
+        $document = $this->find($documentId);
+
+        if ($document === null) {
+            throw new ShopifyPrescriptionUploadNotFoundException('Prescription upload not found.');
+        }
+
+        if ($handoffToken !== null && trim($handoffToken) !== '') {
+            $handoff = ($this->handoffService ?? new ShopifyHandoffService())->verify($handoffToken);
+            $scope = $this->scope($handoff);
+
+            if ((int) ($document['patient_id'] ?? 0) !== $scope['patient_id']
+                || (int) ($document['clinic_id'] ?? 0) !== $scope['clinic_id']
+                || (string) ($document['shopify_store_domain'] ?? '') !== $scope['store_domain']) {
+                throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
+            }
+
+            service('audit')->record('shopify.prescription_upload_viewed', [
+                'document_id' => $documentId,
+                'patient_id' => $scope['patient_id'],
+                'clinic_id' => $scope['clinic_id'],
+                'actor_type' => 'patient',
+            ]);
+
+            return ['document' => $document, 'actor' => 'patient'];
+        }
+
+        $roles = session('roles') ?? [];
+        $permissions = session('permissions') ?? [];
+        $clinicId = (int) (session('user')['clinic_id'] ?? session('clinic_id') ?? 0);
+
+        if (in_array('Pharmacy Assistant', $roles, true)) {
+            $pharmacy = new PharmacyScope();
+
+            if (! $pharmacy->can('pharmacy.prescription.review.view') || $pharmacy->clinicId() === null || $pharmacy->clinicId() !== (int) $document['clinic_id']) {
+                throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
+            }
+
+            service('audit')->record('shopify.prescription_upload_viewed', [
+                'document_id' => $documentId,
+                'clinic_id' => (int) $document['clinic_id'],
+                'actor_type' => 'pharmacy',
+            ]);
+
+            return ['document' => $document, 'actor' => 'pharmacy'];
+        }
+
+        if (in_array('Doctor', $roles, true) && in_array('prescription.view', $permissions, true)) {
+            $user = (new User())->select('doctor_id')->where('id', (int) (session('user')['id'] ?? 0))->where('status', 1)->first();
+            $doctorId = (int) ($user['doctor_id'] ?? 0);
+            $doctor = db_connect()->table('doctors')->where('id', $doctorId)->where('status', 1)->get()->getRowArray();
+            $doctorClinicId = (int) ($doctor['clinic_id'] ?? 0);
+            $hasPatientRelationship = db_connect()->table('appointments')->where('doctor_id', $doctorId)->where('patient_id', (int) $document['patient_id'])->where('clinic_id', (int) $document['clinic_id'])->countAllResults() > 0;
+
+            if ($doctor === null
+                || $doctorClinicId <= 0
+                || ($clinicId > 0 && $clinicId !== $doctorClinicId)
+                || $doctorClinicId !== (int) $document['clinic_id']
+                || ! $hasPatientRelationship) {
+                throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
+            }
+
+            service('audit')->record('shopify.prescription_upload_viewed', [
+                'document_id' => $documentId,
+                'doctor_id' => $doctorId,
+                'clinic_id' => $doctorClinicId,
+                'actor_type' => 'doctor',
+            ]);
+
+            return ['document' => $document, 'actor' => 'doctor'];
+        }
+
+        if (session('patient_authenticated') === true) {
+            $context = (new PatientScope())->current();
+
+            if ($context === null || $context['patient_id'] !== (int) $document['patient_id'] || $context['clinic_id'] !== (int) $document['clinic_id']) {
+                throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
+            }
+
+            service('audit')->record('shopify.prescription_upload_viewed', [
+                'document_id' => $documentId,
+                'patient_id' => $context['patient_id'],
+                'clinic_id' => $context['clinic_id'],
+                'actor_type' => 'patient',
+            ]);
+
+            return ['document' => $document, 'actor' => 'patient'];
+        }
+
+        throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
+    }
+
+    public function temporaryUrl(array $document, int $minutes = 10): string
+    {
+        if (empty($document['file_path']) || ! empty($document['retention_expires_at']) && $document['retention_expires_at'] < date('Y-m-d H:i:s')) {
+            throw new ShopifyPrescriptionUploadNotFoundException('Prescription upload is unavailable.');
+        }
+
+        $fileName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) ($document['file_name'] ?? 'prescription-upload')));
+
+        return $this->storage->getTemporaryUrl(
+            (string) $document['file_path'],
+            $minutes,
+            (string) ($document['mime_type'] ?? 'application/octet-stream'),
+            'inline; filename="' . $fileName . '"',
+        );
+    }
+
+    /** @return array{upload_reference: string, status: string, received_at: string, message: string} */
+    private function safeResponse(array $document, bool $duplicate): array
+    {
+        return [
+            'upload_reference' => (string) ($document['external_upload_reference'] ?? ''),
+            'status' => (string) ($document['upload_status'] ?? 'uploaded'),
+            'received_at' => (string) ($document['created_at'] ?? date('Y-m-d H:i:s')),
+            'message' => $duplicate ? 'This upload was already received.' : 'Prescription upload received for review.',
+        ];
+    }
+
+    private function validateFile(UploadedFile $file): void
+    {
+        if (! $file->isValid() || $file->getError() !== UPLOAD_ERR_OK) {
+            throw new ShopifyPrescriptionUploadValidationException(['document' => 'The prescription file is invalid or incomplete.']);
+        }
+
+        if ($file->getSize() === null || $file->getSize() < 1 || $file->getSize() > self::MAX_BYTES) {
+            throw new ShopifyPrescriptionUploadValidationException(['document' => 'Prescription files must be between 1 byte and 10 MB.']);
+        }
+
+        $extension = strtolower((string) $file->getClientExtension());
+        $mime = $this->detectedMime($file);
+
+        if (! isset(self::MIME_TYPES[$extension]) || self::MIME_TYPES[$extension] !== $mime) {
+            throw new ShopifyPrescriptionUploadValidationException(['document' => 'Only valid PDF, JPG, JPEG, or PNG prescription files are allowed.']);
+        }
+    }
+
+    private function detectedMime(UploadedFile $file): string
+    {
+        $mime = (string) $file->getMimeType();
+
+        if (function_exists('finfo_open') && is_file($file->getTempName())) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+            if ($finfo !== false) {
+                $mime = (string) finfo_file($finfo, $file->getTempName());
+                finfo_close($finfo);
+            }
+        }
+
+        return strtolower(trim($mime));
+    }
+
+    /** @return array{patient_id: int, clinic_id: int, store_domain: string, customer_id: string} */
+    private function scope(array $handoff): array
+    {
+        $configuration = $this->configuration ?? new ShopifyConfiguration();
+        $clinicId = $configuration->clinicId();
+        $patientId = (int) ($handoff['patient_id'] ?? 0);
+        $store = strtolower(trim((string) ($handoff['store_domain'] ?? '')));
+        $customerId = trim((string) ($handoff['customer_id'] ?? ''));
+
+        if ($clinicId === null || $store === '' || $store !== strtolower($configuration->storeDomain()) || $patientId < 1 || $customerId === '') {
+            throw new InvalidArgumentException('Shopify patient scope is invalid.');
+        }
+
+        $link = db_connect()->table('shopify_patient_identity_links')
+            ->where('shopify_store_domain', $store)
+            ->where('shopify_customer_id', $customerId)
+            ->where('patient_id', $patientId)
+            ->where('link_status', 'linked')
+            ->get()
+            ->getRowArray();
+        $patient = (new PatientModel())
+            ->where('id', $patientId)
+            ->where('clinic_id', $clinicId)
+            ->where('status', 1)
+            ->first();
+
+        if ($link === null || $patient === null) {
+            throw new InvalidArgumentException('Shopify patient scope is invalid.');
+        }
+
+        return [
+            'patient_id' => $patientId,
+            'clinic_id' => $clinicId,
+            'store_domain' => $store,
+            'customer_id' => $customerId,
+        ];
+    }
+
+    private function notifyReviewers(int $clinicId, int $documentId): void
+    {
+        try {
+            $db = db_connect();
+            $message = 'A new Shopify prescription upload is waiting for review.';
+
+            foreach ($db->table('doctors')->select('id')->where('clinic_id', $clinicId)->where('status', 1)->get()->getResultArray() as $doctor) {
+                $db->table('doctor_notifications')->insert([
+                    'doctor_id' => (int) $doctor['id'],
+                    'clinic_id' => $clinicId,
+                    'title' => 'New prescription upload',
+                    'message' => $message,
+                    'channel' => 'in_app',
+                    'status' => 'unread',
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+
+            $users = $db->table('users AS users')
+                ->select('users.id')
+                ->join('user_roles', 'user_roles.user_id = users.id')
+                ->join('roles', 'roles.id = user_roles.role_id')
+                ->where('users.clinic_id', $clinicId)
+                ->where('users.status', 1)
+                ->where('roles.role_name', 'Pharmacy Assistant')
+                ->get()
+                ->getResultArray();
+
+            foreach ($users as $user) {
+                $eventKey = 'shopify-prescription-upload:' . $documentId . ':pharmacy:' . (int) $user['id'];
+                $exists = $db->table('pharmacy_notifications')->where('event_key', $eventKey)->get(1)->getRowArray();
+
+                if ($exists !== null) {
+                    continue;
+                }
+
+                $db->table('pharmacy_notifications')->insert([
+                    'clinic_id' => $clinicId,
+                    'recipient_user_id' => (int) $user['id'],
+                    'recipient_role' => 'Pharmacy Assistant',
+                    'type' => 'prescription_upload',
+                    'title' => 'New prescription upload',
+                    'message' => $message,
+                    'related_entity_type' => 'prescription_upload',
+                    'related_entity_id' => $documentId,
+                    'event_key' => $eventKey,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify prescription upload notification failed safely.');
+        }
+    }
+}
+
+final class ShopifyPrescriptionUploadValidationException extends InvalidArgumentException
+{
+    /** @param array<string, string> $errors */
+    public function __construct(public readonly array $errors)
+    {
+        parent::__construct('Shopify prescription upload validation failed.');
+    }
+}
+
+final class ShopifyPrescriptionUploadAuthorizationException extends RuntimeException
+{
+}
+
+final class ShopifyPrescriptionUploadConflictException extends RuntimeException
+{
+}
+
+final class ShopifyPrescriptionUploadNotFoundException extends RuntimeException
+{
+}
