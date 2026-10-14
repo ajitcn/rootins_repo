@@ -124,3 +124,56 @@ _modules/*
 
 /results/
 /phpunit.xml
+
+
+
+# Additional environment files
+.env.*
+!.env.example
+
+# Local secret and credential files (keep deployment templates tracked)
+*.secret
+*.secrets
+*.credential
+*.credentials
+*.token
+*.auth
+credentials.local.*
+secrets.local.*
+config.local.*
+auth.local.*
+/secrets/
+/private/
+
+# Generated project files
+/writable/cross_module_routes.txt
+/builds/
+
+# Local temporary or sensitive files
+patient-temp.txt
+*.sql
+*.sql.gz
+*.bak
+*.log
+*.zip
+*.tar.gz
+*.tmp
+*.temp
+*.swp
+*.swo
+*.orig
+*.rej
+*.sqlite
+*.sqlite3
+/tmp/
+/temp/
+
+# Writable diagnostics and generated runtime files
+/writable/debug/
+/writable/diagnostics/
+/writable/tmp/
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
