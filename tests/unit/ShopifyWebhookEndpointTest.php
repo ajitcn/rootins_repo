@@ -67,11 +67,13 @@ final class ShopifyWebhookEndpointTest extends TestCase
         self::assertStringContainsString("webhooks/register-missing', 'Integration::registerMissingWebhooks'", $routes);
         self::assertStringContainsString('permission:shopify.integration.manage', $routes);
         self::assertStringContainsString("'GET', '/webhooks.json'", $service);
-        self::assertStringContainsString("'POST', '/webhooks.json'", $service);
+        self::assertStringContainsString('webhookSubscriptionCreate', $service);
+        self::assertStringContainsString("'GET', '/webhooks.json'", $service);
         self::assertStringContainsString("webhooks/check-subscriptions', 'Integration::checkShopifySubscriptions'", $routes);
         self::assertStringContainsString("webhooks/verify-live-delivery', 'Integration::verifyLiveDelivery'", $routes);
         self::assertStringContainsString('last_event_reference', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookCatalogService.php'));
-        self::assertStringContainsString("'status' => 'Skipped'", $service);
+        self::assertStringContainsString("'Already existing'", $service);
+        self::assertStringContainsString("'URL mismatch'", $service);
         self::assertStringNotContainsString("'DELETE'", $service);
         self::assertStringContainsString('Register Missing Webhooks', $view);
         self::assertStringContainsString('Sync Webhooks', $view);

@@ -62,6 +62,17 @@ final class ShopifyClient
         return ['shop' => $shop['shop'] ?? [], 'access_scopes' => $scopes['access_scopes'] ?? []];
     }
 
+    /** @return list<string> */
+    public function accessScopes(): array
+    {
+        $result = $this->request('GET', '/oauth/access_scopes.json');
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $scope): string => is_array($scope) ? trim((string) ($scope['handle'] ?? '')) : trim((string) $scope),
+            (array) ($result['access_scopes'] ?? []),
+        )));
+    }
+
     /** @return array<string, mixed> */
     public function graphql(string $query, array $variables = []): array
     {

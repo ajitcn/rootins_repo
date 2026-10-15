@@ -201,7 +201,7 @@ final class Integration extends BaseAdminController
     {
         try {
             $result = (new ShopifyWebhookRegistrationService())->registerMissing();
-            $this->audit->record('shopify.webhooks_registered', ['created' => $result['created'], 'existing' => $result['existing'], 'skipped' => $result['skipped'], 'failed' => $result['failed']]);
+            $this->audit->record('shopify.webhooks_registered', ['created' => $result['created'], 'already_existing' => $result['already_existing'], 'url_mismatch' => $result['url_mismatch'], 'inactive' => $result['inactive'], 'failed' => $result['failed']]);
 
             return $this->response->setJSON(['status' => $result['failed'] === 0, 'msg' => $result['failed'] === 0 ? 'Shopify webhooks synchronized.' : 'Shopify webhooks synchronized with failures.', 'data' => $result]);
         } catch (ShopifyConfigurationException) {

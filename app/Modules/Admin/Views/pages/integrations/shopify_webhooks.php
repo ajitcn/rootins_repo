@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <?php if ($canManage ?? false): ?><div id="shopify-webhook-management-status" class="alert d-none" role="status" aria-live="polite"></div><?php endif; ?>
+    <?php if ($canManage ?? false): ?><div id="shopify-webhook-management-status" class="alert d-none" role="status" aria-live="polite"></div><div id="shopify-webhook-management-results" class="table-responsive d-none" style="max-height: 24rem; overflow-y: auto;"><table class="table table-sm bg-white border mb-3"><thead class="thead-light"><tr><th>Topic</th><th>Callback URL</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead><tbody></tbody></table></div><?php endif; ?>
 
     <div class="alert alert-light border small" role="note">
         <strong>ROOTINS Endpoint Test</strong> generates a synthetic signed request locally; it is not evidence of Shopify delivery. <strong>Verify Live Delivery</strong> reports only real events already received by ROOTINS.

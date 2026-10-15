@@ -21,6 +21,7 @@
                 var status = document.getElementById('shopify-webhook-management-status');
                 if (!status) return;
                 var data = payload.data || {};
+                renderManagementResults(data.data || {});
                 var errors = data.errors ? Object.values(data.errors).join(' ') : '';
                 status.className = 'alert mt-3 ' + (payload.response.ok && data.status ? 'alert-success' : 'alert-danger');
                 var summary = button.dataset.action === 'check-subscriptions'
@@ -29,7 +30,7 @@
                     ? 'Status: ' + (data.data?.status ?? 'Not yet verified') + ', Received: ' + (data.data?.received_count ?? 0) + '.'
                     : button.dataset.action === 'sync'
                     ? 'Registered correctly: ' + (data.data?.registered_correctly ?? 0) + ', Missing: ' + (data.data?.missing ?? 0) + ', URL mismatch: ' + (data.data?.url_mismatch ?? 0) + ', Inactive: ' + (data.data?.inactive ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.'
-                    : 'Existing: ' + (data.data?.existing ?? 0) + ', Created: ' + (data.data?.created ?? 0) + ', Skipped: ' + (data.data?.skipped ?? 0) + ', Missing: ' + (data.data?.missing ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.';
+                    : 'Already existing: ' + (data.data?.already_existing ?? 0) + ', Created: ' + (data.data?.created ?? 0) + ', URL mismatch: ' + (data.data?.url_mismatch ?? 0) + ', Inactive: ' + (data.data?.inactive ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.';
                 status.textContent = payload.response.ok && data.status
                     ? (data.msg || 'Shopify webhook operation completed.') + ' ' + summary
                     : ((data.code ? data.code + ': ' : '') + (errors || data.msg || 'Shopify webhook operation failed safely.'));
@@ -39,6 +40,25 @@
                 if (status) { status.className = 'alert mt-3 alert-danger'; status.textContent = error.name === 'AbortError' ? 'Shopify webhook operation timed out.' : 'Shopify webhook operation failed safely.'; }
             })
             .finally(function () { window.clearTimeout(timer); button.dataset.loading = '0'; button.disabled = false; });
+    }
+
+    function renderManagementResults(result) {
+        var container = document.getElementById('shopify-webhook-management-results');
+        var body = container ? container.querySelector('tbody') : null;
+        if (!container || !body) return;
+        body.textContent = '';
+        var rows = Array.isArray(result.webhooks) ? result.webhooks : [];
+        rows.forEach(function (item) {
+            var row = document.createElement('tr');
+            [item.topic || '', item.callback_url || '', item.status || '', item.http_status || '—', item.error_category ? item.error_category + (item.error_code ? ' (' + item.error_code + ')' : '') + ': ' + (item.error_message || '') : '—'].forEach(function (value) {
+                var cell = document.createElement('td');
+                cell.className = 'small text-break';
+                cell.textContent = String(value);
+                row.appendChild(cell);
+            });
+            body.appendChild(row);
+        });
+        container.classList.toggle('d-none', rows.length === 0);
     }
 
     function request(url, topic, button) {
