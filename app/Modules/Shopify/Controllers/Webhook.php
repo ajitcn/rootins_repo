@@ -29,6 +29,39 @@ final class Webhook extends BaseController
             ]);
         }
 
+        $shopDomain = strtolower(trim($this->request->getHeaderLine('X-Shopify-Shop-Domain')));
+        $configuredDomain = strtolower(trim((string) preg_replace('#^https?://#', '', $configuration->storeDomain())));
+        if ($shopDomain === '' || rtrim($shopDomain, '/') !== rtrim($configuredDomain, '/')) {
+            log_message('warning', 'Shopify webhook store scope rejected.');
+
+            return $this->response->setStatusCode(403)->setJSON([
+                'status' => false,
+                'msg' => 'Webhook store scope is not authorized.',
+            ]);
+        }
+
+        $testPayload = json_decode($rawBody, true);
+        $endpointTest = $this->request->getHeaderLine('X-ROOTINS-Endpoint-Test') === '1'
+            && $topic === 'rootins/endpoint-test'
+            && is_array($testPayload)
+            && ($testPayload['rootins_endpoint_test'] ?? false) === true;
+
+        if ($endpointTest) {
+            $eventId = $this->request->getHeaderLine('X-Shopify-Webhook-Id');
+            $events = new ShopifyWebhookEventService();
+            $result = $events->ingest($configuration->storeDomain(), $eventId, $topic, $rawBody);
+            if ($result['id'] !== null && ! $result['duplicate']) {
+                $events->markProcessed((int) $result['id']);
+            }
+            service('audit')->record('shopify.endpoint_test_received', [
+                'store_domain' => $configuration->storeDomain(),
+                'event_id' => $eventId,
+                'duplicate' => $result['duplicate'],
+            ]);
+
+            return $this->response->setStatusCode(202)->setJSON(['status' => true, 'msg' => 'ROOTINS endpoint test accepted.']);
+        }
+
         if (in_array($topic, ['customers/create', 'customers/update'], true)) {
             service('audit')->record('shopify.customer_received', [
                 'topic' => $topic,

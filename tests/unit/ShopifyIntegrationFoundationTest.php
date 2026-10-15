@@ -86,4 +86,37 @@ final class ShopifyIntegrationFoundationTest extends TestCase
         self::assertStringNotContainsString('admin_api_access_token', $controller);
         self::assertStringNotContainsString('webhook_secret', $controller);
     }
+
+    public function testCustomerDetailsActionUsesVerifiedMinimizedCustomerData(): void
+    {
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
+        $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+        $events = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookEventService.php');
+        $identity = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerIdentityService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
+
+        self::assertStringContainsString('customers/test-details', $routes);
+        self::assertStringContainsString('X-Shopify-Shop-Domain', $webhook);
+        self::assertStringContainsString('findLatestCustomerEvent', $events);
+        self::assertStringContainsString('customerDetails', $identity);
+        self::assertStringContainsString('registration_number', $identity);
+        self::assertStringContainsString('testCustomerDetails', $controller);
+        self::assertStringNotContainsString('date_of_birth', $events);
+        self::assertStringNotContainsString('currentStaffMember', $identity . $controller);
+    }
+
+    public function testWebhookCatalogDocumentsTopicsAndPublicCallbackBoundary(): void
+    {
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
+        $catalog = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookCatalogService.php');
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/integrations/shopify_webhooks.php');
+
+        self::assertStringContainsString("'webhooks', 'Integration::webhooks'", $routes);
+        foreach (['customers/create', 'customers/update', 'orders/create', 'orders/updated', 'orders/cancelled', 'refunds/create', 'fulfillments/create', 'fulfillments/update', 'products/create', 'products/update', 'app/uninstalled'] as $topic) {
+            self::assertStringContainsString("'topic' => '{$topic}'", $catalog);
+        }
+        self::assertStringContainsString("\$scheme !== 'https'", $catalog);
+        self::assertStringContainsString('X-Shopify-Hmac-SHA256', $view);
+        self::assertStringContainsString('Copy URL', $view);
+    }
 }

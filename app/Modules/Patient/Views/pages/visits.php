@@ -10,7 +10,7 @@
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?><script>
     $(function () {
-        var records = <?= json_encode($visits, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        var records = <?= json_encode($visits, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>; window.patientPdfRecords = records;
         var escapeHtml = function (value) { return $('<div>').text(value == null ? '' : value).html(); };
         $('.patient-date-filter').datepicker({ format: 'dd-mm-yyyy', autoclose: true, todayHighlight: true, orientation: 'bottom auto', container: '.patient-visits-page' });
         $(document).on('show.bs.dropdown.patientVisits', '.patient-visits-page .dropdown', function () { var dropdown = $(this); var menu = dropdown.children('.dropdown-menu'); if (! menu.length) return; menu.data('patient-dropdown-parent', dropdown).appendTo('body'); });

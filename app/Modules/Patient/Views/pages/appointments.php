@@ -140,7 +140,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
 <?= $this->section('scripts') ?>
 <script>
     $(function () {
-        var records = <?= json_encode($appointments, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        var records = <?= json_encode($appointments, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>; window.patientPdfRecords = records;
         var saving = false;
         var escapeHtml = function (value) { return $('<div>').text(value == null ? '' : value).html(); };
 
@@ -229,7 +229,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
                 + '</div>'
                 + (appointment.reason_for_visit ? '<div class="patient-safe-remarks"><span>Remarks</span><p>' + escapeHtml(appointment.reason_for_visit) + '</p></div>' : '')
                 + '</section>'
-                + '<p class="patient-modal-metadata"><i class="fa-solid fa-circle-exclamation mr-1" aria-hidden="true"></i>Created: ' + escapeHtml(appointment.created_at || '—') + '<br>Updated: ' + escapeHtml(appointment.updated_at || '—') + '</p>'
+                + '<p class="patient-modal-metadata"><i class="fa-solid fa-circle-exclamation mr-1" aria-hidden="true"></i>Created: ' + escapeHtml(appointment.created_at_display || '—') + '<br>Updated: ' + escapeHtml(appointment.updated_at_display || '—') + '</p>'
             );
             $('#patient-appointment-detail-actions').html(actionMarkup);
         });

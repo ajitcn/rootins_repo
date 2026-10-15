@@ -15,7 +15,7 @@
 
 <?= $this->section('scripts') ?><script>
     $(function () {
-        var records = <?= json_encode($invoices, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        var records = <?= json_encode($invoices, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>; window.patientPdfRecords = records;
         var activeInvoice = null;
         var escapeHtml = function (value) { return $('<div>').text(value == null ? '' : value).html(); };
         $('.patient-date-filter').datepicker({ format: 'dd-mm-yyyy', autoclose: true, todayHighlight: true, orientation: 'bottom auto', container: '.patient-invoices-page' });

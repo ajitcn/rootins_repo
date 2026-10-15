@@ -139,7 +139,9 @@ final class Pages extends BaseController
         foreach ($records as &$record) {
             $appointmentDate = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $record['appointment_date']);
             $record['appointment_date_display'] = $appointmentDate ? $appointmentDate->format('d-m-Y') : '—';
-            $record['appointment_time_display'] = substr((string) ($record['appointment_time'] ?? ''), 0, 5) ?: '—';
+            $record['appointment_time_display'] = $this->formatPatientTime($record['appointment_time'] ?? null);
+            $record['created_at_display'] = $this->formatPatientDateTime($record['created_at'] ?? null);
+            $record['updated_at_display'] = $this->formatPatientDateTime($record['updated_at'] ?? null);
             $record['appointment_type_label'] = ucwords(str_replace('_', ' ', (string) ($record['appointment_type'] ?? '')));
             $record['status_label'] = ucwords(str_replace('_', ' ', (string) ($record['status'] ?? '')));
             $record['patient_can_edit'] = in_array($record['status'], ['scheduled', 'confirmed'], true)
@@ -251,7 +253,7 @@ final class Pages extends BaseController
         $dateToInput = trim((string) $this->request->getGet('date_to'));
         $dateFrom = $this->parsePatientDate($dateFromInput);
         $dateTo = $this->parsePatientDate($dateToInput);
-        $allowedStatuses = ['draft', 'completed', 'cancelled'];
+        $allowedStatuses = ['draft', 'submitted', 'approved', 'rejected', 'clarification_requested', 'completed', 'cancelled'];
         $query = $db->table('prescriptions')
             ->select(
                 'prescriptions.id, prescriptions.prescription_number, prescriptions.prescription_date, '
@@ -324,6 +326,8 @@ final class Pages extends BaseController
                 ->getResultArray();
             $record['specialization'] = implode(', ', array_column($record['specialization'], 'specialization_name'));
             $record['prescription_date_display'] = $this->formatPatientDate($record['prescription_date'] ?? null);
+            $record['created_at_display'] = $this->formatPatientDateTime($record['created_at'] ?? null);
+            $record['updated_at_display'] = $this->formatPatientDateTime($record['updated_at'] ?? null);
             $record['status_label'] = ucwords(str_replace('_', ' ', (string) ($record['status'] ?? '')));
             $record['items'] = $db->table('prescription_items')
                 ->select('medicine_name, duration, duration_unit, frequency, dosage, instructions, notes')
@@ -389,13 +393,14 @@ final class Pages extends BaseController
         $dateToInput = trim((string) $this->request->getGet('date_to'));
         $dateFrom = $this->parsePatientDate($dateFromInput);
         $dateTo = $this->parsePatientDate($dateToInput);
-        $orderStatuses = ['pending', 'fulfilled', 'cancelled'];
+        $orderStatuses = ['pending', 'processing', 'fulfilled', 'cancelled', 'returned'];
         $paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded'];
         $deliveryStatuses = ['pending', 'packed', 'dispatched', 'out_for_delivery', 'delivered', 'failed', 'returned'];
         $query = $db->table('medicine_orders AS orders')
             ->select(
                 'orders.id, orders.order_number, orders.prescription_id, orders.status, orders.payment_status, '
                 . 'orders.delivery_status, orders.payment_provider, orders.payment_reference, orders.delivery_provider, '
+                . 'providers.provider_name AS trusted_delivery_provider, providers.tracking_url_template, '
                 . 'orders.tracking_reference, orders.delivery_address_snapshot, orders.delivery_contact_snapshot, '
                 . 'orders.dispatched_at, orders.delivered_at, orders.created_at, orders.updated_at, '
                 . 'prescriptions.prescription_number, prescriptions.prescription_date, '
@@ -407,6 +412,7 @@ final class Pages extends BaseController
             )
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id')
             ->join('patients', 'patients.id = orders.patient_id')
+            ->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')
             ->where('orders.patient_id', $context['patient_id'])
             ->where('orders.clinic_id', $context['clinic_id'])
             ->where('prescriptions.patient_id', $context['patient_id'])
@@ -471,10 +477,14 @@ final class Pages extends BaseController
             $order['patient_name'] = trim(($order['first_name'] ?? '') . ' ' . ($order['last_name'] ?? '')) ?: 'Patient';
             $order['patient_mobile'] = trim(($order['country_code'] ?? '') . ' ' . ($order['mobile_number'] ?? '')) ?: 'Not recorded';
             $order['order_date_display'] = $this->formatPatientDate($order['created_at'] ?? null);
+            $order['created_at_display'] = $this->formatPatientDateTime($order['created_at'] ?? null);
+            $order['updated_at_display'] = $this->formatPatientDateTime($order['updated_at'] ?? null);
             $order['prescription_date_display'] = $this->formatPatientDate($order['prescription_date'] ?? null);
             $order['status_label'] = ucwords(str_replace('_', ' ', (string) ($order['status'] ?? '')));
             $order['payment_status_label'] = ucwords(str_replace('_', ' ', (string) ($order['payment_status'] ?? '')));
             $order['delivery_status_label'] = ucwords(str_replace('_', ' ', (string) ($order['delivery_status'] ?? '')));
+            $order['tracking_url'] = $this->patientTrackingUrl($order['tracking_url_template'] ?? null, (string) ($order['tracking_reference'] ?? ''));
+            unset($order['tracking_url_template'], $order['trusted_delivery_provider']);
             $order['items'] = $db->table('medicine_order_items')
                 ->select('medicine_name, quantity')
                 ->where('order_id', (int) $order['id'])
@@ -534,7 +544,7 @@ final class Pages extends BaseController
         $dateFrom = $this->parsePatientDate($dateFromInput);
         $dateTo = $this->parsePatientDate($dateToInput);
         $paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded'];
-        $orderStatuses = ['pending', 'fulfilled', 'cancelled'];
+        $orderStatuses = ['pending', 'processing', 'fulfilled', 'cancelled', 'returned'];
         $query = $db->table('invoices')
             ->select(
                 'invoices.id, invoices.invoice_number, invoices.currency, invoices.subtotal, invoices.tax, '
@@ -605,6 +615,8 @@ final class Pages extends BaseController
             $invoice['patient_name'] = trim(($invoice['first_name'] ?? '') . ' ' . ($invoice['last_name'] ?? '')) ?: 'Patient';
             $invoice['patient_mobile'] = trim(($invoice['country_code'] ?? '') . ' ' . ($invoice['mobile_number'] ?? '')) ?: 'Not recorded';
             $invoice['invoice_date_display'] = $this->formatPatientDate($invoice['created_at'] ?? null);
+            $invoice['created_at_display'] = $this->formatPatientDateTime($invoice['created_at'] ?? null);
+            $invoice['updated_at_display'] = $this->formatPatientDateTime($invoice['updated_at'] ?? null);
             $invoice['prescription_date_display'] = $this->formatPatientDate($invoice['prescription_date'] ?? null);
             $invoice['payment_status_label'] = ucwords(str_replace('_', ' ', (string) ($invoice['payment_status'] ?? '')));
             $invoice['order_status_label'] = ucwords(str_replace('_', ' ', (string) ($invoice['order_status'] ?? '')));
@@ -735,7 +747,9 @@ final class Pages extends BaseController
 
         foreach ($visits as &$visit) {
             $visit['visit_date_display'] = $this->formatPatientDate($visit['consultation_date'] ?? null);
-            $visit['visit_time_display'] = substr((string) ($visit['consultation_time'] ?? ''), 0, 5) ?: '—';
+            $visit['visit_time_display'] = $this->formatPatientTime($visit['consultation_time'] ?? null);
+            $visit['created_at_display'] = $this->formatPatientDateTime($visit['created_at'] ?? null);
+            $visit['updated_at_display'] = $this->formatPatientDateTime($visit['updated_at'] ?? null);
             $visit['status_label'] = ucwords(str_replace('_', ' ', (string) ($visit['status'] ?? '')));
             $visit['type_label'] = ucwords(str_replace('_', ' ', (string) ($visit['appointment_type'] ?? 'Consultation')));
             $visit['service_display'] = trim((string) ($visit['service_name'] ?? '')) ?: $visit['type_label'];
@@ -838,7 +852,7 @@ final class Pages extends BaseController
         $search = trim((string) $this->request->getGet('search'));
         $builder = db_connect()->table($table)->where($table . '.patient_id', $context['patient_id']);
 
-        if ($table !== 'patient_documents') {
+        if (in_array($table, ['patient_documents', 'medicine_orders', 'invoices', 'consultations', 'prescriptions'], true)) {
             $builder->where($table . '.clinic_id', $context['clinic_id']);
         }
 
@@ -921,11 +935,54 @@ final class Pages extends BaseController
         $date = \DateTimeImmutable::createFromFormat('!d-m-Y', $value);
         $errors = \DateTimeImmutable::getLastErrors();
 
-        if ($date === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        if ($date === false || $date->format('d-m-Y') !== $value || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
             return null;
         }
 
         return $date->format('Y-m-d');
+    }
+
+    private function formatPatientTime(?string $value): string
+    {
+        if (! $value) {
+            return '—';
+        }
+
+        $time = \DateTimeImmutable::createFromFormat('!H:i:s', substr($value, 0, 8))
+            ?: \DateTimeImmutable::createFromFormat('!H:i', substr($value, 0, 5));
+
+        return $time ? $time->format('h:i A') : '—';
+    }
+
+    private function patientTrackingUrl(?string $template, string $reference): ?string
+    {
+        $template = trim((string) $template);
+        $reference = trim($reference);
+
+        if ($template === '' || filter_var($template, FILTER_VALIDATE_URL) === false || ! preg_match('#^https?://#i', $template)) {
+            return null;
+        }
+
+        if ($reference !== '') {
+            $template = str_replace(
+                ['{{tracking_reference}}', '{tracking_reference}', '{tracking}'],
+                rawurlencode($reference),
+                $template,
+            );
+        }
+
+        return filter_var($template, FILTER_VALIDATE_URL) !== false ? $template : null;
+    }
+
+    private function formatPatientDateTime(?string $value): string
+    {
+        if (! $value) {
+            return '—';
+        }
+
+        $dateTime = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', substr($value, 0, 19));
+
+        return $dateTime ? $dateTime->format('d-m-Y h:i A') : $this->formatPatientDate($value);
     }
 
     private function formatPatientDate(?string $value): string

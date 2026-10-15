@@ -43,3 +43,6 @@
 <header class="sticky-top-area top-header"><div class="d-flex align-items-center"><button class="btn btn-sm btn-light d-lg-none mr-2" id="sidebarToggle" type="button" aria-label="Toggle navigation" aria-controls="sidebar"><i class="bi bi-list" aria-hidden="true"></i></button><div><span class="topbar-kicker">ROOTINS</span><span class="font-weight-bold d-block">Patient panel</span></div></div><div class="topbar-actions"><span class="topbar-avatar" aria-hidden="true"><i class="bi bi-person"></i></span><a class="btn btn-sm btn-light" href="<?= base_url('patient/logout') ?>"><i class="bi bi-box-arrow-right mr-1" aria-hidden="true"></i>Log out</a></div>
 </header>
 <?= $this->endSection() ?>
+
+<script>window.rootinsPatientPdfBase = <?= json_encode(base_url('patient')) ?>;</script>
+<script src="<?= base_url('assets/js/patient/pdf-downloads.js?v=20261015.2') ?>"></script>

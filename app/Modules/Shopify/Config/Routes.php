@@ -9,6 +9,13 @@ $routes->group('admin/integrations/shopify', [
 ], static function ($routes): void {
     $routes->get('/', 'Integration::index', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('orders', 'Integration::orders', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('webhooks', 'Integration::webhooks', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('on-demand-apis', 'Integration::onDemandApis', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('on-demand-apis/customers/(:any)', 'Integration::customer/$1', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('customers', 'Integration::customers', ['filter' => 'permission:shopify.integration.view']);
+    $routes->post('webhooks/validate/(:any)', 'Integration::validateWebhook/$1', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/validate-all', 'Integration::validateAllWebhooks', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/test-endpoint/(:any)', 'Integration::testWebhookEndpoint/$1', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('test-connection', 'Integration::testConnection', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('configuration/save', 'Integration::saveConfiguration', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('configuration/rotate-secret', 'Integration::rotateSecret', ['filter' => 'permission:shopify.integration.manage']);
@@ -16,6 +23,8 @@ $routes->group('admin/integrations/shopify', [
     $routes->post('customers/create', 'Integration::createPatient', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('customers/reject', 'Integration::rejectCustomer', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('customers/unlink', 'Integration::unlinkCustomer', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('customers/test-details', 'Integration::testCustomerDetails', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('customers/(:any)', 'Integration::customer/$1', ['filter' => 'permission:shopify.integration.view']);
     $routes->post('orders/import', 'Integration::importOrder', ['filter' => 'permission:shopify.order.import']);
     $routes->post('orders/reconcile', 'Integration::importOrder', ['filter' => 'permission:shopify.order.reconcile']);
 });

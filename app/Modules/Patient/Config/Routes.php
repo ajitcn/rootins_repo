@@ -28,4 +28,9 @@ $routes->group('patient', ['namespace' => 'Patient\Controllers', 'filter' => 'pa
     $routes->post('appointments/cancel/(:num)', 'Portal::cancelAppointment/$1');
     $routes->post('documents/upload', 'Portal::uploadDocument');
     $routes->get('documents/(:num)/download', 'Portal::downloadDocument/$1');
+    $routes->get('invoices/(:segment)/pdf', 'Pdf::invoice/$1');
+    $routes->get('invoices/(:segment)/receipt', 'Pdf::receipt/$1');
+    $routes->get('prescriptions/(:segment)/pdf', 'Pdf::prescription/$1');
+    $routes->get('orders/(:segment)/pdf', 'Pdf::order/$1');
+    $routes->get('appointments/(:segment)/pdf', 'Pdf::appointment/$1');
 });

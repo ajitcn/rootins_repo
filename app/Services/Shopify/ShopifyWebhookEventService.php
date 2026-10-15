@@ -92,6 +92,19 @@ final class ShopifyWebhookEventService
         return $model->where('id', $eventId)->first();
     }
 
+    /** @return array<string, mixed>|null */
+    public function findLatestCustomerEvent(string $storeDomain, string $customerId): ?array
+    {
+        $model = $this->model ?? new ShopifyWebhookEventModel();
+
+        return $model
+            ->where('store_domain', strtolower(trim($storeDomain)))
+            ->whereIn('topic', ['customers/create', 'customers/update'])
+            ->like('payload_json', '"id":"' . trim($customerId) . '"')
+            ->orderBy('id', 'DESC')
+            ->first();
+    }
+
     /**
      * Persist only minimized identity/order fields needed for processing.
      * Full Shopify webhook payloads are intentionally never stored.
@@ -137,7 +150,7 @@ final class ShopifyWebhookEventService
             return json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
-        foreach (['id', 'email', 'phone', 'first_name', 'last_name', 'date_of_birth'] as $key) {
+        foreach (['id', 'email', 'phone', 'first_name', 'last_name'] as $key) {
             if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
                 $safe[$key] = (string) $payload[$key];
             }
@@ -198,6 +211,15 @@ final class ShopifyWebhookEventService
             'retry_count' => 1,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    public function removeEndpointTestEvents(string $storeDomain, string $eventId): void
+    {
+        ($this->model ?? new ShopifyWebhookEventModel())
+            ->where('store_domain', strtolower(trim($storeDomain)))
+            ->where('external_event_id', trim($eventId))
+            ->where('topic', 'rootins/endpoint-test')
+            ->delete();
     }
 
     /**

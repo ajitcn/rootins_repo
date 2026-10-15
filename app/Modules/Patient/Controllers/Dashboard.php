@@ -104,9 +104,9 @@ final class Dashboard extends BaseController
             ->getResultArray();
 
         $invoiceQuery = $db->table('invoices')
-            ->select('id, invoice_number, currency, total, status, payment_status, created_at, updated_at')
-            ->where('patient_id', $patientId)
-            ->where('clinic_id', $clinicId);
+            ->select('invoices.id, invoices.invoice_number, invoices.currency, invoices.total, invoices.status, invoices.payment_status, invoices.created_at, invoices.updated_at')
+            ->where('invoices.patient_id', $patientId)
+            ->where('invoices.clinic_id', $clinicId);
         $pendingPaymentsCount = (clone $invoiceQuery)
             ->whereIn('payment_status', ['pending', 'authorized'])
             ->countAllResults();

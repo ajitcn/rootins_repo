@@ -56,7 +56,8 @@ final class ShopifyConfigurationManagementTest extends TestCase
 
         self::assertStringContainsString('valid Shopify store domain', $service);
         self::assertStringContainsString('valid Shopify API version', $service);
-        self::assertStringContainsString('valid Shopify app URL', $service);
+        self::assertStringContainsString('valid public HTTPS Shopify app URL', $service);
+        self::assertStringContainsString('must not contain credentials, query strings, fragments, or tokens', $service);
         self::assertStringNotContainsString("'clinic_id' => \$clinicId", $service);
         self::assertStringContainsString("'scope' => 'application'", $service);
         self::assertStringContainsString('shopify.configuration_save_failed', $controller);
@@ -84,6 +85,9 @@ final class ShopifyConfigurationManagementTest extends TestCase
         self::assertStringContainsString('public function down()', $migration);
         self::assertStringContainsString('shopify-config-clinic-id', $view);
         self::assertStringContainsString('name="clinic_id"', $view);
+        self::assertStringContainsString('name="app_url"', $view);
+        self::assertStringContainsString('public HTTPS URL of the ROOTINS application', $view);
+        self::assertStringContainsString('shopify-config-webhook-url', $view);
     }
 
     public function testRuntimeLoadingDistinguishesDatabaseAndEnvironmentSources(): void

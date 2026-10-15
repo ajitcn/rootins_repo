@@ -62,6 +62,45 @@ final class ShopifyClient
         return ['shop' => $shop['shop'] ?? [], 'access_scopes' => $scopes['access_scopes'] ?? []];
     }
 
+    /** @return array<string, mixed> */
+    public function graphql(string $query, array $variables = []): array
+    {
+        $this->assertConfigured();
+
+        try {
+            $response = $this->sendApiRequest('POST', '/graphql.json', ['query' => $query, 'variables' => $variables], false, null);
+            if ($response->getStatusCode() === 401) {
+                $this->forgetCachedToken();
+                $response = $this->sendApiRequest('POST', '/graphql.json', ['query' => $query, 'variables' => $variables], true, null);
+            }
+
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                throw $this->providerExceptionForStatus($status, '/graphql.json');
+            }
+
+            $body = json_decode((string) $response->getBody(), true);
+            if (! is_array($body)) {
+                throw new ShopifyProviderException('Shopify returned an invalid GraphQL response.', $status, 'graphql_error', 'provider_http');
+            }
+
+            $errors = is_array($body['errors'] ?? null) ? $body['errors'] : [];
+            if ($errors !== []) {
+                $message = strtolower((string) ($errors[0]['message'] ?? ''));
+                if (str_contains($message, 'scope') || str_contains($message, 'access denied') || str_contains($message, 'permission')) {
+                    throw new ShopifyProviderException('Shopify customer access is not permitted.', 403, 'missing_scope', 'permission_denied');
+                }
+                throw new ShopifyProviderException('Shopify returned a GraphQL error.', $status, 'graphql_error', 'provider_http');
+            }
+
+            return is_array($body['data'] ?? null) ? $body['data'] : [];
+        } catch (ShopifyProviderException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new ShopifyProviderException('Shopify connection failed.', null, 'network_error', 'network_error', $exception);
+        }
+    }
+
     /** @return array{status:string,expires_at:?int} */
     public function tokenStatus(): array
     {

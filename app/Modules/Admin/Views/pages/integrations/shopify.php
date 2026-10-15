@@ -11,9 +11,6 @@
         <button class="btn btn-primary" id="shopify-test-connection" type="button">
             <i class="fa-solid fa-plug mr-1" aria-hidden="true"></i>Test connection
         </button>
-        <?php if (in_array('shopify.integration.view', session('permissions') ?? [], true)): ?>
-            <a class="btn btn-outline-primary ml-2" href="<?= base_url('admin/integrations/shopify/orders') ?>">Order reconciliation</a>
-        <?php endif; ?>
     </div>
 
     <div class="card shadow-sm">
@@ -58,7 +55,7 @@
                     <div class="form-group col-md-6"><label for="shopify-config-version">API version</label><input class="form-control" id="shopify-config-version" name="api_version" placeholder="2025-01" required></div>
                     <div class="form-group col-md-6"><label for="shopify-config-webhook-secret">Webhook secret</label><input class="form-control" id="shopify-config-webhook-secret" name="webhook_secret" type="password" autocomplete="new-password"><small class="form-text text-muted">Never displayed after submission.</small></div>
                     <div class="form-group col-md-6"><label for="shopify-config-clinic-id">Clinic ID</label><input class="form-control" id="shopify-config-clinic-id" name="clinic_id" type="number" min="1" required><small class="form-text text-muted">Must reference an active clinic.</small></div>
-                    <div class="form-group col-md-6"><label for="shopify-config-app-url">Shopify app URL</label><input class="form-control" id="shopify-config-app-url" name="app_url" type="url" placeholder="https://app.example.com" required></div>
+                    <div class="form-group col-md-6"><label for="shopify-config-app-url">Shopify App URL</label><input class="form-control" id="shopify-config-app-url" name="app_url" type="url" placeholder="https://api.rootins.com" required aria-describedby="shopify-config-app-url-help shopify-config-webhook-url"><small class="form-text text-muted" id="shopify-config-app-url-help">This is the public HTTPS URL of the ROOTINS application, not the Shopify store domain.</small><div class="small mt-2"><span class="text-muted">Webhook callback URL:</span> <code id="shopify-config-webhook-url" class="text-break">Not available until a valid App URL is entered.</code> <button type="button" class="btn btn-sm btn-link p-0 ml-1" id="shopify-config-webhook-copy" disabled>Copy</button></div></div>
                     <div class="form-group col-md-6"><label for="shopify-config-encryption-key">Encryption key</label><input class="form-control" id="shopify-config-encryption-key" name="encryption_key" type="password" autocomplete="new-password"><small class="form-text text-muted">Used for signed Shopify handoff tokens; never displayed.</small></div>
                     <div class="form-group col-md-6 d-flex align-items-center"><div class="custom-control custom-switch mt-3"><input class="custom-control-input" id="shopify-config-auto-create" name="auto_create_patients" type="checkbox" value="1"><label class="custom-control-label" for="shopify-config-auto-create">Auto-create patients</label></div></div>
                 </div>
@@ -80,81 +77,6 @@
     </div>
     <?php endif; ?>
 
-    <div class="card shadow-sm mt-4">
-        <div class="card-header bg-white">
-            <h2 class="h6 mb-1">Customer identity review</h2>
-            <p class="small text-muted mb-0">Unmatched and ambiguous Shopify customers require an explicit, audited action.</p>
-        </div>
-        <div class="card-body p-0">
-            <?php if ($customerLinks === []): ?>
-                <div class="p-4 text-muted">No Shopify customer identities require review.</div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <caption class="sr-only">Shopify customer identity review queue</caption>
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Contact snapshot</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($customerLinks as $link): ?>
-                                <tr>
-                                    <td><?= esc($link['shopify_customer_id']) ?></td>
-                                    <td>
-                                        <div><?= esc($link['email_snapshot'] ?: 'No email') ?></div>
-                                        <div class="small text-muted"><?= esc($link['mobile_snapshot'] ?: 'No mobile') ?></div>
-                                    </td>
-                                    <td><span class="badge badge-warning"><?= esc(ucfirst((string) $link['link_status'])) ?></span></td>
-                                    <td>
-                                        <?php if ($link['link_status'] === 'linked'): ?>
-                                        <form class="shopify-identity-action d-inline" method="post" action="<?= base_url('admin/integrations/shopify/customers/unlink') ?>">
-                                            <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>">
-                                            <input type="hidden" name="link_id" value="<?= (int) $link['id'] ?>">
-                                            <input type="hidden" name="confirmation" value="I confirm this identity action">
-                                            <button class="btn btn-sm btn-outline-danger" type="submit">Unlink</button>
-                                        </form>
-                                        <?php else: ?>
-                                        <form class="shopify-identity-action form-inline mb-2" method="post" action="<?= base_url('admin/integrations/shopify/customers/link') ?>">
-                                            <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>">
-                                            <input type="hidden" name="link_id" value="<?= (int) $link['id'] ?>">
-                                            <input type="hidden" name="confirmation" value="I confirm this identity action">
-                                            <select class="form-control form-control-sm mr-2" name="patient_id" required <?= $patientOptions === [] ? 'disabled' : '' ?> aria-label="Patient for Shopify customer <?= esc($link['shopify_customer_id']) ?>">
-                                                <option value="">Select patient</option>
-                                                <?php foreach ($patientOptions as $patient): ?>
-                                                    <option value="<?= (int) $patient['id'] ?>"><?= esc(trim($patient['first_name'] . ' ' . $patient['last_name']) . ' — ' . ($patient['registration_number'] ?? '')) ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <button class="btn btn-sm btn-primary" type="submit" <?= $patientOptions === [] ? 'disabled' : '' ?>>Link</button>
-                                        </form>
-                                        <form class="shopify-identity-action form-inline mb-2" method="post" action="<?= base_url('admin/integrations/shopify/customers/create') ?>">
-                                            <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>">
-                                            <input type="hidden" name="link_id" value="<?= (int) $link['id'] ?>">
-                                            <input type="hidden" name="confirmation" value="I confirm this identity action">
-                                            <input class="form-control form-control-sm mr-1" name="first_name" placeholder="First name" required aria-label="First name">
-                                            <input class="form-control form-control-sm mr-1" name="last_name" placeholder="Last name" required aria-label="Last name">
-                                            <input class="form-control form-control-sm mr-1" name="date_of_birth" placeholder="dd-mm-yyyy" required aria-label="Date of birth">
-                                            <button class="btn btn-sm btn-outline-primary" type="submit" <?= $shopify['automatic_patient_creation'] ? '' : 'disabled' ?>>Create</button>
-                                        </form>
-                                        <form class="shopify-identity-action d-inline" method="post" action="<?= base_url('admin/integrations/shopify/customers/reject') ?>">
-                                            <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>">
-                                            <input type="hidden" name="link_id" value="<?= (int) $link['id'] ?>">
-                                            <input type="hidden" name="confirmation" value="I confirm this identity action">
-                                            <button class="btn btn-sm btn-outline-danger" type="submit">Reject</button>
-                                        </form>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
 </main>
 
 <?php if ($canManage ?? false): ?><div class="modal fade" id="shopify-rotate-secret-modal" tabindex="-1" role="dialog" aria-hidden="true"><div class="modal-dialog" role="document"><div class="modal-content"><form id="shopify-rotate-secret-form"><div class="modal-header"><h2 class="modal-title h5">Rotate Shopify credential</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>"><input type="hidden" name="id" id="shopify-rotate-id"><div class="form-group"><label for="shopify-rotate-type">Credential</label><select class="form-control" name="secret_type" id="shopify-rotate-type"><option value="client_secret">Client secret</option><option value="webhook_secret">Webhook secret</option><option value="encryption_key">Encryption key</option></select></div><div class="form-group"><label for="shopify-rotate-value">Replacement credential</label><input class="form-control" type="password" name="secret_value" id="shopify-rotate-value" autocomplete="new-password" required minlength="16"><small class="form-text text-muted">The value is encrypted and never returned in the response.</small></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning">Rotate credential</button></div></form></div></div></div><?php endif; ?>
@@ -176,12 +98,35 @@
         const clinic = result.clinic || {};
         window.alert(`${data.msg || 'Connection failed.'}\nSource: ${result.configuration_source || 'unknown'}\nStore: ${result.store_domain || 'not set'}\nAPI version: ${result.api_version || 'not set'}\nToken: ${result.token?.status || 'unknown'} (${expiry})\nGranted scopes: ${scopes}\nClinic: ${clinic.status || 'unknown'}${clinic.id ? ` (#${clinic.id})` : ''}`);
     };
+    const updateShopifyWebhookUrl = () => {
+        const input = document.getElementById('shopify-config-app-url');
+        const output = document.getElementById('shopify-config-webhook-url');
+        const copy = document.getElementById('shopify-config-webhook-copy');
+        if (!input || !output || !copy) return;
+        try {
+            const url = new URL(input.value.trim());
+            if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !url.hostname) throw new Error('invalid');
+            output.textContent = url.href.replace(/\/$/, '') + '/integrations/shopify/webhooks';
+            copy.disabled = false;
+        } catch (error) {
+            output.textContent = 'Not available until a valid App URL is entered.';
+            copy.disabled = true;
+        }
+    };
+    document.getElementById('shopify-config-app-url')?.addEventListener('input', updateShopifyWebhookUrl);
+    document.getElementById('shopify-config-webhook-copy')?.addEventListener('click', function () {
+        const output = document.getElementById('shopify-config-webhook-url');
+        if (!output || !navigator.clipboard || this.disabled) return;
+        const button = this;
+        navigator.clipboard.writeText(output.textContent).then(() => { button.textContent = 'Copied'; window.setTimeout(() => { button.textContent = 'Copy'; }, 1200); });
+    });
     const resetShopifyConfigForm = () => {
         shopifyConfigForm?.reset();
         const id = document.getElementById('shopify-config-id');
         if (id) id.value = '';
         const save = document.getElementById('shopify-config-save');
         if (save) save.textContent = 'Save configuration';
+        updateShopifyWebhookUrl();
     };
     document.getElementById('shopify-config-reset')?.addEventListener('click', resetShopifyConfigForm);
     document.querySelectorAll('.shopify-config-edit').forEach((button) => button.addEventListener('click', () => {
@@ -192,6 +137,7 @@
         document.getElementById('shopify-config-clinic-id').value = config.clinic_id || '';
         document.getElementById('shopify-config-version').value = config.api_version || '';
         document.getElementById('shopify-config-app-url').value = config.app_url || '';
+        updateShopifyWebhookUrl();
         document.getElementById('shopify-config-auto-create').checked = !!config.auto_create_patients;
         document.getElementById('shopify-config-client-secret').value = '';
         document.getElementById('shopify-config-webhook-secret').value = '';
@@ -259,26 +205,22 @@
     });
 </script>
 <script>
-    document.querySelectorAll('.shopify-identity-action').forEach(function (form) {
-        form.addEventListener('submit', function (event) {
-            event.preventDefault();
-            const target = event.currentTarget;
-            const button = target.querySelector('button[type="submit"]');
-            button.disabled = true;
-
-            rootinsFetch(target.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: new FormData(target),
+    document.getElementById('legacy-shopify-details-form')?.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const button = form.querySelector('button[type="submit"]');
+        const result = document.getElementById('legacy-shopify-details-result');
+        button.disabled = true;
+        result.textContent = 'Loading customer details…';
+        rootinsFetch('', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: new FormData(form) })
+            .then((response) => response.json().then((data) => ({ response, data })))
+            .then(({ response, data }) => {
+                if (!response.ok || !data.status) throw new Error(data.msg || 'Customer details could not be loaded.');
+                const customer = data.data || {};
+                result.textContent = `${customer.name || 'Unnamed'} | ${customer.email || 'No email'} | ${customer.mobile || 'No mobile'} | ${customer.store_domain || ''} | Match: ${customer.match_status || 'unmatched'}${customer.linked_patient_reference ? ` | Patient: ${customer.linked_patient_reference}` : ''}`;
             })
-                .then((response) => response.json().then((data) => ({ response, data })))
-                .then(({ response, data }) => {
-                    window.alert(data.msg || (response.ok ? 'Saved.' : 'The action failed.'));
-                    if (response.ok && data.status) window.location.reload();
-                })
-                .catch(() => window.alert('The identity action could not be completed safely.'))
-                .finally(() => { button.disabled = false; });
-        });
+            .catch((error) => { result.textContent = error.message || 'Customer details could not be loaded safely.'; })
+            .finally(() => { button.disabled = false; });
     });
 </script>
 <?= $this->endSection() ?>

@@ -483,7 +483,9 @@ class Portal extends BaseController
         $reason = trim((string) $this->request->getPost('cancellation_reason'));
 
         if ($reason === '') {
-            return $this->validation(['cancellation_reason' => 'A cancellation reason is required.']);
+            $errors['cancellation_reason'] = 'A cancellation reason is required.';
+
+            return $this->validation($errors);
         }
 
         if (!$db->table('appointments')->where('id', $appointmentId)->where('patient_id', $context['patient']['id'])->whereIn('status', self::PATIENT_EDITABLE_APPOINTMENT_STATUSES)->update(['status' => 'cancelled', 'cancelled_at' => date('Y-m-d H:i:s'), 'cancelled_by' => $context['user_id'], 'cancellation_reason' => $reason, 'updated_at' => date('Y-m-d H:i:s')])) {
@@ -514,7 +516,7 @@ class Portal extends BaseController
 
         try {
             $this->storage->uploadFile($key, $file);
-            $id = $this->documents->insert(['patient_id' => $context['patient']['id'], 'document_type' => trim((string) $this->request->getPost('document_type')), 'title' => trim((string) $this->request->getPost('title')), 'file_name' => basename($key), 'file_path' => $key, 'file_size' => $file->getSize(), 'mime_type' => $file->getMimeType()]);
+            $id = $this->documents->insert(['patient_id' => $context['patient']['id'], 'clinic_id' => $context['patient']['clinic_id'], 'document_type' => trim((string) $this->request->getPost('document_type')), 'title' => trim((string) $this->request->getPost('title')), 'file_name' => basename($key), 'file_path' => $key, 'file_size' => $file->getSize(), 'mime_type' => $file->getMimeType()]);
 
             if (!$id) {
                 throw new \RuntimeException('Document insert failed.');
@@ -541,7 +543,7 @@ class Portal extends BaseController
         if ($context === null) {
             return redirect()->to(base_url('permission-denied'));
         }
-        $document = $this->documents->where('id', $documentId)->where('patient_id', $context['patient']['id'])->first();
+        $document = $this->documents->where('id', $documentId)->where('patient_id', $context['patient']['id'])->where('clinic_id', $context['patient']['clinic_id'])->first();
 
         if ($document === null || empty($document['file_path'])) {
             return redirect()->back()->with('error', 'Document not found.');
@@ -559,7 +561,7 @@ class Portal extends BaseController
             return null;
         }
 
-        $patient = $this->patients->select('patients.*, clinics.clinic_name, COALESCE(telephone_code_countries.name, telephone_country_codes.label) AS telephone_country_name')->join('clinics', 'clinics.id = patients.clinic_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('countries AS telephone_code_countries', 'telephone_code_countries.id = telephone_country_codes.country_id', 'left')->where('patients.id', $context['patient_id'])->where('patients.status', 1)->where('clinics.status', 1)->first();
+        $patient = $this->patients->select('patients.*, clinics.clinic_name, COALESCE(telephone_code_countries.name, telephone_country_codes.label) AS telephone_country_name')->join('clinics', 'clinics.id = patients.clinic_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('countries AS telephone_code_countries', 'telephone_code_countries.id = telephone_country_codes.country_id', 'left')->where('patients.id', $context['patient_id'])->where('patients.clinic_id', $context['patient']['clinic_id'])->where('patients.status', 1)->where('clinics.status', 1)->first();
 
         return $patient !== null ? ['user_id' => $context['user_id'], 'patient' => $patient] : null;
     }
@@ -582,14 +584,14 @@ class Portal extends BaseController
         $date = \DateTimeImmutable::createFromFormat('!d-m-Y', $value);
         $errors = \DateTimeImmutable::getLastErrors();
 
-        if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+        if ($date !== false && $date->format('d-m-Y') === $value && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
             return $date->format('Y-m-d');
         }
 
         $isoDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         $errors = \DateTimeImmutable::getLastErrors();
 
-        if ($isoDate === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        if ($isoDate === false || $isoDate->format('Y-m-d') !== $value || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
             return null;
         }
 

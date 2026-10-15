@@ -37,7 +37,7 @@ final class ShopifyCustomerIdentityTest extends TestCase
         $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
 
         self::assertStringContainsString('where(\'external_event_id\', $eventId)', $eventService);
-        self::assertStringContainsString("foreach (['id', 'email', 'phone', 'first_name', 'last_name', 'date_of_birth']", $eventService);
+        self::assertStringContainsString("foreach (['id', 'email', 'phone', 'first_name', 'last_name']", $eventService);
         self::assertStringContainsString('processCustomerEvent', $webhook);
         self::assertStringNotContainsString("'payload' =>", $eventService);
     }

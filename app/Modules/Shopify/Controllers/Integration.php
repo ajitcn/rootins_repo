@@ -8,8 +8,11 @@ use App\Services\Shopify\ShopifyConfiguration;
 use App\Services\Shopify\ShopifyConfigurationException;
 use App\Services\Shopify\ShopifyConfigurationService;
 use App\Services\Shopify\ShopifyCustomerIdentityService;
+use App\Services\Shopify\ShopifyCustomerLookupException;
+use App\Services\Shopify\ShopifyCustomerLookupService;
 use App\Services\Shopify\ShopifyOrderImportService;
 use App\Services\Shopify\ShopifyProviderException;
+use App\Services\Shopify\ShopifyWebhookValidationService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -23,13 +26,87 @@ final class Integration extends BaseAdminController
             ADMIN_VIEW . 'pages/integrations/shopify',
             [
                 'shopify' => (new ShopifyConfiguration())->safeSummary(),
-                'customerLinks' => (new ShopifyCustomerIdentityService())->reviewQueue(),
-                'patientOptions' => (new ShopifyCustomerIdentityService())->patientOptions(),
                 'orderImports' => (new ShopifyOrderImportService())->queue(),
                 'configurations' => $configurationService->safeList(),
+                'canView' => $this->hasPermission('shopify.integration.view'),
                 'canManage' => $this->hasPermission('shopify.integration.manage'),
             ],
         );
+    }
+
+    public function webhooks(): string
+    {
+        $configuration = new ShopifyConfiguration();
+
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_webhooks', [
+            'shopify' => $configuration->safeSummary(),
+            'webhooks' => (new \App\Services\Shopify\ShopifyWebhookCatalogService())->catalog($configuration),
+            'callbackBase' => (new \App\Services\Shopify\ShopifyWebhookCatalogService())->publicCallbackBase($configuration->appUrl()),
+            'canManage' => $this->hasPermission('shopify.integration.manage'),
+        ]);
+    }
+
+    public function customers(): string
+    {
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_customers', [
+            'shopify' => (new ShopifyConfiguration())->safeSummary(),
+            'customerLinks' => (new ShopifyCustomerIdentityService())->reviewQueue(),
+            'patientOptions' => (new ShopifyCustomerIdentityService())->patientOptions(),
+            'canManage' => $this->hasPermission('shopify.integration.manage'),
+        ]);
+    }
+
+    public function onDemandApis(): string
+    {
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_on_demand_apis', [
+            'shopify' => (new ShopifyConfiguration())->safeSummary(),
+        ]);
+    }
+
+    public function validateWebhook(string $topic): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookValidationService())->validateTopic($topic);
+            service('audit')->record('shopify.webhook_validation_completed', ['topic' => $topic, 'subscription_status' => $result['shopify_subscription']['status'], 'endpoint_status' => $result['rootins_endpoint']['status']]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Webhook validation completed.', 'data' => $result]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable) {
+            service('audit')->record('shopify.webhook_validation_failed', ['topic' => $topic, 'reason' => 'internal']);
+
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Webhook validation could not be completed safely.']);
+        }
+    }
+
+    public function validateAllWebhooks(): ResponseInterface
+    {
+        try {
+            $results = (new ShopifyWebhookValidationService())->validateAll();
+            service('audit')->record('shopify.webhook_validation_all_completed', ['count' => count($results)]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Webhook validation completed.', 'data' => $results]);
+        } catch (\Throwable) {
+            service('audit')->record('shopify.webhook_validation_all_failed', ['reason' => 'internal']);
+
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Webhook validation could not be completed safely.']);
+        }
+    }
+
+    public function testWebhookEndpoint(string $topic): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookValidationService())->testEndpoint($topic);
+            service('audit')->record('shopify.webhook_endpoint_test_completed', ['topic' => $topic, 'status' => $result['status'], 'error_category' => $result['error_category']]);
+
+            return $this->response->setJSON(['status' => $result['status'] === 'Passed', 'msg' => $result['status'] === 'Passed' ? 'ROOTINS endpoint test passed.' : 'ROOTINS endpoint test did not pass.', 'data' => $result]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable) {
+            service('audit')->record('shopify.webhook_endpoint_test_failed', ['topic' => $topic, 'reason' => 'internal']);
+
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'ROOTINS endpoint test could not be completed safely.']);
+        }
     }
 
     public function saveConfiguration(): ResponseInterface
@@ -135,6 +212,80 @@ final class Integration extends BaseAdminController
             return $this->response->setJSON(['status' => true, 'msg' => 'Shopify customer unlinked.']);
         } catch (InvalidArgumentException $exception) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        }
+    }
+
+    public function testCustomerDetails(): ResponseInterface
+    {
+        $customerId = trim((string) $this->request->getPost('customer_id'));
+        $eventId = (int) $this->request->getPost('event_id');
+
+        try {
+            $details = (new ShopifyCustomerIdentityService())->customerDetails($customerId !== '' ? $customerId : null, $eventId > 0 ? $eventId : null);
+            service('audit')->record('shopify.customer_details_test_succeeded', [
+                'store_domain' => $details['store_domain'],
+                'customer_id' => $details['shopify_customer_id'],
+                'match_status' => $details['match_status'],
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Customer details loaded.', 'data' => $details]);
+        } catch (InvalidArgumentException $exception) {
+            service('audit')->record('shopify.customer_details_test_failed', [
+                'store_domain' => (new ShopifyConfiguration())->storeDomain(),
+                'customer_id' => $customerId !== '' ? $customerId : null,
+                'reason' => 'not_found_or_invalid',
+            ]);
+
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable) {
+            service('audit')->record('shopify.customer_details_test_failed', [
+                'store_domain' => (new ShopifyConfiguration())->storeDomain(),
+                'customer_id' => $customerId !== '' ? $customerId : null,
+                'reason' => 'internal',
+            ]);
+
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Customer details could not be loaded safely.']);
+        }
+    }
+
+    public function customer(string $customerId): ResponseInterface
+    {
+        try {
+            $details = (new ShopifyCustomerLookupService())->lookup($customerId);
+            $this->audit->record('shopify.customer_lookup_succeeded', [
+                'actor' => (int) ($this->user['id'] ?? 0),
+                'store_domain' => $details['store_domain'],
+                'customer_id' => $details['shopify_customer_id'],
+                'category' => 'success',
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify customer details loaded.', 'data' => $details]);
+        } catch (ShopifyCustomerLookupException $exception) {
+            $this->audit->record('shopify.customer_lookup_failed', [
+                'actor' => (int) ($this->user['id'] ?? 0),
+                'store_domain' => $exception->storeDomain,
+                'customer_id' => $exception->publicCustomerId,
+                'category' => $exception->errorCode,
+            ]);
+
+            return $this->response->setStatusCode($exception->httpStatus)->setJSON([
+                'status' => false,
+                'code' => $exception->errorCode,
+                'msg' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            $this->audit->record('shopify.customer_lookup_failed', [
+                'actor' => (int) ($this->user['id'] ?? 0),
+                'store_domain' => null,
+                'customer_id' => null,
+                'category' => 'SHOPIFY_API_UNAVAILABLE',
+            ]);
+
+            return $this->response->setStatusCode(503)->setJSON([
+                'status' => false,
+                'code' => 'SHOPIFY_API_UNAVAILABLE',
+                'msg' => 'Shopify customer details are temporarily unavailable.',
+            ]);
         }
     }
 

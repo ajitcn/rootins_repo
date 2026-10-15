@@ -143,8 +143,12 @@ final class ShopifyConfigurationService
             throw new InvalidArgumentException('The configured clinic does not exist or is inactive.');
         }
         $appUrl = trim((string) ($input['app_url'] ?? ''));
-        if (filter_var($appUrl, FILTER_VALIDATE_URL) === false || ! in_array(strtolower((string) parse_url($appUrl, PHP_URL_SCHEME)), ['http', 'https'], true)) {
-            throw new InvalidArgumentException('Enter a valid Shopify app URL.');
+        $appUrlParts = parse_url($appUrl);
+        if (filter_var($appUrl, FILTER_VALIDATE_URL) === false || ! is_array($appUrlParts) || strtolower((string) ($appUrlParts['scheme'] ?? '')) !== 'https' || empty($appUrlParts['host'])) {
+            throw new InvalidArgumentException('Enter a valid public HTTPS Shopify app URL.');
+        }
+        if (isset($appUrlParts['user'], $appUrlParts['pass']) || isset($appUrlParts['query']) || isset($appUrlParts['fragment'])) {
+            throw new InvalidArgumentException('The Shopify app URL must not contain credentials, query strings, fragments, or tokens.');
         }
         $appHost = strtolower(trim((string) parse_url($appUrl, PHP_URL_HOST)));
         if ($appHost === 'localhost' || $appHost === '127.0.0.1' || $appHost === '::1' || filter_var($appHost, FILTER_VALIDATE_IP) !== false && filter_var($appHost, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
@@ -154,7 +158,7 @@ final class ShopifyConfigurationService
             'legacy_clinic_id' => $clinicId,
             'store_domain' => $domain,
             'api_version' => $version,
-            'app_url' => $appUrl,
+            'app_url' => rtrim($appUrl, '/'),
             'auto_create_patients' => ! empty($input['auto_create_patients']) ? 1 : 0,
         ];
         foreach ([

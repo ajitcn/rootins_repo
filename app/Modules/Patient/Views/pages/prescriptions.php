@@ -40,7 +40,7 @@
 
 <?= $this->section('scripts') ?><script>
     $(function () {
-        var records = <?= json_encode($prescriptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        var records = <?= json_encode($prescriptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>; window.patientPdfRecords = records;
         var clinic = <?= json_encode($clinic, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
         var activePrescription = null;
         var escapeHtml = function (value) { return $('<div>').text(value == null ? '' : value).html(); };

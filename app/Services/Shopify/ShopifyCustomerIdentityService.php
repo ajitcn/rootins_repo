@@ -76,6 +76,86 @@ final class ShopifyCustomerIdentityService
     }
 
     /**
+     * Return a minimized, store-scoped customer view for the Admin test action.
+     * Internal patient IDs and full webhook payloads never leave this service.
+     *
+     * @return array<string, mixed>
+     */
+    public function customerDetails(?string $customerId = null, ?int $eventId = null): array
+    {
+        $configuration = $this->configuration ?? new ShopifyConfiguration();
+        $storeDomain = strtolower(trim($configuration->storeDomain()));
+        $events = $this->events ?? new ShopifyWebhookEventService();
+        $event = $eventId !== null && $eventId > 0
+            ? $events->find($eventId)
+            : $events->findLatestCustomerEvent($storeDomain, trim((string) $customerId));
+
+        if ($event === null || strtolower((string) ($event['store_domain'] ?? '')) !== $storeDomain || ! in_array((string) ($event['topic'] ?? ''), ['customers/create', 'customers/update'], true)) {
+            throw new InvalidArgumentException('A received Shopify customer event was not found in the configured store.');
+        }
+
+        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+        if (! is_array($payload) || trim((string) ($payload['id'] ?? '')) === '') {
+            throw new InvalidArgumentException('The received Shopify customer details are unavailable.');
+        }
+
+        $customerId = trim((string) $payload['id']);
+        $link = ($this->links ?? new ShopifyPatientIdentityLinkModel())
+            ->where('shopify_store_domain', $storeDomain)
+            ->where('shopify_customer_id', $customerId)
+            ->first();
+        $patientReference = null;
+        if ($link !== null && ! empty($link['patient_id'])) {
+            $clinicId = $configuration->clinicId();
+            $patient = $clinicId === null ? null : ($this->patients ?? new PatientModel())
+                ->select('registration_number')
+                ->where('id', (int) $link['patient_id'])
+                ->where('clinic_id', $clinicId)
+                ->where('status', 1)
+                ->first();
+            $patientReference = $patient['registration_number'] ?? null;
+        }
+
+        return [
+            'shopify_customer_id' => $customerId,
+            'name' => trim((string) ($payload['first_name'] ?? '') . ' ' . (string) ($payload['last_name'] ?? '')),
+            'email' => (string) ($payload['email'] ?? ''),
+            'mobile' => (string) ($payload['phone'] ?? ''),
+            'store_domain' => $storeDomain,
+            'match_status' => (string) ($link['link_status'] ?? 'unmatched'),
+            'linked_patient_reference' => $patientReference,
+        ];
+    }
+
+    /** @return array{match_status:string,linked_patient_reference:?string} */
+    public function identityMatch(string $customerId): array
+    {
+        $configuration = $this->configuration ?? new ShopifyConfiguration();
+        $storeDomain = strtolower(trim($configuration->storeDomain()));
+        $link = ($this->links ?? new ShopifyPatientIdentityLinkModel())
+            ->where('shopify_store_domain', $storeDomain)
+            ->where('shopify_customer_id', trim($customerId))
+            ->first();
+        $patientReference = null;
+
+        if ($link !== null && ! empty($link['patient_id'])) {
+            $clinicId = $configuration->clinicId();
+            $patient = $clinicId === null ? null : ($this->patients ?? new PatientModel())
+                ->select('registration_number')
+                ->where('id', (int) $link['patient_id'])
+                ->where('clinic_id', $clinicId)
+                ->where('status', 1)
+                ->first();
+            $patientReference = $patient['registration_number'] ?? null;
+        }
+
+        return [
+            'match_status' => (string) ($link['link_status'] ?? 'unmatched'),
+            'linked_patient_reference' => $patientReference,
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function reviewQueue(): array
