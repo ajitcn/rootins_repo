@@ -16,6 +16,10 @@ $routes->group('admin/integrations/shopify', [
     $routes->post('webhooks/validate/(:any)', 'Integration::validateWebhook/$1', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('webhooks/validate-all', 'Integration::validateAllWebhooks', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('webhooks/test-endpoint/(:any)', 'Integration::testWebhookEndpoint/$1', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/check-subscriptions', 'Integration::checkShopifySubscriptions', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/verify-live-delivery', 'Integration::verifyLiveDelivery', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/sync', 'Integration::syncWebhooks', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('webhooks/register-missing', 'Integration::registerMissingWebhooks', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('test-connection', 'Integration::testConnection', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('configuration/save', 'Integration::saveConfiguration', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('configuration/rotate-secret', 'Integration::rotateSecret', ['filter' => 'permission:shopify.integration.manage']);

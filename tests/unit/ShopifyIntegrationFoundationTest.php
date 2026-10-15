@@ -55,6 +55,8 @@ final class ShopifyIntegrationFoundationTest extends TestCase
         self::assertStringContainsString('shopify.integration.view', $migration);
         self::assertStringContainsString('shopify.integration.manage', $migration);
         self::assertStringContainsString('X-Shopify-Hmac-Sha256', $webhook);
+        self::assertStringContainsString('X-Shopify-Webhook-Id', $webhook);
+        self::assertStringNotContainsString('X-Shopify-Event-Id', $webhook);
     }
 
     public function testMissingConfigurationFailsBeforeAnyProviderRequest(): void

@@ -11,7 +11,6 @@ final class ShopifyWebhookCatalogService
     {
         $configuration ??= new ShopifyConfiguration();
         $storeDomain = strtolower(trim($configuration->storeDomain()));
-        $callbackBase = $this->publicCallbackBase($configuration->appUrl());
         $events = new ShopifyWebhookEventModel();
         $rows = [];
 
@@ -30,12 +29,15 @@ final class ShopifyWebhookCatalogService
             };
 
             $rows[] = array_merge($definition, [
-                'callback_url' => $callbackBase !== '' ? $callbackBase . '/' . $definition['topic'] : '',
+                'callback_url' => $this->callbackUrlForTopic($configuration->appUrl(), (string) $definition['topic']),
                 'expected_response' => '202 Accepted JSON; 401 invalid HMAC; 403 store-scope rejection; 422 invalid event.',
                 'status' => $status,
                 'last_received' => $latest['created_at'] ?? null,
                 'last_processed' => $latest['processed_at'] ?? null,
                 'last_result' => $latest === null ? 'No event received.' : ((string) ($latest['status'] ?? 'received')),
+                'last_event_reference' => $latest === null || trim((string) ($latest['external_event_id'] ?? '')) === '' ? null : hash('sha256', (string) $latest['external_event_id']),
+                'last_error_category' => $latest !== null && (string) ($latest['status'] ?? '') === 'failed' ? 'processing_failed' : null,
+                'live_status' => $latest === null ? 'Not yet verified' : 'Live event received',
                 'duplicate_behavior' => 'Reject duplicate X-Shopify-Webhook-Id values per store before processing.',
             ]);
         }
@@ -53,6 +55,43 @@ final class ShopifyWebhookCatalogService
         }
 
         return $appUrl . '/integrations/shopify/webhooks';
+    }
+
+    public function endpointTestUrl(string $appUrl, string $topic): string
+    {
+        return $this->callbackUrlForTopic($appUrl, $topic);
+    }
+
+    public function callbackUrlForTopic(string $appUrl, string $topic): string
+    {
+        $topic = trim($topic);
+        foreach ($this->definitions() as $definition) {
+            if ((string) $definition['topic'] === $topic) {
+                $base = $this->normalizedEndpointTestBase($appUrl);
+
+                return $base === '' ? '' : $base . '/integrations/shopify/webhooks/' . $topic;
+            }
+        }
+
+        return '';
+    }
+
+    private function normalizedEndpointTestBase(string $appUrl): string
+    {
+        $appUrl = trim($appUrl);
+        $parts = parse_url($appUrl);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        if ($scheme !== 'https' || $host === '' || isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])) {
+            return '';
+        }
+        if (in_array($host, ['localhost', '127.0.0.1', '::1'], true) || (filter_var($host, FILTER_VALIDATE_IP) !== false && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false)) {
+            return '';
+        }
+
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+
+        return 'https://' . $host . $port . '/public';
     }
 
     /** @return list<array{topic:string,purpose:string,method:string,required_fields:list<string>,hmac:string,scope:string,processing:string,required:bool}> */

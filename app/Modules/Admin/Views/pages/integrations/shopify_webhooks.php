@@ -9,12 +9,16 @@
             <p class="text-muted mb-0">Required topics, secure callback details, minimized payload definitions, and observed processing state.</p>
         </div>
         <div class="d-flex flex-wrap align-items-center">
-            <?php if ($canManage ?? false): ?><button type="button" class="btn btn-primary mr-2" id="shopify-webhooks-validate-all">Validate All</button><?php endif; ?>
+            <?php if ($canManage ?? false): ?><button type="button" class="btn btn-outline-primary mr-2" id="shopify-webhooks-check-subscriptions" data-action="check-subscriptions" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/check-subscriptions') ?>">Check Shopify Subscriptions</button><button type="button" class="btn btn-outline-secondary mr-2" id="shopify-webhooks-verify-live" data-action="verify-live-delivery" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/verify-live-delivery') ?>">Verify Live Delivery</button><button type="button" class="btn btn-outline-secondary mr-2" id="shopify-webhooks-sync" data-action="sync" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/sync') ?>">Sync Webhooks</button><button type="button" class="btn btn-primary mr-2" id="shopify-webhooks-register-missing" data-action="register-missing" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/register-missing') ?>">Register Missing Webhooks</button><button type="button" class="btn btn-outline-primary mr-2" id="shopify-webhooks-validate-all">Validate All</button><?php endif; ?>
             <a class="btn btn-outline-secondary" href="<?= base_url('admin/integrations/shopify') ?>">Back to Shopify integration</a>
         </div>
     </div>
 
+    <?php if ($canManage ?? false): ?><div id="shopify-webhook-management-status" class="alert d-none" role="status" aria-live="polite"></div><?php endif; ?>
+
     <div class="alert alert-light border small" role="note">
+        <strong>ROOTINS Endpoint Test</strong> generates a synthetic signed request locally; it is not evidence of Shopify delivery. <strong>Verify Live Delivery</strong> reports only real events already received by ROOTINS.
+        <br>
         Register these topics in the Shopify Dev Dashboard using a public HTTPS ROOTINS URL. ROOTINS does not automatically register or modify Shopify webhook subscriptions.
         Every request must use <code>POST</code>, include <code>X-Shopify-Hmac-SHA256</code>, and include <code>X-Shopify-Shop-Domain</code> for store scope validation.
     </div>
@@ -49,8 +53,8 @@
                         <td class="webhook-url-cell"><code class="small text-break d-block" id="webhook-url-<?= esc(str_replace(['/', '-'], '_', $webhook['topic'])) ?>"><?= esc($webhook['callback_url'] ?: 'Public HTTPS app URL not configured') ?></code><button type="button" class="btn btn-sm btn-link px-0 shopify-copy" data-copy-target="#webhook-url-<?= esc(str_replace(['/', '-'], '_', $webhook['topic'])) ?>" <?= $webhook['callback_url'] === '' ? 'disabled' : '' ?>>Copy URL</button><div><code><?= esc($webhook['method']) ?></code></div></td>
                         <td><details><summary><?= count($webhook['required_fields']) ?> required fields</summary><pre class="small mt-2 mb-1 text-wrap" id="webhook-fields-<?= esc(str_replace(['/', '-'], '_', $webhook['topic'])) ?>"><?= esc($fields) ?></pre><button type="button" class="btn btn-sm btn-link p-0 shopify-copy" data-copy-target="#webhook-fields-<?= esc(str_replace(['/', '-'], '_', $webhook['topic'])) ?>">Copy fields</button></details></td>
                         <td class="small"><div><span class="badge badge-light">HMAC <?= esc($webhook['hmac']) ?></span></div><div class="mt-1"><?= esc($webhook['scope']) ?></div><div class="mt-1 text-muted"><?= esc($webhook['duplicate_behavior']) ?></div><div class="mt-1"><strong>Response:</strong> <?= esc($webhook['expected_response']) ?></div></td>
-                        <td class="small text-nowrap"><span class="badge badge-<?= $webhook['status'] === 'Failed' ? 'danger' : ($webhook['status'] === 'Received' ? 'success' : 'secondary') ?>"><?= esc($webhook['status']) ?></span><div class="mt-1">Last received: <?= esc($webhook['last_received'] ?: 'Never') ?></div><div>Last processed: <?= esc($webhook['last_processed'] ?: 'Never') ?></div><div>Result: <?= esc($webhook['last_result']) ?></div></td>
-                        <?php if ($canManage ?? false): ?><td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-primary shopify-webhook-validate" data-topic="<?= esc($webhook['topic'], 'attr') ?>">Validate</button> <button type="button" class="btn btn-sm btn-outline-secondary shopify-webhook-test" data-topic="<?= esc($webhook['topic'], 'attr') ?>">Test Endpoint</button><div class="small mt-2 webhook-validation-result" data-result-topic="<?= esc($webhook['topic'], 'attr') ?>">Not validated</div></td><?php endif; ?>
+                        <td class="small"><span class="badge badge-<?= in_array($webhook['status'], ['Failed'], true) ? 'danger' : ($webhook['status'] === 'Received' ? 'success' : 'secondary') ?>"><?= esc($webhook['status']) ?></span><div class="mt-1">Live status: <?= esc($webhook['live_status']) ?></div><div>Last received: <?= esc($webhook['last_received'] ?: 'Never') ?></div><div>Last processed: <?= esc($webhook['last_processed'] ?: 'Never') ?></div><div>Processing: <?= esc($webhook['last_result']) ?></div><?php if (! empty($webhook['last_event_reference'])): ?><div>Event ref: <code><?= esc(substr($webhook['last_event_reference'], 0, 16)) ?>…</code></div><?php endif; ?><?php if (! empty($webhook['last_error_category'])): ?><div>Error: <?= esc($webhook['last_error_category']) ?></div><?php endif; ?></td>
+                        <?php if ($canManage ?? false): ?><td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-primary shopify-webhook-validate" data-action="validate" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/validate/' . $webhook['topic']) ?>" data-topic="<?= esc($webhook['topic'], 'attr') ?>">Validate</button> <button type="button" class="btn btn-sm btn-outline-secondary shopify-webhook-test" data-action="test-endpoint" data-action-url="<?= base_url('admin/integrations/shopify/webhooks/test-endpoint/' . $webhook['topic']) ?>" data-topic="<?= esc($webhook['topic'], 'attr') ?>">ROOTINS Endpoint Test</button><div class="small mt-2 webhook-validation-result" data-result-topic="<?= esc($webhook['topic'], 'attr') ?>">Not validated</div></td><?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -65,6 +69,8 @@
     window.rootinsShopifyWebhookValidateBase = <?= json_encode(base_url('admin/integrations/shopify/webhooks/validate/')) ?>;
     window.rootinsShopifyWebhookTestBase = <?= json_encode(base_url('admin/integrations/shopify/webhooks/test-endpoint/')) ?>;
     window.rootinsShopifyWebhookValidateAll = <?= json_encode(base_url('admin/integrations/shopify/webhooks/validate-all')) ?>;
+    window.rootinsShopifyWebhookSync = <?= json_encode(base_url('admin/integrations/shopify/webhooks/sync')) ?>;
+    window.rootinsShopifyWebhookRegisterMissing = <?= json_encode(base_url('admin/integrations/shopify/webhooks/register-missing')) ?>;
 </script>
-<script src="<?= base_url('assets/js/admin/integrations/shopify-webhooks.js') ?>"></script>
+<script src="<?= base_url('assets/js/admin/integrations/shopify-webhooks.js?v=20261015-2') ?>"></script>
 <?= $this->endSection() ?>

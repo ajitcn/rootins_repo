@@ -52,16 +52,17 @@ final class ShopifyWebhookValidationService
     public function testEndpoint(string $topic): array
     {
         $configuration = new ShopifyConfiguration();
-        $catalog = ($this->catalog ?? new ShopifyWebhookCatalogService())->catalog($configuration);
+        $catalogService = $this->catalog ?? new ShopifyWebhookCatalogService();
+        $catalog = $catalogService->catalog($configuration);
         $definition = $this->definition($catalog, $topic);
-        $callbackUrl = (string) $definition['callback_url'];
+        $callbackUrl = $catalogService->endpointTestUrl($configuration->appUrl(), $topic);
         $secret = $configuration->webhookSecret();
         if ($callbackUrl === '' || $secret === '') {
             return ['status' => 'Configuration missing', 'topic' => $topic, 'callback_url' => $callbackUrl, 'response_code' => null, 'idempotency' => 'Not tested', 'error_category' => 'configuration_missing'];
         }
 
         $eventId = 'rootins-endpoint-test-' . bin2hex(random_bytes(12));
-        $body = json_encode(['rootins_endpoint_test' => true, 'test_reference' => $eventId], JSON_UNESCAPED_SLASHES);
+        $body = json_encode(['rootins_endpoint_test' => true, 'test_topic' => trim($topic), 'test_reference' => $eventId], JSON_UNESCAPED_SLASHES);
         $signature = base64_encode(hash_hmac('sha256', (string) $body, $secret, true));
         $headers = [
             'Accept' => 'application/json',

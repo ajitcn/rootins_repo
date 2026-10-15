@@ -12,7 +12,7 @@ final class ShopifyRouteSecurityTest extends TestCase
         $adminGroup = substr($routes, 0, (int) strpos($routes, "});\n\n\$routes->post('integrations/shopify/webhooks"));
 
         self::assertNotFalse($adminGroup);
-        self::assertSame(20, substr_count($adminGroup, "['filter' => 'permission:"));
+        self::assertSame(24, substr_count($adminGroup, "['filter' => 'permission:"));
         self::assertStringContainsString("filter' => 'auth'", $adminGroup);
         self::assertStringContainsString('permission:shopify.integration.view', $adminGroup);
         self::assertStringContainsString('permission:shopify.order.import', $adminGroup);

@@ -40,6 +40,14 @@ final class Webhook extends BaseController
             ]);
         }
 
+        $eventId = trim($this->request->getHeaderLine('X-Shopify-Webhook-Id'));
+        if ($eventId === '') {
+            return $this->response->setStatusCode(422)->setJSON([
+                'status' => false,
+                'msg' => 'Webhook delivery identifier is required.',
+            ]);
+        }
+
         $testPayload = json_decode($rawBody, true);
         $endpointTest = $this->request->getHeaderLine('X-ROOTINS-Endpoint-Test') === '1'
             && $topic === 'rootins/endpoint-test'
@@ -47,7 +55,6 @@ final class Webhook extends BaseController
             && ($testPayload['rootins_endpoint_test'] ?? false) === true;
 
         if ($endpointTest) {
-            $eventId = $this->request->getHeaderLine('X-Shopify-Webhook-Id');
             $events = new ShopifyWebhookEventService();
             $result = $events->ingest($configuration->storeDomain(), $eventId, $topic, $rawBody);
             if ($result['id'] !== null && ! $result['duplicate']) {
@@ -55,7 +62,7 @@ final class Webhook extends BaseController
             }
             service('audit')->record('shopify.endpoint_test_received', [
                 'store_domain' => $configuration->storeDomain(),
-                'event_id' => $eventId,
+                'event_id_hash' => hash('sha256', $eventId),
                 'duplicate' => $result['duplicate'],
             ]);
 
@@ -65,12 +72,11 @@ final class Webhook extends BaseController
         if (in_array($topic, ['customers/create', 'customers/update'], true)) {
             service('audit')->record('shopify.customer_received', [
                 'topic' => $topic,
-                'event_id' => $this->request->getHeaderLine('X-Shopify-Event-Id'),
+                'event_id_hash' => hash('sha256', $eventId),
                 'store_domain' => $configuration->storeDomain(),
             ]);
         }
 
-        $eventId = $this->request->getHeaderLine('X-Shopify-Event-Id');
         $result = (new ShopifyWebhookEventService())->ingest(
             $configuration->storeDomain(),
             $eventId,
@@ -88,7 +94,7 @@ final class Webhook extends BaseController
         if ($result['duplicate']) {
             service('audit')->record('shopify.webhook_duplicate', [
                 'topic' => $topic,
-                'event_id' => $eventId,
+                'event_id_hash' => hash('sha256', $eventId),
                 'store_domain' => $configuration->storeDomain(),
             ]);
 
@@ -130,7 +136,7 @@ final class Webhook extends BaseController
             $result['duplicate'] ? 'shopify.webhook_duplicate' : 'shopify.webhook_received',
             [
                 'topic' => $topic,
-                'event_id' => $eventId,
+                'event_id_hash' => hash('sha256', $eventId),
                 'store_domain' => $configuration->storeDomain(),
             ],
         );

@@ -13,6 +13,7 @@ use App\Services\Shopify\ShopifyCustomerLookupService;
 use App\Services\Shopify\ShopifyOrderImportService;
 use App\Services\Shopify\ShopifyProviderException;
 use App\Services\Shopify\ShopifyWebhookValidationService;
+use App\Services\Shopify\ShopifyWebhookRegistrationService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -95,17 +96,120 @@ final class Integration extends BaseAdminController
 
     public function testWebhookEndpoint(string $topic): ResponseInterface
     {
+        $routeTopic = trim($topic);
+        $postedTopic = trim((string) $this->request->getPost('topic'));
+        $selectedTopic = $postedTopic !== '' ? $postedTopic : $routeTopic;
+
         try {
-            $result = (new ShopifyWebhookValidationService())->testEndpoint($topic);
-            service('audit')->record('shopify.webhook_endpoint_test_completed', ['topic' => $topic, 'status' => $result['status'], 'error_category' => $result['error_category']]);
+            $result = (new ShopifyWebhookValidationService())->testEndpoint($selectedTopic);
+            service('audit')->record('shopify.webhook_endpoint_test_completed', ['topic' => $selectedTopic, 'status' => $result['status'], 'error_category' => $result['error_category']]);
 
             return $this->response->setJSON(['status' => $result['status'] === 'Passed', 'msg' => $result['status'] === 'Passed' ? 'ROOTINS endpoint test passed.' : 'ROOTINS endpoint test did not pass.', 'data' => $result]);
         } catch (InvalidArgumentException $exception) {
-            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+            service('audit')->record('shopify.webhook_endpoint_test_failed', ['topic' => $selectedTopic, 'reason' => 'validation']);
+
+            return $this->response->setStatusCode(422)->setJSON([
+                'status' => false,
+                'code' => 'WEBHOOK_TEST_VALIDATION_FAILED',
+                'msg' => 'The ROOTINS endpoint test request could not be validated.',
+                'errors' => ['topic' => 'The selected webhook topic is not valid for this endpoint test.'],
+            ]);
         } catch (\Throwable) {
             service('audit')->record('shopify.webhook_endpoint_test_failed', ['topic' => $topic, 'reason' => 'internal']);
 
             return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'ROOTINS endpoint test could not be completed safely.']);
+        }
+    }
+
+    public function checkShopifySubscriptions(): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookRegistrationService())->sync();
+            service('audit')->record('shopify.webhook_subscriptions_checked', [
+                'registered' => $result['registered_correctly'],
+                'missing' => $result['missing'],
+                'url_mismatch' => $result['url_mismatch'],
+                'inactive' => $result['inactive'],
+                'failed' => $result['failed'],
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify subscriptions checked.', 'data' => $result]);
+        } catch (ShopifyConfigurationException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
+        } catch (ShopifyProviderException) {
+            return $this->response->setStatusCode(502)->setJSON(['status' => false, 'code' => 'SHOPIFY_API_UNAVAILABLE', 'msg' => 'Shopify subscriptions could not be checked safely.']);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_SUBSCRIPTION_CHECK_FAILED', 'msg' => 'Shopify subscriptions could not be checked safely.']);
+        }
+    }
+
+    public function verifyLiveDelivery(): ResponseInterface
+    {
+        try {
+            $rows = (new \App\Services\Shopify\ShopifyWebhookCatalogService())->catalog(new ShopifyConfiguration());
+            $received = count(array_filter($rows, static fn (array $row): bool => ($row['live_status'] ?? 'Not yet verified') === 'Live event received'));
+            service('audit')->record('shopify.webhook_live_delivery_checked', [
+                'topics_received' => $received,
+                'topics_total' => count($rows),
+            ]);
+
+            return $this->response->setJSON([
+                'status' => true,
+                'msg' => $received > 0 ? 'Live delivery evidence retrieved.' : 'No live Shopify delivery has been received yet.',
+                'data' => [
+                    'status' => $received > 0 ? 'Live event received' : 'Not yet verified',
+                    'received_count' => $received,
+                    'topics' => array_map(static fn (array $row): array => [
+                        'topic' => $row['topic'],
+                        'last_received' => $row['last_received'],
+                        'last_processed' => $row['last_processed'],
+                        'event_reference' => $row['last_event_reference'],
+                        'processing_status' => $row['last_result'],
+                        'error_category' => $row['last_error_category'],
+                        'live_status' => $row['live_status'],
+                    ], $rows),
+                ],
+            ]);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_LIVE_DELIVERY_CHECK_FAILED', 'msg' => 'Live delivery evidence could not be checked safely.']);
+        }
+    }
+
+    public function syncWebhooks(): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookRegistrationService())->sync();
+            $this->audit->record('shopify.webhooks_synced', [
+                'registered_correctly' => $result['registered_correctly'],
+                'missing' => $result['missing'],
+                'url_mismatch' => $result['url_mismatch'],
+                'inactive' => $result['inactive'],
+                'failed' => $result['failed'],
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify webhook subscriptions synchronized.', 'data' => $result]);
+        } catch (ShopifyConfigurationException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
+        } catch (ShopifyProviderException) {
+            return $this->response->setStatusCode(502)->setJSON(['status' => false, 'code' => 'SHOPIFY_API_UNAVAILABLE', 'msg' => 'Shopify webhook subscriptions could not be read safely.']);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_WEBHOOK_SYNC_FAILED', 'msg' => 'Shopify webhook subscriptions could not be synchronized safely.']);
+        }
+    }
+
+    public function registerMissingWebhooks(): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookRegistrationService())->registerMissing();
+            $this->audit->record('shopify.webhooks_registered', ['created' => $result['created'], 'existing' => $result['existing'], 'skipped' => $result['skipped'], 'failed' => $result['failed']]);
+
+            return $this->response->setJSON(['status' => $result['failed'] === 0, 'msg' => $result['failed'] === 0 ? 'Shopify webhooks synchronized.' : 'Shopify webhooks synchronized with failures.', 'data' => $result]);
+        } catch (ShopifyConfigurationException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
+        } catch (ShopifyProviderException) {
+            return $this->response->setStatusCode(502)->setJSON(['status' => false, 'code' => 'SHOPIFY_API_UNAVAILABLE', 'msg' => 'Shopify webhook subscriptions could not be registered safely.']);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_WEBHOOK_REGISTRATION_FAILED', 'msg' => 'Shopify webhook registration could not be completed safely.']);
         }
     }
 
