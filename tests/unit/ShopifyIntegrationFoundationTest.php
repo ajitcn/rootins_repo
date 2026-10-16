@@ -114,8 +114,11 @@ final class ShopifyIntegrationFoundationTest extends TestCase
         $view = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/integrations/shopify_webhooks.php');
 
         self::assertStringContainsString("'webhooks', 'Integration::webhooks'", $routes);
-        foreach (['customers/create', 'customers/update', 'orders/create', 'orders/updated', 'orders/cancelled', 'refunds/create', 'fulfillments/create', 'fulfillments/update', 'products/create', 'products/update', 'app/uninstalled'] as $topic) {
+        foreach (['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'] as $topic) {
             self::assertStringContainsString("'topic' => '{$topic}'", $catalog);
+        }
+        foreach (['customers/create', 'customers/update', 'customers/delete', 'products/create', 'products/update', 'products/delete'] as $topic) {
+            self::assertStringNotContainsString("'topic' => '{$topic}'", $catalog);
         }
         self::assertStringContainsString("\$scheme !== 'https'", $catalog);
         self::assertStringContainsString('X-Shopify-Hmac-SHA256', $view);

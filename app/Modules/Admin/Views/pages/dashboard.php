@@ -79,5 +79,51 @@
             </div>
         </div>
     </div>
+
+    <?php
+    $moduleAccess = [
+        ['label' => 'Doctor', 'description' => 'Consultations, availability, and doctor operations.', 'icon' => 'fa-solid fa-user-doctor', 'permission' => 'doctor.view', 'url' => 'doctor', 'status' => 'Authorized'],
+        ['label' => 'Pharmacy', 'description' => 'Prescriptions, inventory, orders, and delivery.', 'icon' => 'fa-solid fa-pills', 'permission' => 'pharmacy.dashboard.view', 'url' => 'pharmacy', 'status' => 'Authorized'],
+        ['label' => 'Patient', 'description' => 'Manage patient records and care information.', 'icon' => 'fa-solid fa-user-injured', 'permission' => 'patient.view', 'url' => 'admin/patients', 'status' => 'Authorized'],
+        ['label' => 'CRM / Lead Management', 'description' => 'Review leads and manage the conversion pipeline.', 'icon' => 'fa-solid fa-address-book', 'permission' => 'crm.lead.view', 'url' => 'admin/crm/leads', 'status' => 'Authorized'],
+        ['label' => 'Core API', 'description' => 'Manage signed Core API credentials and access.', 'icon' => 'fa-solid fa-plug-circle-check', 'permission' => 'core_api.view', 'url' => 'admin/integrations/core-api', 'status' => 'Authorized'],
+        ['label' => 'Shopify Integration', 'description' => 'Monitor the Shopify connection and operations.', 'icon' => 'fa-brands fa-shopify', 'permission' => 'shopify.integration.view', 'url' => 'admin/integrations/shopify', 'status' => 'Authorized'],
+        ['label' => 'Admin Settings', 'description' => 'Configure system settings for the permitted scope.', 'icon' => 'fa-solid fa-sliders', 'permission' => 'settings.manage', 'url' => 'admin/configuration/settings/general-settings', 'status' => 'Authorized'],
+    ];
+    $availableModules = array_values(array_filter($moduleAccess, static fn (array $module): bool => $canDashboard($module['permission'])));
+    ?>
+    <section class="module-access-section" aria-labelledby="module-access-title">
+        <div class="module-access-heading">
+            <div>
+                <h2 id="module-access-title" class="h5 mb-1">Module Access</h2>
+                <p class="text-muted mb-0">Open an authorized module directly from the Admin panel.</p>
+            </div>
+            <span class="badge badge-light module-access-count" aria-label="<?= count($availableModules) ?> modules available"><?= count($availableModules) ?> available</span>
+        </div>
+
+        <?php if ($availableModules): ?>
+            <div class="module-access-grid">
+                <?php foreach ($availableModules as $module): ?>
+                    <a class="module-access-card" href="<?= base_url($module['url']) ?>">
+                        <span class="module-access-icon" aria-hidden="true"><i class="<?= esc($module['icon']) ?>"></i></span>
+                        <span class="module-access-copy">
+                            <strong><?= esc($module['label']) ?></strong>
+                            <span><?= esc($module['description']) ?></span>
+                        </span>
+                        <span class="module-access-meta">
+                            <span class="badge badge-success"><i class="bi bi-check2 mr-1" aria-hidden="true"></i><?= esc($module['status']) ?></span>
+                            <span class="module-access-open">Open <i class="bi bi-arrow-up-right ml-1" aria-hidden="true"></i></span>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <div class="empty-state module-access-empty" role="status">
+                <i class="bi bi-lock d-block h3 mb-2" aria-hidden="true"></i>
+                <div>No additional modules are available</div>
+                <small>Your account currently has access to the Admin dashboard only.</small>
+            </div>
+        <?php endif; ?>
+    </section>
 </main>
 <?= $this->endSection() ?>

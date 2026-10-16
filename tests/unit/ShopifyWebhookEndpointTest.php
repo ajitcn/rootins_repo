@@ -13,7 +13,7 @@ final class ShopifyWebhookEndpointTest extends TestCase
         $catalog = new ShopifyWebhookCatalogService();
         $configuration = new ShopifyConfiguration(['app_url' => 'https://rootins.newrootssoftware.in/public/']);
 
-        foreach (['customers/create', 'customers/update', 'orders/create', 'orders/updated', 'refunds/create', 'fulfillments/create', 'products/update'] as $topic) {
+        foreach (['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'] as $topic) {
             self::assertSame(
                 'https://rootins.newrootssoftware.in/public/integrations/shopify/webhooks/' . $topic,
                 $catalog->endpointTestUrl($configuration->appUrl(), $topic),
@@ -64,7 +64,8 @@ final class ShopifyWebhookEndpointTest extends TestCase
         $javascript = file_get_contents(ROOTPATH . 'public/assets/js/admin/integrations/shopify-webhooks.js');
 
         self::assertStringContainsString("webhooks/sync', 'Integration::syncWebhooks'", $routes);
-        self::assertStringContainsString("webhooks/register-missing', 'Integration::registerMissingWebhooks'", $routes);
+        self::assertStringContainsString("webhooks/preview', 'Integration::previewWebhooks'", $routes);
+        self::assertStringContainsString("webhooks/apply', 'Integration::applyWebhooks'", $routes);
         self::assertStringContainsString('permission:shopify.integration.manage', $routes);
         self::assertStringContainsString("'GET', '/webhooks.json'", $service);
         self::assertStringContainsString('webhookSubscriptionCreate', $service);
@@ -73,10 +74,10 @@ final class ShopifyWebhookEndpointTest extends TestCase
         self::assertStringContainsString("webhooks/verify-live-delivery', 'Integration::verifyLiveDelivery'", $routes);
         self::assertStringContainsString('last_event_reference', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookCatalogService.php'));
         self::assertStringContainsString("'Already existing'", $service);
-        self::assertStringContainsString("'URL mismatch'", $service);
-        self::assertStringNotContainsString("'DELETE'", $service);
-        self::assertStringContainsString('Register Missing Webhooks', $view);
-        self::assertStringContainsString('Sync Webhooks', $view);
-        self::assertStringContainsString('window.confirm', $javascript);
+        self::assertStringContainsString('URL or delivery mismatch', $service);
+        self::assertStringContainsString('webhookSubscriptionDelete', $service);
+        self::assertStringContainsString('Review &amp; Apply Approved Topics', $view);
+        self::assertStringContainsString('Subscriptions to remove', $javascript);
+        self::assertStringContainsString('rootinsShopifyWebhookConfirmation', $javascript);
     }
 }

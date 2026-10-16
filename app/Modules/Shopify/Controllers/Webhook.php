@@ -118,7 +118,7 @@ final class Webhook extends BaseController
             }
         }
 
-        if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
+        if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyOrderImportService())->processEvent((int) $result['id']);
             } catch (\Throwable $exception) {

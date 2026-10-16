@@ -179,7 +179,7 @@ final class Integration extends BaseAdminController
     {
         try {
             $result = (new ShopifyWebhookRegistrationService())->sync();
-            $this->audit->record('shopify.webhooks_synced', [
+            $this->audit->record('shopify.webhooks_previewed', [
                 'registered_correctly' => $result['registered_correctly'],
                 'missing' => $result['missing'],
                 'url_mismatch' => $result['url_mismatch'],
@@ -187,7 +187,7 @@ final class Integration extends BaseAdminController
                 'failed' => $result['failed'],
             ]);
 
-            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify webhook subscriptions synchronized.', 'data' => $result]);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify webhook change preview ready.', 'data' => $result]);
         } catch (ShopifyConfigurationException) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
         } catch (ShopifyProviderException) {
@@ -200,16 +200,64 @@ final class Integration extends BaseAdminController
     public function registerMissingWebhooks(): ResponseInterface
     {
         try {
-            $result = (new ShopifyWebhookRegistrationService())->registerMissing();
-            $this->audit->record('shopify.webhooks_registered', ['created' => $result['created'], 'already_existing' => $result['already_existing'], 'url_mismatch' => $result['url_mismatch'], 'inactive' => $result['inactive'], 'failed' => $result['failed']]);
-
-            return $this->response->setJSON(['status' => $result['failed'] === 0, 'msg' => $result['failed'] === 0 ? 'Shopify webhooks synchronized.' : 'Shopify webhooks synchronized with failures.', 'data' => $result]);
+            if (trim((string) $this->request->getPost('confirmation')) === '' || trim((string) $this->request->getPost('plan_hash')) === '') {
+                return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIRMATION_REQUIRED', 'msg' => 'Review the current Shopify webhook subscriptions and explicitly confirm the proposed changes first.']);
+            }
+            return $this->applyWebhooks();
         } catch (ShopifyConfigurationException) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
         } catch (ShopifyProviderException) {
             return $this->response->setStatusCode(502)->setJSON(['status' => false, 'code' => 'SHOPIFY_API_UNAVAILABLE', 'msg' => 'Shopify webhook subscriptions could not be registered safely.']);
         } catch (\Throwable) {
             return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_WEBHOOK_REGISTRATION_FAILED', 'msg' => 'Shopify webhook registration could not be completed safely.']);
+        }
+    }
+
+    public function previewWebhooks(): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookRegistrationService())->preview();
+            $this->audit->record('shopify.webhooks_previewed', [
+                'to_create' => count($result['to_create'] ?? []),
+                'already_existing' => count($result['already_existing'] ?? []),
+                'to_remove' => count($result['to_remove'] ?? []),
+                'skipped' => count($result['skipped'] ?? []),
+                'failed' => (int) ($result['failed'] ?? 0),
+                'ownership_verified' => (bool) ($result['ownership_verified'] ?? false),
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify webhook change preview ready.', 'data' => $result]);
+        } catch (ShopifyConfigurationException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
+        } catch (ShopifyProviderException) {
+            return $this->response->setStatusCode(502)->setJSON(['status' => false, 'code' => 'SHOPIFY_API_UNAVAILABLE', 'msg' => 'Shopify subscriptions could not be queried safely.']);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_WEBHOOK_PREVIEW_FAILED', 'msg' => 'Shopify webhook changes could not be previewed safely.']);
+        }
+    }
+
+    public function applyWebhooks(): ResponseInterface
+    {
+        try {
+            $result = (new ShopifyWebhookRegistrationService())->apply((string) $this->request->getPost('confirmation'), (string) $this->request->getPost('plan_hash'));
+            $this->audit->record('shopify.webhooks_applied', [
+                'created' => (int) ($result['created'] ?? 0),
+                'already_existing' => (int) ($result['already_existing'] ?? 0),
+                'removed' => (int) ($result['removed'] ?? 0),
+                'deleted' => (int) ($result['deleted'] ?? $result['removed'] ?? 0),
+                'skipped' => (int) ($result['skipped'] ?? 0),
+                'failed' => (int) ($result['failed'] ?? 0),
+            ]);
+
+            return $this->response->setJSON(['status' => ($result['failed'] ?? 0) === 0, 'msg' => 'Shopify webhook changes processed.', 'data' => $result]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIRMATION_REQUIRED', 'msg' => $exception->getMessage()]);
+        } catch (ShopifyProviderException $exception) {
+            return $this->response->setStatusCode($exception->httpStatus === 409 ? 409 : 502)->setJSON(['status' => false, 'code' => $exception->errorCode ?: 'SHOPIFY_WEBHOOK_APPLY_FAILED', 'msg' => $exception->getMessage()]);
+        } catch (ShopifyConfigurationException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'code' => 'SHOPIFY_CONFIGURATION_MISSING', 'msg' => 'Shopify configuration is missing.']);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_WEBHOOK_APPLY_FAILED', 'msg' => 'Shopify webhook changes could not be applied safely.']);
         }
     }
 

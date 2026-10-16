@@ -30,6 +30,8 @@
                     ? 'Status: ' + (data.data?.status ?? 'Not yet verified') + ', Received: ' + (data.data?.received_count ?? 0) + '.'
                     : button.dataset.action === 'sync'
                     ? 'Registered correctly: ' + (data.data?.registered_correctly ?? 0) + ', Missing: ' + (data.data?.missing ?? 0) + ', URL mismatch: ' + (data.data?.url_mismatch ?? 0) + ', Inactive: ' + (data.data?.inactive ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.'
+                    : (button.dataset.action === 'preview' || button.dataset.action === 'apply')
+                    ? 'Created: ' + (data.data?.created ?? 0) + ', Already existing: ' + (data.data?.already_existing ?? 0) + ', Removed: ' + (data.data?.removed ?? 0) + ', Skipped: ' + (data.data?.skipped ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.'
                     : 'Already existing: ' + (data.data?.already_existing ?? 0) + ', Created: ' + (data.data?.created ?? 0) + ', URL mismatch: ' + (data.data?.url_mismatch ?? 0) + ', Inactive: ' + (data.data?.inactive ?? 0) + ', Failed: ' + (data.data?.failed ?? 0) + '.';
                 status.textContent = payload.response.ok && data.status
                     ? (data.msg || 'Shopify webhook operation completed.') + ' ' + summary
@@ -60,6 +62,68 @@
         });
         container.classList.toggle('d-none', rows.length === 0);
     }
+
+    function renderPlanList(label, rows) {
+        var items = Array.isArray(rows) ? rows : [];
+        if (!items.length) return '<div class="small text-muted">None</div>';
+        function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, function (character) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]; }); }
+        return '<ul class="small mb-0 pl-3">' + items.map(function (item) {
+            var topic = escapeHtml(item.topic || 'Unknown topic');
+            var detail = item.callback_url ? ' <code class="text-break">' + escapeHtml(item.callback_url) + '</code>' : '';
+            var reason = item.reason ? ' <span class="text-muted">(' + escapeHtml(item.reason) + ')</span>' : '';
+            return '<li><code>' + topic + '</code>' + detail + reason + '</li>';
+        }).join('') + '</ul>';
+    }
+
+    function renderReview(plan) {
+        var body = document.getElementById('shopify-webhook-review-body');
+        var apply = document.getElementById('shopify-webhook-apply');
+        if (!body || !apply) return;
+        var ownership = plan.ownership_verified ? '<div class="alert alert-success small">Configured Shopify store ownership verified. Changes may be applied after confirmation.</div>' : '<div class="alert alert-danger small">Store ownership could not be verified. No create or delete operation is available.</div>';
+        body.innerHTML = ownership + '<div class="row">' +
+            '<div class="col-md-6 mb-3"><h3 class="h6">Subscriptions to create (' + (plan.to_create || []).length + ')</h3>' + renderPlanList('create', plan.to_create) + '</div>' +
+            '<div class="col-md-6 mb-3"><h3 class="h6">Already correct (' + (plan.already_existing || []).length + ')</h3>' + renderPlanList('existing', plan.already_existing) + '</div>' +
+            '<div class="col-md-6 mb-3"><h3 class="h6">Subscriptions to remove (' + (plan.to_remove || []).length + ')</h3>' + renderPlanList('remove', plan.to_remove) + '</div>' +
+            '<div class="col-md-6 mb-3"><h3 class="h6">URL or delivery mismatches (' + (plan.url_mismatches || []).length + ')</h3>' + renderPlanList('mismatch', plan.url_mismatches) + '</div>' +
+            '<div class="col-12"><h3 class="h6">Skipped (' + (plan.skipped || []).length + ')</h3>' + renderPlanList('skipped', plan.skipped) + '</div></div>';
+        apply.dataset.planHash = plan.plan_hash || '';
+        apply.disabled = !plan.ownership_verified || !plan.plan_hash;
+        if (window.jQuery) window.jQuery('#shopify-webhook-review-modal').modal('show');
+    }
+
+    function requestPreview(button) {
+        if (button.dataset.loading === '1') return;
+        button.dataset.loading = '1'; button.disabled = true;
+        var form = new FormData(); if (csrfName) form.append(csrfName, csrfValue);
+        fetch(button.dataset.actionUrl || window.rootinsShopifyWebhookPreview, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: form })
+            .then(function (response) { return response.json().then(function (data) { return { response: response, data: data }; }); })
+            .then(function (payload) { if (!payload.response.ok || !payload.data.status) throw new Error(payload.data.msg || 'Shopify webhook preview failed safely.'); renderReview(payload.data.data || {}); })
+            .catch(function (error) { var body = document.getElementById('shopify-webhook-review-body'); if (body) body.innerHTML = '<div class="alert alert-danger">' + String(error.message || 'Shopify webhook preview failed safely.') + '</div>'; if (window.jQuery) window.jQuery('#shopify-webhook-review-modal').modal('show'); })
+            .finally(function () { button.dataset.loading = '0'; button.disabled = false; });
+    }
+
+    document.getElementById('shopify-webhooks-review')?.addEventListener('click', function () { requestPreview(this); });
+
+    document.getElementById('shopify-webhook-apply')?.addEventListener('click', function () {
+        var button = this;
+        if (button.disabled || button.dataset.loading === '1') return;
+        button.dataset.loading = '1'; button.disabled = true; button.textContent = 'Applying…';
+        var form = new FormData();
+        if (csrfName) form.append(csrfName, csrfValue);
+        form.append('confirmation', window.rootinsShopifyWebhookConfirmation);
+        form.append('plan_hash', button.dataset.planHash || '');
+        fetch(window.rootinsShopifyWebhookApply, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: form })
+            .then(function (response) { return response.json().then(function (data) { return { response: response, data: data }; }); })
+            .then(function (payload) {
+                var status = document.getElementById('shopify-webhook-management-status');
+                if (status) { status.className = 'alert mt-3 ' + (payload.response.ok && payload.data.status ? 'alert-success' : 'alert-danger'); var result = payload.data.data || {}; status.textContent = (payload.data.msg || 'Shopify webhook changes processed.') + ' Created: ' + (result.created || 0) + ', Already existing: ' + (result.already_existing || 0) + ', Removed: ' + (result.removed || 0) + ', Skipped: ' + (result.skipped || 0) + ', Failed: ' + (result.failed || 0) + '.'; }
+                renderManagementResults(payload.data.data || {});
+                if (payload.response.status === 409) renderReview(payload.data.data || {});
+                else if (window.jQuery) window.jQuery('#shopify-webhook-review-modal').modal('hide');
+            })
+            .catch(function () { var status = document.getElementById('shopify-webhook-management-status'); if (status) { status.className = 'alert mt-3 alert-danger'; status.textContent = 'Shopify webhook changes could not be applied safely.'; } })
+            .finally(function () { button.dataset.loading = '0'; button.disabled = false; button.textContent = 'Confirm and apply changes'; });
+    });
 
     function request(url, topic, button) {
         if (button.dataset.loading === '1') return Promise.resolve(null);
@@ -121,20 +185,8 @@
             .finally(function () { window.clearTimeout(timer); button.dataset.loading = '0'; button.disabled = false; button.textContent = 'Validate All'; });
     });
 
-    document.getElementById('shopify-webhooks-sync')?.addEventListener('click', function () {
-        managementRequest(this.dataset.actionUrl, this, 'Synchronize Shopify webhook subscriptions? Existing subscriptions will not be modified or deleted.');
-    });
-
-    document.getElementById('shopify-webhooks-check-subscriptions')?.addEventListener('click', function () {
-        managementRequest(this.dataset.actionUrl, this, null);
-    });
-
     document.getElementById('shopify-webhooks-verify-live')?.addEventListener('click', function () {
         managementRequest(this.dataset.actionUrl, this, null);
-    });
-
-    document.getElementById('shopify-webhooks-register-missing')?.addEventListener('click', function () {
-        managementRequest(this.dataset.actionUrl, this, 'Register only missing Shopify webhooks? Existing subscriptions will not be modified or deleted.');
     });
 
     document.querySelectorAll('.shopify-copy').forEach(function (button) {
