@@ -56,9 +56,12 @@ final class ShopifyProxySetupTest extends TestCase
     {
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
         $proxyService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
-        self::assertStringContainsString("['status' => true, 'data' => \$data]", $controller);
+        self::assertStringContainsString("['status' => true, 'data' => \$data === [] ? (object) [] : \$data]", $controller);
         self::assertStringContainsString("['status' => false, 'error' => ['code'", $controller);
         self::assertStringContainsString("setContentType('application/json')", $controller);
+        self::assertStringContainsString('APPOINTMENT_AVAILABILITY_INVALID', $controller);
+        self::assertStringContainsString('SHOPIFY_PROXY_INTERNAL_ERROR', $controller);
+        self::assertStringContainsString('correlation_id=', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
     }

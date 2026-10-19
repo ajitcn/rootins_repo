@@ -20,6 +20,7 @@ final class Proxy extends BaseController
 
     private function handle(string $operation, bool $write): ResponseInterface
     {
+        $correlationId = $this->correlationId();
         $key = trim($this->request->getHeaderLine('Idempotency-Key'));
         if ($write && ($key === '' || strlen($key) > 191)) return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_KEY_INVALID');
         $claimed = false;
@@ -41,6 +42,9 @@ final class Proxy extends BaseController
         } catch (CoreApiException $exception) {
             if ($claimed) $idempotency->fail($key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
+            if ($operation === 'appointments.availability' && $exception->httpStatus === 422 && $exception->errorCode === 'VALIDATION_FAILED') {
+                return $this->json(422, false, 'Required availability parameters are missing.', [], 'APPOINTMENT_AVAILABILITY_INVALID');
+            }
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed) $idempotency->fail($key, 'authentication');
@@ -51,16 +55,34 @@ final class Proxy extends BaseController
             return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST');
         } catch (Throwable $exception) {
             if ($claimed) $idempotency->fail($key, 'internal');
-            log_message('error', 'Shopify proxy request failed safely operation=' . $operation . ' exception=' . get_class($exception));
-            return $this->json(500, false, 'The Shopify proxy request could not be processed safely.', [], 'SHOPIFY_PROXY_INTERNAL_ERROR');
+            log_message('error', 'Shopify proxy boundary failure route=' . $this->safeRoute() . ' operation=' . $operation . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine() . ' correlation_id=' . $correlationId);
+            $message = $operation === 'appointments.availability'
+                ? 'The appointment availability service is temporarily unavailable.'
+                : 'The Shopify proxy request could not be processed safely.';
+            return $this->json(500, false, $message, [], 'SHOPIFY_PROXY_INTERNAL_ERROR');
         }
     }
 
     private function json(int $status, bool $success, string $message, array $data = [], string $code = ''): ResponseInterface
     {
         $body = $success
-            ? ['status' => true, 'data' => $data]
+            ? ['status' => true, 'data' => $data === [] ? (object) [] : $data]
             : ['status' => false, 'error' => ['code' => $code !== '' ? $code : 'SHOPIFY_PROXY_ERROR', 'message' => $message]];
         return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body);
+    }
+
+    private function correlationId(): string
+    {
+        try {
+            return bin2hex(random_bytes(16));
+        } catch (Throwable) {
+            return 'unavailable';
+        }
+    }
+
+    private function safeRoute(): string
+    {
+        $path = $this->request->getUri()->getPath();
+        return preg_replace('/[^a-zA-Z0-9_\/.:-]/', '', $path) ?: '/rootins-proxy';
     }
 }
