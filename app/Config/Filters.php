@@ -62,7 +62,7 @@ class Filters extends BaseFilters
      */
     public array $globals = ['before' => [
         // 'honeypot',
-        'csrf' => ['except' => ['api/v1/*', 'integrations/shopify/webhooks/*', 'shopify-proxy/*']],
+        'csrf' => ['except' => ['api/v1/*', 'integrations/shopify/webhooks/*', 'rootins-proxy/*']],
     ], 'after' => []];
 
     /**

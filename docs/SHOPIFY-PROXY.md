@@ -8,17 +8,17 @@ Default Shopify values are:
 
 - prefix `apps`
 - subpath `rootins`
-- backend path `/shopify-proxy`
+- backend path `/rootins-proxy`
 - storefront URL `https://rootins.myshopify.com/apps/rootins`
-- ROOTINS URL `https://rootins.newrootssoftware.in/public/shopify-proxy`
+- ROOTINS URL `https://rootins.newrootssoftware.in/public/rootins-proxy`
 
 Shopify requests are accepted only when the proxy is enabled, the `shop` domain matches the stored Shopify domain, the timestamp is within five minutes, and the App Proxy HMAC signature validates with the server-side Shopify client secret. POST requests require `Idempotency-Key`. Customer identity links, clinic scope, Core API rate limiting, audit events, and existing Core API business services are applied at the proxy boundary.
 
 Routes:
 
-- `GET /shopify-proxy/appointments/availability`
-- `POST /shopify-proxy/appointments/book`
-- `POST /shopify-proxy/patients/register`
-- `POST /shopify-proxy/prescriptions/upload`
+- `GET /rootins-proxy/appointments/availability`
+- `POST /rootins-proxy/appointments/book`
+- `POST /rootins-proxy/patients/register`
+- `POST /rootins-proxy/prescriptions/upload`
 
 The Core API client ID and client secret are stored encrypted in the separate Core API proxy configuration record. Secrets are never returned to storefront clients, rendered into HTML/JavaScript, placed in URLs, or logged. Secret rotation is available from the Core API proxy section.

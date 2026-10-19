@@ -10,8 +10,11 @@ final class ShopifyProxySetupTest extends TestCase
     {
         $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
         $proxy = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
-        self::assertStringContainsString("shopify-proxy/appointments/availability", $routes);
-        self::assertStringContainsString("shopify-proxy/prescriptions/upload", $routes);
+        self::assertStringContainsString("rootins-proxy/appointments/availability", $routes);
+        self::assertStringContainsString("rootins-proxy/prescriptions/upload", $routes);
+        self::assertStringNotContainsString("shopify-proxy/appointments/availability", $routes);
+        self::assertStringContainsString("rootins-proxy/*", file_get_contents(ROOTPATH . 'app/Config/Filters.php'));
+        self::assertStringContainsString("/public/rootins-proxy", file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'));
         self::assertStringContainsString("proxy-setup/rotate-secret", $routes);
         self::assertStringContainsString("proxy-setup/enable", $routes);
         self::assertStringContainsString("proxy-setup/disable", $routes);
