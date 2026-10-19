@@ -66,8 +66,11 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString('Shopify proxy request started', $controller);
         self::assertStringContainsString('Shopify proxy response ready', $controller);
         self::assertStringContainsString('ROOTINS Shopify Core API Proxy is reachable.', $controller);
+        self::assertStringContainsString('Shopify proxy availability dependency failure', $controller);
+        self::assertStringContainsString('SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
+        self::assertStringContainsString('validateAvailabilityPayload', $proxyService);
     }
 
     public function testProxyConnectionVerifiesIsolatedCredentialsAndKeepsErrorsSafe(): void

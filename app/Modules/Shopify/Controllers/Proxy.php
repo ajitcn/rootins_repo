@@ -53,8 +53,12 @@ final class Proxy extends BaseController
         } catch (CoreApiException $exception) {
             if ($claimed) $idempotency->fail($key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
-            if ($operation === 'appointments.availability' && $exception->httpStatus === 422 && $exception->errorCode === 'VALIDATION_FAILED') {
-                return $this->json(422, false, 'Required availability parameters are missing.', [], 'APPOINTMENT_AVAILABILITY_INVALID');
+            if ($operation === 'appointments.availability' && $exception->httpStatus >= 500) {
+                $this->logAvailabilityFailure($exception, $this->dependencyCategory($exception));
+            }
+            if ($operation === 'appointments.availability' && $exception->httpStatus === 422 && in_array($exception->errorCode, ['VALIDATION_FAILED', 'APPOINTMENT_AVAILABILITY_INVALID'], true)) {
+                $message = $exception->errorCode === 'APPOINTMENT_AVAILABILITY_INVALID' ? 'Required availability parameters are missing.' : 'Review the availability fields.';
+                return $this->json(422, false, $message, [], 'APPOINTMENT_AVAILABILITY_INVALID');
             }
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (ShopifyProxyAuthenticationException $exception) {
@@ -66,6 +70,11 @@ final class Proxy extends BaseController
             return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST');
         } catch (Throwable $exception) {
             if ($claimed) $idempotency->fail($key, 'internal');
+            $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
+            if ($dependency !== null) {
+                $this->logAvailabilityFailure($exception, $dependency);
+                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE');
+            }
             log_message('error', 'Shopify proxy boundary failure route=' . $this->safeRoute() . ' operation=' . $operation . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine() . ' correlation_id=' . $correlationId);
             $message = $operation === 'appointments.availability'
                 ? 'The appointment availability service is temporarily unavailable.'
@@ -131,5 +140,26 @@ final class Proxy extends BaseController
     {
         $path = $this->request->getUri()->getPath();
         return preg_replace('/[^a-zA-Z0-9_\/.:-]/', '', $path) ?: '/rootins-proxy';
+    }
+
+    private function logAvailabilityFailure(Throwable $exception, string $category): void
+    {
+        log_message('error', 'Shopify proxy availability dependency failure correlation_id=' . ($this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable') . ' operation=appointments.availability exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine() . ' category=' . $category);
+    }
+
+    private function dependencyCategory(CoreApiException $exception): string
+    {
+        $code = strtolower($exception->errorCode);
+        return str_contains($code, 'rate') || str_contains($code, 'core_api') ? 'service' : 'database';
+    }
+
+    private function availabilityDependencyCategory(Throwable $exception): ?string
+    {
+        $class = strtolower(get_class($exception));
+        $file = strtolower($exception->getFile());
+        if (str_contains($class, 'database') || str_contains($class, 'pdo') || str_contains($class, 'mysqli') || str_contains($file, 'coreapiappointmentservice.php') || str_contains($file, 'coreapiratelimitservice.php')) {
+            return str_contains($class, 'database') || str_contains($class, 'pdo') || str_contains($class, 'mysqli') ? 'database' : 'service';
+        }
+        return null;
     }
 }

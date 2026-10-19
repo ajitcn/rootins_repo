@@ -102,6 +102,7 @@ final class ShopifyProxyService
     /** @return array<string, mixed> */
     public function execute(string $operation, array $context, array $payload, ?UploadedFile $file = null): array
     {
+        if ($operation === 'appointments.availability') $this->validateAvailabilityPayload($payload);
         $configuration = $context['configuration'];
         $credential = $this->credential();
         $this->rateLimit((int) $credential['id'], (int) $configuration['rate_limit_per_minute']);
@@ -121,6 +122,16 @@ final class ShopifyProxyService
             'patients.register' => $this->register($context, $payload, $credential),
             default => throw new InvalidArgumentException('Unsupported Shopify proxy operation.'),
         };
+    }
+
+    private function validateAvailabilityPayload(array $payload): void
+    {
+        foreach (['date', 'dates', 'from_date', 'start_date', 'to_date', 'end_date'] as $field) {
+            $value = $payload[$field] ?? null;
+            if (is_array($value) && $value !== []) return;
+            if (is_scalar($value) && trim((string) $value) !== '') return;
+        }
+        throw new CoreApiException(422, 'APPOINTMENT_AVAILABILITY_INVALID', 'Required availability parameters are missing.', ['date' => 'A date or date range is required.']);
     }
 
     private function register(array $context, array $payload, array $credential): array
