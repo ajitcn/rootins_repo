@@ -70,7 +70,7 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString('SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
-        self::assertStringContainsString('validateAvailabilityPayload', $proxyService);
+        self::assertStringContainsString('normalizeAvailabilityPayload', $proxyService);
     }
 
     public function testProxyConnectionVerifiesIsolatedCredentialsAndKeepsErrorsSafe(): void

@@ -102,21 +102,22 @@ final class ShopifyProxyService
     /** @return array<string, mixed> */
     public function execute(string $operation, array $context, array $payload, ?UploadedFile $file = null): array
     {
-        if ($operation === 'appointments.availability') $this->validateAvailabilityPayload($payload);
         $configuration = $context['configuration'];
         $credential = $this->credential();
         $this->rateLimit((int) $credential['id'], (int) $configuration['rate_limit_per_minute']);
+        $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
+        if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
         $customerId = (string) $context['customer_id'];
-        $link = $customerId !== '' ? (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $context['store_domain'])->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first() : null;
+        $link = $patientScoped && $customerId !== '' ? (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $context['store_domain'])->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first() : null;
 
-        if ($operation !== 'patients.register' && $link === null) throw new CoreApiException(403, 'SHOPIFY_CUSTOMER_UNLINKED', 'The Shopify customer is not linked to a ROOTINS patient.');
-        if ($link !== null) {
+        if ($patientScoped && $link === null) throw new CoreApiException(403, 'SHOPIFY_CUSTOMER_UNLINKED', 'The Shopify customer is not linked to a ROOTINS patient.');
+        if ($patientScoped && $link !== null) {
             $payload['patient_reference'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $link['patient_id'])->where('clinic_id', (int) $credential['clinic_id'])->where('status', 1)->get()->getRow('registration_number');
             if ($payload['patient_reference'] === '') throw new CoreApiException(403, 'SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.');
             $payload['clinic_id'] = (int) $credential['clinic_id'];
         }
         return match ($operation) {
-            'appointments.availability' => (new CoreApiAppointmentService())->availability($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']]),
+            'appointments.availability' => (new CoreApiAppointmentService())->availability($credential, $payload),
             'appointments.book' => (new CoreApiAppointmentService())->book($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']]),
             'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new CoreApiPrescriptionUploadService())->upload($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']], $file),
             'patients.register' => $this->register($context, $payload, $credential),
@@ -124,14 +125,32 @@ final class ShopifyProxyService
         };
     }
 
-    private function validateAvailabilityPayload(array $payload): void
+    /** @return array<string, mixed> */
+    private function normalizeAvailabilityPayload(array $payload): array
     {
-        foreach (['date', 'dates', 'from_date', 'start_date', 'to_date', 'end_date'] as $field) {
-            $value = $payload[$field] ?? null;
-            if (is_array($value) && $value !== []) return;
-            if (is_scalar($value) && trim((string) $value) !== '') return;
+        if (! array_key_exists('from_date', $payload) && array_key_exists('date_from', $payload)) {
+            $payload['from_date'] = $payload['date_from'];
         }
-        throw new CoreApiException(422, 'APPOINTMENT_AVAILABILITY_INVALID', 'Required availability parameters are missing.', ['date' => 'A date or date range is required.']);
+        if (! array_key_exists('to_date', $payload) && array_key_exists('date_to', $payload)) {
+            $payload['to_date'] = $payload['date_to'];
+        }
+        if (! array_key_exists('from_date', $payload) && ! array_key_exists('to_date', $payload) && ! array_key_exists('date', $payload) && ! array_key_exists('dates', $payload)) {
+            $timezone = new \DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get()));
+            $today = new \DateTimeImmutable('today', $timezone);
+            $payload['from_date'] = $today->format('d-m-Y');
+            $payload['to_date'] = $today->modify('+30 days')->format('d-m-Y');
+        }
+        if (! array_key_exists('doctor_reference', $payload) && array_key_exists('doctor_id', $payload)) {
+            $doctorId = (int) $payload['doctor_id'];
+            $payload['doctor_reference'] = (string) (db_connect()->table('doctors')->select('doctor_code')->where('id', $doctorId)->where('status', 1)->where('online_booking', 1)->get()->getRow('doctor_code') ?? '__invalid__');
+        }
+        if (! array_key_exists('specialization_reference', $payload) && array_key_exists('specialization_id', $payload)) {
+            $payload['specialization_reference'] = 'specialization-' . (int) $payload['specialization_id'];
+        }
+        if (! array_key_exists('service_reference', $payload) && array_key_exists('service_id', $payload)) {
+            $payload['service_reference'] = 'service-' . (int) $payload['service_id'];
+        }
+        return $payload;
     }
 
     private function register(array $context, array $payload, array $credential): array
