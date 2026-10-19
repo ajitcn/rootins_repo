@@ -13,7 +13,10 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("rootins-proxy/appointments/availability", $routes);
         self::assertStringContainsString("rootins-proxy/prescriptions/upload", $routes);
         self::assertStringNotContainsString("shopify-proxy/appointments/availability", $routes);
-        self::assertStringContainsString("rootins-proxy/*", file_get_contents(ROOTPATH . 'app/Config/Filters.php'));
+        $filters = file_get_contents(ROOTPATH . 'app/Config/Filters.php');
+        self::assertStringContainsString("'csrf' => ['except' => ['rootins-proxy/*']]", $filters);
+        self::assertStringNotContainsString("api/v1/*", $filters);
+        self::assertStringNotContainsString("integrations/shopify/webhooks/*", $filters);
         self::assertStringContainsString("/public/rootins-proxy", file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'));
         self::assertStringContainsString("proxy-setup/rotate-secret", $routes);
         self::assertStringContainsString("proxy-setup/enable", $routes);
