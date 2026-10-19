@@ -5,6 +5,7 @@ namespace App\Modules\Shopify\Controllers;
 use App\Controllers\BaseController;
 use App\Modules\CoreApi\Services\CoreApiException;
 use App\Services\Shopify\ShopifyOperationIdempotencyService;
+use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
@@ -41,6 +42,9 @@ final class Proxy extends BaseController
             if ($claimed) $idempotency->fail($key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->fields, $exception->errorCode);
+        } catch (ShopifyProxyAuthenticationException $exception) {
+            if ($claimed) $idempotency->fail($key, 'authentication');
+            return $this->json($exception->httpStatus, false, $exception->getMessage());
         } catch (InvalidArgumentException $exception) {
             if ($claimed) $idempotency->fail($key, 'validation');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);

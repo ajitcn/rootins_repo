@@ -15,7 +15,7 @@ final class ShopifyProxyConfigurationService
     public function summary(): array
     {
         $row = $this->row();
-        $store = (string) ($row['store_domain'] ?? 'rootins.myshopify.com');
+        $store = self::normalizeStoreDomain((string) ($row['store_domain'] ?? 'rootins.myshopify.com'));
         $prefix = (string) ($row['proxy_prefix'] ?? 'apps');
         $subpath = (string) ($row['proxy_subpath'] ?? 'rootins');
         $backend = $this->normalizeBackendUrl((string) ($row['backend_url'] ?? 'https://rootins.newrootssoftware.in/public/rootins-proxy'));
@@ -27,7 +27,7 @@ final class ShopifyProxyConfigurationService
     {
         $row = $this->row();
         if ($row === null) throw new InvalidArgumentException('The Shopify Core API App Proxy is not configured.');
-        return ['id' => (int) $row['id'], 'app_name' => (string) $row['app_name'], 'store_domain' => strtolower((string) $row['store_domain']), 'client_secret' => $this->decrypt((string) $row['client_secret_encrypted']), 'enabled' => (bool) $row['enabled'], 'allowed_operations' => $this->operations($row), 'rate_limit_per_minute' => max(1, (int) $row['rate_limit_per_minute'])];
+        return ['id' => (int) $row['id'], 'app_name' => (string) $row['app_name'], 'store_domain' => self::normalizeStoreDomain((string) $row['store_domain']), 'client_secret' => $this->decrypt((string) $row['client_secret_encrypted']), 'enabled' => (bool) $row['enabled'], 'allowed_operations' => $this->operations($row), 'rate_limit_per_minute' => max(1, (int) $row['rate_limit_per_minute'])];
     }
 
     /** @return array<string, mixed> */
@@ -36,14 +36,14 @@ final class ShopifyProxyConfigurationService
         $model = $this->model ?? new ShopifyCoreApiProxyConfigurationModel();
         $row = $this->row();
         $appName = trim((string) ($input['core_api_app_name'] ?? 'Shopify Core API App Proxy'));
-        $store = strtolower(trim((string) ($input['core_api_store_domain'] ?? '')));
+        $store = self::normalizeStoreDomain((string) ($input['core_api_store_domain'] ?? ''));
         $prefix = trim((string) ($input['core_api_proxy_prefix'] ?? 'apps'));
         $subpath = trim((string) ($input['core_api_proxy_subpath'] ?? 'rootins'));
         $backend = $this->normalizeBackendUrl((string) ($input['core_api_backend_url'] ?? ''));
         $operations = array_values(array_intersect((array) ($input['allowed_core_api_operations'] ?? []), self::OPERATIONS));
         $limit = (int) ($input['proxy_rate_limit_per_minute'] ?? 60);
         if ($appName === '' || mb_strlen($appName) > 120) throw new InvalidArgumentException('Enter a valid Core API app name.');
-        if (! preg_match('/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/', $store)) throw new InvalidArgumentException('Enter a valid Core API Shopify store domain.');
+        if (! self::isValidStoreDomain($store)) throw new InvalidArgumentException('Enter a valid Core API Shopify store domain.');
         if (! preg_match('/^[a-z0-9][a-z0-9_-]{0,31}$/', $prefix) || ! preg_match('/^[a-z0-9][a-z0-9_-]{0,63}$/', $subpath)) throw new InvalidArgumentException('Proxy prefix and subpath may contain lowercase letters, numbers, hyphens, and underscores only.');
         $parts = parse_url($backend);
         if (filter_var($backend, FILTER_VALIDATE_URL) === false || ! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || isset($parts['query'], $parts['fragment'], $parts['user'], $parts['pass'])) throw new InvalidArgumentException('Enter a public HTTPS Core API backend URL without credentials or query parameters.');
@@ -88,5 +88,15 @@ final class ShopifyProxyConfigurationService
     private function normalizeBackendUrl(string $backend): string
     {
         return rtrim(trim($backend), '/');
+    }
+
+    public static function normalizeStoreDomain(string $store): string
+    {
+        return strtolower(rtrim(trim($store), '.'));
+    }
+
+    private static function isValidStoreDomain(string $store): bool
+    {
+        return preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $store) === 1;
     }
 }

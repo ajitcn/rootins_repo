@@ -15,25 +15,88 @@ use InvalidArgumentException;
 final class ShopifyProxyService
 {
     private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload'];
+    private const TIMESTAMP_TOLERANCE_SECONDS = 300;
 
     public function verify(string $operation, array $query, string $rawQuery): array
     {
-        $configuration = (new ShopifyProxyConfigurationService())->runtime();
-        if (! $configuration['enabled']) throw new InvalidArgumentException('Shopify Core API App Proxy is disabled.');
-        if (! in_array($operation, $configuration['allowed_operations'], true)) throw new InvalidArgumentException('This Shopify Core API App Proxy operation is disabled.');
-        $shop = strtolower(trim((string) ($query['shop'] ?? '')));
-        if ($shop === '' || $shop !== $configuration['store_domain'] || ! preg_match('/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/', $shop)) throw new InvalidArgumentException('The Shopify Core API app store scope is invalid.');
-        $timestamp = (string) ($query['timestamp'] ?? '');
-        if (! ctype_digit($timestamp) || abs(time() - (int) $timestamp) > 300) throw new InvalidArgumentException('The Shopify proxy request timestamp is invalid or expired.');
-        $provided = (string) ($query['signature'] ?? '');
-        if ($provided === '' || $configuration['client_secret'] === '') throw new InvalidArgumentException('The Shopify Core API app proxy signature is unavailable.');
-        parse_str($rawQuery, $parts);
-        unset($parts['signature']);
-        ksort($parts);
-        $canonical = http_build_query($parts, '', '&', PHP_QUERY_RFC3986);
+        $signatureService = new ShopifyProxySignatureService();
+        $received = array_keys($query);
+        sort($received, SORT_STRING);
+        $required = ['shop', 'timestamp', 'signature', 'path_prefix'];
+        $missing = array_values(array_diff($required, $received));
+        try {
+            $configuration = (new ShopifyProxyConfigurationService())->runtime();
+        } catch (InvalidArgumentException $exception) {
+            $this->logValidationFailure($missing, $received, null, null, 'missing_configuration', false);
+            throw new ShopifyProxyAuthenticationException($exception->getMessage());
+        }
+
+        $secretPresent = $configuration['client_secret'] !== '';
+        if (! $configuration['enabled']) {
+            $this->logValidationFailure($missing, $received, null, null, 'disabled', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('Shopify Core API App Proxy is disabled.', 403);
+        }
+        if (! in_array($operation, $configuration['allowed_operations'], true)) {
+            $this->logValidationFailure($missing, $received, null, null, 'operation_disabled', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('This Shopify Core API App Proxy operation is disabled.', 403);
+        }
+        if ($missing !== []) {
+            $this->logValidationFailure($missing, $received, null, null, 'missing_parameters', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy request is missing required parameters.');
+        }
+
+        $shop = ShopifyProxyConfigurationService::normalizeStoreDomain($this->scalar($query['shop'] ?? ''));
+        if (! self::isValidStoreDomain($shop) || $shop !== $configuration['store_domain']) {
+            $this->logValidationFailure($missing, $received, $shop, null, 'store_scope', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('The Shopify Core API app store scope is invalid.', 403);
+        }
+
+        $timestampValue = $this->scalar($query['timestamp'] ?? '');
+        $timestamp = ctype_digit($timestampValue) ? (int) $timestampValue : null;
+        $timestampAge = $timestamp !== null ? time() - $timestamp : null;
+        if ($timestamp === null || abs($timestampAge) > self::TIMESTAMP_TOLERANCE_SECONDS) {
+            $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'timestamp_invalid', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy request timestamp is invalid or expired.');
+        }
+
+        $provided = $query['signature'] ?? '';
+        if (! is_string($provided) || $provided === '' || ! $secretPresent) {
+            $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'signature_unavailable', $secretPresent);
+            throw new ShopifyProxyAuthenticationException('The Shopify Core API app proxy signature is unavailable.');
+        }
+
+        $canonical = $signatureService->canonical($signatureService->query($rawQuery));
         $expected = hash_hmac('sha256', $canonical, $configuration['client_secret']);
-        if (! hash_equals($expected, $provided)) throw new InvalidArgumentException('The Shopify proxy signature is invalid.');
-        return ['store_domain' => $shop, 'customer_id' => trim((string) ($query['logged_in_customer_id'] ?? '')), 'configuration' => $configuration];
+        if (! hash_equals($expected, $provided)) {
+            $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'signature_invalid', true);
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy signature is invalid.');
+        }
+
+        return ['store_domain' => $shop, 'customer_id' => trim($this->scalar($query['logged_in_customer_id'] ?? '')), 'configuration' => $configuration];
+    }
+
+    private function scalar(mixed $value): string
+    {
+        return is_array($value) ? '' : trim((string) $value);
+    }
+
+    private static function isValidStoreDomain(string $store): bool
+    {
+        return preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $store) === 1;
+    }
+
+    private function logValidationFailure(array $missing, array $received, ?string $store, ?int $timestampAge, string $reason, bool $secretPresent): void
+    {
+        log_message('warning', 'Shopify Core API App Proxy validation failed ' . json_encode([
+            'missing_parameter_names' => array_values($missing),
+            'received_parameter_names' => array_values($received),
+            'store_domain' => $store,
+            'timestamp_age_seconds' => $timestampAge,
+            'configuration_source' => 'shopify_core_api_proxy_configurations',
+            'configuration_status' => $reason === 'missing_configuration' ? 'missing' : 'configured',
+            'secret_present' => $secretPresent,
+            'reason' => $reason,
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     /** @return array<string, mixed> */

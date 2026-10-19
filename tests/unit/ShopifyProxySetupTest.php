@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Services\Shopify\ShopifyProxySignatureService;
 use PHPUnit\Framework\TestCase;
 
 final class ShopifyProxySetupTest extends TestCase
@@ -33,5 +34,21 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringNotContainsString("['client_id']", $view);
         self::assertStringContainsString('Shopify Webhooks / Order Integration', $view);
         self::assertStringContainsString('Shopify Core API App Proxy', $view);
+    }
+
+    public function testAppProxyCanonicalizationUsesDecodedSortedConcatenatedValues(): void
+    {
+        $rawQuery = 'extra=1&extra=2&shop=demo.myshopify.com&logged_in_customer_id=1&path_prefix=%2Fapps%2Frootins&timestamp=1317327555&signature=ignored';
+        $service = new ShopifyProxySignatureService();
+        $query = $service->query($rawQuery);
+
+        self::assertSame('1', $query['extra'][0]);
+        self::assertSame('2', $query['extra'][1]);
+        self::assertSame('extra=1,2logged_in_customer_id=1path_prefix=/apps/rootinsshop=demo.myshopify.comtimestamp=1317327555', $service->canonical($query));
+        self::assertSame('7cb66ee1adaba44d98b85cc53b9988346f8989a3af0fd40b33bd1f3292ba1be6', hash_hmac('sha256', $service->canonical($query), 'test-app-proxy-secret'));
+
+        $proxyService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        self::assertStringNotContainsString('http_build_query', $proxyService);
+        self::assertStringContainsString("hash_hmac('sha256'", $proxyService);
     }
 }
