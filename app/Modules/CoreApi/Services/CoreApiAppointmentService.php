@@ -24,7 +24,11 @@ final class CoreApiAppointmentService
         $specializationId = $this->resolveSpecialization($specializationReference);
         $this->assertDoctorFilter($doctorReference, $clinicId);
 
-        $query = $db->table('doctors')->select('doctors.id, doctors.clinic_id, doctors.doctor_code, doctors.first_name, doctors.last_name, doctors.qualification, doctors.experience, doctors.profile_photo')
+        $query = $db->table('doctors')->select('doctors.id, doctors.clinic_id, doctors.doctor_code, doctors.first_name, doctors.last_name, doctors.qualification, doctors.experience, doctors.profile_photo, clinics.clinic_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.pincode AS clinic_pincode, cities.name AS clinic_city, states.name AS clinic_state, countries.name AS clinic_country')
+            ->join('clinics', 'clinics.id = doctors.clinic_id AND clinics.status = 1')
+            ->join('cities', 'cities.id = clinics.city_id', 'left')
+            ->join('states', 'states.id = clinics.state_id', 'left')
+            ->join('countries', 'countries.id = clinics.country_id', 'left')
             ->where('doctors.status', 1)->where('doctors.online_booking', 1);
         if ($clinicId !== null) $query->where('doctors.clinic_id', $clinicId);
         if ($doctorReference !== '') $query->where('doctors.doctor_code', $doctorReference);
@@ -40,19 +44,29 @@ final class CoreApiAppointmentService
         $doctors = [];
         foreach (array_slice($allDoctors, ($page - 1) * $pageSize, $pageSize) as $doctor) {
             $doctorDates = [];
-            foreach ($dates as $date) $doctorDates[] = $this->dateAvailability((int) $doctor['clinic_id'], (int) $doctor['id'], $date, $service, $timezone);
+            foreach ($dates as $date) $doctorDates[] = $this->dateAvailability((int) $doctor['clinic_id'], (int) $doctor['id'], $date, $service, $timezone, (string) $doctor['doctor_code']);
             $first = $doctorDates[0];
             $specializations = $this->specializations((int) $doctor['id']);
             $servicesForDoctor = $this->services((int) $doctor['clinic_id'], $serviceReference === '' ? null : $service);
+            $modes = $this->consultationModes((int) $doctor['id']);
+            $clinic = $this->clinicDetails($doctor);
             $doctors[] = [
+                'doctor_reference' => (string) $doctor['doctor_code'],
                 'reference' => (string) $doctor['doctor_code'],
                 'name' => trim((string) $doctor['first_name'] . ' ' . (string) ($doctor['last_name'] ?? '')),
+                'professional_code' => (string) $doctor['doctor_code'],
+                'profile_image_url' => $this->publicImage($doctor['profile_photo'] ?? null),
                 'profile_image' => $this->publicImage($doctor['profile_photo'] ?? null),
+                'qualifications' => $doctor['qualification'] ? [(string) $doctor['qualification']] : [],
                 'qualification' => $doctor['qualification'] ?: null,
                 'specializations' => $specializations,
                 'experience' => (int) ($doctor['experience'] ?? 0),
-                'consultation_fee' => $this->fee((int) $doctor['id'], $dates[0]),
+                'consultation_fee' => number_format($this->fee((int) $doctor['id'], $dates[0]) ?? 0, 2, '.', ''),
                 'services' => $servicesForDoctor,
+                'clinics' => [$clinic],
+                'consultation_mode' => $this->consultationModeLabel($modes),
+                'consultation_modes' => $modes,
+                'timezone' => $timezone->getName(),
                 'availability_status' => $this->overallStatus($doctorDates),
                 'dates' => $doctorDates,
                 // Kept for clients of the original single-date contract.
@@ -61,7 +75,7 @@ final class CoreApiAppointmentService
             ];
         }
 
-        return ['date' => $this->formatDate($dates[0]), 'date_iso' => $dates[0], 'dates' => array_map(fn (string $date): string => $this->formatDate($date), $dates), 'doctors' => $doctors, 'services' => $this->services(null, $service), 'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total]];
+        return ['requested_date_range' => ['from' => $dates[0], 'to' => $dates[count($dates) - 1], 'from_display' => $this->formatDate($dates[0]), 'to_display' => $this->formatDate($dates[count($dates) - 1])], 'date' => $this->formatDate($dates[0]), 'date_iso' => $dates[0], 'dates' => array_map(fn (string $date): string => $this->formatDate($date), $dates), 'doctors' => $doctors, 'services' => $this->services(null, $service), 'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total]];
     }
 
     /** @return array<string, mixed> */
@@ -165,7 +179,7 @@ final class CoreApiAppointmentService
     }
 
     /** @return array<string, mixed> */
-    private function dateAvailability(int $clinicId, int $doctorId, string $date, ?array $service, DateTimeZone $timezone): array
+    private function dateAvailability(int $clinicId, int $doctorId, string $date, ?array $service, DateTimeZone $timezone, string $doctorReference): array
     {
         $db = db_connect();
         $now = new DateTimeImmutable('now', $timezone);
@@ -177,29 +191,33 @@ final class CoreApiAppointmentService
         $leaveEnd = trim((string) ($leave['end_time'] ?? ''));
         $fullDayLeave = $leave !== null && ($leaveStart === '' || $leaveEnd === '');
         $slots = [];
+        $breaks = [];
+        $conflicts = [];
         $durations = [];
         foreach ($schedules as $schedule) {
             $duration = max(1, (int) ($schedule['slot_duration'] ?? 15));
             $durations[] = $duration;
             $start = new DateTimeImmutable($date . ' ' . substr((string) $schedule['start_time'], 0, 8), $timezone);
             $end = new DateTimeImmutable($date . ' ' . substr((string) $schedule['end_time'], 0, 8), $timezone);
+            $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
+            $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
+            if ($breakStart !== '' && $breakEnd !== '') $breaks[] = ['start_time' => $this->displayTime($breakStart, $timezone), 'end_time' => $this->displayTime($breakEnd, $timezone)];
             for ($cursor = $start; $cursor < $end && $cursor->modify('+' . $duration . ' minutes') <= $end; $cursor = $cursor->modify('+' . $duration . ' minutes')) {
                 $slotStart = $cursor->format('H:i:s');
                 $slotEnd = $cursor->modify('+' . $duration . ' minutes')->format('H:i:s');
-                $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
-                $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
                 $inBreak = $breakStart !== '' && $breakEnd !== '' && $slotStart < $breakEnd && $slotEnd > $breakStart;
                 $slotLeave = $leave !== null && ! $fullDayLeave && $slotStart < $leaveEnd && $slotEnd > $leaveStart;
                 $count = (int) $db->table('appointments')->where('clinic_id', $clinicId)->where('doctor_id', $doctorId)->where('appointment_date', $date)->where('appointment_time', $slotStart)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
                 $capacity = (int) ($schedule['max_patients'] ?? 0);
                 $remaining = $capacity > 0 ? max(0, $capacity - $count) : null;
                 $past = $date < $today || ($date === $today && $slotStart <= $now->format('H:i:s'));
-                $status = $past ? 'past' : ($fullDayLeave || $slotLeave ? 'leave' : ($inBreak ? 'unavailable' : (($count > 0 || ($capacity > 0 && $count >= $capacity)) ? 'full' : 'available')));
-                $slots[] = ['slot_duration' => $duration, 'start_time' => substr($slotStart, 0, 5), 'end_time' => substr($slotEnd, 0, 5), 'time' => substr($slotStart, 0, 5), 'slot_available' => $status === 'available', 'remaining_capacity' => $remaining, 'booking_status' => $status, 'state' => $status];
+                if ($count > 0) $conflicts[] = ['start_time' => $this->displayTime($slotStart, $timezone), 'end_time' => $this->displayTime($slotEnd, $timezone), 'count' => $count];
+                $status = $past ? 'past' : ($fullDayLeave || $slotLeave ? 'leave' : ($inBreak ? 'unavailable' : ($capacity > 0 && $count >= $capacity ? 'full' : ($count > 0 ? 'booked' : 'available'))));
+                $slots[] = ['slot_reference' => $this->slotReference($doctorReference, $date, $slotStart, $slotEnd), 'slot_duration' => $duration, 'start_time' => $this->displayTime($slotStart, $timezone), 'end_time' => $this->displayTime($slotEnd, $timezone), 'time' => $this->displayTime($slotStart, $timezone), 'status' => $status, 'available' => $status === 'available', 'slot_available' => $status === 'available', 'capacity' => $capacity > 0 ? $capacity : null, 'booked_count' => $count, 'available_capacity' => $remaining, 'remaining_capacity' => $remaining, 'booking_status' => $status, 'state' => $status];
             }
         }
         $status = $fullDayLeave ? 'leave' : ($schedules === [] ? 'unavailable' : ($slots !== [] && count(array_filter($slots, static fn (array $slot): bool => $slot['booking_status'] === 'available')) > 0 ? 'available' : (count(array_filter($slots, static fn (array $slot): bool => $slot['booking_status'] === 'full')) > 0 ? 'full' : 'unavailable')));
-        return ['date' => $this->formatDate($date), 'date_iso' => $date, 'working_day' => $schedules !== [], 'working_day_status' => $schedules !== [] ? 'working' : 'non_working', 'leave' => $leave !== null, 'leave_status' => $leave === null ? 'none' : ($fullDayLeave ? 'full_day' : 'partial'), 'leave_message' => $leave === null ? null : 'Doctor is on leave for the selected date.', 'slot_duration' => $durations === [] ? null : min($durations), 'slots' => $slots, 'status' => $status];
+        return ['date' => $this->formatDate($date), 'date_iso' => $date, 'timezone' => $timezone->getName(), 'working_day' => $schedules !== [], 'working_day_status' => $schedules !== [] ? 'working' : 'non_working', 'day_status' => $schedules !== [] ? 'working' : 'unavailable', 'leave' => $leave !== null, 'leave_status' => $leave === null ? 'none' : ($fullDayLeave ? 'full_day' : 'partial'), 'leave_message' => $leave === null ? null : 'Doctor is on leave for the selected date.', 'break_periods' => $breaks, 'existing_appointment_conflicts' => $conflicts, 'slot_duration' => $durations === [] ? null : min($durations), 'slots' => $slots, 'status' => $status];
     }
 
     private function overallStatus(array $dates): string
@@ -213,6 +231,41 @@ final class CoreApiAppointmentService
     private function specializations(int $doctorId): array
     {
         return array_map(static fn (array $row): array => ['reference' => 'specialization-' . (int) $row['id'], 'name' => (string) $row['specialization_name']], db_connect()->table('doctor_specializations')->select('doctor_specializations.id, doctor_specializations.specialization_name')->join('doctor_specialization_map', 'doctor_specialization_map.specialization_id = doctor_specializations.id')->where('doctor_specialization_map.doctor_id', $doctorId)->where('doctor_specializations.status', 1)->orderBy('doctor_specializations.specialization_name', 'ASC')->get()->getResultArray());
+    }
+
+    /** @return list<string> */
+    private function consultationModes(int $doctorId): array
+    {
+        $rows = db_connect()->table('doctor_consultation_fees')->select('consultation_mode')->where('doctor_id', $doctorId)->where('status', 1)->get()->getResultArray();
+        $modes = [];
+        foreach ($rows as $row) {
+            $mode = strtolower(trim((string) ($row['consultation_mode'] ?? '')));
+            $mode = $mode === 'offline' ? 'in-person' : ($mode === 'online' ? 'video' : 'home-visit');
+            if ($mode !== '' && ! in_array($mode, $modes, true)) $modes[] = $mode;
+        }
+        sort($modes);
+        return $modes;
+    }
+
+    private function consultationModeLabel(array $modes): string
+    {
+        $hasInPerson = in_array('in-person', $modes, true);
+        $hasVideo = in_array('video', $modes, true);
+        return $hasInPerson && $hasVideo ? 'both' : ($hasVideo ? 'video' : 'in-person');
+    }
+
+    /** @param array<string, mixed> $doctor */
+    private function clinicDetails(array $doctor): array
+    {
+        return [
+            'clinic_reference' => (string) ($doctor['clinic_code'] ?? ''),
+            'name' => (string) ($doctor['clinic_name'] ?? ''),
+            'address' => $doctor['clinic_address'] ?: null,
+            'city' => $doctor['clinic_city'] ?: null,
+            'state' => $doctor['clinic_state'] ?: null,
+            'country' => $doctor['clinic_country'] ?: null,
+            'pincode' => $doctor['clinic_pincode'] ?: null,
+        ];
     }
 
     /** @return list<array<string, mixed>> */
@@ -268,7 +321,8 @@ final class CoreApiAppointmentService
     {
         $value = trim((string) $value);
         if ($value === '') return null;
-        if (preg_match('#^https?://#i', $value) === 1) return $value;
+        if (preg_match('#^https://#i', $value) === 1) return $value;
+        if (preg_match('#^(?:https?://|javascript:|data:|//|[\\x00-\\x1F])#i', $value) === 1 || str_contains($value, '..')) return null;
         $publicUrl = trim((string) env('R2_PUBLIC_URL'));
         return $publicUrl === '' ? null : rtrim($publicUrl, '/') . '/' . ltrim($value, '/');
     }
@@ -276,6 +330,18 @@ final class CoreApiAppointmentService
     /** @return list<string> */
     private function requestedDates(array $input, DateTimeZone $timezone): array
     {
+        $from = $input['from_date'] ?? ($input['start_date'] ?? null);
+        $to = $input['to_date'] ?? ($input['end_date'] ?? null);
+        if (trim((string) $from) !== '' || trim((string) $to) !== '') {
+            $start = $this->parseDate((string) $from, $timezone);
+            $end = $this->parseDate((string) ($to ?: $from), $timezone);
+            if ($start === null || $end === null || $end < $start) throw new CoreApiException(422, 'VALIDATION_FAILED', 'Review the availability fields.', ['date' => 'Enter a valid date range as dd-mm-yyyy.']);
+            $dates = [];
+            $cursor = new DateTimeImmutable($start, $timezone);
+            $last = new DateTimeImmutable($end, $timezone);
+            while ($cursor <= $last && count($dates) < 31) { $dates[] = $cursor->format('Y-m-d'); $cursor = $cursor->modify('+1 day'); }
+            return $dates;
+        }
         $raw = $input['dates'] ?? ($input['date'] ?? '');
         $values = is_array($raw) ? $raw : (preg_split('/\s*,\s*/', trim((string) $raw)) ?: []);
         if ($values === [] || $values === ['']) $values = [(new DateTimeImmutable('now', $timezone))->format('d-m-Y')];
@@ -293,6 +359,16 @@ final class CoreApiAppointmentService
 
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }
     private function formatDate(string $date): string { return (new DateTimeImmutable($date, $this->timezone()))->format('d-m-Y'); }
+
+    private function displayTime(string $time, DateTimeZone $timezone): string
+    {
+        return (new DateTimeImmutable('2000-01-01 ' . substr($time, 0, 8), $timezone))->format('h:i A');
+    }
+
+    private function slotReference(string $doctorReference, string $date, string $start, string $end): string
+    {
+        return 'slot-' . substr(hash('sha256', $doctorReference . '|' . $date . '|' . $start . '|' . $end), 0, 32);
+    }
 
     private function parseDate(string $value, ?DateTimeZone $timezone = null): ?string
     {

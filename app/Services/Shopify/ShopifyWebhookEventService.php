@@ -73,13 +73,16 @@ final class ShopifyWebhookEventService
         }
     }
 
-    public function markProcessed(int $eventId): bool
+    public function markProcessed(int $eventId, ?string $errorCategory = null): bool
     {
-        return $this->update($eventId, [
+        $data = [
             'status' => 'processed',
             'processed_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+        $data['error_message'] = $errorCategory === null ? null : ShopifyOrderImportFailure::normalize($errorCategory);
+
+        return $this->update($eventId, $data);
     }
 
     /**
@@ -207,7 +210,7 @@ final class ShopifyWebhookEventService
     {
         return $this->update($eventId, [
             'status' => 'failed',
-            'error_message' => substr(trim($error), 0, 1000),
+            'error_message' => ShopifyOrderImportFailure::normalize($error),
             'retry_count' => 1,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);

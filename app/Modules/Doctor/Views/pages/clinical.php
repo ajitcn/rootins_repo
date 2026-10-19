@@ -896,7 +896,7 @@ $(function () {
         }
 
         clinicalActionTitle.text(action === 'past-prescription' ? 'Past Prescription' : 'Print Prescription');
-        const printArea = $('<div>', {class: 'clinical-action-print-area'});
+        const printArea = $('<div>', {class: 'clinical-action-print-area rootins-print-document'});
         const clinicHeader = $('<div>', {class: 'clinical-action-prescription-clinic'});
         if (context.clinic_logo_url) {
             $('<img>', {class: 'clinical-action-prescription-clinic-logo', src: context.clinic_logo_url, alt: clinicalActionValue(context.clinic_name, 'Clinic logo')}).appendTo(clinicHeader);

@@ -15,10 +15,10 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
 
     public function testAvailabilityExposesThePublicDoctorAndSlotContract(): void
     {
-        foreach (['profile_image', 'qualification', 'specializations', 'experience', 'consultation_fee', 'services', 'availability_status', 'working_day_status', 'leave_message', 'slot_duration', 'start_time', 'end_time', 'slot_available', 'remaining_capacity', 'booking_status', 'pagination'] as $field) {
+        foreach (['doctor_reference', 'professional_code', 'profile_image_url', 'qualifications', 'profile_image', 'qualification', 'specializations', 'experience', 'consultation_fee', 'services', 'clinics', 'consultation_mode', 'timezone', 'requested_date_range', 'availability_status', 'working_day_status', 'day_status', 'leave_message', 'break_periods', 'existing_appointment_conflicts', 'slot_duration', 'slot_reference', 'start_time', 'end_time', 'status', 'available', 'slot_available', 'capacity', 'booked_count', 'remaining_capacity', 'booking_status', 'pagination'] as $field) {
             self::assertStringContainsString("'{$field}'", $this->service);
         }
-        foreach (['available', 'full', 'unavailable', 'leave', 'past'] as $status) {
+        foreach (['available', 'full', 'booked', 'unavailable', 'leave', 'past'] as $status) {
             self::assertStringContainsString("'{$status}'", $this->service);
         }
     }
@@ -57,10 +57,24 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
 
     public function testAvailabilitySupportsDateDoctorSpecializationServiceSearchAndPaginationFilters(): void
     {
-        foreach (['requestedDates', 'doctor_reference', 'specialization_reference', 'service_reference', "['search']", "['page_size']", "['page']"] as $filter) {
+        foreach (['requestedDates', 'from_date', 'start_date', 'doctor_reference', 'specialization_reference', 'service_reference', "['search']", "['page_size']", "['page']"] as $filter) {
             self::assertStringContainsString($filter, $this->service);
         }
         self::assertStringContainsString('array_slice(array_values($dates), 0, 31)', $this->service);
+    }
+
+    public function testAvailabilityDoesNotRequireClinicForApplicationWideCredentials(): void
+    {
+        self::assertStringContainsString('$clinicId = $this->optionalClinic($input);', $this->service);
+        self::assertStringContainsString("if (\$value === '') return null;", $this->service);
+        self::assertStringContainsString('clinics.status = 1', $this->service);
+    }
+
+    public function testProfileImageAndSlotReferenceAreSafePublicValues(): void
+    {
+        self::assertStringContainsString("preg_match('#^https://#i'", $this->service);
+        self::assertStringContainsString("str_contains(\$value, '..')", $this->service);
+        self::assertStringContainsString("'slot-' . substr(hash('sha256'", $this->service);
     }
 
     public function testInvalidDoctorAndServiceFiltersHaveStableErrorCodes(): void

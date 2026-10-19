@@ -19,7 +19,7 @@
                         <th>Shopify order</th>
                         <th>Status</th>
                         <th>Patient/clinic</th>
-                        <th>Reason</th>
+                        <th>Failure category</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -28,11 +28,12 @@
                         <tr><td colspan="5" class="text-center text-muted py-4">No Shopify orders have been received.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($imports as $import): ?>
+                        <?php $failureReason = trim((string) ($import['failure_reason'] ?? '')); $failureCategory = $failureReason === '' ? '' : \App\Services\Shopify\ShopifyOrderImportFailure::normalize($failureReason); ?>
                         <tr>
                             <td><?= esc($import['shopify_order_number'] ?: $import['shopify_order_id']) ?></td>
                             <td><span class="badge badge-light"><?= esc($import['status']) ?></span></td>
-                            <td><?= esc((string) ($import['patient_id'] ?: 'Pending link')) ?></td>
-                            <td><?= esc((string) ($import['failure_reason'] ?? '')) ?></td>
+                            <td><?= (int) ($import['patient_id'] ?? 0) > 0 ? 'Linked patient' : 'Pending link' ?></td>
+                            <td><?= $failureCategory !== '' ? '<span class="badge badge-light">' . esc($failureCategory) . '</span>' : '<span class="text-muted">—</span>' ?></td>
                             <td>
                                 <?php if (in_array($import['status'], ['pending_mapping', 'quarantined', 'failed'], true)): ?>
                                     <form method="post" action="<?= base_url('admin/integrations/shopify/orders/import') ?>" class="d-flex align-items-center">

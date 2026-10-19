@@ -37,6 +37,7 @@
   <link href="<?= base_url('assets/css/style.css?v=20261014-local-lookup-modal1')?>" rel="stylesheet" />
   <link href="<?= base_url('assets/css/ui-components.css?v=20261008-audit')?>" rel="stylesheet" />
   <link href="<?= base_url('assets/css/rootins-pagination.css?v=20261010-pagination1')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/print.css?v=20261016-rootins-print1')?>" rel="stylesheet" />
   <?= $this->renderSection('styles') ?>
   <link href="<?= base_url('assets/css/rootins-monochrome.css?v=20261010-calendar-filters1')?>" rel="stylesheet" />
  

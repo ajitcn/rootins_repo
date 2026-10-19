@@ -14,6 +14,7 @@ use App\Services\Shopify\ShopifyOrderImportService;
 use App\Services\Shopify\ShopifyProviderException;
 use App\Services\Shopify\ShopifyWebhookValidationService;
 use App\Services\Shopify\ShopifyWebhookRegistrationService;
+use App\Services\Shopify\ShopifyProxyConfigurationService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -33,6 +34,62 @@ final class Integration extends BaseAdminController
                 'canManage' => $this->hasPermission('shopify.integration.manage'),
             ],
         );
+    }
+
+    public function proxySetup(): string
+    {
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_proxy_setup', [
+            'shopify' => (new ShopifyProxyConfigurationService())->summary(),
+            'canManage' => $this->hasPermission('shopify.integration.manage'),
+        ]);
+    }
+
+    public function saveProxyConfiguration(): ResponseInterface
+    {
+        try {
+            $data = (new ShopifyProxyConfigurationService())->save($this->request->getPost(), (int) ($this->user['id'] ?? 0));
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify App Proxy configuration saved.', 'data' => $data]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify proxy configuration save failed safely.');
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify App Proxy configuration could not be saved safely.']);
+        }
+    }
+
+    public function testProxyConnection(): ResponseInterface
+    {
+        try {
+            $summary = (new ShopifyProxyConfigurationService())->summary();
+            if (! $summary['configured']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Configure the separate Core API Shopify App Proxy before testing it.']);
+            if (! $summary['has_client_id'] || ! $summary['has_client_secret']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Configure the separate Core API Shopify client ID and client secret before testing the proxy.']);
+            if (! $summary['proxy_enabled']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Enable the Shopify App Proxy before testing the connection.']);
+            service('audit')->record('shopify.proxy_connection_tested', ['status' => 'ready']);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify App Proxy configuration is ready.', 'data' => ['storefront_proxy_url' => $summary['storefront_proxy_url'], 'backend_proxy_url' => $summary['backend_proxy_url'], 'operations' => $summary['proxy_allowed_operations']]]);
+        } catch (\Throwable $exception) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify App Proxy connection test could not be completed safely.']);
+        }
+    }
+
+    public function rotateProxySecret(): ResponseInterface
+    {
+        try {
+            $data = (new ShopifyProxyConfigurationService())->rotateSecret((string) $this->request->getPost('core_api_client_secret'), (int) ($this->user['id'] ?? 0));
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify Core API App Proxy secret rotated.', 'data' => $data]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify Core API App Proxy secret could not be rotated safely.']);
+        }
+    }
+
+    public function enableProxy(): ResponseInterface { return $this->setProxyStatus(true); }
+    public function disableProxy(): ResponseInterface { return $this->setProxyStatus(false); }
+    private function setProxyStatus(bool $enabled): ResponseInterface
+    {
+        try { return $this->response->setJSON(['status' => true, 'msg' => $enabled ? 'Shopify Core API App Proxy enabled.' : 'Shopify Core API App Proxy disabled.', 'data' => (new ShopifyProxyConfigurationService())->setEnabled($enabled, (int) ($this->user['id'] ?? 0))]); }
+        catch (InvalidArgumentException $exception) { return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]); }
+        catch (\Throwable) { return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify Core API App Proxy status could not be changed safely.']); }
     }
 
     public function webhooks(): string
@@ -239,7 +296,7 @@ final class Integration extends BaseAdminController
     public function applyWebhooks(): ResponseInterface
     {
         try {
-            $result = (new ShopifyWebhookRegistrationService())->apply((string) $this->request->getPost('confirmation'), (string) $this->request->getPost('plan_hash'));
+            $result = (new ShopifyWebhookRegistrationService())->apply((string) $this->request->getPost('confirmation'), (string) $this->request->getPost('plan_hash'), (string) ($this->request->getPost('mode') ?: 'all'));
             $this->audit->record('shopify.webhooks_applied', [
                 'created' => (int) ($result['created'] ?? 0),
                 'already_existing' => (int) ($result['already_existing'] ?? 0),
@@ -602,7 +659,7 @@ final class Integration extends BaseAdminController
 
             return $this->response->setStatusCode((int) $result['http'])->setJSON($result['body']);
         } catch (\Throwable $exception) {
-            log_message('error', 'Shopify order import request failed safely.');
+            log_message('error', 'Shopify order import request failed safely exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
             return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify order could not be imported safely.']);
         }

@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Services\Shopify\ShopifyConfiguration;
 use App\Services\Shopify\ShopifyCustomerIdentityService;
 use App\Services\Shopify\ShopifyOrderImportService;
+use App\Services\Shopify\ShopifyOrderImportFailure;
 use App\Services\Shopify\ShopifyWebhookEventService;
 use App\Services\Shopify\ShopifyWebhookVerifier;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -122,8 +123,11 @@ final class Webhook extends BaseController
             try {
                 (new ShopifyOrderImportService())->processEvent((int) $result['id']);
             } catch (\Throwable $exception) {
-                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Shopify order import failed.');
-                log_message('error', 'Shopify order import failed event_id=' . (int) $result['id'] . ' file=' . $exception->getFile() . ' line=' . $exception->getLine());
+                $failure = ShopifyOrderImportFailure::fromException($exception, $topic);
+                $imports = new ShopifyOrderImportService();
+                $imports->markFailureForEvent((int) $result['id'], $failure->category);
+                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], $failure->category);
+                log_message('error', 'Shopify order import failed category=' . $failure->category . ' topic=' . $topic . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
                 return $this->response->setStatusCode(500)->setJSON([
                     'status' => false,

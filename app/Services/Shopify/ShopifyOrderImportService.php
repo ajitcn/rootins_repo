@@ -51,8 +51,8 @@ final class ShopifyOrderImportService
         $importId = (int) $import['id'];
 
         if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true) && (int) ($import['rootins_order_id'] ?? 0) > 0) {
-            $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0));
-            $events->markProcessed($eventId);
+            $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0), (string) ($event['topic'] ?? ''));
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED);
 
             return ['status' => (string) $import['status'], 'import_id' => $importId];
         }
@@ -60,8 +60,8 @@ final class ShopifyOrderImportService
         $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
 
         if ($identity === null) {
-            $this->setImportState($importId, 'quarantined', 'Customer is not linked to a ROOTINS patient.', $eventId);
-            $events->markProcessed($eventId);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'customer_not_linked']);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
@@ -71,7 +71,7 @@ final class ShopifyOrderImportService
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
         if ($clinicId === null || $patientId <= 0) {
-            $this->setImportState($importId, 'quarantined', 'The Shopify integration clinic or patient scope is unavailable.', $eventId);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE, $eventId);
             $events->markProcessed($eventId);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
@@ -80,8 +80,9 @@ final class ShopifyOrderImportService
         $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload);
 
         if ($mappingResult['status'] !== 'ready') {
-            $this->setImportState($importId, 'pending_mapping', $mappingResult['reason'], $eventId, $patientId, $clinicId);
-            $events->markProcessed($eventId);
+            $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
+            $this->setImportState($importId, 'pending_mapping', $category, $eventId, $patientId, $clinicId);
+            $events->markProcessed($eventId, $category);
             service('audit')->record('shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
 
             return ['status' => 'pending_mapping', 'import_id' => $importId];
@@ -90,8 +91,8 @@ final class ShopifyOrderImportService
         $prescriptionId = $this->candidatePrescriptionId($payload);
 
         if ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId)) {
-            $this->setImportState($importId, 'pending_mapping', 'An approved ROOTINS prescription link is required before fulfilment.', $eventId, $patientId, $clinicId);
-            $events->markProcessed($eventId);
+            $this->setImportState($importId, 'pending_mapping', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
 
             return ['status' => 'pending_mapping', 'import_id' => $importId];
         }
@@ -105,14 +106,15 @@ final class ShopifyOrderImportService
         ]);
 
         if ((int) ($result['http'] ?? 500) !== 200) {
-            $this->setImportState($importId, 'failed', 'ROOTINS order fulfilment was not completed.', $eventId, $patientId, $clinicId);
-            throw new RuntimeException('ROOTINS order fulfilment failed.');
+            $category = ShopifyOrderImportFailure::fromFulfilmentResult($result);
+            $this->setImportState($importId, 'failed', $category, $eventId, $patientId, $clinicId);
+            throw new ShopifyOrderImportFailure($category, 'ROOTINS order fulfilment failed.');
         }
 
         $rootinsOrderId = (int) ($result['body']['data']['order_id'] ?? 0);
         $this->setImportState($importId, 'imported', null, $eventId, $patientId, $clinicId, $rootinsOrderId);
         $this->linkImportedLines($importId, $rootinsOrderId);
-        $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId);
+        $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId, (string) ($event['topic'] ?? ''));
         $events->markProcessed($eventId);
         service('audit')->record('shopify.order_imported', ['event_id' => $eventId, 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId, 'clinic_id' => $clinicId]);
 
@@ -125,6 +127,15 @@ final class ShopifyOrderImportService
         return ($this->imports ?? new ShopifyOrderImportModel())
             ->orderBy('updated_at', 'DESC')
             ->findAll(200);
+    }
+
+    public function markFailureForEvent(int $eventId, string $category): bool
+    {
+        return (bool) ($this->imports ?? new ShopifyOrderImportModel())->where('last_event_id', $eventId)->set([
+            'status' => 'failed',
+            'failure_reason' => ShopifyOrderImportFailure::normalize($category),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ])->update();
     }
 
     public function importExisting(int $importId, ?int $prescriptionId = null): array
@@ -163,9 +174,12 @@ final class ShopifyOrderImportService
 
             return ['http' => 200, 'body' => ['status' => $result['status'] === 'imported', 'msg' => 'Shopify order reconciliation completed.', 'data' => $result]];
         } catch (\Throwable $exception) {
-            log_message('error', 'Shopify order reconciliation failed event_id=' . $eventId . ' file=' . $exception->getFile() . ' line=' . $exception->getLine());
+            $failure = ShopifyOrderImportFailure::fromException($exception, (string) ($event['topic'] ?? ''));
+            $this->markFailureForEvent($eventId, $failure->category);
+            ($this->events ?? new ShopifyWebhookEventService())->markFailed($eventId, $failure->category);
+            log_message('error', 'Shopify order reconciliation failed category=' . $failure->category . ' topic=' . (string) ($event['topic'] ?? '') . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
-            return ['http' => 500, 'body' => ['status' => false, 'msg' => 'Shopify order could not be reconciled safely.']];
+            return ['http' => 500, 'body' => ['status' => false, 'msg' => 'Shopify order could not be reconciled safely.', 'data' => ['error_category' => $failure->category]]];
         }
     }
 
@@ -212,7 +226,7 @@ final class ShopifyOrderImportService
         $items = is_array($payload['line_items'] ?? null) ? $payload['line_items'] : [];
 
         if ($items === []) {
-            return ['status' => 'invalid', 'reason' => 'The Shopify order contains no line items.'];
+            return ['status' => 'invalid', 'reason' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED, 'category' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED];
         }
 
         foreach ($items as $item) {
@@ -245,7 +259,7 @@ final class ShopifyOrderImportService
             ]);
 
             if ($medicineId === null) {
-                return ['status' => 'pending', 'reason' => 'One or more Shopify products are not mapped to an active ROOTINS medicine.'];
+                return ['status' => 'pending', 'reason' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED, 'category' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED];
             }
         }
 
@@ -343,7 +357,7 @@ final class ShopifyOrderImportService
         }
     }
 
-    private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId): void
+    private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId, string $topic = ''): void
     {
         if (trim((string) ($payload['cancelled_at'] ?? '')) !== '') {
             $cancel = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->cancel(
@@ -353,7 +367,7 @@ final class ShopifyOrderImportService
             );
 
             if ((int) ($cancel['http'] ?? 500) !== 200) {
-                throw new RuntimeException('Shopify cancellation could not be applied to the ROOTINS pharmacy order.');
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED, 'Shopify cancellation could not be applied to the ROOTINS pharmacy order.');
             }
 
             service('audit')->record('shopify.order_cancelled', [
@@ -373,11 +387,16 @@ final class ShopifyOrderImportService
         if ($order === null) {
             $db->transRollback();
 
-            throw new RuntimeException('Imported ROOTINS order is outside the configured clinic scope.');
+            throw new ShopifyOrderImportFailure($topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND, 'Imported ROOTINS order is outside the configured clinic scope.');
         }
 
         $paymentTarget = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
         $deliveryTarget = $this->deliveryTarget((string) ($payload['fulfillment_status'] ?? ''), '');
+        $rawFulfillment = strtolower(trim((string) ($payload['fulfillment_status'] ?? '')));
+        if ($rawFulfillment !== '' && ! in_array($rawFulfillment, ['pending', 'packed', 'fulfilled', 'out_for_delivery', 'delivered', 'failed'], true)) {
+            $db->transRollback();
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::INVALID_FULFILLMENT_STATE, 'Shopify fulfillment state is not supported.');
+        }
         $contract = new TransitionContract();
         $changes = [
             'payment_provider' => 'shopify',
@@ -391,7 +410,7 @@ final class ShopifyOrderImportService
             if (!$contract->allows('payment_billing', (string) $order['payment_status'], $paymentTarget)) {
                 $db->transRollback();
 
-                throw new RuntimeException('Shopify payment transition is not allowed.');
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, 'Shopify payment transition is not allowed.');
             }
             $changes['payment_status'] = $paymentTarget;
         }
@@ -400,7 +419,7 @@ final class ShopifyOrderImportService
             if (!$contract->allows('delivery', (string) $order['delivery_status'], $deliveryTarget)) {
                 $db->transRollback();
 
-                throw new RuntimeException('Shopify delivery transition is not allowed.');
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::DELIVERY_STATE_INVALID, 'Shopify delivery transition is not allowed.');
             }
             $changes['delivery_status'] = $deliveryTarget;
         }
@@ -409,7 +428,7 @@ final class ShopifyOrderImportService
             $changes['delivered_at'] = date('Y-m-d H:i:s');
         }
         if ($deliveryTarget === 'failed') {
-            $changes['failure_reason'] = 'Shopify fulfillment reported failure.';
+            $changes['failure_reason'] = ShopifyOrderImportFailure::DELIVERY_STATE_INVALID;
         }
 
         $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->update($changes);
@@ -417,7 +436,7 @@ final class ShopifyOrderImportService
         if (!$db->transStatus()) {
             $db->transRollback();
 
-            throw new RuntimeException('Shopify order status update failed.');
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
         service('audit')->record('shopify.order_status_synchronized', [

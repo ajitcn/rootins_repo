@@ -4,6 +4,7 @@ namespace Patient\Controllers;
 
 use App\Controllers\BaseController;
 use App\Services\Common\PatientPdfService;
+use App\Services\Common\PrintFormatter;
 use App\Services\Common\PrescriptionPdfService;
 use App\Services\PatientScope;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -48,7 +49,7 @@ final class Pdf extends BaseController
 
         try {
             $items = $db->table('prescription_items')->where('prescription_id', (int) $record['id'])->orderBy('id')->get()->getResultArray();
-            $record['prescription_date'] = $this->date($record['prescription_date'] ?? null);
+            $record['prescription_date'] = PrintFormatter::date($record['prescription_date'] ?? null);
             $record['clinic_name'] = $record['clinic_name'] ?: 'ROOTINS Clinic';
             $pdf = (new PrescriptionPdfService())->generate($record, $items);
             $this->audit('patient.prescription_pdf_downloaded', $context, ['prescription_id' => (int) $record['id']]);
@@ -95,15 +96,15 @@ final class Pdf extends BaseController
             foreach ($items as $index => $item) {
                 $lineTotal = (float) ($item['line_total'] ?? 0);
                 $orderTotal += $lineTotal;
-                $itemRows[] = ['Medicine ' . ($index + 1), trim((string) ($item['medicine_name'] ?? 'Medicine')) . ' | Quantity: ' . (int) ($item['quantity'] ?? 0) . ' | Total: ' . number_format($lineTotal, 2)];
+                $itemRows[] = ['Medicine ' . ($index + 1), trim((string) ($item['medicine_name'] ?? 'Medicine')) . ' | Quantity: ' . (int) ($item['quantity'] ?? 0) . ' | Total: ' . PrintFormatter::currency($lineTotal)];
             }
             $sections = [
                 ['title' => 'ORDER SUMMARY', 'rows' => [['Order number', $order['order_number'] ?? ''], ['Order date', $this->dateTime($order['created_at'] ?? null)], ['Order status', $this->label($order['status'] ?? '')], ['Prescription', $order['prescription_number'] ?? '']]],
                 ['title' => 'MEDICINES / ITEMS', 'rows' => $itemRows],
-                ['title' => 'PAYMENT', 'rows' => [['Payment status', $this->label($order['payment_status'] ?? '')], ['Order total', number_format($orderTotal, 2)]]],
+                ['title' => 'PAYMENT', 'rows' => [['Payment status', $this->label($order['payment_status'] ?? '')], ['Order total', PrintFormatter::currency($orderTotal)]]],
                 ['title' => 'DELIVERY', 'rows' => [['Delivery status', $this->label($order['delivery_status'] ?? '')], ['Provider', $order['delivery_provider_name'] ?? $order['delivery_provider'] ?? ''], ['Tracking reference', $order['tracking_reference'] ?? ''], ['Delivery address', $order['delivery_address_snapshot'] ?? ''], ['Delivery contact', $order['delivery_contact_snapshot'] ?? '']]],
             ];
-            $pdf = (new PatientPdfService())->generate('MEDICINE ORDER', (string) ($order['order_number'] ?? 'Order'), $this->clinic($order), $this->patient($order), $sections);
+            $pdf = (new PatientPdfService())->generate('MEDICINE ORDER', (string) ($order['order_number'] ?? 'Order'), PrintFormatter::clinic($order), PrintFormatter::patient($order), $sections);
             $this->audit('patient.order_pdf_downloaded', $context, ['order_id' => (int) $order['id']]);
 
             return $this->download($pdf, $this->filename('order', $order['order_number'] ?? 'order'));
@@ -144,7 +145,7 @@ final class Pdf extends BaseController
                 ['title' => 'DOCTOR / SERVICE', 'rows' => [['Doctor', trim('Dr. ' . ($appointment['doctor_first_name'] ?? '') . ' ' . ($appointment['doctor_last_name'] ?? ''))], ['Qualification', $appointment['qualification'] ?? ''], ['Service', $appointment['service_name'] ?? '']]],
                 ['title' => 'REMARKS', 'rows' => [['Reason for visit', $appointment['reason_for_visit'] ?? ''], ['Notes', $appointment['notes'] ?? '']]],
             ];
-            $pdf = (new PatientPdfService())->generate('APPOINTMENT SUMMARY', (string) ($appointment['appointment_number'] ?? 'Appointment'), $this->clinic($appointment), $this->patient($appointment), $sections);
+            $pdf = (new PatientPdfService())->generate('APPOINTMENT SUMMARY', (string) ($appointment['appointment_number'] ?? 'Appointment'), PrintFormatter::clinic($appointment), PrintFormatter::patient($appointment), $sections);
             $this->audit('patient.appointment_pdf_downloaded', $context, ['appointment_id' => (int) $appointment['id']]);
 
             return $this->download($pdf, $this->filename('appointment', $appointment['appointment_number'] ?? 'appointment'));
@@ -183,14 +184,14 @@ final class Pdf extends BaseController
             $items = $db->table('invoice_items')->select('description, quantity, line_total')->where('invoice_id', (int) $invoice['id'])->orderBy('id')->get()->getResultArray();
             $itemRows = [];
             foreach ($items as $index => $item) {
-                $itemRows[] = ['Item ' . ($index + 1), trim((string) ($item['description'] ?? 'Item')) . ' | Quantity: ' . (int) ($item['quantity'] ?? 0) . ' | Total: ' . number_format((float) ($item['line_total'] ?? 0), 2)];
+                $itemRows[] = ['Item ' . ($index + 1), trim((string) ($item['description'] ?? 'Item')) . ' | Quantity: ' . (int) ($item['quantity'] ?? 0) . ' | Total: ' . PrintFormatter::currency((float) ($item['line_total'] ?? 0), (string) ($invoice['currency'] ?? 'INR'))];
             }
             $sections = [
                 ['title' => $receipt ? 'PAYMENT RECEIPT' : 'INVOICE', 'rows' => [['Invoice number', $invoice['invoice_number'] ?? ''], ['Date', $this->dateTime($invoice['created_at'] ?? null)], ['Invoice status', $this->label($invoice['status'] ?? '')], ['Payment status', $this->label($invoice['payment_status'] ?? '')], ['Order', $invoice['order_number'] ?? ''], ['Prescription', $invoice['prescription_number'] ?? '']]],
                 ['title' => 'ITEMS', 'rows' => $itemRows],
-                ['title' => 'TOTALS', 'rows' => [['Subtotal', number_format((float) ($invoice['subtotal'] ?? 0), 2)], ['Tax', number_format((float) ($invoice['tax'] ?? 0), 2)], ['Discount', number_format((float) ($invoice['discount'] ?? 0), 2)], ['Total', trim(($invoice['currency'] ?? 'INR') . ' ' . number_format((float) ($invoice['total'] ?? 0), 2))]]],
+                ['title' => 'TOTALS', 'rows' => [['Subtotal', PrintFormatter::currency($invoice['subtotal'] ?? 0, (string) ($invoice['currency'] ?? 'INR'))], ['Tax', PrintFormatter::currency($invoice['tax'] ?? 0, (string) ($invoice['currency'] ?? 'INR'))], ['Discount', PrintFormatter::currency($invoice['discount'] ?? 0, (string) ($invoice['currency'] ?? 'INR'))], ['Total', PrintFormatter::currency($invoice['total'] ?? 0, (string) ($invoice['currency'] ?? 'INR'))]]],
             ];
-            $pdf = (new PatientPdfService())->generate($receipt ? 'PAYMENT RECEIPT' : 'INVOICE', (string) ($invoice['invoice_number'] ?? 'Invoice'), $this->clinic($invoice), $this->patient($invoice), $sections);
+            $pdf = (new PatientPdfService())->generate($receipt ? 'PAYMENT RECEIPT' : 'INVOICE', (string) ($invoice['invoice_number'] ?? 'Invoice'), PrintFormatter::clinic($invoice), PrintFormatter::patient($invoice), $sections);
             $this->audit($receipt ? 'patient.receipt_pdf_downloaded' : 'patient.invoice_pdf_downloaded', $context, ['invoice_id' => (int) $invoice['id']]);
 
             return $this->download($pdf, $this->filename($receipt ? 'receipt' : 'invoice', $invoice['invoice_number'] ?? 'invoice'));
@@ -208,38 +209,32 @@ final class Pdf extends BaseController
 
     private function clinic(array $record): array
     {
-        return ['clinic_name' => $record['clinic_name'] ?? 'ROOTINS Clinic', 'address' => $record['clinic_address'] ?? '', 'mobile' => $record['clinic_mobile'] ?? '', 'email' => $record['clinic_email'] ?? ''];
+        return PrintFormatter::clinic($record);
     }
 
     private function patient(array $record): array
     {
-        return ['name' => trim(($record['patient_first_name'] ?? '') . ' ' . ($record['patient_last_name'] ?? '')), 'registration_number' => $record['registration_number'] ?? ''];
+        return PrintFormatter::patient($record);
     }
 
     private function date(?string $value): string
     {
-        $date = $value ? \DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10)) : false;
-
-        return $date ? $date->format('d-m-Y') : '';
+        return PrintFormatter::date($value);
     }
 
     private function time(?string $value): string
     {
-        $time = $value ? (\DateTimeImmutable::createFromFormat('!H:i:s', substr($value, 0, 8)) ?: \DateTimeImmutable::createFromFormat('!H:i', substr($value, 0, 5))) : false;
-
-        return $time ? $time->format('h:i A') : '';
+        return PrintFormatter::time($value);
     }
 
     private function dateTime(?string $value): string
     {
-        $date = $value ? \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', substr($value, 0, 19)) : false;
-
-        return $date ? $date->format('d-m-Y h:i A') : $this->date($value);
+        return PrintFormatter::dateTime($value);
     }
 
     private function label(?string $value): string
     {
-        return ucwords(str_replace('_', ' ', trim((string) $value)));
+        return PrintFormatter::label($value);
     }
 
     private function filename(string $prefix, string $reference): string

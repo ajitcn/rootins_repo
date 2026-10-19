@@ -1,0 +1,14 @@
+(function () {
+    'use strict';
+    var config = window.rootinsShopifyProxy || {};
+    var form = document.getElementById('shopify-proxy-form');
+    var message = document.getElementById('proxy-message');
+    function show(text, good) { message.textContent = text; message.className = 'alert ' + (good ? 'alert-success' : 'alert-danger'); }
+    function request(url, body) { var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': config.csrfHash}; return fetch(url, {method:'POST', headers:headers, body:body}).then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.status) throw new Error(d.msg || 'The request failed.'); return d; }); }); }
+    if (form) form.addEventListener('submit', function (event) { event.preventDefault(); var button = document.getElementById('proxy-save'); button.disabled = true; request(config.save, new FormData(form)).then(function (d) { show(d.msg, true); if (d.data) { document.getElementById('proxy-storefront-url').value = d.data.storefront_proxy_url; document.getElementById('proxy-backend-url').value = d.data.backend_proxy_url; } }).catch(function (e) { show(e.message, false); }).finally(function () { button.disabled = false; }); });
+    document.getElementById('proxy-test').addEventListener('click', function () { var button = this; button.disabled = true; request(config.test, new FormData()).then(function (d) { show(d.msg, true); }).catch(function (e) { show(e.message, false); }).finally(function () { button.disabled = false; }); });
+    var rotate = document.getElementById('proxy-rotate-secret');
+    if (rotate) rotate.addEventListener('click', function () { var secret = window.prompt('Enter the new Core API Shopify client secret. It will not be displayed again.'); if (!secret) return; var body = new FormData(); body.append('core_api_client_secret', secret); rotate.disabled = true; request(config.rotate, body).then(function (d) { show(d.msg, true); }).catch(function (e) { show(e.message, false); }).finally(function () { rotate.disabled = false; }); });
+    [['proxy-enable', config.enable], ['proxy-disable', config.disable]].forEach(function (entry) { var button = document.getElementById(entry[0]); if (button) button.addEventListener('click', function () { button.disabled = true; request(entry[1], new FormData()).then(function (d) { show(d.msg, true); document.getElementById('core-api-proxy-enabled').checked = entry[0] === 'proxy-enable'; }).catch(function (e) { show(e.message, false); }).finally(function () { button.disabled = false; }); }); });
+    document.querySelectorAll('.proxy-copy').forEach(function (button) { button.addEventListener('click', function () { var input = document.querySelector(button.dataset.copyTarget); navigator.clipboard.writeText(input.value).then(function () { button.textContent = 'Copied'; setTimeout(function () { button.textContent = 'Copy'; }, 1200); }); }); });
+}());

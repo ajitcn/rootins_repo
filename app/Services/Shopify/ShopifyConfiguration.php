@@ -55,6 +55,7 @@ final class ShopifyConfiguration
         return trim((string) ($this->values['app_url'] ?? env('SHOPIFY_APP_URL', '')));
     }
 
+
     public function encryptionKey(): string
     {
         return trim((string) ($this->values['encryption_key'] ?? env('SHOPIFY_ENCRYPTION_KEY', '')));

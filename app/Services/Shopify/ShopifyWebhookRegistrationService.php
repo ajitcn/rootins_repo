@@ -57,10 +57,13 @@ final class ShopifyWebhookRegistrationService
     }
 
     /** @return array<string, mixed> */
-    public function apply(string $confirmation, string $planHash): array
+    public function apply(string $confirmation, string $planHash, string $mode = 'all'): array
     {
         if (trim($confirmation) !== self::CONFIRMATION) {
             throw new InvalidArgumentException('Explicit confirmation is required before Shopify webhook changes can be applied.');
+        }
+        if (! in_array($mode, ['all', 'register-missing', 'remove-unwanted'], true)) {
+            throw new InvalidArgumentException('A valid Shopify webhook operation is required.');
         }
 
         $plan = $this->preview();
@@ -73,9 +76,17 @@ final class ShopifyWebhookRegistrationService
         $created = [];
         $removed = [];
         $skipped = $plan['skipped'] ?? [];
+        if ($mode === 'register-missing') {
+            foreach ($plan['to_remove'] ?? [] as $item) $skipped[] = $this->resultRow($item, 'Skipped', null, (string) ($item['topic'] ?? ''), (string) ($item['callback_url'] ?? ''), 'Removal was not selected.');
+        }
+        if ($mode === 'remove-unwanted') {
+            foreach ($plan['to_create'] ?? [] as $item) $skipped[] = $this->resultRow($item, 'Skipped', null, (string) ($item['topic'] ?? ''), (string) ($item['callback_url'] ?? ''), 'Registration was not selected.');
+        }
         $failed = [];
 
-        foreach (($plan['to_create'] ?? []) as $item) {
+        $toCreate = $mode === 'remove-unwanted' ? [] : ($plan['to_create'] ?? []);
+        $toRemove = $mode === 'register-missing' ? [] : ($plan['to_remove'] ?? []);
+        foreach ($toCreate as $item) {
             try {
                 $subscription = $this->createSubscription($configuration, (string) $item['topic'], (string) $item['callback_url']);
                 $created[] = ['topic' => $item['topic'], 'callback_url' => $item['callback_url'], 'subscription_id' => $subscription['id'] ?? null, 'status' => 'Created'];
@@ -84,7 +95,7 @@ final class ShopifyWebhookRegistrationService
             }
         }
 
-        foreach (($plan['to_remove'] ?? []) as $item) {
+        foreach ($toRemove as $item) {
             try {
                 $this->deleteSubscription($configuration, $item);
                 $removed[] = $this->resultRow($item, 'Removed');
@@ -104,12 +115,12 @@ final class ShopifyWebhookRegistrationService
             'skipped' => count($skipped),
             'failed' => count($failed),
             'registered_correctly' => count($plan['already_existing'] ?? []),
-            'missing' => count($plan['to_create'] ?? []),
+            'missing' => count($toCreate),
             'url_mismatch' => count($plan['url_mismatches'] ?? []),
             'inactive' => 0,
-            'to_create' => $plan['to_create'] ?? [],
+            'to_create' => $toCreate,
             'already_existing_rows' => $plan['already_existing'] ?? [],
-            'to_remove' => $plan['to_remove'] ?? [],
+            'to_remove' => $toRemove,
             'url_mismatches' => $plan['url_mismatches'] ?? [],
             'created_rows' => $created,
             'removed_rows' => $removed,
