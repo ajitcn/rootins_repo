@@ -51,4 +51,15 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringNotContainsString('http_build_query', $proxyService);
         self::assertStringContainsString("hash_hmac('sha256'", $proxyService);
     }
+
+    public function testProxyResponsesUseSafeJsonContract(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        $proxyService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        self::assertStringContainsString("['status' => true, 'data' => \$data]", $controller);
+        self::assertStringContainsString("['status' => false, 'error' => ['code'", $controller);
+        self::assertStringContainsString("setContentType('application/json')", $controller);
+        self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
+        self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
+    }
 }

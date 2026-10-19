@@ -21,7 +21,7 @@ final class Proxy extends BaseController
     private function handle(string $operation, bool $write): ResponseInterface
     {
         $key = trim($this->request->getHeaderLine('Idempotency-Key'));
-        if ($write && ($key === '' || strlen($key) > 191)) return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], ['idempotency_key' => 'A valid Idempotency-Key header is required.']);
+        if ($write && ($key === '' || strlen($key) > 191)) return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_KEY_INVALID');
         $claimed = false;
         try {
             $queryString = (string) $this->request->getUri()->getQuery();
@@ -31,7 +31,7 @@ final class Proxy extends BaseController
             if (! is_array($payload)) $payload = [];
             $idempotency = new ShopifyOperationIdempotencyService();
             if ($write) {
-                if (! $idempotency->claim($key, $operation)) return $this->json(409, false, 'This Shopify operation has already been submitted.');
+                if (! $idempotency->claim($key, $operation)) return $this->json(409, false, 'This Shopify operation has already been submitted.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_REPLAY');
                 $claimed = true;
             }
             $data = (new ShopifyProxyService())->execute($operation, $context, $payload, $this->request->getFile('document'));
@@ -41,27 +41,26 @@ final class Proxy extends BaseController
         } catch (CoreApiException $exception) {
             if ($claimed) $idempotency->fail($key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
-            return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->fields, $exception->errorCode);
+            return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed) $idempotency->fail($key, 'authentication');
-            return $this->json($exception->httpStatus, false, $exception->getMessage());
+            return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (InvalidArgumentException $exception) {
             if ($claimed) $idempotency->fail($key, 'validation');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);
-            return $this->json(401, false, $exception->getMessage());
+            return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST');
         } catch (Throwable $exception) {
             if ($claimed) $idempotency->fail($key, 'internal');
             log_message('error', 'Shopify proxy request failed safely operation=' . $operation . ' exception=' . get_class($exception));
-            return $this->json(500, false, 'The Shopify proxy request could not be processed safely.');
+            return $this->json(500, false, 'The Shopify proxy request could not be processed safely.', [], 'SHOPIFY_PROXY_INTERNAL_ERROR');
         }
     }
 
-    private function json(int $status, bool $success, string $message, array $data = [], array $errors = [], string $code = ''): ResponseInterface
+    private function json(int $status, bool $success, string $message, array $data = [], string $code = ''): ResponseInterface
     {
-        $body = ['status' => $success, 'msg' => $message];
-        if ($code !== '') $body['code'] = $code;
-        if ($data !== []) $body['data'] = $data;
-        if ($errors !== []) $body['errors'] = $errors;
-        return $this->response->setStatusCode($status)->setJSON($body);
+        $body = $success
+            ? ['status' => true, 'data' => $data]
+            : ['status' => false, 'error' => ['code' => $code !== '' ? $code : 'SHOPIFY_PROXY_ERROR', 'message' => $message]];
+        return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body);
     }
 }

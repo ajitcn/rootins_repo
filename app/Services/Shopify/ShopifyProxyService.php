@@ -28,27 +28,27 @@ final class ShopifyProxyService
             $configuration = (new ShopifyProxyConfigurationService())->runtime();
         } catch (InvalidArgumentException $exception) {
             $this->logValidationFailure($missing, $received, null, null, 'missing_configuration', false);
-            throw new ShopifyProxyAuthenticationException($exception->getMessage());
+            throw new ShopifyProxyAuthenticationException($exception->getMessage(), 'SHOPIFY_PROXY_CONFIGURATION_MISSING');
         }
 
         $secretPresent = $configuration['client_secret'] !== '';
         if (! $configuration['enabled']) {
             $this->logValidationFailure($missing, $received, null, null, 'disabled', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('Shopify Core API App Proxy is disabled.', 403);
+            throw new ShopifyProxyAuthenticationException('Shopify Core API App Proxy is disabled.', 'SHOPIFY_PROXY_DISABLED', 403);
         }
         if (! in_array($operation, $configuration['allowed_operations'], true)) {
             $this->logValidationFailure($missing, $received, null, null, 'operation_disabled', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('This Shopify Core API App Proxy operation is disabled.', 403);
+            throw new ShopifyProxyAuthenticationException('This Shopify Core API App Proxy operation is disabled.', 'SHOPIFY_PROXY_OPERATION_DISABLED', 403);
         }
         if ($missing !== []) {
             $this->logValidationFailure($missing, $received, null, null, 'missing_parameters', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('The Shopify proxy request is missing required parameters.');
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy request is missing required parameters.', 'SHOPIFY_PROXY_PARAMETERS_MISSING');
         }
 
         $shop = ShopifyProxyConfigurationService::normalizeStoreDomain($this->scalar($query['shop'] ?? ''));
         if (! self::isValidStoreDomain($shop) || $shop !== $configuration['store_domain']) {
             $this->logValidationFailure($missing, $received, $shop, null, 'store_scope', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('The Shopify Core API app store scope is invalid.', 403);
+            throw new ShopifyProxyAuthenticationException('The Shopify Core API app store scope is invalid.', 'SHOPIFY_PROXY_STORE_SCOPE_INVALID', 403);
         }
 
         $timestampValue = $this->scalar($query['timestamp'] ?? '');
@@ -56,20 +56,20 @@ final class ShopifyProxyService
         $timestampAge = $timestamp !== null ? time() - $timestamp : null;
         if ($timestamp === null || abs($timestampAge) > self::TIMESTAMP_TOLERANCE_SECONDS) {
             $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'timestamp_invalid', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('The Shopify proxy request timestamp is invalid or expired.');
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy request timestamp is invalid or expired.', 'SHOPIFY_PROXY_TIMESTAMP_INVALID');
         }
 
         $provided = $query['signature'] ?? '';
         if (! is_string($provided) || $provided === '' || ! $secretPresent) {
             $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'signature_unavailable', $secretPresent);
-            throw new ShopifyProxyAuthenticationException('The Shopify Core API app proxy signature is unavailable.');
+            throw new ShopifyProxyAuthenticationException('The Shopify Core API app proxy signature is unavailable.', 'SHOPIFY_PROXY_SIGNATURE_MISSING');
         }
 
         $canonical = $signatureService->canonical($signatureService->query($rawQuery));
         $expected = hash_hmac('sha256', $canonical, $configuration['client_secret']);
         if (! hash_equals($expected, $provided)) {
             $this->logValidationFailure($missing, $received, $shop, $timestampAge, 'signature_invalid', true);
-            throw new ShopifyProxyAuthenticationException('The Shopify proxy signature is invalid.');
+            throw new ShopifyProxyAuthenticationException('The Shopify proxy signature is invalid.', 'SHOPIFY_PROXY_SIGNATURE_INVALID');
         }
 
         return ['store_domain' => $shop, 'customer_id' => trim($this->scalar($query['logged_in_customer_id'] ?? '')), 'configuration' => $configuration];
