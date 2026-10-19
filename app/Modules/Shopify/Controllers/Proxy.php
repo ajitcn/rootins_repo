@@ -13,6 +13,16 @@ use Throwable;
 
 final class Proxy extends BaseController
 {
+    private string $requestCorrelationId = '';
+    private string $requestOperation = '';
+
+    public function health(): ResponseInterface
+    {
+        $this->begin('health');
+        $body = ['status' => true, 'message' => 'ROOTINS Shopify Core API Proxy is reachable.'];
+        return $this->response($body, 200);
+    }
+
     public function availability(): ResponseInterface { return $this->handle('appointments.availability', false); }
     public function book(): ResponseInterface { return $this->handle('appointments.book', true); }
     public function register(): ResponseInterface { return $this->handle('patients.register', true); }
@@ -20,7 +30,8 @@ final class Proxy extends BaseController
 
     private function handle(string $operation, bool $write): ResponseInterface
     {
-        $correlationId = $this->correlationId();
+        $this->begin($operation);
+        $correlationId = $this->requestCorrelationId;
         $key = trim($this->request->getHeaderLine('Idempotency-Key'));
         if ($write && ($key === '' || strlen($key) > 191)) return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_KEY_INVALID');
         $claimed = false;
@@ -68,7 +79,43 @@ final class Proxy extends BaseController
         $body = $success
             ? ['status' => true, 'data' => $data === [] ? (object) [] : $data]
             : ['status' => false, 'error' => ['code' => $code !== '' ? $code : 'SHOPIFY_PROXY_ERROR', 'message' => $message]];
+        return $this->response($body, $status);
+    }
+
+    private function response(array $body, int $status): ResponseInterface
+    {
+        $contentType = 'application/json; charset=UTF-8';
+        $this->logResponse($status, $contentType);
         return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body);
+    }
+
+    private function begin(string $operation): void
+    {
+        $this->requestCorrelationId = $this->correlationId();
+        $this->requestOperation = $operation;
+        log_message('info', 'Shopify proxy request started correlation_id=' . $this->requestCorrelationId . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . $operation . ' http_status=START content_type=unknown parameter_names=' . implode(',', $this->requestParameterNames()) . ' timestamp=' . date(DATE_ATOM));
+    }
+
+    private function logResponse(int $status, string $contentType): void
+    {
+        log_message('info', 'Shopify proxy response ready correlation_id=' . ($this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable') . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . ($this->requestOperation !== '' ? $this->requestOperation : 'unknown') . ' http_status=' . $status . ' content_type=' . $contentType . ' parameter_names=' . implode(',', $this->requestParameterNames()) . ' timestamp=' . date(DATE_ATOM));
+    }
+
+    /** @return list<string> */
+    private function requestParameterNames(): array
+    {
+        $names = array_keys($this->request->getGet());
+        $post = $this->request->getPost();
+        if (is_array($post)) $names = array_merge($names, array_keys($post));
+        try {
+            $json = $this->request->getJSON(true);
+            if (is_array($json)) $names = array_merge($names, array_keys($json));
+        } catch (Throwable) {
+            // Request diagnostics must never interfere with proxy handling.
+        }
+        $names = array_values(array_unique(array_map(static fn ($name): string => preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) $name) ?: 'unknown', $names)));
+        sort($names);
+        return $names;
     }
 
     private function correlationId(): string

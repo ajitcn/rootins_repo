@@ -27,7 +27,7 @@ final class ShopifyProxyConfigurationService
     {
         $row = $this->row();
         if ($row === null) throw new InvalidArgumentException('The Shopify Core API App Proxy is not configured.');
-        return ['id' => (int) $row['id'], 'app_name' => (string) $row['app_name'], 'store_domain' => self::normalizeStoreDomain((string) $row['store_domain']), 'client_secret' => $this->decrypt((string) $row['client_secret_encrypted']), 'enabled' => (bool) $row['enabled'], 'allowed_operations' => $this->operations($row), 'rate_limit_per_minute' => max(1, (int) $row['rate_limit_per_minute'])];
+        return ['id' => (int) $row['id'], 'app_name' => (string) $row['app_name'], 'store_domain' => self::normalizeStoreDomain((string) $row['store_domain']), 'client_id' => $this->decrypt((string) $row['client_id_encrypted']), 'client_secret' => $this->decrypt((string) $row['client_secret_encrypted']), 'enabled' => (bool) $row['enabled'], 'allowed_operations' => $this->operations($row), 'rate_limit_per_minute' => max(1, (int) $row['rate_limit_per_minute'])];
     }
 
     /** @return array<string, mixed> */

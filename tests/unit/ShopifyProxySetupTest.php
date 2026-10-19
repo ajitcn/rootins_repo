@@ -12,6 +12,7 @@ final class ShopifyProxySetupTest extends TestCase
         $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
         $proxy = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
         self::assertStringContainsString("rootins-proxy/appointments/availability", $routes);
+        self::assertStringContainsString("rootins-proxy/health", $routes);
         self::assertStringContainsString("rootins-proxy/prescriptions/upload", $routes);
         self::assertStringNotContainsString("shopify-proxy/appointments/availability", $routes);
         $filters = file_get_contents(ROOTPATH . 'app/Config/Filters.php');
@@ -62,7 +63,61 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString('APPOINTMENT_AVAILABILITY_INVALID', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_INTERNAL_ERROR', $controller);
         self::assertStringContainsString('correlation_id=', $controller);
+        self::assertStringContainsString('Shopify proxy request started', $controller);
+        self::assertStringContainsString('Shopify proxy response ready', $controller);
+        self::assertStringContainsString('ROOTINS Shopify Core API Proxy is reachable.', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
+    }
+
+    public function testProxyConnectionVerifiesIsolatedCredentialsAndKeepsErrorsSafe(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
+        $verifier = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyCredentialVerificationService.php');
+        $javascript = file_get_contents(ROOTPATH . 'public/assets/js/admin/integrations/shopify-proxy-setup.js');
+
+        foreach (['SHOPIFY_PROXY_CONFIGURATION_READY', 'SHOPIFY_PROXY_CREDENTIALS_INVALID', 'SHOPIFY_PROXY_STORE_SCOPE_INVALID', 'SHOPIFY_PROXY_CONNECTION_FAILED', 'SHOPIFY_PROXY_CONFIGURATION_MISSING'] as $category) {
+            self::assertStringContainsString($category, $controller . $verifier);
+        }
+        self::assertStringContainsString('/admin/oauth/access_token', $verifier);
+        self::assertStringContainsString("'grant_type' => 'client_credentials'", $verifier);
+        self::assertStringNotContainsString('log_message(\'error\', $clientSecret', $verifier);
+        self::assertStringNotContainsString("['status' => false, 'msg' => 'Shopify App Proxy configuration is ready.'", $controller);
+        self::assertStringContainsString('Verifying Shopify Core API app credentials', $javascript);
+        self::assertStringContainsString('new FormData(form)', $javascript);
+        self::assertStringContainsString('d.error && d.error.message', $javascript);
+        self::assertStringContainsString("getPost('core_api_client_id')", $controller);
+        self::assertStringContainsString("getPost('core_api_client_secret')", $controller);
+    }
+
+    public function testCoreApiProxyCredentialPathsCannotFallbackToWebhookConfiguration(): void
+    {
+        $isolatedFiles = [
+            file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'),
+            file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyCredentialVerificationService.php'),
+            file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'),
+            file_get_contents(ROOTPATH . 'app/Modules/Shopify/Models/ShopifyCoreApiProxyConfigurationModel.php'),
+        ];
+        foreach ($isolatedFiles as $source) {
+            self::assertStringNotContainsString('shopify_configurations', $source);
+            self::assertStringNotContainsString('ShopifyConfiguration', $source);
+            self::assertStringNotContainsString('SHOPIFY_CLIENT_ID', $source);
+            self::assertStringNotContainsString('SHOPIFY_CLIENT_SECRET', $source);
+            self::assertStringNotContainsString('SHOPIFY_WEBHOOK_SECRET', $source);
+            self::assertStringNotContainsString('webhook_secret', $source);
+        }
+
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
+        $start = strpos($controller, 'public function testProxyConnection');
+        $end = strpos($controller, 'public function rotateProxySecret', $start);
+        self::assertIsInt($start);
+        self::assertIsInt($end);
+        $proxyTestController = substr($controller, $start, $end - $start);
+        self::assertStringContainsString('ShopifyProxyConfigurationService', $proxyTestController);
+        self::assertStringNotContainsString('ShopifyConfiguration', $proxyTestController);
+        self::assertStringNotContainsString('ShopifyClient', $proxyTestController);
+
+        self::assertStringContainsString('elseif ($row === null) throw new InvalidArgumentException(\'The Core API client ID is required', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'));
+        self::assertStringContainsString('elseif ($row === null) throw new InvalidArgumentException(\'The Core API client secret is required', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'));
     }
 }

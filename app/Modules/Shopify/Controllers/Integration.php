@@ -15,6 +15,8 @@ use App\Services\Shopify\ShopifyProviderException;
 use App\Services\Shopify\ShopifyWebhookValidationService;
 use App\Services\Shopify\ShopifyWebhookRegistrationService;
 use App\Services\Shopify\ShopifyProxyConfigurationService;
+use App\Services\Shopify\ShopifyProxyCredentialVerificationException;
+use App\Services\Shopify\ShopifyProxyCredentialVerificationService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -60,15 +62,31 @@ final class Integration extends BaseAdminController
     public function testProxyConnection(): ResponseInterface
     {
         try {
-            $summary = (new ShopifyProxyConfigurationService())->summary();
-            if (! $summary['configured']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Configure the separate Core API Shopify App Proxy before testing it.']);
-            if (! $summary['has_client_id'] || ! $summary['has_client_secret']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Configure the separate Core API Shopify client ID and client secret before testing the proxy.']);
-            if (! $summary['proxy_enabled']) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Enable the Shopify App Proxy before testing the connection.']);
-            service('audit')->record('shopify.proxy_connection_tested', ['status' => 'ready']);
-            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify App Proxy configuration is ready.', 'data' => ['storefront_proxy_url' => $summary['storefront_proxy_url'], 'backend_proxy_url' => $summary['backend_proxy_url'], 'operations' => $summary['proxy_allowed_operations']]]);
+            $configuration = new ShopifyProxyConfigurationService();
+            $summary = $configuration->summary();
+            $submittedClientId = trim((string) $this->request->getPost('core_api_client_id'));
+            $submittedClientSecret = trim((string) $this->request->getPost('core_api_client_secret'));
+            if (! $summary['configured'] || ((! $summary['has_client_id'] && $submittedClientId === '') || (! $summary['has_client_secret'] && $submittedClientSecret === '')) || ! $summary['proxy_enabled']) {
+                return $this->proxyTestError(422, 'SHOPIFY_PROXY_CONFIGURATION_MISSING', 'Configure and enable the separate Core API Shopify App Proxy before testing it.');
+            }
+            $runtime = $configuration->runtime();
+            if ($submittedClientId !== '') $runtime['client_id'] = $submittedClientId;
+            if ($submittedClientSecret !== '') $runtime['client_secret'] = $submittedClientSecret;
+            $result = (new ShopifyProxyCredentialVerificationService())->verify($runtime);
+            service('audit')->record('shopify.proxy_connection_tested', ['status' => 'verified', 'category' => 'SHOPIFY_PROXY_CONFIGURATION_READY']);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Shopify Core API Proxy credentials verified.', 'data' => $result]);
+        } catch (ShopifyProxyCredentialVerificationException $exception) {
+            service('audit')->record('shopify.proxy_connection_tested', ['status' => 'failed', 'category' => $exception->errorCode]);
+            return $this->proxyTestError($exception->httpStatus, $exception->errorCode, $exception->getMessage());
         } catch (\Throwable $exception) {
-            return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify App Proxy connection test could not be completed safely.']);
+            log_message('error', 'Shopify Core API Proxy credential verification failed safely.');
+            return $this->proxyTestError(503, 'SHOPIFY_PROXY_CONNECTION_FAILED', 'Shopify Core API Proxy credential verification could not be completed safely.');
         }
+    }
+
+    private function proxyTestError(int $status, string $code, string $message): ResponseInterface
+    {
+        return $this->response->setStatusCode($status)->setJSON(['status' => false, 'error' => ['code' => $code, 'message' => $message]]);
     }
 
     public function rotateProxySecret(): ResponseInterface

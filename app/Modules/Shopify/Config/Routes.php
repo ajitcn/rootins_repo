@@ -50,6 +50,7 @@ $routes->post('integrations/shopify/appointments/(:num)/reschedule', '\App\Modul
 $routes->post('integrations/shopify/prescription-uploads', '\App\Modules\Shopify\Controllers\PrescriptionUpload::upload');
 $routes->get('integrations/shopify/prescription-uploads/(:num)/download', '\App\Modules\Shopify\Controllers\PrescriptionUpload::download/$1');
 $routes->post('integrations/shopify/prescription-uploads/review', '\App\Modules\Shopify\Controllers\PrescriptionUpload::review', ['filter' => ['auth', 'permission:pharmacy.prescription.review.view']]);
+$routes->get('rootins-proxy/health', '\App\Modules\Shopify\Controllers\Proxy::health');
 $routes->get('rootins-proxy/appointments/availability', '\App\Modules\Shopify\Controllers\Proxy::availability');
 $routes->post('rootins-proxy/appointments/book', '\App\Modules\Shopify\Controllers\Proxy::book');
 $routes->post('rootins-proxy/patients/register', '\App\Modules\Shopify\Controllers\Proxy::register');
