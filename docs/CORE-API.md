@@ -121,6 +121,18 @@ optional field-level `fields`.
 - `dates=dd-mm-yyyy,dd-mm-yyyy` or repeated `dates[]` for up to 31 dates.
 - `from_date`/`to_date` or `start_date`/`end_date` for an explicit date range of up to 31 days.
 - `doctor_reference`, `specialization_reference`, and `service_reference`.
+
+Each doctor includes `doctor_reference`, `doctor_code`, `doctor_name`,
+`profile_image`, `specializations`, `consultation_fees`, `services`, and
+`availability`. Services expose `service_reference`, `service_name`,
+`duration_minutes`, `fee`, and `currency`. Available slots expose
+`slot_reference`, `date`, `start_time`, `end_time`, `timezone`, and
+`is_available`. Booking clients must submit the returned doctor/service/slot
+references; internal database IDs and display names are not booking keys.
+
+Example booking identifiers are `doctor_reference: "AC"`,
+`service_reference: "service-2"`, and a returned slot reference such as
+`AC-service-2-20261021-1500`.
 - `search` for a public doctor name, reference, or qualification search.
 - `clinic_id` as an optional business filter; it is not an authentication field.
 - `page` and `page_size` (1–100; default page size is 20).

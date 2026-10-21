@@ -15,7 +15,7 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
 
     public function testAvailabilityExposesThePublicDoctorAndSlotContract(): void
     {
-        foreach (['doctor_reference', 'professional_code', 'profile_image_url', 'qualifications', 'profile_image', 'qualification', 'specializations', 'experience', 'consultation_fee', 'services', 'clinics', 'consultation_mode', 'timezone', 'requested_date_range', 'availability_status', 'working_day_status', 'day_status', 'leave_message', 'break_periods', 'existing_appointment_conflicts', 'slot_duration', 'slot_reference', 'start_time', 'end_time', 'status', 'available', 'slot_available', 'capacity', 'booked_count', 'remaining_capacity', 'booking_status', 'pagination'] as $field) {
+        foreach (['doctor_reference', 'doctor_code', 'doctor_name', 'professional_code', 'profile_image_url', 'qualifications', 'profile_image', 'qualification', 'specializations', 'experience', 'consultation_fee', 'consultation_fees', 'services', 'service_reference', 'service_name', 'duration_minutes', 'fee', 'currency', 'clinics', 'consultation_mode', 'timezone', 'requested_date_range', 'availability_status', 'working_day_status', 'day_status', 'leave_message', 'break_periods', 'existing_appointment_conflicts', 'slot_duration', 'slot_reference', 'start_time', 'end_time', 'is_available', 'status', 'available', 'slot_available', 'capacity', 'booked_count', 'remaining_capacity', 'booking_status', 'pagination'] as $field) {
             self::assertStringContainsString("'{$field}'", $this->service);
         }
         foreach (['available', 'full', 'booked', 'unavailable', 'leave', 'past'] as $status) {
@@ -74,7 +74,7 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
     {
         self::assertStringContainsString("preg_match('#^https://#i'", $this->service);
         self::assertStringContainsString("str_contains(\$value, '..')", $this->service);
-        self::assertStringContainsString("'slot-' . substr(hash('sha256'", $this->service);
+        self::assertStringContainsString("\$doctorReference . '-' . \$serviceReference", $this->service);
     }
 
     public function testInvalidDoctorAndServiceFiltersHaveStableErrorCodes(): void
@@ -90,6 +90,18 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
         foreach (['$availableDoctors = []', "if (\$availability['slots'] !== [])", "if (\$doctorDates === []) continue;", "if (\$status === 'available')", "'availability' => \$availability", "'public_reference'", "'is_available' => true"] as $contract) {
             self::assertStringContainsString($contract, $this->service);
         }
+    }
+
+    public function testPublicAvailabilityUsesBookingReferences(): void
+    {
+        foreach (['publicSlots', 'doctor_code', 'doctor_name', 'consultation_fees', 'service_reference', 'service_name', 'duration_minutes', 'fee', 'currency', 'timezone', 'is_available'] as $contract) {
+            self::assertStringContainsString($contract, $this->service);
+        }
+
+        $service = new \App\Modules\CoreApi\Services\CoreApiAppointmentService();
+        $method = new \ReflectionMethod($service, 'slotReference');
+        $method->setAccessible(true);
+        self::assertSame('AC-service-2-20261021-1500', $method->invoke($service, 'AC', 'service-2', '2026-10-21', '15:00:00'));
     }
 
     public function testAvailabilityUsesTwoDayDefaultWindowAndDoesNotResolvePatient(): void

@@ -26,6 +26,7 @@ final class ShopifyAppointmentIntentService
         $idempotencyKey = trim((string) ($input['idempotency_key'] ?? ''));
         $doctorReference = trim((string) ($input['doctor_reference'] ?? ''));
         $serviceReference = trim((string) ($input['service_reference'] ?? ''));
+        $slotReference = trim((string) ($input['slot_reference'] ?? ''));
         $date = $this->parseDate((string) ($input['appointment_date'] ?? ''));
         $time = $this->normalizeTime((string) ($input['appointment_time'] ?? ''));
         $endTimeValue = array_key_exists('_requested_end_time', $input) ? (string) $input['_requested_end_time'] : '';
@@ -42,9 +43,15 @@ final class ShopifyAppointmentIntentService
         if ($date === null || $date < date('Y-m-d')) $errors['appointment_date'] = 'Enter a valid appointment date as dd-mm-yyyy.';
         if ($time === null) $errors[$timeField] = 'Enter a valid start time as HH:mm.';
         if ($endTimeValue === '' || $endTime === null) $errors['end_time'] = 'Enter a valid end time as HH:mm.';
+        if ($slotReference === '') $errors['slot_reference'] = 'Select a valid slot from availability.';
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 191) $errors['idempotency_key'] = 'A valid Idempotency-Key header is required.';
         if ($this->consentRequired() && ! $this->acceptedConsent($input['consent'] ?? null)) $errors['consent'] = 'Appointment consent is required.';
         if ($errors !== []) throw new CoreApiException(422, $this->validationCode($errors), 'Review the booking fields.', $errors);
+
+        $slotParts = $this->slotParts($slotReference);
+        if ($slotParts === null || $slotParts['doctor_reference'] !== $doctorReference || $slotParts['service_reference'] !== $serviceReference || $slotParts['date'] !== $date || $slotParts['start_time'] !== substr((string) $time, 0, 5)) {
+            throw new CoreApiException(422, 'INVALID_SLOT', 'The selected slot reference is invalid.', ['slot_reference' => 'Select a slot returned for the selected doctor, service, date, and time.']);
+        }
 
         $db = db_connect();
         $intentModel = new ShopifyAppointmentIntentModel();
@@ -168,6 +175,7 @@ final class ShopifyAppointmentIntentService
         if (isset($errors['appointment_date'])) return 'INVALID_DATE';
         if (isset($errors['appointment_time']) || isset($errors['start_time'])) return 'INVALID_TIME';
         if (isset($errors['end_time'])) return 'INVALID_TIME';
+        if (isset($errors['slot_reference'])) return 'INVALID_SLOT';
         if (isset($errors['doctor_id']) || isset($errors['doctor_reference'])) return 'DOCTOR_INVALID';
         if (isset($errors['service_id']) || isset($errors['service_reference'])) return 'SERVICE_INVALID';
         if (isset($errors['consent'])) return 'CONSENT_REQUIRED';
@@ -177,7 +185,15 @@ final class ShopifyAppointmentIntentService
     private function consentRequired(): bool { return filter_var(env('SHOPIFY_APPOINTMENT_CONSENT_REQUIRED', false), FILTER_VALIDATE_BOOLEAN); }
     private function acceptedConsent(mixed $value): bool { return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'accepted'], true); }
     private function parseDate(string $value): ?string { $date = DateTimeImmutable::createFromFormat('!d-m-Y', trim($value), $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) && $date->format('d-m-Y') === trim($value) ? $date->format('Y-m-d') : null; }
-    private function normalizeTime(string $value): ?string { $value = trim($value); if (! preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) return null; [$hour, $minute] = array_map('intval', explode(':', $value)); return $hour < 24 && $minute < 60 ? sprintf('%02d:%02d:00', $hour, $minute) : null; }
+    /** @return array{doctor_reference: string, service_reference: string, date: string, start_time: string}|null */
+    private function slotParts(string $reference): ?array
+    {
+        if (! preg_match('/^(.+)-service-(\d+)-(\d{8})-(\d{4})$/', $reference, $matches)) return null;
+        $date = DateTimeImmutable::createFromFormat('!Ymd', $matches[3], $this->timezone());
+        if ($date === false || $date->format('Ymd') !== $matches[3]) return null;
+        return ['doctor_reference' => $matches[1], 'service_reference' => 'service-' . $matches[2], 'date' => $date->format('Y-m-d'), 'start_time' => substr($matches[4], 0, 2) . ':' . substr($matches[4], 2, 2)];
+    }
+    private function normalizeTime(string $value): ?string { $value = trim($value); foreach (['!H:i:s', '!H:i', '!h:i A'] as $format) { $time = DateTimeImmutable::createFromFormat($format, $value, $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); if ($time !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) return $time->format('H:i:s'); } return null; }
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }
     private function isSlotAligned(string $scheduleStart, string $time, int $duration): bool { $start = new DateTimeImmutable('2000-01-01 ' . substr($scheduleStart, 0, 8), $this->timezone()); $slot = new DateTimeImmutable('2000-01-01 ' . $time, $this->timezone()); $seconds = $slot->getTimestamp() - $start->getTimestamp(); return $seconds >= 0 && $seconds % ($duration * 60) === 0; }
     private function leaveOverlaps(int $doctorId, string $date, string $start, string $end): bool { foreach ((new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll() as $leave) { $leaveStart = trim((string) ($leave['start_time'] ?? '')); $leaveEnd = trim((string) ($leave['end_time'] ?? '')); if ($leaveStart === '' || $leaveEnd === '' || ($start < $leaveEnd && $end > $leaveStart)) return true; } return false; }

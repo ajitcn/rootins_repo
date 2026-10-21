@@ -27,6 +27,15 @@ application timezone. Storefront clients may provide an explicit `date`,
 does not require a linked patient and continues to exclude unavailable,
 booked, past, leave, break, and payment-held slots.
 
+Availability returns stable public references for direct booking. Each doctor
+has `doctor_reference` and `doctor_code`; each service has
+`service_reference`, `service_name`, `duration_minutes`, `fee`, and `currency`;
+and each available slot has `slot_reference`, `date`, `start_time`, `end_time`,
+`timezone`, and `is_available`. Shopify should submit those returned references
+to `POST /rootins-proxy/appointments/book`, including `slot_reference`. Values
+such as `doctor_id: "AC"` or `service_id: "service-2"` are not accepted as
+substitutes for the public references.
+
 Appointment booking requires an `Idempotency-Key` header and the server-resolved
 doctor, service, date, start time, and end time. The proxy resolves the patient
 from the signed-in Shopify customer link and resolves doctor, service, fee,

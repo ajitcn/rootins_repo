@@ -26,6 +26,13 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
 
         foreach (['IDEMPOTENCY_KEY_REQUIRED', 'INVALID_JSON', 'correlation_id', 'fields'] as $contract) self::assertStringContainsString($contract, $controller);
         foreach (['DOCTOR_INVALID', 'SERVICE_INVALID', 'INVALID_DATE', 'INVALID_TIME', 'INVALID_SLOT', 'CONSENT_REQUIRED', 'SLOT_UNAVAILABLE'] as $code) self::assertStringContainsString($code, $intent . $proxy);
+        self::assertStringContainsString("slot_reference", $intent);
+        self::assertStringContainsString("slotParts", $intent);
+        $service = new \App\Services\Shopify\ShopifyAppointmentIntentService();
+        $method = new \ReflectionMethod($service, 'slotParts');
+        $method->setAccessible(true);
+        self::assertSame(['doctor_reference' => 'AC', 'service_reference' => 'service-2', 'date' => '2026-10-21', 'start_time' => '15:00'], $method->invoke($service, 'AC-service-2-20261021-1500'));
+        self::assertNull($method->invoke($service, 'AC-service-2-invalid'));
         foreach (['SHOPIFY_CUSTOMER_UNLINKED', 'patient_reference', 'clinic_id', 'online_booking'] as $contract) self::assertStringContainsString($contract, $proxy);
         self::assertStringContainsString("'status' => 'pending_payment'", $intent);
         self::assertStringContainsString("'rootins_appointment_intent'", $intent);
