@@ -11,14 +11,14 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
         return file_get_contents(ROOTPATH . $relativePath);
     }
 
-    public function testProxyDefaultsToAThirtyOneDayWindowWithoutChangingCoreApiDefaults(): void
+    public function testProxyDefaultsToATwoDayWindowWithoutChangingExplicitDateHandling(): void
     {
         $proxy = $this->source('app/Services/Shopify/ShopifyProxyService.php');
         $coreApi = $this->source('app/Modules/CoreApi/Services/CoreApiAppointmentService.php');
 
         self::assertStringContainsString('normalizeAvailabilityPayload', $proxy);
         self::assertStringContainsString('$payload[\'from_date\'] = $today->format(\'d-m-Y\')', $proxy);
-        self::assertStringContainsString('$payload[\'to_date\'] = $today->modify(\'+30 days\')->format(\'d-m-Y\')', $proxy);
+        self::assertStringContainsString('$payload[\'to_date\'] = $today->modify(\'+1 day\')->format(\'d-m-Y\')', $proxy);
         foreach (['date', 'dates', 'from_date', 'to_date'] as $field) {
             self::assertStringContainsString("'{$field}'", $proxy);
         }
@@ -27,6 +27,7 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
         }
         self::assertStringNotContainsString('validateAvailabilityPayload', $proxy);
         self::assertStringContainsString('$dates = $this->requestedDates($input, $timezone)', $coreApi);
+        self::assertStringContainsString('for ($offset = 0; $offset <= 1; $offset++)', $coreApi);
         self::assertStringContainsString("CoreApiException(422, 'VALIDATION_FAILED'", $coreApi);
     }
 

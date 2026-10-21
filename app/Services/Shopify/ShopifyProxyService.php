@@ -142,7 +142,7 @@ final class ShopifyProxyService
             $timezone = new \DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get()));
             $today = new \DateTimeImmutable('today', $timezone);
             $payload['from_date'] = $today->format('d-m-Y');
-            $payload['to_date'] = $today->modify('+30 days')->format('d-m-Y');
+            $payload['to_date'] = $today->modify('+1 day')->format('d-m-Y');
         }
         if (! array_key_exists('doctor_reference', $payload) && array_key_exists('doctor_id', $payload)) {
             $doctorId = (int) $payload['doctor_id'];

@@ -117,8 +117,9 @@ optional field-level `fields`.
 
 `GET /api/v1/appointments/availability` accepts these query parameters:
 
-- `date=dd-mm-yyyy` (defaults to the current application-timezone date).
+- `date=dd-mm-yyyy` (when omitted, the default window is today and tomorrow in the application timezone).
 - `dates=dd-mm-yyyy,dd-mm-yyyy` or repeated `dates[]` for up to 31 dates.
+- `from_date`/`to_date` or `start_date`/`end_date` for an explicit date range of up to 31 days.
 - `doctor_reference`, `specialization_reference`, and `service_reference`.
 - `search` for a public doctor name, reference, or qualification search.
 - `clinic_id` as an optional business filter; it is not an authentication field.

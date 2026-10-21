@@ -21,4 +21,10 @@ Routes:
 - `POST /rootins-proxy/patients/register`
 - `POST /rootins-proxy/prescriptions/upload`
 
+Availability without date filters returns only today and tomorrow in the
+application timezone. Storefront clients may provide an explicit `date`,
+`dates`, or date range; explicit ranges remain capped at 31 days. Availability
+does not require a linked patient and continues to exclude unavailable,
+booked, past, leave, break, and payment-held slots.
+
 The Core API client ID and client secret are stored encrypted in the separate Core API proxy configuration record. Secrets are never returned to storefront clients, rendered into HTML/JavaScript, placed in URLs, or logged. Secret rotation is available from the Core API proxy section.

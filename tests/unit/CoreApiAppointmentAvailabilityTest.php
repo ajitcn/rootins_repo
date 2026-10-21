@@ -92,11 +92,41 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
         }
     }
 
-    public function testAvailabilityUsesThirtyOneDayDefaultWindowAndDoesNotResolvePatient(): void
+    public function testAvailabilityUsesTwoDayDefaultWindowAndDoesNotResolvePatient(): void
     {
-        self::assertStringContainsString('$offset <= 30', $this->service);
+        self::assertStringContainsString('$offset <= 1', $this->service);
         self::assertStringContainsString("\$values === [] || \$values === ['']", $this->service);
         self::assertStringNotContainsString("patient_reference'", substr($this->service, 0, strpos($this->service, 'public function book')));
+    }
+
+    public function testDefaultWindowContainsTodayAndTomorrowOnly(): void
+    {
+        $service = new \App\Modules\CoreApi\Services\CoreApiAppointmentService();
+        $method = new \ReflectionMethod($service, 'requestedDates');
+        $method->setAccessible(true);
+        $timezone = new \DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get()));
+        $today = new \DateTimeImmutable('today', $timezone);
+        $dates = $method->invoke($service, [], $timezone);
+
+        self::assertCount(2, $dates);
+        self::assertSame($today->format('Y-m-d'), $dates[0]);
+        self::assertSame($today->modify('+1 day')->format('Y-m-d'), $dates[1]);
+        self::assertArrayNotHasKey(2, $dates);
+    }
+
+    public function testExplicitDateRangeStillReturnsTheRequestedDates(): void
+    {
+        $service = new \App\Modules\CoreApi\Services\CoreApiAppointmentService();
+        $method = new \ReflectionMethod($service, 'requestedDates');
+        $method->setAccessible(true);
+        $timezone = new \DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get()));
+        $from = new \DateTimeImmutable('today', $timezone);
+        $to = $from->modify('+3 days');
+        $dates = $method->invoke($service, ['from_date' => $from->format('d-m-Y'), 'to_date' => $to->format('d-m-Y')], $timezone);
+
+        self::assertCount(4, $dates);
+        self::assertSame($from->format('Y-m-d'), $dates[0]);
+        self::assertSame($to->format('Y-m-d'), $dates[3]);
     }
 
     public function testBookingRechecksTheSlotInsideATransactionWithAReservationLock(): void

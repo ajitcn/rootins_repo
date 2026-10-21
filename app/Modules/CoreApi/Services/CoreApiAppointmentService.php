@@ -419,7 +419,7 @@ final class CoreApiAppointmentService
         if ($values === [] || $values === ['']) {
             $today = new DateTimeImmutable('today', $timezone);
             $defaultDates = [];
-            for ($offset = 0; $offset <= 30; $offset++) $defaultDates[] = $today->modify('+' . $offset . ' days')->format('Y-m-d');
+            for ($offset = 0; $offset <= 1; $offset++) $defaultDates[] = $today->modify('+' . $offset . ' days')->format('Y-m-d');
             return $defaultDates;
         }
         $dates = [];
