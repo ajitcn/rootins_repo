@@ -67,7 +67,7 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString('Shopify proxy response ready', $controller);
         self::assertStringContainsString('ROOTINS Shopify Core API Proxy is reachable.', $controller);
         self::assertStringContainsString('Shopify proxy availability dependency failure', $controller);
-        self::assertStringContainsString('SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE', $controller);
+        foreach (['CORE_API_CONFIGURATION_MISSING', 'CLINIC_CONFIGURATION_INVALID', 'DATABASE_UNAVAILABLE', 'APPOINTMENT_SERVICE_UNAVAILABLE', 'AVAILABILITY_DEPENDENCY_FAILURE'] as $code) self::assertStringContainsString($code, $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
         self::assertStringContainsString('normalizeAvailabilityPayload', $proxyService);
@@ -98,7 +98,6 @@ final class ShopifyProxySetupTest extends TestCase
         $isolatedFiles = [
             file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php'),
             file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyCredentialVerificationService.php'),
-            file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'),
             file_get_contents(ROOTPATH . 'app/Modules/Shopify/Models/ShopifyCoreApiProxyConfigurationModel.php'),
         ];
         foreach ($isolatedFiles as $source) {
@@ -109,6 +108,15 @@ final class ShopifyProxySetupTest extends TestCase
             self::assertStringNotContainsString('SHOPIFY_WEBHOOK_SECRET', $source);
             self::assertStringNotContainsString('webhook_secret', $source);
         }
+
+        $proxyService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $executeStart = strpos($proxyService, 'public function execute');
+        $availabilityStart = strpos($proxyService, "'appointments.availability' =>", $executeStart);
+        self::assertIsInt($executeStart);
+        self::assertIsInt($availabilityStart);
+        $executePrefix = substr($proxyService, $executeStart, $availabilityStart - $executeStart);
+        self::assertStringNotContainsString('ShopifyConfiguration', $executePrefix);
+        self::assertStringNotContainsString('shopify_configurations', $executePrefix);
 
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
         $start = strpos($controller, 'public function testProxyConnection');

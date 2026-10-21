@@ -63,7 +63,9 @@ final class Proxy extends BaseController
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
             if ($operation === 'appointments.availability' && $exception->httpStatus >= 500) {
-                $this->logAvailabilityFailure($exception, $this->dependencyCategory($exception));
+                $code = $this->availabilityFailureCode($exception);
+                $this->logAvailabilityFailure($exception, $code);
+                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], $code);
             }
             if ($operation === 'appointments.availability' && $exception->httpStatus === 422 && in_array($exception->errorCode, ['VALIDATION_FAILED', 'APPOINTMENT_AVAILABILITY_INVALID'], true)) {
                 $message = $exception->errorCode === 'APPOINTMENT_AVAILABILITY_INVALID' ? 'Required availability parameters are missing.' : 'Review the availability fields.';
@@ -72,9 +74,17 @@ final class Proxy extends BaseController
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode, $exception->fields);
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
+            if ($operation === 'appointments.availability' && $exception->errorCode === 'SHOPIFY_PROXY_CONFIGURATION_MISSING') {
+                $this->logAvailabilityFailure($exception, 'CORE_API_CONFIGURATION_MISSING');
+                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'CORE_API_CONFIGURATION_MISSING');
+            }
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (DatabaseException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'database');
+            if ($operation === 'appointments.availability') {
+                $this->logAvailabilityFailure($exception, 'DATABASE_UNAVAILABLE');
+                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'DATABASE_UNAVAILABLE');
+            }
             log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'database', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
             return $this->json(503, false, 'The Shopify proxy service is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
         } catch (InvalidArgumentException $exception) {
@@ -85,8 +95,9 @@ final class Proxy extends BaseController
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'internal');
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
             if ($dependency !== null) {
-                $this->logAvailabilityFailure($exception, $dependency);
-                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE');
+                $code = $this->availabilityFailureCode($exception);
+                $this->logAvailabilityFailure($exception, $code);
+                return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], $code);
             }
             log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'unexpected', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
             $message = $operation === 'appointments.availability'
@@ -208,6 +219,21 @@ final class Proxy extends BaseController
     {
         $code = strtolower($exception->errorCode);
         return str_contains($code, 'rate') || str_contains($code, 'core_api') ? 'service' : 'database';
+    }
+
+    private function availabilityFailureCode(Throwable $exception): string
+    {
+        if ($exception instanceof CoreApiException) {
+            return match ($exception->errorCode) {
+                'CORE_API_CONFIGURATION_MISSING' => 'CORE_API_CONFIGURATION_MISSING',
+                'CORE_API_SCOPE_UNAVAILABLE', 'CLINIC_CONFIGURATION_INVALID', 'CLINIC_NOT_FOUND' => 'CLINIC_CONFIGURATION_INVALID',
+                'APPOINTMENT_SERVICE_UNAVAILABLE' => 'APPOINTMENT_SERVICE_UNAVAILABLE',
+                default => 'AVAILABILITY_DEPENDENCY_FAILURE',
+            };
+        }
+        if ($exception instanceof DatabaseException || str_contains(strtolower(get_class($exception)), 'database') || str_contains(strtolower(get_class($exception)), 'pdo') || str_contains(strtolower(get_class($exception)), 'mysqli')) return 'DATABASE_UNAVAILABLE';
+        if (str_contains(strtolower(get_class($exception)), 'appointment')) return 'APPOINTMENT_SERVICE_UNAVAILABLE';
+        return 'AVAILABILITY_DEPENDENCY_FAILURE';
     }
 
     private function availabilityDependencyCategory(Throwable $exception): ?string

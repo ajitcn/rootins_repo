@@ -48,9 +48,11 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
         $proxy = $this->source('app/Services/Shopify/ShopifyProxyService.php');
 
         self::assertStringContainsString('$patientScoped = in_array($operation, [\'appointments.book\', \'prescriptions.upload\'], true)', $proxy);
-        self::assertStringContainsString('if ($patientScoped && $link === null)', $proxy);
+        self::assertStringContainsString('if ($patientScoped && $link === null && ! $autoLinkPatient)', $proxy);
         self::assertStringContainsString('$link = $patientScoped ? $links->where', $proxy);
-        self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability(\$credential, \$payload)", $proxy);
+        self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability([], \$payload)", $proxy);
+        self::assertStringContainsString("\$credential = \$operation === 'appointments.availability' ? [] : \$this->credential()", $proxy);
+        self::assertStringContainsString("if (\$operation !== 'appointments.availability')", $proxy);
         foreach (['date_from', 'date_to', 'doctor_id', 'specialization_id', 'service_id', 'doctor_reference', 'specialization_reference', 'service_reference'] as $filter) {
             self::assertStringContainsString($filter, $proxy);
         }
@@ -64,26 +66,46 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
 
         self::assertStringContainsString('return $this->json(422', $controller);
         self::assertStringContainsString('return $this->json(503', $controller);
-        self::assertStringContainsString('SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE', $controller);
+        foreach (['CORE_API_CONFIGURATION_MISSING', 'CLINIC_CONFIGURATION_INVALID', 'DATABASE_UNAVAILABLE', 'APPOINTMENT_SERVICE_UNAVAILABLE', 'AVAILABILITY_DEPENDENCY_FAILURE'] as $code) self::assertStringContainsString($code, $controller);
         self::assertStringContainsString('SHOPIFY_CUSTOMER_UNLINKED', $proxy);
         self::assertStringContainsString('SHOPIFY_SCOPE_INVALID', $proxy);
         self::assertStringContainsString('CORE_API_UNAVAILABLE', $proxy);
         self::assertStringContainsString('RATE_LIMITER_UNAVAILABLE', $proxy);
         self::assertStringContainsString('database', $controller);
         self::assertStringContainsString('service', $controller);
-        self::assertStringContainsString("exception=' . get_class(\$exception)", $controller);
+        self::assertStringContainsString("'exception_class' => get_class(\$exception)", $controller);
         $diagnostic = substr($controller, strpos($controller, 'private function logAvailabilityFailure'));
         self::assertStringNotContainsString('getMessage()', $diagnostic);
         self::assertStringNotContainsString('getQuery()', $diagnostic);
     }
 
-    public function testProductionEvidenceLineIsTheCoreApiCredentialGuard(): void
+    public function testAvailabilityDoesNotRequireTheCoreApiCredentialGuard(): void
     {
         $proxy = $this->source('app/Services/Shopify/ShopifyProxyService.php');
 
         self::assertStringContainsString('if ($credential === null)', $proxy);
         self::assertStringContainsString("CORE_API_UNAVAILABLE", $proxy);
         self::assertStringContainsString("The ROOTINS Core API is not configured for this clinic.", $proxy);
-        self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability", $proxy);
+        self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability([], \$payload)", $proxy);
+        self::assertStringContainsString("if (\$operation !== 'appointments.availability') \$this->rateLimit", $proxy);
+    }
+
+    public function testAvailabilityContractCoversConfigurationClinicDatabaseEmptyAndDoctorFilterBranches(): void
+    {
+        $proxy = $this->source('app/Services/Shopify/ShopifyProxyService.php');
+        $controller = $this->source('app/Modules/Shopify/Controllers/Proxy.php');
+        $service = $this->source('app/Modules/CoreApi/Services/CoreApiAppointmentService.php');
+
+        self::assertStringContainsString("SHOPIFY_PROXY_CONFIGURATION_MISSING", $proxy);
+        self::assertStringContainsString("'CORE_API_CONFIGURATION_MISSING'", $controller);
+        self::assertStringContainsString("'CLINIC_CONFIGURATION_INVALID'", $controller);
+        self::assertStringContainsString("'DATABASE_UNAVAILABLE'", $controller);
+        self::assertStringContainsString("'APPOINTMENT_SERVICE_UNAVAILABLE'", $controller);
+        self::assertStringContainsString("'AVAILABILITY_DEPENDENCY_FAILURE'", $controller);
+        self::assertStringContainsString('$doctors = [];', $service);
+        self::assertStringContainsString("'doctors' => \$doctors", $service);
+        self::assertStringContainsString("if (\$doctorReference !== '') \$query->where('doctors.doctor_code', \$doctorReference)", $service);
+        self::assertStringContainsString("'clinic_id'", $service);
+        self::assertStringContainsString("'status', 1", $service);
     }
 }

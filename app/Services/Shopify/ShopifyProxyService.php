@@ -105,9 +105,9 @@ final class ShopifyProxyService
     /** @return array<string, mixed> */
     public function execute(string $operation, array $context, array $payload, ?UploadedFile $file = null): array
     {
-        $configuration = $context['configuration'];
-        $credential = $this->credential();
-        $this->rateLimit((int) $credential['id'], (int) $configuration['rate_limit_per_minute']);
+        $configuration = is_array($context['configuration'] ?? null) ? $context['configuration'] : [];
+        $credential = $operation === 'appointments.availability' ? [] : $this->credential();
+        if ($operation !== 'appointments.availability') $this->rateLimit((int) ($credential['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
         $autoLinkPatient = $operation === 'appointments.book';
         if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
@@ -149,7 +149,7 @@ final class ShopifyProxyService
             $context['patient_reference'] = $payload['patient_reference'];
         }
         return match ($operation) {
-            'appointments.availability' => (new CoreApiAppointmentService())->availability($credential, $payload),
+            'appointments.availability' => (new CoreApiAppointmentService())->availability([], $payload),
             'appointments.book' => (new ShopifyAppointmentIntentService())->create($context, $credential, $payload),
             'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new CoreApiPrescriptionUploadService())->upload($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']], $file),
             'patients.register' => $this->register($context, $payload, $credential),
