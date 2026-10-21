@@ -114,7 +114,7 @@ final class ShopifyProxyService
         if ($operation === 'appointments.book') $payload = $this->normalizeBookingPayload($payload);
         $customerId = (string) $context['customer_id'];
         if ($patientScoped && $customerId === '') {
-            $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
+            $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401);
         }
 
         $links = new ShopifyPatientIdentityLinkModel();
@@ -234,7 +234,7 @@ final class ShopifyProxyService
     private function register(array $context, array $payload, array $credential): array
     {
         $customerId = trim((string) ($context['customer_id'] ?? ''));
-        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
+        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401);
 
         $patient = $payload['patient'] ?? null;
         if (! is_array($patient)) {
@@ -249,7 +249,7 @@ final class ShopifyProxyService
     private function ensureCustomerPatientLink(array $context, array $credential, ?array $registrationFields = null): array
     {
         $customerId = trim((string) ($context['customer_id'] ?? ''));
-        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
+        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401);
 
         $links = new ShopifyPatientIdentityLinkModel();
         $store = (string) $context['store_domain'];
@@ -527,6 +527,15 @@ final class ShopifyProxyService
         $query = (new CoreApiCredentialModel())->where('status', 'active');
         $credential = $query->orderBy('id', 'ASC')->first();
         if ($credential === null) throw new CoreApiException(503, 'CORE_API_UNAVAILABLE', 'The ROOTINS Core API is not configured for this clinic.');
+        $clinicId = (int) ($credential['clinic_id'] ?? $credential['legacy_clinic_id'] ?? 0);
+        if ($clinicId < 1) throw new CoreApiException(503, 'CORE_API_SCOPE_UNAVAILABLE', 'The ROOTINS Core API is not configured for this clinic.');
+        try {
+            $clinic = db_connect()->table('clinics')->select('id')->where('id', $clinicId)->where('status', 1)->get(1)->getRowArray();
+        } catch (\Throwable) {
+            throw new CoreApiException(503, 'CORE_API_SCOPE_UNAVAILABLE', 'The ROOTINS clinic scope is temporarily unavailable.');
+        }
+        if ($clinic === null) throw new CoreApiException(503, 'CORE_API_SCOPE_UNAVAILABLE', 'The ROOTINS clinic scope is not active.');
+        $credential['clinic_id'] = $clinicId;
         unset($credential['secret_encrypted']);
         return $credential;
     }

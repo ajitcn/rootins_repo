@@ -87,6 +87,24 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         self::assertStringContainsString("'appointments.book' => (new ShopifyAppointmentIntentService())->create", $proxy);
     }
 
+    public function testShopifyProxyNormalizesLegacyClinicScopeBeforeRegistrationAndUsesSafeFailureContracts(): void
+    {
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+
+        self::assertStringContainsString("\$credential['clinic_id'] ?? \$credential['legacy_clinic_id'] ?? 0", $proxy);
+        self::assertStringContainsString("'CORE_API_SCOPE_UNAVAILABLE'", $proxy);
+        self::assertStringContainsString("\$credential['clinic_id'] = \$clinicId", $proxy);
+        self::assertStringContainsString("'SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401", $proxy);
+        self::assertStringContainsString('DatabaseException', $controller);
+        self::assertStringContainsString("'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE'", $controller);
+        self::assertStringContainsString("'category' => 'database'", $controller);
+        self::assertStringContainsString("'category' => 'unexpected'", $controller);
+        self::assertStringContainsString("'exception_class' => get_class(\$exception)", $controller);
+        self::assertStringNotContainsString("'file' =>", $controller);
+        self::assertStringNotContainsString("'line' =>", $controller);
+    }
+
     public function testPaidWebhookFinalizesOnlyFromTheServerCreatedIntent(): void
     {
         $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');

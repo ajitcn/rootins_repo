@@ -8,6 +8,7 @@ use App\Services\Shopify\ShopifyOperationIdempotencyService;
 use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
@@ -72,6 +73,10 @@ final class Proxy extends BaseController
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
+        } catch (DatabaseException $exception) {
+            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'database');
+            log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'database', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
+            return $this->json(503, false, 'The Shopify proxy service is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
         } catch (InvalidArgumentException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'validation');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);
@@ -83,7 +88,7 @@ final class Proxy extends BaseController
                 $this->logAvailabilityFailure($exception, $dependency);
                 return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'SHOPIFY_PROXY_AVAILABILITY_UNAVAILABLE');
             }
-            log_message('error', 'Shopify proxy boundary failure route=' . $this->safeRoute() . ' operation=' . $operation . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine() . ' correlation_id=' . $correlationId);
+            log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'unexpected', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
             $message = $operation === 'appointments.availability'
                 ? 'The appointment availability service is temporarily unavailable.'
                 : 'The Shopify proxy request could not be processed safely.';
@@ -190,7 +195,13 @@ final class Proxy extends BaseController
 
     private function logAvailabilityFailure(Throwable $exception, string $category): void
     {
-        log_message('error', 'Shopify proxy availability dependency failure correlation_id=' . ($this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable') . ' operation=appointments.availability exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine() . ' category=' . $category);
+        log_message('error', 'Shopify proxy availability dependency failure ' . json_encode([
+            'correlation_id' => $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable',
+            'operation' => 'appointments.availability',
+            'exception_class' => get_class($exception),
+            'category' => $category,
+            'route' => $this->safeRoute(),
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     private function dependencyCategory(CoreApiException $exception): string
