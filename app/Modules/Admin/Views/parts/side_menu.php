@@ -28,7 +28,7 @@ $planned = static function (string $key): string {
 
     return base_url('admin/configuration/' . (in_array($key, $masters, true) ? 'masters/' : 'settings/') . $key);
 };
-$doctorActive = $active('admin/doctors') || $active('admin/doctor-schedules') || $active('admin/doctor-leaves') || $active('admin/doctor-fees') || $active('admin/doctor-commissions') || $active('admin/doctor-documents');
+$doctorActive = $active('admin/doctors') || $active('admin/doctor-schedules') || $active('admin/doctor-leaves') || $active('admin/doctor-fees') || $active('admin/doctor-commissions') || $active('admin/doctor-documents') || $active('admin/doctor-languages') || $active('admin/popular-treatments');
 $patientActive = $active('admin/patients') || $active('admin/patient-registration');
 $appointmentActive = $active('admin/appointments');
 $clinicalActive = $active('admin/consultations') || $active('admin/prescriptions');
@@ -66,5 +66,10 @@ $displayName = trim((string) ($sessionUser['username'] ?? $sessionUser['email'] 
     <?php if ($can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('general-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-sliders menu-icon" aria-hidden="true"></i><span>General Settings</span></a></li><li class="nav-item"><a href="<?= $planned('clinic-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-hospital menu-icon" aria-hidden="true"></i><span>Clinic Settings</span></a></li><li class="nav-item"><a href="<?= $planned('email-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-message menu-icon" aria-hidden="true"></i><span>Email/SMS/WhatsApp Settings</span></a></li><li class="nav-item"><a href="<?= $planned('notification-settings') ?>" class="nav-link planned-link"><i class="fa-solid fa-bell menu-icon" aria-hidden="true"></i><span>Notification Settings</span></a></li><li class="nav-item"><a href="<?= $planned('document-templates') ?>" class="nav-link planned-link"><i class="fa-solid fa-file-lines menu-icon" aria-hidden="true"></i><span>Invoice and Prescription Templates</span></a></li><?php endif; ?>
     <li class="sidebar-section-title" aria-hidden="true">System</li>
     <?php if ($can('settings.manage')): ?><li class="nav-item"><a href="<?= $planned('backup-restore') ?>" class="nav-link planned-link"><i class="fa-solid fa-database menu-icon" aria-hidden="true"></i><span>Backup and Restore</span></a></li><li class="nav-item"><a href="<?= $planned('system-logs') ?>" class="nav-link planned-link"><i class="fa-solid fa-list-check menu-icon" aria-hidden="true"></i><span>System Logs</span></a></li><?php endif; ?>
+    <?php if ($can('doctor_language.view') || $can('popular_treatment.view')): ?>
+    <li class="sidebar-section-title" aria-hidden="true">Doctor Masters</li>
+    <?php if ($can('doctor_language.view')): ?><li class="nav-item"><a href="<?= base_url('admin/doctor-languages') ?>" class="nav-link <?= $active('admin/doctor-languages') ? 'active' : '' ?>"><i class="fa-solid fa-language menu-icon" aria-hidden="true"></i><span>Doctor Languages</span></a></li><?php endif; ?>
+    <?php if ($can('popular_treatment.view')): ?><li class="nav-item"><a href="<?= base_url('admin/popular-treatments') ?>" class="nav-link <?= $active('admin/popular-treatments') ? 'active' : '' ?>"><i class="fa-solid fa-list menu-icon" aria-hidden="true"></i><span>Popular Treatments</span></a></li><?php endif; ?>
+    <?php endif; ?>
   </ul>
 </nav>

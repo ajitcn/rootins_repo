@@ -10,7 +10,7 @@ $permissions = session('permissions') ?? [];
 $can = static fn (string $permission): bool => in_array($permission, $permissions, true);
 ?>
 
-<main class="dashboard-container" aria-labelledby="doctor-management-title">
+<main class="dashboard-container doctor-directory-page" aria-labelledby="doctor-management-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Doctor Management', 'page' => 'Doctors']) ?>
 
     <div class="page-heading mb-3">
@@ -32,8 +32,8 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
             <span class="small text-muted"><?= esc((string) $pagination['total']) ?> doctor<?= (int) $pagination['total'] === 1 ? '' : 's' ?> in scope</span>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover align-middle mb-0" id="doctors-table">
+            <div class="table-responsive doctors-table-wrapper" role="region" aria-label="Doctor directory table" tabindex="0">
+                <table class="table table-bordered table-hover align-middle mb-0 doctors-table" id="doctors-table">
                     <caption class="sr-only">Doctor records</caption>
                     <thead>
                         <tr>
@@ -56,25 +56,33 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
                             $fee = $row['consultation_fee'] ?? null;
                             $schedule = trim((string) ($row['schedule_summary'] ?? ''));
                             $modes = trim((string) ($row['consultation_modes'] ?? ''));
+                            $languages = array_values(array_filter(array_map('trim', explode(',', (string) ($row['languages'] ?? ''))), static fn ($value) => $value !== ''));
+                            $treatments = array_values(array_filter(array_map('trim', explode(',', (string) ($row['popular_treatments'] ?? ''))), static fn ($value) => $value !== ''));
                             ?>
                             <tr>
                                 <td data-label="#" class="doctor-cell-number"><?= esc((string) $number++) ?></td>
                                 <td data-label="Doctor" class="doctor-cell-main">
                                     <div class="ri-stack-cell">
-                                        <strong class="doctor-name">Dr. <?= esc($doctorName) ?></strong>
-                                        <span class="doctor-code text-muted"><?= esc($row['doctor_code'] ?? '') ?></span>
-                                        <span class="doctor-meta"><?= esc($row['qualification'] ?? '') ?: 'Qualification not recorded' ?></span>
+                                        <strong class="doctor-name" title="Dr. <?= esc($doctorName) ?>">Dr. <?= esc($doctorName) ?></strong>
+                                        <span class="doctor-code text-muted" title="<?= esc($row['doctor_code'] ?? '') ?>"><?= esc($row['doctor_code'] ?? '') ?></span>
+                                        <span class="doctor-meta" title="<?= esc($row['qualification'] ?? '') ?: 'Qualification not recorded' ?>"><?= esc($row['qualification'] ?? '') ?: 'Qualification not recorded' ?></span>
                                     </div>
                                 </td>
                                 <td data-label="Contact" class="doctor-cell-contact">
                                     <div class="ri-stack-cell">
-                                        <span class="ri-truncate" title="<?= esc($mobile) ?>"><?= esc($mobile ?: 'Mobile not recorded') ?></span>
-                                        <span class="ri-truncate text-muted" title="<?= esc($row['email'] ?? '') ?>"><?= esc($row['email'] ?? '') ?: 'Email not recorded' ?></span>
+                                        <span class="ri-truncate doctor-contact-value" title="<?= esc($mobile) ?>"><?= esc($mobile ?: 'Mobile not recorded') ?></span>
+                                        <span class="ri-truncate doctor-contact-value text-muted" title="<?= esc($row['email'] ?? '') ?>"><?= esc($row['email'] ?? '') ?: 'Email not recorded' ?></span>
                                     </div>
                                 </td>
                                 <td data-label="Professional Details" class="doctor-cell-professional">
                                     <div class="ri-stack-cell">
-                                        <span><strong>Specialization:</strong> <?= esc($row['specializations'] ?? 'Not recorded') ?></span>
+                                        <span class="doctor-detail-line" title="<?= esc($row['specializations'] ?? 'Not recorded') ?>"><strong>Specialization:</strong> <?= esc($row['specializations'] ?? 'Not recorded') ?></span>
+                                        <span class="doctor-detail-line text-muted"><strong>Languages:</strong>
+                                            <?php if ($languages !== []): ?><span class="doctor-tag-list" title="<?= esc(implode(', ', $languages)) ?>"><?php foreach (array_slice($languages, 0, 3) as $language): ?><span class="badge doctor-value-badge"><?= esc($language) ?></span><?php endforeach; ?><?php if (count($languages) > 3): ?><span class="badge doctor-value-badge doctor-value-badge-more">+<?= count($languages) - 3 ?></span><?php endif; ?></span><?php else: ?><span>Not recorded</span><?php endif; ?>
+                                        </span>
+                                        <span class="doctor-detail-line text-muted"><strong>Popular treatments:</strong>
+                                            <?php if ($treatments !== []): ?><span class="doctor-tag-list" title="<?= esc(implode(', ', $treatments)) ?>"><?php foreach (array_slice($treatments, 0, 3) as $treatment): ?><span class="badge doctor-value-badge"><?= esc($treatment) ?></span><?php endforeach; ?><?php if (count($treatments) > 3): ?><span class="badge doctor-value-badge doctor-value-badge-more">+<?= count($treatments) - 3 ?></span><?php endif; ?></span><?php else: ?><span>Not recorded</span><?php endif; ?>
+                                        </span>
                                         <span class="text-muted"><strong>Modes:</strong> <?= esc($modes ?: 'Not configured') ?></span>
                                         <span class="text-muted"><strong>Fee:</strong> <?= $fee !== null ? '&#8377;' . number_format((float) $fee, 2) : 'Not configured' ?></span>
                                     </div>
@@ -91,12 +99,12 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
                                 </td>
                                 <td data-label="Actions" class="doctor-cell-actions">
                                     <div class="doctor-actions d-flex align-items-center justify-content-end">
-                                        <div class="dropdown">
+                                        <div class="dropdown ri-actions-wrapper">
                                             <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">More Actions</button>
-                                            <div class="dropdown-menu dropdown-menu-right">
+                                            <div class="dropdown-menu dropdown-menu-right ri-actions-menu">
                                                 <?php if ($can('doctor.view')): ?><a class="dropdown-item" href="<?= base_url('admin/doctors/view/' . (int) $row['id']) ?>"><i class="bi bi-eye mr-2" aria-hidden="true"></i>View doctor</a><?php endif; ?>
                                                 <button type="button" class="dropdown-item" data-toggle="tooltip" title="Created: <?= esc($row['created_at'] ?? 'Unavailable') ?> | Updated: <?= esc($row['updated_at'] ?? 'Unavailable') ?>"><i class="fa-solid fa-circle-info mr-2" aria-hidden="true"></i>Record dates</button>
-                                                <?php if ($can('doctor.edit')): ?><button type="button" class="dropdown-item" onclick="editDoctorForm(<?= (int) $row['id'] ?>)"><i class="fa fa-edit mr-2" aria-hidden="true"></i>Edit doctor</button><?php endif; ?>
+                                                <?php if ($can('doctor.edit')): ?><button type="button" class="dropdown-item doctor-edit-trigger" data-doctor-id="<?= (int) $row['id'] ?>"><i class="fa fa-edit mr-2" aria-hidden="true"></i>Edit doctor</button><?php endif; ?>
                                                 <?php if ($can('doctor_fee.view')): ?><a class="dropdown-item" href="<?= base_url('admin/doctor-fees') ?>"><i class="fa-solid fa-money-bill-wave mr-2" aria-hidden="true"></i>Consultation Fee</a><?php endif; ?>
                                                 <?php if ($can('doctor_commission.view')): ?><a class="dropdown-item" href="<?= base_url('admin/doctor-commissions') ?>"><i class="fa-solid fa-percent mr-2" aria-hidden="true"></i>Commission</a><?php endif; ?>
                                                 <?php if ($can('doctor_document.view')): ?><a class="dropdown-item" href="<?= base_url('admin/doctor-documents') ?>"><i class="fa-solid fa-file-medical mr-2" aria-hidden="true"></i>Documents</a><?php endif; ?>
@@ -131,6 +139,6 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
 </main>
 
 <div class="modal fade" id="doctorFilterModal" tabindex="-1" role="dialog" aria-labelledby="doctorFilterModalTitle" aria-hidden="true"><div class="modal-dialog" role="document"><div class="modal-content"><form method="get" action="<?= current_url() ?>"><div class="modal-header"><h2 class="modal-title h5" id="doctorFilterModalTitle">Filter doctors</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close filters"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><div class="form-group"><label for="doctor-filter-search">Search</label><input class="form-control" id="doctor-filter-search" name="search" type="search" value="<?= esc($filters['search']) ?>" placeholder="Name, code, clinic, or email"></div><div class="form-group"><label for="doctor-filter-status">Status</label><select class="custom-select" id="doctor-filter-status" name="status"><option value="">All statuses</option><option value="1" <?= $filters['status'] === '1' ? 'selected' : '' ?>>Active</option><option value="0" <?= $filters['status'] === '0' ? 'selected' : '' ?>>Inactive</option></select></div></div><div class="modal-footer"><a class="btn btn-link mr-auto" href="<?= current_url() ?>">Clear</a><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Apply filters</button></div></form></div></div></div>
-<?= view(ADMIN_VIEW . 'pages/doctor/modals/_doctor', ['telephoneCodes' => $telephoneCodes ?? []]) ?>
-<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/doctor/doctor.js') ?>"></script><?= $this->endSection() ?>
+<?= view(ADMIN_VIEW . 'pages/doctor/modals/_doctor', ['telephoneCodes' => $telephoneCodes ?? [], 'languages' => $languages ?? [], 'popularTreatments' => $popularTreatments ?? []]) ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/doctor/doctor.js?v=20261019.2') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>

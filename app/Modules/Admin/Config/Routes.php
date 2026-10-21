@@ -84,6 +84,16 @@ $routes->group('admin/doctors', ['namespace' => 'Admin\Controllers\Doctor', 'fil
     $routes->post('delete/(:num)', 'Doctor::delete/$1', ['filter' => 'permission:doctor.delete']);
 });
 /*=====  End of Doctors Routes  ======*/
+$routes->group('admin/doctor-languages', ['namespace' => 'Admin\Controllers\Doctor', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'DoctorMaster::languages', ['filter' => 'permission:doctor_language.view']);
+    $routes->post('save', 'DoctorMaster::save/languages', ['filter' => 'permission:doctor_language.manage']);
+    $routes->post('toggle/(:num)', 'DoctorMaster::toggle/languages/$1', ['filter' => 'permission:doctor_language.manage']);
+});
+$routes->group('admin/popular-treatments', ['namespace' => 'Admin\Controllers\Doctor', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'DoctorMaster::treatments', ['filter' => 'permission:popular_treatment.view']);
+    $routes->post('save', 'DoctorMaster::save/treatments', ['filter' => 'permission:popular_treatment.manage']);
+    $routes->post('toggle/(:num)', 'DoctorMaster::toggle/treatments/$1', ['filter' => 'permission:popular_treatment.manage']);
+});
 /*================================================
 =            Doctors Schedule Routes            ==
 =================================================*/

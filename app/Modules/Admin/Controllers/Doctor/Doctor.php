@@ -5,10 +5,14 @@ namespace Admin\Controllers\Doctor;
 use App\Controllers\BaseAdminController;
 use Admin\Models\Doctor\DoctorModel;
 use Admin\Models\Doctor\DoctorSpecializationMapModel;
+use Admin\Models\Doctor\DoctorLanguageMapModel;
+use Admin\Models\Doctor\DoctorTreatmentMapModel;
 use Admin\Models\Clinic\ClinicModel;
 use Admin\Models\Location\City;
 use Admin\Models\Location\TelephoneCountryCode;
 use Admin\Models\Master\DoctorSpecializationModel;
+use Admin\Models\Master\DoctorLanguageModel;
+use Admin\Models\Master\PopularTreatmentModel;
 
 class Doctor extends BaseAdminController
 {
@@ -22,6 +26,14 @@ class Doctor extends BaseAdminController
 
     protected DoctorSpecializationMapModel $doctorSpecializationMap;
 
+    protected DoctorLanguageMapModel $doctorLanguageMap;
+
+    protected DoctorTreatmentMapModel $doctorTreatmentMap;
+
+    protected DoctorLanguageModel $language;
+
+    protected PopularTreatmentModel $popularTreatment;
+
     public function __construct()
     {
         $this->doctor = new DoctorModel();
@@ -29,6 +41,10 @@ class Doctor extends BaseAdminController
         $this->clinic = new ClinicModel();
         $this->specialization = new DoctorSpecializationModel();
         $this->doctorSpecializationMap = new DoctorSpecializationMapModel();
+        $this->doctorLanguageMap = new DoctorLanguageMapModel();
+        $this->doctorTreatmentMap = new DoctorTreatmentMapModel();
+        $this->language = new DoctorLanguageModel();
+        $this->popularTreatment = new PopularTreatmentModel();
     }
 
     public function index()
@@ -53,6 +69,8 @@ class Doctor extends BaseAdminController
         $data['clinics'] = $clinicQuery->orderBy('clinic_name', 'ASC')->findAll();
         //specialization list
         $data['specializations'] = $this->specialization->dropdown();
+        $data['languages'] = $this->language->dropdown();
+        $data['popularTreatments'] = $this->popularTreatment->dropdown();
         $data['cities'] = $this->city->dropdown();
         $data['telephoneCodes'] = (new TelephoneCountryCode())->dropdown();
 
@@ -81,11 +99,15 @@ class Doctor extends BaseAdminController
         $doctorData['country_code_id'] = $telephoneCode['country_id'] ?? null;
         $doctorData['mobile_normalized'] = service('telephoneContact')->normalizedMobile($doctorData['mobile']);
         $specializations = $this->normaliseIds($this->request->getPost('specialization_ids'));
+        $languages = $this->normaliseIds($this->request->getPost('language_ids'));
+        $treatments = $this->normaliseIds($this->request->getPost('treatment_ids'));
         $scopeError = $this->validateAssignments((int) $doctorData['clinic_id'], (int) $doctorData['city_id'], $specializations);
 
         if ($scopeError !== null) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $scopeError]);
         }
+        $masterError = $this->validateDoctorMasters($languages, $treatments);
+        if ($masterError !== null) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $masterError]);
         $db = db_connect();
         $db->transBegin();
 
@@ -98,6 +120,7 @@ class Doctor extends BaseAdminController
             foreach ($specializations as $specializationId) {
                 $this->doctorSpecializationMap->insert(['doctor_id' => $doctorId, 'specialization_id' => $specializationId]);
             }
+            $this->replaceDoctorMaps($doctorId, $languages, $treatments);
 
             if ($db->transStatus() === false) {
                 throw new \RuntimeException('Unable to save doctor.');
@@ -152,8 +175,10 @@ class Doctor extends BaseAdminController
             return $this->response->setJSON(['status' => false, 'msg' => 'Data not found!']);
         }
         $specialization_ids = $this->doctorSpecializationMap->getDoctorSpecializations($doctorId);
+        $language_ids = $this->doctorLanguageMap->getDoctorLanguages((int) $doctorId);
+        $treatment_ids = $this->doctorTreatmentMap->getDoctorTreatments((int) $doctorId);
 
-        return $this->response->setJSON(['status' => true, 'msg' => '', 'data' => ['doctor' => $doctor, 'specialization_ids' => $specialization_ids]]);
+        return $this->response->setJSON(['status' => true, 'msg' => '', 'data' => ['doctor' => $doctor, 'specialization_ids' => $specialization_ids, 'language_ids' => $language_ids, 'treatment_ids' => $treatment_ids]]);
     }
 
     public function view(int $doctorId)
@@ -194,11 +219,15 @@ class Doctor extends BaseAdminController
         $doctorData['country_code_id'] = $telephoneCode['country_id'] ?? null;
         $doctorData['mobile_normalized'] = service('telephoneContact')->normalizedMobile($doctorData['mobile']);
         $specializationIds = $this->normaliseIds($this->request->getPost('specialization_ids'));
+        $languages = $this->normaliseIds($this->request->getPost('language_ids'));
+        $treatments = $this->normaliseIds($this->request->getPost('treatment_ids'));
         $scopeError = $this->validateAssignments((int) $doctorData['clinic_id'], (int) $doctorData['city_id'], $specializationIds);
 
         if ($scopeError !== null) {
             return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $scopeError]);
         }
+        $masterError = $this->validateDoctorMasters($languages, $treatments);
+        if ($masterError !== null) return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $masterError]);
         $db = db_connect();
         $db->transBegin();
 
@@ -213,6 +242,14 @@ class Doctor extends BaseAdminController
             // Insert new mappings
             foreach ($specializationIds as $specializationId) {
                 $this->doctorSpecializationMap->insert(['doctor_id' => $doctorId, 'specialization_id' => $specializationId]);
+            }
+            $languageIdsProvided = $this->request->getPost('language_ids_present') !== null;
+            $treatmentIdsProvided = $this->request->getPost('treatment_ids_present') !== null;
+            if ($languageIdsProvided && $this->sortedIds($languages) !== $this->sortedIds($this->doctorLanguageMap->getDoctorLanguages($doctorId))) {
+                $this->replaceDoctorLanguages($doctorId, $languages);
+            }
+            if ($treatmentIdsProvided && $this->sortedIds($treatments) !== $this->sortedIds($this->doctorTreatmentMap->getDoctorTreatments($doctorId))) {
+                $this->replaceDoctorTreatments($doctorId, $treatments);
             }
 
             if (!$db->transStatus()) {
@@ -296,6 +333,46 @@ class Doctor extends BaseAdminController
         $activeCount = $this->specialization->whereIn('id', $specializationIds)->where('status', 1)->countAllResults();
 
         return $activeCount === count($specializationIds) ? null : 'One or more specializations are invalid or inactive.';
+    }
+
+    /** @param list<int> $languageIds @param list<int> $treatmentIds */
+    private function validateDoctorMasters(array $languageIds, array $treatmentIds): ?string
+    {
+        if ($languageIds !== [] && $this->language->whereIn('id', $languageIds)->where('status', 1)->countAllResults() !== count($languageIds)) return 'One or more selected languages are invalid or inactive.';
+        if ($treatmentIds !== [] && $this->popularTreatment->whereIn('id', $treatmentIds)->where('status', 1)->countAllResults() !== count($treatmentIds)) return 'One or more selected treatments are invalid or inactive.';
+
+        return null;
+    }
+
+    /** @param list<int> $languageIds @param list<int> $treatmentIds */
+    private function replaceDoctorMaps(int $doctorId, array $languageIds, array $treatmentIds): void
+    {
+        $this->replaceDoctorLanguages($doctorId, $languageIds);
+        $this->replaceDoctorTreatments($doctorId, $treatmentIds);
+    }
+
+    private function replaceDoctorLanguages(int $doctorId, array $languageIds): void
+    {
+        $this->doctorLanguageMap->where('doctor_id', $doctorId)->delete();
+        foreach ($languageIds as $languageId) {
+            $this->doctorLanguageMap->insert(['doctor_id' => $doctorId, 'language_id' => $languageId]);
+        }
+    }
+
+    private function replaceDoctorTreatments(int $doctorId, array $treatmentIds): void
+    {
+        $this->doctorTreatmentMap->where('doctor_id', $doctorId)->delete();
+        foreach ($treatmentIds as $treatmentId) {
+            $this->doctorTreatmentMap->insert(['doctor_id' => $doctorId, 'treatment_id' => $treatmentId]);
+        }
+    }
+
+    /** @param list<int> $ids @return list<int> */
+    private function sortedIds(array $ids): array
+    {
+        sort($ids, SORT_NUMERIC);
+
+        return $ids;
     }
 
     private function telephoneCode(): ?array

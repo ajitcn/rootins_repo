@@ -1,5 +1,5 @@
-<div class="doctor-appointment-table-wrap" role="region" aria-label="Appointment list">
-    <table class="doctor-appointment-table">
+<div class="table-responsive doctor-appointment-table-wrap" role="region" aria-label="Appointment list">
+    <table class="table doctor-appointment-table">
         <caption class="sr-only">Doctor appointments with patient, appointment, service, queue, status, and available actions.</caption>
         <colgroup>
             <col class="doctor-appointment-col-patient">

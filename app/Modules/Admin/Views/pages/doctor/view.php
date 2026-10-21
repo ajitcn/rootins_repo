@@ -8,5 +8,6 @@
         <a class="btn btn-outline-secondary" href="<?= base_url('admin/doctors') ?>"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i> Back to doctors</a>
     </div>
     <div class="card"><div class="card-body"><dl class="row mb-0"><dt class="col-sm-3">Specialization</dt><dd class="col-sm-9"><?= esc($doctor['specializations'] ?? '—') ?></dd><dt class="col-sm-3">Qualification</dt><dd class="col-sm-9"><?= esc($doctor['qualification'] ?? '—') ?></dd><dt class="col-sm-3">Registration number</dt><dd class="col-sm-9"><?= esc($doctor['registration_number'] ?? '—') ?></dd><dt class="col-sm-3">Consultation duration</dt><dd class="col-sm-9"><?= esc((string) ($doctor['consultation_duration'] ?? '')) ?> minutes</dd><dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge badge-<?= (int) ($doctor['status'] ?? 0) === 1 ? 'success' : 'danger' ?>"><?= (int) ($doctor['status'] ?? 0) === 1 ? 'Active' : 'Inactive' ?></span></dd></dl></div></div>
+    <div class="card mt-3"><div class="card-body"><dl class="row mb-0"><dt class="col-sm-3">Languages</dt><dd class="col-sm-9"><?= esc($doctor['languages'] ?? '—') ?></dd><dt class="col-sm-3">Popular treatments</dt><dd class="col-sm-9"><?= esc($doctor['popular_treatments'] ?? '—') ?></dd></dl></div></div>
 </main>
 <?= $this->endSection() ?>

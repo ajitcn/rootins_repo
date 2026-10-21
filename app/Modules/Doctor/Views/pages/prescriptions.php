@@ -4,6 +4,12 @@
 <?php
 $doctorCanViewPatients = in_array('patient.view', session('permissions') ?? [], true);
 $doctorCanViewClinical = in_array('consultation.view', session('permissions') ?? [], true);
+$formatPrescriptionDateTime = static function ($value): string {
+    $value = trim((string) $value);
+    $timestamp = $value !== '' ? strtotime($value) : false;
+
+    return $timestamp === false ? 'â€”' : date('d-m-Y h:i A', $timestamp);
+};
 $requestedPrescriptionView = (string) ($filters['view'] ?? 'list');
 $prescriptionView = in_array($requestedPrescriptionView, ['list', 'grid'], true) ? $requestedPrescriptionView : 'list';
 $prescriptionContext = static function (array $item): array {
@@ -172,6 +178,19 @@ $prescriptionContext = static function (array $item): array {
     <?php $patientName = $patientName !== '' ? $patientName : '—'; ?>
     <?php $patientReference = trim((string) ($item['registration_number'] ?? '')); ?>
     <?php $patientReference = $patientReference !== '' ? $patientReference : '#' . (int) ($item['patient_id'] ?? 0); ?>
+    <?php $prescriptionStatus = trim((string) ($item['status'] ?? '')) ?: 'unknown'; ?>
+    <?php $prescriptionStatusLabel = ucwords(str_replace('_', ' ', $prescriptionStatus)); ?>
+    <?php $prescriptionStatusClass = preg_replace('/[^a-z0-9-]+/', '-', strtolower(str_replace('_', '-', $prescriptionStatus))) ?: 'unknown'; ?>
+    <?php $prescriptionNotes = trim((string) ($item['notes'] ?? '')); ?>
+    <?php $followUpDate = trim((string) ($item['follow_up_date'] ?? '')); ?>
+    <?php $followUpTime = trim((string) ($item['follow_up_time'] ?? '')); ?>
+    <?php $followUpTimestamp = $followUpTime !== '' ? strtotime($followUpTime) : false; ?>
+    <?php $followUpInformation = trim(implode(' · ', array_filter([
+        $followUpDate !== '' ? $formatPrescriptionDateTime($followUpDate) : '',
+        $followUpTimestamp !== false ? date('h:i A', $followUpTimestamp) : '',
+        trim((string) ($item['follow_up_type_name'] ?? $item['follow_up_type'] ?? '')),
+        trim((string) ($item['follow_up_remarks'] ?? '')),
+    ]))); ?>
     <?php $prescriptionDate = trim((string) ($item['prescription_date'] ?? '')); ?>
     <?php $displayPrescriptionDate = $prescriptionDate !== '' ? date('d-m-Y', strtotime($prescriptionDate)) : '—'; ?>
     <?php $medicineDuration = ''; ?>
@@ -191,7 +210,7 @@ $prescriptionContext = static function (array $item): array {
         aria-labelledby="<?= esc($detailId) ?>-title"
         aria-hidden="true"
     >
-        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <div class="doctor-prescription-modal-heading">
@@ -258,6 +277,38 @@ $prescriptionContext = static function (array $item): array {
                             </dl>
                         </div>
 
+                        <h3 class="doctor-prescription-section-title">Prescription Details</h3>
+                        <dl class="doctor-prescription-meta doctor-prescription-detail-grid mb-3">
+                            <div class="doctor-prescription-meta-item">
+                                <dt>Prescription number</dt>
+                                <dd><?= esc($item['prescription_number'] ?? 'â€”') ?></dd>
+                            </div>
+                            <div class="doctor-prescription-meta-item">
+                                <dt>Status</dt>
+                                <dd><span class="badge doctor-prescription-status-badge doctor-prescription-status-<?= esc($prescriptionStatusClass) ?>"><?= esc($prescriptionStatusLabel) ?></span></dd>
+                            </div>
+                            <div class="doctor-prescription-meta-item">
+                                <dt>Created</dt>
+                                <dd><?= esc($formatPrescriptionDateTime($item['created_at'] ?? '')) ?></dd>
+                            </div>
+                            <div class="doctor-prescription-meta-item">
+                                <dt>Last updated</dt>
+                                <dd><?= esc($formatPrescriptionDateTime($item['updated_at'] ?? '')) ?></dd>
+                            </div>
+                        </dl>
+
+                        <h3 class="doctor-prescription-section-title">Doctor Details</h3>
+                        <div class="doctor-prescription-patient-card mb-3">
+                            <strong>Authoring doctor</strong>
+                            <div class="text-muted small mt-1"><?= esc(trim((string) ($item['doctor_name'] ?? '')) ?: 'This prescription is in your clinic and doctor scope.') ?></div>
+                        </div>
+
+                        <h3 class="doctor-prescription-section-title">Notes</h3>
+                        <div class="doctor-prescription-empty-section mb-2" role="status"><?= esc($prescriptionNotes !== '' ? $prescriptionNotes : 'No prescription notes recorded.') ?></div>
+
+                        <h3 class="doctor-prescription-section-title">Follow-up Information</h3>
+                        <div class="doctor-prescription-empty-section mb-2" role="status"><?= esc($followUpInformation !== '' ? $followUpInformation : 'No follow-up information recorded.') ?></div>
+
                         <h3 class="doctor-prescription-section-title">Prescribed Medicines<?= $medicineDuration !== '' ? ' (for ' . esc($medicineDuration) . ')' : '' ?></h3>
                         <div class="table-responsive doctor-prescription-table-wrap">
                             <table class="table table-bordered table-sm doctor-prescription-table mb-0">
@@ -296,6 +347,8 @@ $prescriptionContext = static function (array $item): array {
                             </table>
                         </div>
 
+                        <h3 class="doctor-prescription-section-title">Attachments</h3>
+                        <div class="doctor-prescription-empty-section mb-2" role="status">No attachments recorded for this prescription.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -303,6 +356,7 @@ $prescriptionContext = static function (array $item): array {
                     <button
                         class="btn btn-outline-primary doctor-prescription-print-trigger"
                         type="button"
+                        data-prescription-id="<?= esc($prescriptionId) ?>"
                         data-print-target="<?= esc($printId) ?>"
                         aria-label="Print prescription <?= esc($item['prescription_number']) ?>"
                         title="Print prescription"
@@ -328,6 +382,21 @@ $prescriptionContext = static function (array $item): array {
             }
         });
 
+        $(document)
+            .off('show.bs.modal.doctorPrescriptionDetails', '.doctor-prescription-detail-modal')
+            .on('show.bs.modal.doctorPrescriptionDetails', '.doctor-prescription-detail-modal', function () {
+                $('.modal.show').not(this).modal('hide');
+                $(this).attr('aria-busy', 'false');
+            })
+            .off('hidden.bs.modal.doctorPrescriptionDetails', '.doctor-prescription-detail-modal')
+            .on('hidden.bs.modal.doctorPrescriptionDetails', '.doctor-prescription-detail-modal', function () {
+                $(this).removeAttr('aria-busy');
+                if (!$('.modal.show').length) {
+                    $('.modal-backdrop').remove();
+                    $('body').removeClass('modal-open rootins-modal-lock').css('padding-right', '');
+                }
+            });
+
         $(document).on('click.doctorPrescriptionListPrint', '.doctor-prescription-list-print', function () {
             const target = this.getAttribute('data-print-modal');
             const modal = target ? $(target) : $();
@@ -347,49 +416,158 @@ $prescriptionContext = static function (array $item): array {
             }
         });
 
+        let prescriptionPrintInProgress = false;
+
+        const prescriptionPrintDiagnostics = function (details) {
+            if (window.console && typeof window.console.info === 'function') {
+                window.console.info('[prescription-print]', details);
+            }
+        };
+
+        const waitForPrintDocumentAssets = function (printDocument) {
+            const images = Array.from(printDocument.images || []);
+            const imagePromises = images.map(function (image) {
+                if (image.complete) {
+                    return Promise.resolve();
+                }
+                return new Promise(function (resolve) {
+                    image.addEventListener('load', resolve, {once: true});
+                    image.addEventListener('error', resolve, {once: true});
+                });
+            });
+            const fontsReady = printDocument.fonts && printDocument.fonts.ready
+                ? printDocument.fonts.ready.catch(function () { return undefined; })
+                : Promise.resolve();
+
+            return Promise.all([Promise.all(imagePromises), fontsReady]).then(function () {
+                return new Promise(function (resolve) {
+                    printDocument.defaultView.requestAnimationFrame(function () {
+                        printDocument.defaultView.requestAnimationFrame(resolve);
+                    });
+                });
+            });
+        };
+
+        const buildPrescriptionPrintDocument = function (printableContent, prescriptionId) {
+            const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || window.location.origin + '/';
+            const styleUrl = new URL('assets/css/style.css?v=20261019-prescription-print1', baseUrl).href;
+            const printStyleUrl = new URL('assets/css/print.css?v=20261016-rootins-print1', baseUrl).href;
+            const responsiveStyleUrl = new URL('assets/css/responsive-tables.css?v=20261019-native-tables6', baseUrl).href;
+            const title = 'Prescription ' + String(prescriptionId || '');
+
+            return '<!doctype html><html lang="en"><head>'
+                + '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                + '<title>' + title.replace(/[&<>"']/g, function (character) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[character]; }) + '</title>'
+                + '<link rel="stylesheet" href="' + printStyleUrl + '">'
+                + '<link rel="stylesheet" href="' + styleUrl + '">'
+                + '<link rel="stylesheet" href="' + responsiveStyleUrl + '">'
+                + '<style>html,body{margin:0;padding:0;background:#fff;color:#20242b}body{font-family:Arial,sans-serif}.doctor-prescription-print-area{display:block!important;visibility:visible!important;opacity:1!important;width:auto!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important}.doctor-prescription-print-area .doctor-prescription-table-wrap{overflow:visible!important}.doctor-prescription-print-area .doctor-prescription-table{display:table!important;width:100%!important;border-collapse:collapse}.doctor-prescription-print-area .doctor-prescription-table thead{display:table-header-group!important}.doctor-prescription-print-area .doctor-prescription-table tbody{display:table-row-group!important}.doctor-prescription-print-area .doctor-prescription-table tr{display:table-row!important;break-inside:avoid;page-break-inside:avoid}.doctor-prescription-print-area .doctor-prescription-table th,.doctor-prescription-print-area .doctor-prescription-table td{display:table-cell!important;overflow-wrap:anywhere}.doctor-prescription-section-title,.doctor-prescription-patient-card,.doctor-prescription-print-heading,.doctor-prescription-clinic-header{break-inside:avoid;page-break-inside:avoid}@page{size:A4;margin:8mm}</style>'
+                + '</head><body class="doctor-prescription-printing">'
+                + '<main id="doctor-prescription-print-document" class="doctor-prescription-print-area is-print-target">'
+                + printableContent.innerHTML
+                + '</main></body></html>';
+        };
+
         $(document).on('click.doctorPrescriptionPrint', '.doctor-prescription-print-trigger', function () {
             const button = this;
             const modal = $(button).closest('.doctor-prescription-print-modal');
             const printId = button.getAttribute('data-print-target');
-            const printArea = document.getElementById(printId);
+            const prescriptionId = button.getAttribute('data-prescription-id') || '';
+            const source = document.getElementById(printId);
 
-            if (!modal.length || !printArea) {
+            if (!modal.length || !source || prescriptionPrintInProgress) {
+                if (!source) {
+                    showError('Prescription could not be prepared for printing.');
+                }
                 return;
             }
 
-            const originalParent = printArea.parentNode;
-            const originalNextSibling = printArea.nextSibling;
-
-            if (!originalParent) {
+            const printableContent = source.cloneNode(true);
+            if (!printableContent || !printableContent.textContent.trim()) {
+                showError('Prescription data is not available for printing.');
                 return;
             }
 
-            $('.doctor-prescription-print-area').removeClass('is-print-target');
-            printArea.classList.add('is-print-target');
-            document.body.appendChild(printArea);
-            document.body.classList.add('doctor-prescription-printing');
+            printableContent.removeAttribute('id');
+            printableContent.querySelectorAll('[id]').forEach(function (element) {
+                element.removeAttribute('id');
+            });
 
-            let restored = false;
+            prescriptionPrintInProgress = true;
+            $(button).prop('disabled', true).attr('aria-busy', 'true');
+            const frame = document.createElement('iframe');
+            frame.id = 'doctor-prescription-print-frame';
+            frame.title = 'Prescription print preview';
+            frame.setAttribute('aria-hidden', 'true');
+            frame.style.position = 'fixed';
+            frame.style.width = '1px';
+            frame.style.height = '1px';
+            frame.style.right = '0';
+            frame.style.bottom = '0';
+            frame.style.border = '0';
+            frame.style.opacity = '0';
+
+            let cleaned = false;
             const cleanup = function () {
-                if (restored) {
-                    return;
-                }
-
-                restored = true;
-                document.body.classList.remove('doctor-prescription-printing');
-                printArea.classList.remove('is-print-target');
-                if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
-                    originalParent.insertBefore(printArea, originalNextSibling);
-                } else {
-                    originalParent.appendChild(printArea);
-                }
-                window.removeEventListener('afterprint', cleanup);
+                if (cleaned) return;
+                cleaned = true;
+                window.clearTimeout(frame._printTimeout);
+                frame.remove();
+                $(button).prop('disabled', false).removeAttr('aria-busy');
+                prescriptionPrintInProgress = false;
+            };
+            const fail = function (message) {
+                cleanup();
+                showError(message);
             };
 
-            window.addEventListener('afterprint', cleanup);
-            window.setTimeout(function () {
-                window.print();
-            }, 0);
+            document.body.appendChild(frame);
+            const printDocument = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+            prescriptionPrintDiagnostics({
+                prescriptionId: prescriptionId,
+                responseStatus: source ? 'loaded' : 'missing',
+                renderedHtmlLength: printableContent.innerHTML.length,
+                printFrameCreated: Boolean(frame.parentNode && printDocument)
+            });
+
+            if (!printDocument || !frame.contentWindow) {
+                fail('The print preview could not be opened. Please allow print previews and try again.');
+                return;
+            }
+
+            frame.onload = function () {
+                waitForPrintDocumentAssets(printDocument).then(function () {
+                    if (cleaned || !printDocument.body || !printDocument.body.textContent.trim()) {
+                        fail('Prescription data could not be rendered for printing.');
+                        return;
+                    }
+                    prescriptionPrintDiagnostics({
+                        prescriptionId: prescriptionId,
+                        responseStatus: 'loaded',
+                        renderedHtmlLength: printDocument.body.innerHTML.length,
+                        printFrameCreated: true
+                    });
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                    frame._printTimeout = window.setTimeout(cleanup, 5000);
+                }).catch(function () {
+                    fail('Prescription could not be prepared for printing.');
+                });
+            };
+
+            try {
+                printDocument.open();
+                printDocument.write(buildPrescriptionPrintDocument(printableContent, prescriptionId));
+                printDocument.close();
+            } catch (error) {
+                prescriptionPrintDiagnostics({
+                    prescriptionId: prescriptionId,
+                    responseStatus: 'render-failed',
+                    renderedHtmlLength: printableContent.innerHTML.length,
+                    printFrameCreated: true
+                });
+                fail('The prescription print document could not be created.');
+            }
         });
 
         $('.doctor-prescription-print-modal').on('hidden.bs.modal', function () {

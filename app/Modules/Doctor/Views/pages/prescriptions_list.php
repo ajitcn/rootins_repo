@@ -1,5 +1,5 @@
-<div class="doctor-prescription-table-wrap" role="region" aria-label="Prescription list">
-    <table class="doctor-prescription-table doctor-prescription-list-table">
+<div class="table-responsive doctor-prescription-table-wrap" role="region" aria-label="Prescription list">
+    <table class="table doctor-prescription-table doctor-prescription-list-table">
         <caption class="sr-only">Prescriptions with patient, prescription date, medicine count, status, and actions.</caption>
         <colgroup><col class="prescription-col-patient"><col class="prescription-col-date"><col class="prescription-col-medicines"><col class="prescription-col-status"><col class="prescription-col-actions"></colgroup>
         <thead><tr><th scope="col">Patient</th><th scope="col">Prescription date</th><th scope="col">Medicine count</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>

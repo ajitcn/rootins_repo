@@ -655,17 +655,8 @@ body:has(.admin-appointment-page), body:has(.admin-appointment-queue-page) { ove
 }
 .badge.ri-status--charcoal, .status-badge.ri-status--charcoal, .source-badge.ri-status--charcoal { color: var(--ri-status-charcoal-text) !important; background: var(--ri-status-charcoal-bg) !important; border-color: var(--ri-status-charcoal-border) !important; }
 
-/* Admin Doctors grouped directory layout. */
-#doctors-table { table-layout: fixed; }
-#doctors-table .doctor-col-number, #doctors-table .doctor-cell-number { width: 3.5%; }
-#doctors-table .doctor-col-main, #doctors-table .doctor-cell-main { width: 18%; }
-#doctors-table .doctor-col-contact, #doctors-table .doctor-cell-contact { width: 18%; }
-#doctors-table .doctor-col-professional, #doctors-table .doctor-cell-professional { width: 22%; }
-#doctors-table .doctor-col-availability, #doctors-table .doctor-cell-availability { width: 20%; }
-#doctors-table .doctor-col-status, #doctors-table .doctor-cell-status { width: 8%; }
-#doctors-table .doctor-col-actions, #doctors-table .doctor-cell-actions { width: 10.5%; }
-#doctors-table th { white-space: nowrap; }
-#doctors-table td { min-width: 0; overflow-wrap: anywhere; vertical-align: top; }
+/* Admin Doctors directory cell primitives. The directory itself remains a
+   native table; responsive scrolling belongs to its .table-responsive parent. */
 .ri-stack-cell { display: flex; min-width: 0; flex-direction: column; gap: .2rem; line-height: 1.35; }
 .ri-stack-cell > * { min-width: 0; overflow-wrap: anywhere; }
 .doctor-name { color: var(--ri-text); font-size: .82rem; }
@@ -673,19 +664,6 @@ body:has(.admin-appointment-page), body:has(.admin-appointment-queue-page) { ove
 .doctor-meta { color: var(--ri-muted); font-size: .72rem; }
 .doctor-actions { min-width: 7rem; white-space: nowrap; }
 .doctor-actions .dropdown-menu form { margin: 0; }
-
-@media (max-width: 575.98px) {
-    #doctors-table { min-width: 0; }
-    #doctors-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-    #doctors-table, #doctors-table tbody, #doctors-table tr, #doctors-table td { display: block; width: 100%; }
-    #doctors-table tbody tr { margin-bottom: .75rem; border: 1px solid var(--ri-border); border-radius: var(--ri-radius); background: var(--ri-surface); }
-    #doctors-table tbody td { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .5rem; align-items: start; border: 0; border-bottom: 1px solid var(--ri-border); text-align: left; }
-    #doctors-table tbody td::before { color: var(--ri-muted); content: attr(data-label); font-size: .65rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
-    #doctors-table tbody td:last-child { border-bottom: 0; }
-    #doctors-table .doctor-cell-number { display: none; }
-    #doctors-table .doctor-actions { justify-content: flex-start !important; }
-    #doctors-table .doctor-col-actions, #doctors-table .doctor-cell-actions { width: 100%; }
-}
 
 /* Action cells and card footers must allow viewport-positioned menus to escape. */
 .table td:has(.ri-actions-wrapper),

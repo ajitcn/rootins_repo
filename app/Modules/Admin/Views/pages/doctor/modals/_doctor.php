@@ -1,5 +1,5 @@
-<div class="modal fade" id="doctorModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade doctor-edit-modal" id="doctorModal" tabindex="-1" role="dialog" aria-labelledby="doctorModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable doctor-modal-dialog" role="document">
         <div class="modal-content">
 
             <?= form_open('', ['id' => 'doctorForm', 'autocomplete' => 'off']) ?>
@@ -11,7 +11,7 @@
                     Add Doctor
                 </h5>
 
-                    <button type="button" class="close" data-dismiss="modal">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close Doctor form">
                         <span>&times;</span>
                     </button>
                 </div>
@@ -55,6 +55,28 @@
 
                                 </select>
                                 <div class="validation-error" id="specialization_idsErr"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="language_ids">Languages</label>
+                                <select class="form-control btSelect" data-live-search="true" data-actions-box="true" data-width="100%" data-selected-text-format="count > 2" title="Select languages" name="language_ids[]" id="language_ids" multiple>
+                                    <?php foreach (($languages ?? []) as $language): ?><option value="<?= (int) $language['id'] ?>"><?= esc($language['language_name']) ?></option><?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="language_ids_present" value="1">
+                                <div class="validation-error" id="language_idsErr"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="treatment_ids">Popular Treatments</label>
+                                <select class="form-control btSelect" data-live-search="true" data-actions-box="true" data-width="100%" data-selected-text-format="count > 2" title="Select popular treatments" name="treatment_ids[]" id="treatment_ids" multiple>
+                                    <?php foreach (($popularTreatments ?? []) as $treatment): ?><option value="<?= (int) $treatment['id'] ?>"><?= esc($treatment['treatment_name']) ?></option><?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="treatment_ids_present" value="1">
+                                <div class="validation-error" id="treatment_idsErr"></div>
                             </div>
                         </div>
 
@@ -262,7 +284,7 @@
                 </div>
 
                 <div class="modal-footer">
- 
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn theme-btn">
                         Save Doctor
                     </button>

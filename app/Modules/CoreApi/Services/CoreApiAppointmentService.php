@@ -38,22 +38,41 @@ final class CoreApiAppointmentService
         $allDoctors = $query->orderBy('doctors.display_order', 'ASC')->orderBy('doctors.first_name', 'ASC')->get()->getResultArray();
         $pageSize = $this->pageSize($input['page_size'] ?? 20);
         $page = max(1, (int) ($input['page'] ?? 1));
-        $total = count($allDoctors);
+        $availableDoctors = [];
+        foreach ($allDoctors as $doctor) {
+            $doctorDates = [];
+            foreach ($dates as $date) {
+                $availability = $this->dateAvailability((int) $doctor['clinic_id'], (int) $doctor['id'], $date, $service, $timezone, (string) $doctor['doctor_code']);
+                if ($availability['slots'] !== []) $doctorDates[] = $availability;
+            }
+            if ($doctorDates === []) continue;
+            $availableDoctors[] = [$doctor, $doctorDates];
+        }
+
+        $total = count($availableDoctors);
         $pages = max(1, (int) ceil($total / $pageSize));
         $page = min($page, $pages);
         $doctors = [];
-        foreach (array_slice($allDoctors, ($page - 1) * $pageSize, $pageSize) as $doctor) {
-            $doctorDates = [];
-            foreach ($dates as $date) $doctorDates[] = $this->dateAvailability((int) $doctor['clinic_id'], (int) $doctor['id'], $date, $service, $timezone, (string) $doctor['doctor_code']);
+        foreach (array_slice($availableDoctors, ($page - 1) * $pageSize, $pageSize) as [$doctor, $doctorDates]) {
             $first = $doctorDates[0];
             $specializations = $this->specializations((int) $doctor['id']);
             $servicesForDoctor = $this->services((int) $doctor['clinic_id'], $serviceReference === '' ? null : $service);
             $modes = $this->consultationModes((int) $doctor['id']);
             $clinic = $this->clinicDetails($doctor);
+            $availability = array_map(fn (array $day): array => [
+                'date' => $day['date'],
+                'slots' => array_map(static fn (array $slot): array => [
+                    'start_time' => $slot['start_time'],
+                    'end_time' => $slot['end_time'],
+                    'is_available' => true,
+                ], $day['slots']),
+            ], $doctorDates);
             $doctors[] = [
+                'public_reference' => (string) $doctor['doctor_code'],
                 'doctor_reference' => (string) $doctor['doctor_code'],
                 'reference' => (string) $doctor['doctor_code'],
                 'name' => trim((string) $doctor['first_name'] . ' ' . (string) ($doctor['last_name'] ?? '')),
+                'code' => (string) $doctor['doctor_code'],
                 'professional_code' => (string) $doctor['doctor_code'],
                 'profile_image_url' => $this->publicImage($doctor['profile_photo'] ?? null),
                 'profile_image' => $this->publicImage($doctor['profile_photo'] ?? null),
@@ -61,17 +80,20 @@ final class CoreApiAppointmentService
                 'qualification' => $doctor['qualification'] ?: null,
                 'specializations' => $specializations,
                 'experience' => (int) ($doctor['experience'] ?? 0),
+                'fees' => $this->fees((int) $doctor['id'], $dates[0]),
                 'consultation_fee' => number_format($this->fee((int) $doctor['id'], $dates[0]) ?? 0, 2, '.', ''),
                 'services' => $servicesForDoctor,
+                'clinic' => $clinic,
                 'clinics' => [$clinic],
                 'consultation_mode' => $this->consultationModeLabel($modes),
                 'consultation_modes' => $modes,
                 'timezone' => $timezone->getName(),
-                'availability_status' => $this->overallStatus($doctorDates),
-                'dates' => $doctorDates,
+                'availability' => $availability,
+                'availability_status' => 'available',
+                'dates' => $availability,
                 // Kept for clients of the original single-date contract.
                 'slots' => $first['slots'],
-                'state' => $first['status'],
+                'state' => 'available',
             ];
         }
 
@@ -124,19 +146,36 @@ final class CoreApiAppointmentService
             throw new CoreApiException(422, 'SERVICE_UNAVAILABLE', 'The selected service is unavailable.', ['service_reference' => 'The selected service is unavailable.']);
         }
 
-        $day = (int) date('N', strtotime($date));
-        $schedule = $db->table('doctor_schedules')->where('doctor_id', (int) $doctor['id'])->where('day_of_week', $day)->where('status', 1)->where('start_time <=', $time)->where('end_time >', $time)->get()->getRowArray();
-
-        if ($schedule === null || (new DoctorLeaveModel())->isOnLeave((int) $doctor['id'], $date)) {
-            throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
-        }
-
         $db->transBegin();
         try {
-            $conflict = $db->query('SELECT id FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time = ? AND status NOT IN (\'cancelled\', \'no_show\') FOR UPDATE', [$clinicId, (int) $doctor['id'], $date, $time])->getRowArray();
+            $day = (int) (new DateTimeImmutable($date, $this->timezone()))->format('N');
+            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
+            if ($schedule === null || (new DoctorLeaveModel())->isOnLeave((int) $doctor['id'], $date)) {
+                throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            }
+
+            $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . max(1, (int) ($schedule['slot_duration'] ?? 15)) . ' minutes')->format('H:i:s');
+            $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
+            $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
+            if (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time']) {
+                throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            }
+
+            $now = new DateTimeImmutable('now', $this->timezone());
+            if ($date < $now->format('Y-m-d') || ($date === $now->format('Y-m-d') && $time <= $now->format('H:i:s'))) {
+                throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            }
+
+            $conflict = $db->query('SELECT id FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status NOT IN (\'cancelled\', \'no_show\') ORDER BY id ASC LIMIT 1 FOR UPDATE', [$clinicId, (int) $doctor['id'], $date, $slotEnd, $time])->getRowArray();
 
             if ($conflict !== null) {
                 throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is already booked.');
+            }
+
+            $capacity = (int) ($schedule['max_patients'] ?? 0);
+            if ($capacity > 0) {
+                $booked = (int) $db->query('SELECT COUNT(*) AS total FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status NOT IN (\'cancelled\', \'no_show\')', [$clinicId, (int) $doctor['id'], $date, $slotEnd, $time])->getRow('total');
+                if ($booked >= $capacity) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             }
 
             $now = date('Y-m-d H:i:s');
@@ -207,13 +246,15 @@ final class CoreApiAppointmentService
                 $slotEnd = $cursor->modify('+' . $duration . ' minutes')->format('H:i:s');
                 $inBreak = $breakStart !== '' && $breakEnd !== '' && $slotStart < $breakEnd && $slotEnd > $breakStart;
                 $slotLeave = $leave !== null && ! $fullDayLeave && $slotStart < $leaveEnd && $slotEnd > $leaveStart;
-                $count = (int) $db->table('appointments')->where('clinic_id', $clinicId)->where('doctor_id', $doctorId)->where('appointment_date', $date)->where('appointment_time', $slotStart)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
+                $count = (int) $db->query('SELECT COUNT(*) AS total FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status NOT IN (\'cancelled\', \'no_show\')', [$clinicId, $doctorId, $date, $slotEnd, $slotStart])->getRow('total');
                 $capacity = (int) ($schedule['max_patients'] ?? 0);
                 $remaining = $capacity > 0 ? max(0, $capacity - $count) : null;
                 $past = $date < $today || ($date === $today && $slotStart <= $now->format('H:i:s'));
                 if ($count > 0) $conflicts[] = ['start_time' => $this->displayTime($slotStart, $timezone), 'end_time' => $this->displayTime($slotEnd, $timezone), 'count' => $count];
                 $status = $past ? 'past' : ($fullDayLeave || $slotLeave ? 'leave' : ($inBreak ? 'unavailable' : ($capacity > 0 && $count >= $capacity ? 'full' : ($count > 0 ? 'booked' : 'available'))));
-                $slots[] = ['slot_reference' => $this->slotReference($doctorReference, $date, $slotStart, $slotEnd), 'slot_duration' => $duration, 'start_time' => $this->displayTime($slotStart, $timezone), 'end_time' => $this->displayTime($slotEnd, $timezone), 'time' => $this->displayTime($slotStart, $timezone), 'status' => $status, 'available' => $status === 'available', 'slot_available' => $status === 'available', 'capacity' => $capacity > 0 ? $capacity : null, 'booked_count' => $count, 'available_capacity' => $remaining, 'remaining_capacity' => $remaining, 'booking_status' => $status, 'state' => $status];
+                if ($status === 'available') {
+                    $slots[] = ['slot_reference' => $this->slotReference($doctorReference, $date, $slotStart, $slotEnd), 'slot_duration' => $duration, 'start_time' => $this->displayTime($slotStart, $timezone), 'end_time' => $this->displayTime($slotEnd, $timezone), 'time' => $this->displayTime($slotStart, $timezone), 'status' => 'available', 'available' => true, 'slot_available' => true, 'capacity' => $capacity > 0 ? $capacity : null, 'booked_count' => 0, 'available_capacity' => $remaining, 'remaining_capacity' => $remaining, 'booking_status' => 'available', 'state' => 'available'];
+                }
             }
         }
         $status = $fullDayLeave ? 'leave' : ($schedules === [] ? 'unavailable' : ($slots !== [] && count(array_filter($slots, static fn (array $slot): bool => $slot['booking_status'] === 'available')) > 0 ? 'available' : (count(array_filter($slots, static fn (array $slot): bool => $slot['booking_status'] === 'full')) > 0 ? 'full' : 'unavailable')));
@@ -317,6 +358,20 @@ final class CoreApiAppointmentService
         return $row === null ? null : (float) $row['fee'];
     }
 
+    /** @return list<array<string, mixed>> */
+    private function fees(int $doctorId, string $date): array
+    {
+        $rows = db_connect()->table('doctor_consultation_fees')->select('fee, consultation_type, consultation_mode, effective_from, effective_to')->where('doctor_id', $doctorId)->where('status', 1)->where('effective_from <=', $date)->groupStart()->where('effective_to', null)->orWhere('effective_to >=', $date)->groupEnd()->orderBy('effective_from', 'DESC')->get()->getResultArray();
+
+        return array_map(static fn (array $row): array => [
+            'amount' => number_format((float) $row['fee'], 2, '.', ''),
+            'consultation_type' => (string) ($row['consultation_type'] ?? ''),
+            'consultation_mode' => (string) ($row['consultation_mode'] ?? ''),
+            'effective_from' => (string) ($row['effective_from'] ?? ''),
+            'effective_to' => $row['effective_to'] ?: null,
+        ], $rows);
+    }
+
     private function publicImage(mixed $value): ?string
     {
         $value = trim((string) $value);
@@ -344,7 +399,12 @@ final class CoreApiAppointmentService
         }
         $raw = $input['dates'] ?? ($input['date'] ?? '');
         $values = is_array($raw) ? $raw : (preg_split('/\s*,\s*/', trim((string) $raw)) ?: []);
-        if ($values === [] || $values === ['']) $values = [(new DateTimeImmutable('now', $timezone))->format('d-m-Y')];
+        if ($values === [] || $values === ['']) {
+            $today = new DateTimeImmutable('today', $timezone);
+            $defaultDates = [];
+            for ($offset = 0; $offset <= 30; $offset++) $defaultDates[] = $today->modify('+' . $offset . ' days')->format('Y-m-d');
+            return $defaultDates;
+        }
         $dates = [];
         foreach ($values as $value) { $date = $this->parseDate((string) $value, $timezone); if ($date === null) throw new CoreApiException(422, 'VALIDATION_FAILED', 'Review the availability fields.', ['date' => 'Enter valid dates as dd-mm-yyyy.']); $dates[$date] = $date; }
         return array_slice(array_values($dates), 0, 31);

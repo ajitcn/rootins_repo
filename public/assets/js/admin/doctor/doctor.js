@@ -3,13 +3,44 @@
      * open add doctor modal
      *-----------------------------------------------------------
      */
+    const doctorModal = '#doctorModal';
+    const doctorForm = '#doctorForm';
+
+    function initializeDoctorSelects() {
+        $(doctorModal + ' select.btSelect').each(function () {
+            const select = $(this);
+            if (select.hasClass('selectpicker')) select.selectpicker('destroy');
+            select.selectpicker({
+                container: 'body',
+                liveSearch: select.data('live-search') === true || select.data('live-search') === 'true',
+                actionsBox: select.data('actions-box') === true || select.data('actions-box') === 'true',
+                width: select.data('width') || '100%',
+                noneSelectedText: 'Select an option',
+                liveSearchPlaceholder: 'Type to search...'
+            });
+        });
+    }
+
+    $(function () { initializeDoctorSelects(); });
+
+    function setDoctorSubmitState(disabled, label) {
+        const button = $(doctorForm).find(':submit');
+        button.prop('disabled', disabled);
+        if (label) button.text(label);
+    }
+
+    function resetDoctorForm() {
+        resetForm(doctorForm);
+        clearFormErrors(doctorForm);
+        $(doctorForm).find('[name="doctor_id"]').val('');
+        setDoctorSubmitState(false, 'Save Doctor');
+    }
+
     $(document).on('click', '.open_doctor_modal', function(){
-        $('#doctorModal .modal-title').text('Add New Doctor');
-        $('#doctorModal .save').text('Save Doctor');
-        $('[name=doctor_id]').val('');
-        $('#doctorModal').modal('show');
-        resetForm('#doctorForm');
-        clearFormErrors();
+        initializeDoctorSelects();
+        resetDoctorForm();
+        $(doctorModal + ' .modal-title').text('Add New Doctor');
+        $(doctorModal).modal('show');
     });
     
 
@@ -20,15 +51,18 @@
      *----------------------------------------------------------
      */
     
-    $('#doctorForm').on('submit', function (e) {
+    $(doctorForm).on('submit', function (e) {
 
         e.preventDefault();
-        clearFormErrors();
+        clearFormErrors(doctorForm);
 
         const urL = $('[name=doctor_id]').val()
         ? ROUTES.doctor.update
         : ROUTES.doctor.create;
 
+        const form = this;
+        const submitButton = $(form).find(':submit');
+        submitButton.prop('disabled', true).text('Saving...');
         ajaxRequest({
 
             url:  urL,
@@ -41,7 +75,7 @@
 
                 if (response.status) {
                     showSuccess(response.msg); 
-                    reload_page(500);   
+                    reload_page(500);
 
                 } else {
 
@@ -50,6 +84,9 @@
 
                 }
 
+            },
+            complete: function () {
+                submitButton.prop('disabled', false).text($(form).find('[name="doctor_id"]').val() ? 'Update Doctor' : 'Save Doctor');
             }
 
         });
@@ -67,18 +104,30 @@
     
     function editDoctorForm(doctorId)
     {
-        clearFormErrors();
+        const id = Number(doctorId);
+        if (!Number.isInteger(id) || id < 1) {
+            showError('The selected doctor could not be loaded.');
+            return;
+        }
+        resetDoctorForm();
+        initializeDoctorSelects();
+        $(doctorModal + ' .modal-title').text('Loading Doctor...');
+        $(doctorModal).modal('show');
         ajaxRequest({
 
-            url: ROUTES.doctor.edit + doctorId,
+            url: ROUTES.doctor.edit + id,
 
             method: 'GET',
 
             success: function (response) {
 
+                if (!response || response.status !== true || !response.data || !response.data.doctor) {
+                    showError(response && response.msg ? response.msg : 'Doctor details could not be loaded.');
+                    return;
+                }
                 let doctor = response.data.doctor;
 
-                resetForm('#doctorForm');
+                resetDoctorForm();
 
                 $('#doctor_id').val(doctor.id);
 
@@ -92,6 +141,14 @@
 
                 $('#specialization_ids')
                     .val(response.data.specialization_ids)
+                    .selectpicker('refresh');
+
+                $('#language_ids')
+                    .val(response.data.language_ids || [])
+                    .selectpicker('refresh');
+
+                $('#treatment_ids')
+                    .val(response.data.treatment_ids || [])
                     .selectpicker('refresh');
 
                 $('#doctor_code').val(doctor.doctor_code);
@@ -120,14 +177,23 @@
                     doctor.online_booking == 1
                 );
  
-                $('#doctorModal .modal-title').text('Edit Doctor');
-                $('#doctorModal .save').text('Update Doctor');
-
-                $('#doctorModal').modal('show');
+                $(doctorModal + ' .modal-title').text('Edit Doctor');
+                setDoctorSubmitState(false, 'Update Doctor');
+            },
+            error: function (xhr) {
+                handleFormAjaxError(doctorForm, xhr, 'Doctor details could not be loaded.');
+            },
+            complete: function () {
+                setDoctorSubmitState(false, 'Update Doctor');
             }
 
         });
     }
+
+    window.editDoctorForm = editDoctorForm;
+    $(document).on('click', '.doctor-edit-trigger', function () {
+        editDoctorForm($(this).data('doctor-id'));
+    });
         
 
 

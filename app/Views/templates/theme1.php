@@ -40,6 +40,7 @@
   <link href="<?= base_url('assets/css/print.css?v=20261016-rootins-print1')?>" rel="stylesheet" />
   <?= $this->renderSection('styles') ?>
   <link href="<?= base_url('assets/css/rootins-monochrome.css?v=20261010-calendar-filters1')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/responsive-tables.css?v=20261019-native-tables6')?>" rel="stylesheet" />
  
 </head>
 <?php $currentUiPath = trim(uri_string(), '/'); ?>
@@ -238,7 +239,9 @@
             if (labels[index] && !cell.hasAttribute('data-label')) cell.setAttribute('data-label', labels[index]);
           });
         });
-        table.classList.toggle('admin-responsive-stack', window.innerWidth <= 767);
+        /* All application tables remain native tables at every breakpoint;
+           their .table-responsive wrappers provide the mobile scroll surface. */
+        table.classList.remove('admin-responsive-stack');
       });
     }
     function refreshAdminListPresentation() {

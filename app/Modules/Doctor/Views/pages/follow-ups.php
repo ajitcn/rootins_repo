@@ -83,7 +83,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
         </div>
 
         <?php if ($followUps !== []): ?>
-            <div class="doctor-followup-table-wrap">
+            <div class="table-responsive doctor-followup-table-wrap">
                 <table class="table mb-0" id="doctor-followups-table">
                     <caption class="sr-only">Doctor follow-up register</caption>
                     <thead>

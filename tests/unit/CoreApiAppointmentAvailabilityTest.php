@@ -25,7 +25,7 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
 
     public function testAvailabilityUsesScheduleBreaksCapacityPastAndAppointmentConflicts(): void
     {
-        foreach (['break_start_time', 'break_end_time', 'max_patients', 'appointment_date', 'appointment_time', "whereNotIn('status', ['cancelled', 'no_show'])", "'past'"] as $rule) {
+        foreach (['break_start_time', 'break_end_time', 'max_patients', 'appointment_date', 'appointment_time', "status NOT IN (\\'cancelled\\', \\'no_show\\')", 'ADDTIME', "'past'"] as $rule) {
             self::assertStringContainsString($rule, $this->service);
         }
         self::assertStringContainsString('$count > 0', $this->service);
@@ -51,7 +51,7 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
 
     public function testConflictStatusUsesActiveAppointmentCount(): void
     {
-        self::assertStringContainsString("whereNotIn('status', ['cancelled', 'no_show'])", $this->service);
+        self::assertStringContainsString("status NOT IN (\\'cancelled\\', \\'no_show\\')", $this->service);
         self::assertStringContainsString('$count > 0', $this->service);
     }
 
@@ -83,5 +83,26 @@ final class CoreApiAppointmentAvailabilityTest extends TestCase
         self::assertStringContainsString("'SERVICE_NOT_FOUND'", $this->service);
         self::assertStringContainsString("'SPECIALIZATION_NOT_FOUND'", $this->service);
         self::assertStringContainsString("'CLINIC_NOT_FOUND'", $this->service);
+    }
+
+    public function testAvailabilityFiltersOutUnavailableDatesDoctorsAndSlots(): void
+    {
+        foreach (['$availableDoctors = []', "if (\$availability['slots'] !== [])", "if (\$doctorDates === []) continue;", "if (\$status === 'available')", "'availability' => \$availability", "'public_reference'", "'is_available' => true"] as $contract) {
+            self::assertStringContainsString($contract, $this->service);
+        }
+    }
+
+    public function testAvailabilityUsesThirtyOneDayDefaultWindowAndDoesNotResolvePatient(): void
+    {
+        self::assertStringContainsString('$offset <= 30', $this->service);
+        self::assertStringContainsString("\$values === [] || \$values === ['']", $this->service);
+        self::assertStringNotContainsString("patient_reference'", substr($this->service, 0, strpos($this->service, 'public function book')));
+    }
+
+    public function testBookingRechecksTheSlotInsideATransactionWithAReservationLock(): void
+    {
+        foreach (['$db->transBegin()', 'FOR UPDATE', 'break_start_time', 'SLOT_UNAVAILABLE', 'max_patients', 'appointment_time <', 'ADDTIME', '$db->transCommit()'] as $contract) {
+            self::assertStringContainsString($contract, $this->service);
+        }
     }
 }

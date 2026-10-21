@@ -965,7 +965,7 @@ $(function () {
                 row.appendTo(tableBody);
             });
         }
-        table.appendTo(printArea);
+        $('<div>', {class: 'table-responsive clinical-action-prescription-table-wrap'}).append(table).appendTo(printArea);
         if (String(context.clinic_mobile || '').trim() !== '') {
             const clinicFooter = $('<footer>', {class: 'clinical-action-prescription-footer'});
             $('<span>', {text: 'Clinic contact'}).appendTo(clinicFooter);

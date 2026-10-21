@@ -1480,9 +1480,8 @@
     display: none !important;
   }
 
-  /* The print area is moved to body by the print trigger. This selector is
-     intentionally direct-child-only so no modal, workspace, or app shell can
-     contribute printable height. */
+  /* The print trigger clones the selected prescription into this direct body
+     child so no modal, workspace, or app shell can contribute printable height. */
   body.doctor-prescription-printing > .doctor-prescription-print-area.is-print-target {
     display: block !important;
     position: static !important;
@@ -2274,6 +2273,58 @@ label { color: #334155; font-weight: 650; }
 .breadcrumb { background: transparent; padding: 0; margin: 0 0 .35rem; font-size: .8rem; }
 .alert { border: 0; border-radius: 10px; }
 #js_alert { position: fixed; right: 1rem; top: 1rem; z-index: 1100; max-width: min(420px, calc(100vw - 2rem)); }
+/* Doctor directory: native Bootstrap table with wrapper-only scrolling. */
+.doctor-directory-page { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.doctor-directory-page .card,
+.doctor-directory-page .card-body { min-width: 0; }
+.doctors-table-wrapper { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
+.doctors-table { width: 100%; min-width: 64rem; table-layout: auto; }
+.doctors-table th,
+.doctors-table td { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.doctors-table th { vertical-align: middle; }
+.doctors-table td { vertical-align: top; }
+.doctors-table .doctor-cell-main,
+.doctors-table .doctor-cell-contact,
+.doctors-table .doctor-cell-professional,
+.doctors-table .doctor-cell-availability { min-width: 0; }
+.doctors-table .ri-stack-cell,
+.doctors-table .doctor-detail-line { min-width: 0; max-width: 100%; }
+.doctors-table .doctor-name,
+.doctors-table .doctor-code,
+.doctors-table .doctor-meta { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.doctors-table .doctor-contact-value { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.doctors-table .doctor-detail-line { margin-bottom: .2rem; }
+.doctors-table .doctor-detail-line:last-child { margin-bottom: 0; }
+.doctors-table .doctor-tag-list { display: inline-flex; max-width: 100%; flex-wrap: wrap; gap: .2rem; vertical-align: middle; }
+.doctors-table .doctor-value-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; color: var(--ri-text); background: var(--ri-surface-muted); border: 1px solid var(--ri-border); font-size: .62rem; line-height: 1.2; }
+.doctors-table .doctor-value-badge-more { color: var(--ri-muted); }
+.doctors-table .doctor-cell-actions { min-width: 9rem; white-space: nowrap; }
+.doctors-table .doctor-actions { min-width: 0; }
+.doctors-table .doctor-actions .dropdown-toggle { white-space: nowrap; }
+.doctors-table .doctor-actions .dropdown-menu,
+body > .ri-actions-menu { z-index: 1090 !important; }
+@media (max-width: 991.98px) {
+  .doctors-table-wrapper { overflow-x: auto; }
+}
+#doctorModal { z-index: 1060 !important; }
+#doctorModal .doctor-modal-dialog { display: flex; width: auto; max-width: min(1140px, calc(100vw - 2rem)); height: calc(100vh - 2rem); max-height: calc(100vh - 2rem); margin: 1rem auto; pointer-events: auto; }
+#doctorModal .modal-content { display: flex; min-height: 0; height: 100%; max-height: 100%; overflow: hidden; flex-direction: column; }
+#doctorModal #doctorForm { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+#doctorModal .modal-header, #doctorModal .modal-footer { flex: 0 0 auto; background: #fff; }
+#doctorModal .modal-footer { position: sticky; bottom: 0; z-index: 2; border-top: 1px solid var(--ri-border, #e5e7eb); }
+#doctorModal .modal-body { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+#doctorModal .bootstrap-select { width: 100% !important; }
+#doctorModal .bootstrap-select > .dropdown-toggle { width: 100%; }
+#doctorModal .bs-container { z-index: 1085 !important; }
+.doctor-master-modal { z-index: 1060 !important; }
+.doctor-master-modal ~ .modal-backdrop { z-index: 1050 !important; }
+.doctor-master-modal .modal-dialog { pointer-events: auto; }
+@media (max-width: 575.98px) {
+  #doctorModal .doctor-modal-dialog { width: auto; max-width: calc(100vw - 1rem); height: calc(100vh - 1rem); max-height: calc(100vh - 1rem); margin: .5rem; }
+  #doctorModal .modal-header, #doctorModal .modal-footer { padding: .75rem; }
+  #doctorModal .modal-footer { gap: .5rem; }
+  #doctorModal .modal-footer .btn { flex: 1 1 0; }
+}
 .preloader { background: rgba(15, 23, 42, .72); backdrop-filter: blur(3px); }
 #sidebar { border-right: 0 !important; }
 .sidebar-nav .nav-link, .sidebar-submenu .submenu-link { min-height: 40px; }
