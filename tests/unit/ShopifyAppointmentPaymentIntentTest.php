@@ -48,7 +48,7 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
 
-        foreach (['logged_in_customer_id', 'shopify_store_domain', 'shopify_customer_id', 'booking_enabled', 'already_registered', 'findExistingPatient', 'verifiedShopifyCustomer', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED'] as $contract) self::assertStringContainsString($contract, $proxy);
+        foreach (['logged_in_customer_id', 'shopify_store_domain', 'shopify_customer_id', 'booking_enabled', 'already_registered', 'findExistingPatient', 'verifiedShopifyCustomer', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE'] as $contract) self::assertStringContainsString($contract, $proxy);
         self::assertStringContainsString("'next_action' => 'REGISTER_PATIENT'", $proxy);
         self::assertStringContainsString("\$body['error']['next_action']", $controller);
         self::assertStringNotContainsString("\$payload['patient_id']", $proxy);
@@ -64,6 +64,15 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         self::assertStringNotContainsString("\$payload['first_name']", $proxy);
         self::assertStringNotContainsString("\$payload['email']", $proxy);
         self::assertStringNotContainsString("\$payload['mobile_number']", $proxy);
+    }
+
+    public function testBookingAttemptsTheSameIdentityLinkingPathAsRegistration(): void
+    {
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+
+        self::assertStringContainsString("\$autoLinkPatient = \$operation === 'appointments.book'", $proxy);
+        self::assertStringContainsString('ensureCustomerPatientLink($context, $credential)', $proxy);
+        self::assertStringContainsString("'appointments.book' => (new ShopifyAppointmentIntentService())->create", $proxy);
     }
 
     public function testPaidWebhookFinalizesOnlyFromTheServerCreatedIntent(): void

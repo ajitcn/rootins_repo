@@ -109,6 +109,7 @@ final class ShopifyProxyService
         $credential = $this->credential();
         $this->rateLimit((int) $credential['id'], (int) $configuration['rate_limit_per_minute']);
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
+        $autoLinkPatient = $operation === 'appointments.book';
         if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
         if ($operation === 'appointments.book') $payload = $this->normalizeBookingPayload($payload);
         $customerId = (string) $context['customer_id'];
@@ -119,12 +120,16 @@ final class ShopifyProxyService
         $links = new ShopifyPatientIdentityLinkModel();
         $link = $patientScoped ? $links->where('shopify_store_domain', $context['store_domain'])->where('shopify_customer_id', $customerId)->first() : null;
 
-        if ($patientScoped && $link === null) {
+        if ($patientScoped && $link === null && ! $autoLinkPatient) {
             $foreignLink = (new ShopifyPatientIdentityLinkModel())->where('shopify_customer_id', $customerId)->where('shopify_store_domain !=', $context['store_domain'])->first();
             if ($foreignLink !== null) {
                 $this->identityFailure('SHOPIFY_STORE_MISMATCH', 'The Shopify customer is not linked to this store.', ['shopify_customer' => 'The customer identity belongs to another store.']);
             }
             $this->identityFailure('SHOPIFY_CUSTOMER_UNLINKED', 'Complete patient registration before booking.', ['next_action' => 'REGISTER_PATIENT']);
+        }
+        if ($patientScoped && (string) ($link['link_status'] ?? '') !== 'linked' && $autoLinkPatient) {
+            $resolved = $this->ensureCustomerPatientLink($context, $credential);
+            $link = ['patient_id' => $resolved['patient_id'], 'link_status' => 'linked'];
         }
         if ($patientScoped && (string) ($link['link_status'] ?? '') !== 'linked') {
             $this->identityFailure('SHOPIFY_CUSTOMER_UNLINKED', 'Complete patient registration before booking.', ['next_action' => 'REGISTER_PATIENT']);
@@ -228,8 +233,15 @@ final class ShopifyProxyService
 
     private function register(array $context, array $payload, array $credential): array
     {
+        $resolved = $this->ensureCustomerPatientLink($context, $credential);
+        return ['patient_reference' => $resolved['patient_reference'], 'booking_enabled' => true, 'already_registered' => $resolved['already_registered'], 'message' => 'Patient registration is complete. Booking is enabled.'];
+    }
+
+    /** @return array{patient_id:int, patient_reference:string, already_registered:bool} */
+    private function ensureCustomerPatientLink(array $context, array $credential): array
+    {
         $customerId = trim((string) ($context['customer_id'] ?? ''));
-        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before registering for appointments.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
+        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
 
         $links = new ShopifyPatientIdentityLinkModel();
         $store = (string) $context['store_domain'];
@@ -238,7 +250,7 @@ final class ShopifyProxyService
         if ($existing !== null && (string) ($existing['link_status'] ?? '') === 'linked') {
             $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
             if ($patient !== null && (int) $patient['clinic_id'] === (int) $credential['clinic_id'] && (int) $patient['status'] === 1) {
-                return ['patient_reference' => (string) $patient['registration_number'], 'booking_enabled' => true, 'already_registered' => true, 'message' => 'Patient registration is complete. Booking is enabled.'];
+                return ['patient_id' => (int) $existing['patient_id'], 'patient_reference' => (string) $patient['registration_number'], 'already_registered' => true];
             }
             if ($patient !== null && (int) $patient['clinic_id'] !== (int) $credential['clinic_id']) {
                 $this->identityFailure('SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.', ['clinic' => 'The linked patient is outside the configured clinic scope.']);
@@ -274,7 +286,7 @@ final class ShopifyProxyService
             $result['registration_number'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $duplicate['patient_id'])->get()->getRow('registration_number');
         }
         service('audit')->record('shopify.proxy_patient_registered', ['code' => 'IDENTITY_LINKED', 'booking_enabled' => true]);
-        return ['patient_reference' => (string) $result['registration_number'], 'booking_enabled' => true, 'already_registered' => false, 'message' => 'Patient registration is complete. Booking is enabled.'];
+        return ['patient_id' => (int) $result['id'], 'patient_reference' => (string) $result['registration_number'], 'already_registered' => false];
     }
 
     /** @return array<string, mixed> */
@@ -293,7 +305,7 @@ final class ShopifyProxyService
             return (new ShopifyCustomerLookupService(runtimeConfiguration: $shopify))->lookup($customerId);
         } catch (ShopifyCustomerLookupException $exception) {
             service('audit')->record('shopify.proxy_customer_lookup_failed', ['code' => $exception->errorCode]);
-            throw new CoreApiException($exception->httpStatus >= 500 ? 503 : 422, 'SHOPIFY_CUSTOMER_DATA_UNAVAILABLE', 'Verified Shopify customer data could not be loaded safely.');
+            throw new CoreApiException(422, 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE', 'Verified Shopify customer data could not be loaded safely.');
         }
     }
 
