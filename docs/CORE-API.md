@@ -122,7 +122,7 @@ optional field-level `fields`.
 - `from_date`/`to_date` or `start_date`/`end_date` for an explicit date range of up to 31 days.
 - `doctor_reference`, `specialization_reference`, and `service_reference`.
 
-Each doctor includes `doctor_reference`, `doctor_code`, `doctor_name`,
+Each doctor includes `doctor_id`, `doctor_reference`, `doctor_code`, `doctor_name`,
 `profile_image`, `specializations`, `consultation_fees`, `services`, and
 `availability`. Services expose `service_reference`, `service_name`,
 `duration_minutes`, `fee`, and `currency`. Available slots expose

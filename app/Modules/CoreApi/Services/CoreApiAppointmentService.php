@@ -68,6 +68,7 @@ final class CoreApiAppointmentService
             $fees = $this->fees((int) $doctor['id'], $dates[0]);
             $doctors[] = [
                 'public_reference' => (string) $doctor['doctor_code'],
+                'doctor_id' => (string) $doctor['doctor_code'],
                 'doctor_reference' => (string) $doctor['doctor_code'],
                 'doctor_code' => (string) $doctor['doctor_code'],
                 'reference' => (string) $doctor['doctor_code'],

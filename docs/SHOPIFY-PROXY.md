@@ -28,13 +28,14 @@ does not require a linked patient and continues to exclude unavailable,
 booked, past, leave, break, and payment-held slots.
 
 Availability returns stable public references for direct booking. Each doctor
-has `doctor_reference` and `doctor_code`; each service has
+has `doctor_id`, `doctor_reference`, and `doctor_code`; each service has
 `service_reference`, `service_name`, `duration_minutes`, `fee`, and `currency`;
 and each available slot has `slot_reference`, `date`, `start_time`, `end_time`,
 `timezone`, and `is_available`. Shopify should submit those returned references
-to `POST /rootins-proxy/appointments/book`, including `slot_reference`. Values
-such as `doctor_id: "AC"` or `service_id: "service-2"` are not accepted as
-substitutes for the public references.
+to `POST /rootins-proxy/appointments/book`, including `slot_reference`.
+The booking aliases `doctor_id` and `service_id` are accepted only when they
+contain those public references, for example `doctor_id: "AC"` and
+`service_id: "service-2"`; internal numeric IDs are not accepted.
 
 Appointment booking requires an `Idempotency-Key` header and the server-resolved
 doctor, service, date, start time, and end time. The proxy resolves the patient

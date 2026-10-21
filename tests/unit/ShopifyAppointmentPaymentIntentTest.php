@@ -28,6 +28,8 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         foreach (['DOCTOR_INVALID', 'SERVICE_INVALID', 'INVALID_DATE', 'INVALID_TIME', 'INVALID_SLOT', 'CONSENT_REQUIRED', 'SLOT_UNAVAILABLE'] as $code) self::assertStringContainsString($code, $intent . $proxy);
         self::assertStringContainsString("slot_reference", $intent);
         self::assertStringContainsString("slotParts", $intent);
+        self::assertStringContainsString("doctor_id", $proxy);
+        self::assertStringContainsString("service_id", $proxy);
         $service = new \App\Services\Shopify\ShopifyAppointmentIntentService();
         $method = new \ReflectionMethod($service, 'slotParts');
         $method->setAccessible(true);
