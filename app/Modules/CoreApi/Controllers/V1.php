@@ -141,10 +141,14 @@ final class V1 extends BaseController
                 throw new CoreApiException(401, 'API_AUTH_REQUIRED', 'API authentication is required.');
             }
             $credentialId = (int) $credential['id'];
-            $payload = $jsonBody ? ($this->request->getJSON(true) ?: []) : [];
-            if (! is_array($payload)) {
+            $rawBody = (string) $this->request->getBody();
+            if ($jsonBody && trim($rawBody) === '') throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
+            try {
+                $payload = $jsonBody ? json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR) : [];
+            } catch (\JsonException) {
                 throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
             }
+            if (! is_array($payload)) throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
             $key = trim($this->request->getHeaderLine('Idempotency-Key'));
             $requestHash = hash('sha256', (string) $this->request->getBody());
             $idempotency = new CoreApiIdempotencyService();

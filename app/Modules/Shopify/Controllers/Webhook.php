@@ -94,6 +94,22 @@ final class Webhook extends BaseController
         }
 
         if ($result['duplicate']) {
+            if ($topic === 'orders/paid' && $result['id'] !== null) {
+                $events = new ShopifyWebhookEventService();
+                $event = $events->find((int) $result['id']);
+                if (is_array($event) && (string) ($event['status'] ?? '') !== 'processed') {
+                    try {
+                        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+                        if (! is_array($payload)) throw new \RuntimeException('Stored paid order payload is invalid.');
+                        (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
+                        $events->markProcessed((int) $result['id']);
+                    } catch (\Throwable $exception) {
+                        $events->markFailed((int) $result['id'], 'Appointment payment processing failed.');
+                        log_message('error', 'Shopify paid appointment retry failed safely.');
+                        return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Paid appointment could not be finalized safely.']);
+                    }
+                }
+            }
             service('audit')->record('shopify.webhook_duplicate', [
                 'topic' => $topic,
                 'event_id_hash' => hash('sha256', $eventId),

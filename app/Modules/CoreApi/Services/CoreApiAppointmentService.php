@@ -3,6 +3,7 @@
 namespace App\Modules\CoreApi\Services;
 
 use Admin\Models\Doctor\DoctorLeaveModel;
+use App\Services\AppointmentBillingService;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -107,7 +108,7 @@ final class CoreApiAppointmentService
         $serviceReference = trim((string) ($input['service_reference'] ?? ''));
         $patientReference = trim((string) ($input['patient_reference'] ?? ''));
         $date = $this->parseDate((string) ($input['appointment_date'] ?? ''));
-        $time = trim((string) ($input['appointment_time'] ?? ''));
+        $time = $this->normalizeTime((string) ($input['appointment_time'] ?? ''));
         $errors = [];
 
         if ($doctorReference === '') {
@@ -122,7 +123,7 @@ final class CoreApiAppointmentService
         if ($date === null || $date < date('Y-m-d')) {
             $errors['appointment_date'] = 'Enter a valid appointment date as dd-mm-yyyy.';
         }
-        if (! preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+        if ($time === null) {
             $errors['appointment_time'] = 'Enter a valid appointment time as HH:mm.';
         }
         if ($errors !== []) {
@@ -149,15 +150,19 @@ final class CoreApiAppointmentService
         $db->transBegin();
         try {
             $day = (int) (new DateTimeImmutable($date, $this->timezone()))->format('N');
-            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
-            if ($schedule === null || (new DoctorLeaveModel())->isOnLeave((int) $doctor['id'], $date)) {
+            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND deleted_at IS NULL AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
+            if ($schedule === null) {
                 throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             }
 
-            $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . max(1, (int) ($schedule['slot_duration'] ?? 15)) . ' minutes')->format('H:i:s');
+            $duration = max(1, (int) ($schedule['slot_duration'] ?? 15));
+            $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
+            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $duration)) {
+                throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            }
             $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
             $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
-            if (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time']) {
+            if ($this->leaveOverlaps($doctor['id'], $date, $time, $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) {
                 throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             }
 
@@ -172,10 +177,15 @@ final class CoreApiAppointmentService
                 throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is already booked.');
             }
 
+            $intentCount = 0;
+            if ($db->tableExists('shopify_appointment_intents')) {
+                $intentCount = (int) $db->query("SELECT COUNT(*) AS total FROM shopify_appointment_intents WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status IN ('pending_payment','paid') AND expires_at > ? FOR UPDATE", [$clinicId, (int) $doctor['id'], $date, $slotEnd, $time, date('Y-m-d H:i:s')])->getRow('total');
+                if ($intentCount > 0) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is already held for payment.');
+            }
             $capacity = (int) ($schedule['max_patients'] ?? 0);
             if ($capacity > 0) {
                 $booked = (int) $db->query('SELECT COUNT(*) AS total FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status NOT IN (\'cancelled\', \'no_show\')', [$clinicId, (int) $doctor['id'], $date, $slotEnd, $time])->getRow('total');
-                if ($booked >= $capacity) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+                if ($booked + $intentCount >= $capacity) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             }
 
             $now = date('Y-m-d H:i:s');
@@ -201,6 +211,10 @@ final class CoreApiAppointmentService
             if ($id < 1 || ! $db->table('appointments')->where('id', $id)->update(['appointment_number' => sprintf('APT-%06d', $id)])) {
                 throw new \RuntimeException('Appointment creation failed.');
             }
+            if (! $db->table('appointment_services')->insert(['appointment_id' => $id, 'service_id' => (int) $service['id'], 'service_name' => (string) $service['name'], 'created_at' => $now])) {
+                throw new \RuntimeException('Appointment service link failed.');
+            }
+            (new AppointmentBillingService())->createOrUpdate($clinicId, (int) $patient['id'], $id, (float) ($this->fee((int) $doctor['id'], $date) ?? 0), 'INR', 'pending', 'core-api-appointment-' . $id);
             if (! $db->transCommit()) {
                 throw new \RuntimeException('Appointment transaction failed.');
             }
@@ -224,7 +238,7 @@ final class CoreApiAppointmentService
         $now = new DateTimeImmutable('now', $timezone);
         $today = $now->format('Y-m-d');
         $day = (int) (new DateTimeImmutable($date, $timezone))->format('N');
-        $schedules = $db->table('doctor_schedules')->where('doctor_id', $doctorId)->where('day_of_week', $day)->where('status', 1)->orderBy('start_time', 'ASC')->get()->getResultArray();
+        $schedules = $db->table('doctor_schedules')->where('doctor_id', $doctorId)->where('day_of_week', $day)->where('status', 1)->where('deleted_at', null)->orderBy('start_time', 'ASC')->get()->getResultArray();
         $leave = (new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->orderBy('start_date', 'ASC')->first();
         $leaveStart = trim((string) ($leave['start_time'] ?? ''));
         $leaveEnd = trim((string) ($leave['end_time'] ?? ''));
@@ -421,6 +435,9 @@ final class CoreApiAppointmentService
     }
 
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }
+    private function normalizeTime(string $value): ?string { $value = trim($value); if (! preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) return null; [$hour, $minute] = array_map('intval', explode(':', $value)); $second = substr_count($value, ':') === 2 ? (int) substr($value, 6, 2) : 0; return $hour < 24 && $minute < 60 && $second < 60 ? sprintf('%02d:%02d:%02d', $hour, $minute, $second) : null; }
+    private function isSlotAligned(string $scheduleStart, string $time, int $duration): bool { $start = new DateTimeImmutable('2000-01-01 ' . substr($scheduleStart, 0, 8), $this->timezone()); $slot = new DateTimeImmutable('2000-01-01 ' . $time, $this->timezone()); $seconds = $slot->getTimestamp() - $start->getTimestamp(); return $seconds >= 0 && $seconds % ($duration * 60) === 0; }
+    private function leaveOverlaps(int $doctorId, string $date, string $start, string $end): bool { foreach ((new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll() as $leave) { $leaveStart = trim((string) ($leave['start_time'] ?? '')); $leaveEnd = trim((string) ($leave['end_time'] ?? '')); if ($leaveStart === '' || $leaveEnd === '' || ($start < $leaveEnd && $end > $leaveStart)) return true; } return false; }
     private function formatDate(string $date): string { return (new DateTimeImmutable($date, $this->timezone()))->format('d-m-Y'); }
 
     private function displayTime(string $time, DateTimeZone $timezone): string

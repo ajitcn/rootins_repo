@@ -4,6 +4,7 @@ namespace App\Services\Shopify;
 
 use App\Modules\CoreApi\Services\CoreApiException;
 use App\Modules\Shopify\Models\ShopifyAppointmentIntentModel;
+use App\Services\AppointmentBillingService;
 use Admin\Models\Doctor\DoctorLeaveModel;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -56,13 +57,14 @@ final class ShopifyAppointmentIntentService
         $db->transBegin();
         try {
             $day = (int) (new DateTimeImmutable($date, $this->timezone()))->format('N');
-            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
-            if ($schedule === null || (new DoctorLeaveModel())->isOnLeave((int) $doctor['id'], $date)) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND deleted_at IS NULL AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
+            if ($schedule === null) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             $duration = max(1, (int) ($schedule['slot_duration'] ?? 15));
             $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
+            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $duration)) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
             $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
-            if (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time']) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            if ($this->leaveOverlaps((int) $doctor['id'], $date, $time, $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             $nowLocal = new DateTimeImmutable('now', $this->timezone());
             if ($date < $nowLocal->format('Y-m-d') || ($date === $nowLocal->format('Y-m-d') && $time <= $nowLocal->format('H:i:s'))) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             $now = date('Y-m-d H:i:s');
@@ -112,18 +114,20 @@ final class ShopifyAppointmentIntentService
             if (strtotime((string) $intent['expires_at']) < time()) throw new RuntimeException('Appointment intent has expired.');
             if (strtoupper((string) ($payload['currency'] ?? '')) !== strtoupper((string) $intent['currency']) || abs((float) ($payload['total_price'] ?? 0) - (float) $intent['amount']) > 0.01) throw new RuntimeException('Shopify payment amount or currency does not match the appointment intent.');
             $day = (int) (new DateTimeImmutable((string) $intent['appointment_date'], $this->timezone()))->format('N');
-            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $intent['doctor_id'], $day, $intent['appointment_time'], $intent['appointment_time']])->getRowArray();
-            if ($schedule === null || (new DoctorLeaveModel())->isOnLeave((int) $intent['doctor_id'], (string) $intent['appointment_date'])) throw new RuntimeException('The paid appointment slot is no longer available.');
+            $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND deleted_at IS NULL AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $intent['doctor_id'], $day, $intent['appointment_time'], $intent['appointment_time']])->getRowArray();
+            if ($schedule === null) throw new RuntimeException('The paid appointment slot is no longer available.');
             $duration = max(1, (int) ($schedule['slot_duration'] ?? $intent['duration_minutes']));
             $slotEnd = (new DateTimeImmutable($intent['appointment_date'] . ' ' . $intent['appointment_time'], $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
+            if (! $this->isSlotAligned((string) $schedule['start_time'], (string) $intent['appointment_time'], $duration)) throw new RuntimeException('The paid appointment slot is no longer available.');
             $breakStart = trim((string) ($schedule['break_start_time'] ?? '')); $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
-            if (($breakStart !== '' && $breakEnd !== '' && $intent['appointment_time'] < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time']) throw new RuntimeException('The paid appointment slot is inside a break or outside working hours.');
+            if ($this->leaveOverlaps((int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $intent['appointment_time'] < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new RuntimeException('The paid appointment slot is inside a break or outside working hours.');
             $this->assertSlotAvailable($db, (int) $intent['clinic_id'], (int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd, date('Y-m-d H:i:s'), (int) ($schedule['max_patients'] ?? 0), (int) $intent['id']);
             $now = date('Y-m-d H:i:s');
             $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => (int) $intent['patient_id'], 'doctor_id' => (int) $intent['doctor_id'], 'clinic_id' => (int) $intent['clinic_id'], 'appointment_date' => $intent['appointment_date'], 'appointment_time' => $intent['appointment_time'], 'duration_minutes' => $duration, 'appointment_type' => 'in_person', 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => (int) $intent['patient_id'], 'booking_source' => 'shopify', 'created_at' => $now, 'updated_at' => $now]);
             $appointmentId = (int) $db->insertID();
             if ($appointmentId < 1 || ! $db->table('appointments')->where('id', $appointmentId)->update(['appointment_number' => sprintf('APT-%06d', $appointmentId)])) throw new RuntimeException('Final appointment creation failed.');
-            $db->table('appointment_services')->insert(['appointment_id' => $appointmentId, 'service_id' => (int) $intent['service_id'], 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'created_at' => $now]);
+            if (! $db->table('appointment_services')->insert(['appointment_id' => $appointmentId, 'service_id' => (int) $intent['service_id'], 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'created_at' => $now])) throw new RuntimeException('Appointment service link failed.');
+            (new AppointmentBillingService())->createOrUpdate((int) $intent['clinic_id'], (int) $intent['patient_id'], $appointmentId, (float) $intent['amount'], (string) $intent['currency'], 'paid', 'shopify-appointment-' . $intent['id']);
             $db->table('shopify_appointment_intents')->where('id', (int) $intent['id'])->update(['status' => 'booked', 'shopify_order_id' => $orderId, 'shopify_order_number' => (string) ($payload['order_number'] ?? ''), 'appointment_id' => $appointmentId, 'paid_at' => $now, 'updated_at' => $now]);
             if (! $db->transCommit()) throw new RuntimeException('Final appointment transaction failed.');
         } catch (\Throwable $exception) { $db->transRollback(); throw $exception; }
@@ -153,4 +157,6 @@ final class ShopifyAppointmentIntentService
     private function parseDate(string $value): ?string { $date = DateTimeImmutable::createFromFormat('!d-m-Y', trim($value), $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) && $date->format('d-m-Y') === trim($value) ? $date->format('Y-m-d') : null; }
     private function normalizeTime(string $value): ?string { $value = trim($value); if (! preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) return null; [$hour, $minute] = array_map('intval', explode(':', $value)); return $hour < 24 && $minute < 60 ? sprintf('%02d:%02d:00', $hour, $minute) : null; }
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }
+    private function isSlotAligned(string $scheduleStart, string $time, int $duration): bool { $start = new DateTimeImmutable('2000-01-01 ' . substr($scheduleStart, 0, 8), $this->timezone()); $slot = new DateTimeImmutable('2000-01-01 ' . $time, $this->timezone()); $seconds = $slot->getTimestamp() - $start->getTimestamp(); return $seconds >= 0 && $seconds % ($duration * 60) === 0; }
+    private function leaveOverlaps(int $doctorId, string $date, string $start, string $end): bool { foreach ((new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll() as $leave) { $leaveStart = trim((string) ($leave['start_time'] ?? '')); $leaveEnd = trim((string) ($leave['end_time'] ?? '')); if ($leaveStart === '' || $leaveEnd === '' || ($start < $leaveEnd && $end > $leaveStart)) return true; } return false; }
 }
