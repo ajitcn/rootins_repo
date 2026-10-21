@@ -48,7 +48,6 @@ class Filters extends BaseFilters
         // Web Page Caching
         'performance',
         // Performance Metrics
-        'toolbar',
     ]];
 
     /**
@@ -67,7 +66,9 @@ class Filters extends BaseFilters
             'rootins-proxy/*',
             'integrations/shopify/webhooks/*',
         ]],
-    ], 'after' => []];
+    ], 'after' => [
+        'toolbar' => ['except' => ['rootins-proxy/*']],
+    ]];
 
     /**
      * List of filter aliases that works on a

@@ -60,6 +60,14 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("['status' => true, 'data' => \$data === [] ? (object) [] : \$data]", $controller);
         self::assertStringContainsString("['status' => false, 'error' => ['code'", $controller);
         self::assertStringContainsString("setContentType('application/json')", $controller);
+        self::assertStringContainsString("application/json; charset=UTF-8", $controller);
+        self::assertStringContainsString("private function forceJsonResponse", $controller);
+        self::assertStringContainsString("private function registrationCoreApiError", $controller);
+        self::assertStringContainsString("SHOPIFY_CUSTOMER_ID_MISMATCH", $controller);
+        self::assertStringContainsString("SHOPIFY_CUSTOMER_LOGIN_REQUIRED", $controller);
+        self::assertStringContainsString("PATIENT_DATA_INVALID", $controller);
+        self::assertStringContainsString("SHOPIFY_PROXY_CONFIGURATION_INVALID", $controller);
+        self::assertStringContainsString("SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE", $controller);
         self::assertStringContainsString('APPOINTMENT_AVAILABILITY_INVALID', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_INTERNAL_ERROR', $controller);
         self::assertStringContainsString('correlation_id=', $controller);
@@ -71,6 +79,20 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString('SHOPIFY_PROXY_SIGNATURE_INVALID', $proxyService);
         self::assertStringContainsString('SHOPIFY_PROXY_STORE_SCOPE_INVALID', $proxyService);
         self::assertStringContainsString('normalizeAvailabilityPayload', $proxyService);
+    }
+
+    public function testRegistrationBoundaryCannotRenderToolbarOrRawFailures(): void
+    {
+        $filters = file_get_contents(ROOTPATH . 'app/Config/Filters.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+
+        self::assertStringNotContainsString("'toolbar',", $filters);
+        self::assertStringContainsString("'toolbar' => ['except' => ['rootins-proxy/*']]", $filters);
+        self::assertStringContainsString('$this->forceJsonResponse();', $controller);
+        self::assertStringContainsString('$this->begin($operation);', $controller);
+        self::assertStringContainsString("'SHOPIFY_PROXY_INTERNAL_ERROR'", $controller);
+        self::assertStringContainsString("'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE'", $controller);
+        self::assertStringNotContainsString('$this->json(500, false, $exception->getMessage()', $controller);
     }
 
     public function testProxyConnectionVerifiesIsolatedCredentialsAndKeepsErrorsSafe(): void

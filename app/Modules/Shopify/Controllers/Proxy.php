@@ -32,14 +32,21 @@ final class Proxy extends BaseController
 
     private function handle(string $operation, bool $write): ResponseInterface
     {
-        $this->begin($operation);
+        $this->forceJsonResponse();
+        $this->requestCorrelationId = $this->correlationId();
+        $this->requestOperation = $operation;
         $correlationId = $this->requestCorrelationId;
-        $key = trim($this->request->getHeaderLine('Idempotency-Key'));
-        if ($write && ($key === '' || strlen($key) > 191)) {
-            return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'IDEMPOTENCY_KEY_REQUIRED', ['Idempotency-Key' => 'A valid Idempotency-Key header is required.']);
-        }
+        $key = '';
         $claimed = false;
+        $idempotencyKey = null;
+        $idempotency = null;
         try {
+            $this->begin($operation);
+            $correlationId = $this->requestCorrelationId;
+            $key = trim($this->request->getHeaderLine('Idempotency-Key'));
+            if ($write && ($key === '' || strlen($key) > 191)) {
+                return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'IDEMPOTENCY_KEY_REQUIRED', ['Idempotency-Key' => 'A valid Idempotency-Key header is required.']);
+            }
             $queryString = (string) $this->request->getUri()->getQuery();
             $query = (new \App\Services\Shopify\ShopifyProxySignatureService())->query($queryString);
             $context = (new ShopifyProxyService())->verify($operation, $query, $queryString);
@@ -60,7 +67,7 @@ final class Proxy extends BaseController
             service('audit')->record('shopify.proxy_request_succeeded', ['operation' => $operation, 'store_domain' => $context['store_domain']]);
             return $this->json($write && $operation === 'patients.register' ? 201 : 200, true, 'Shopify proxy operation completed.', $data);
         } catch (CoreApiException $exception) {
-            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, $exception->errorCode);
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
             if ($operation === 'appointments.availability' && $exception->httpStatus >= 500) {
                 $code = $this->availabilityFailureCode($exception);
@@ -71,16 +78,25 @@ final class Proxy extends BaseController
                 $message = $exception->errorCode === 'APPOINTMENT_AVAILABILITY_INVALID' ? 'Required availability parameters are missing.' : 'Review the availability fields.';
                 return $this->json(422, false, $message, [], 'APPOINTMENT_AVAILABILITY_INVALID', $exception->fields);
             }
+            if ($operation === 'patients.register') return $this->registrationCoreApiError($exception);
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode, $exception->fields);
         } catch (ShopifyProxyAuthenticationException $exception) {
-            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
+            if ($operation === 'patients.register') {
+                $code = $exception->errorCode === 'SHOPIFY_PROXY_SIGNATURE_INVALID'
+                    ? 'SHOPIFY_PROXY_SIGNATURE_INVALID'
+                    : 'SHOPIFY_PROXY_CONFIGURATION_INVALID';
+                $status = $code === 'SHOPIFY_PROXY_SIGNATURE_INVALID' ? 401 : 503;
+                $message = $status === 401 ? 'The Shopify proxy signature is invalid.' : 'The Shopify proxy configuration is unavailable.';
+                return $this->json($status, false, $message, [], $code);
+            }
             if ($operation === 'appointments.availability' && $exception->errorCode === 'SHOPIFY_PROXY_CONFIGURATION_MISSING') {
                 $this->logAvailabilityFailure($exception, 'CORE_API_CONFIGURATION_MISSING');
                 return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'CORE_API_CONFIGURATION_MISSING');
             }
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (DatabaseException $exception) {
-            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'database');
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'database');
             if ($operation === 'appointments.availability') {
                 $this->logAvailabilityFailure($exception, 'DATABASE_UNAVAILABLE');
                 return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'DATABASE_UNAVAILABLE');
@@ -88,11 +104,20 @@ final class Proxy extends BaseController
             log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'database', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
             return $this->json(503, false, 'The Shopify proxy service is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
         } catch (InvalidArgumentException $exception) {
-            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'validation');
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'validation');
+            if ($operation === 'patients.register') return $this->json(422, false, 'Patient details are invalid.', [], 'PATIENT_DATA_INVALID');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);
             return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST', []);
         } catch (Throwable $exception) {
-            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'internal');
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'internal');
+            if ($operation === 'patients.register') {
+                if ($this->isDependencyFailure($exception)) {
+                    $this->logBoundaryFailure($exception, 'dependency');
+                    return $this->json(503, false, 'The Shopify proxy dependency is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
+                }
+                $this->logBoundaryFailure($exception, 'unexpected');
+                return $this->json(500, false, 'The Shopify proxy request could not be processed safely.', [], 'SHOPIFY_PROXY_INTERNAL_ERROR');
+            }
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
             if ($dependency !== null) {
                 $code = $this->availabilityFailureCode($exception);
@@ -157,7 +182,64 @@ final class Proxy extends BaseController
     {
         $contentType = 'application/json; charset=UTF-8';
         $this->logResponse($status, $contentType);
-        return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body);
+        return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body)->setHeader('Content-Type', $contentType);
+    }
+
+    private function forceJsonResponse(): void
+    {
+        $this->response->setHeader('Content-Type', 'application/json; charset=UTF-8');
+        $this->response->setHeader('Cache-Control', 'no-store');
+    }
+
+    private function registrationCoreApiError(CoreApiException $exception): ResponseInterface
+    {
+        $status = $exception->httpStatus;
+        $code = $exception->errorCode;
+        $message = 'The Shopify proxy request could not be processed safely.';
+        $fields = [];
+
+        if ($code === 'PATIENT_DATA_INVALID' || $code === 'INVALID_JSON') {
+            $status = 422;
+            $code = 'PATIENT_DATA_INVALID';
+            $message = 'Patient details are invalid.';
+            $fields = $exception->fields;
+        } elseif ($code === 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED') {
+            $status = 401;
+            $message = 'Shopify customer login is required.';
+        } elseif ($code === 'SHOPIFY_CUSTOMER_ID_MISMATCH') {
+            $status = 403;
+            $message = 'The Shopify customer identity does not match the signed customer.';
+        } elseif (in_array($code, ['CORE_API_UNAVAILABLE', 'CORE_API_SCOPE_UNAVAILABLE', 'CORE_API_CONFIGURATION_MISSING'], true)) {
+            $status = 503;
+            $code = 'SHOPIFY_PROXY_CONFIGURATION_INVALID';
+            $message = 'The Shopify proxy configuration is unavailable.';
+        } elseif ($status >= 500) {
+            $status = 503;
+            $code = 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE';
+            $message = 'The Shopify proxy dependency is temporarily unavailable.';
+        }
+
+        return $this->json($status, false, $message, [], $code, $fields);
+    }
+
+    private function logBoundaryFailure(Throwable $exception, string $category): void
+    {
+        log_message('error', 'Shopify proxy boundary failure ' . json_encode([
+            'correlation_id' => $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable',
+            'operation' => $this->requestOperation !== '' ? $this->requestOperation : 'unknown',
+            'exception_class' => get_class($exception),
+            'category' => $category,
+            'route' => $this->safeRoute(),
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function isDependencyFailure(Throwable $exception): bool
+    {
+        $class = strtolower(get_class($exception));
+        return $exception instanceof DatabaseException
+            || str_contains($class, 'database')
+            || str_contains($class, 'pdo')
+            || str_contains($class, 'mysqli');
     }
 
     private function begin(string $operation): void
@@ -175,14 +257,17 @@ final class Proxy extends BaseController
     /** @return list<string> */
     private function requestParameterNames(): array
     {
-        $names = array_keys($this->request->getGet());
-        $post = $this->request->getPost();
-        if (is_array($post)) $names = array_merge($names, array_keys($post));
         try {
+            $names = [];
+            $get = $this->request->getGet();
+            if (is_array($get)) $names = array_keys($get);
+            $post = $this->request->getPost();
+            if (is_array($post)) $names = array_merge($names, array_keys($post));
             $json = $this->request->getJSON(true);
             if (is_array($json)) $names = array_merge($names, array_keys($json));
         } catch (Throwable) {
             // Request diagnostics must never interfere with proxy handling.
+            $names = [];
         }
         $names = array_values(array_unique(array_map(static fn ($name): string => preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) $name) ?: 'unknown', $names)));
         sort($names);

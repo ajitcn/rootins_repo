@@ -106,6 +106,10 @@ final class ShopifyProxyService
     public function execute(string $operation, array $context, array $payload, ?UploadedFile $file = null): array
     {
         $configuration = is_array($context['configuration'] ?? null) ? $context['configuration'] : [];
+        $customerId = trim((string) ($context['customer_id'] ?? ''));
+        if (in_array($operation, ['appointments.book', 'patients.register'], true) && $customerId === '') {
+            $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401);
+        }
         $credential = $operation === 'appointments.availability' ? [] : $this->credential();
         if ($operation !== 'appointments.availability') $this->rateLimit((int) ($credential['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
