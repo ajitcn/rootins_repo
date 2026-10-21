@@ -12,7 +12,7 @@ Default Shopify values are:
 - storefront URL `https://rootins.myshopify.com/apps/rootins`
 - ROOTINS URL `https://rootins.newrootssoftware.in/public/rootins-proxy`
 
-Shopify requests are accepted only when the proxy is enabled, the `shop` domain matches the stored Shopify domain, the timestamp is within five minutes, and the App Proxy HMAC signature validates with the server-side Shopify client secret. POST requests require `Idempotency-Key`. Customer identity links, clinic scope, Core API rate limiting, audit events, and existing Core API business services are applied at the proxy boundary.
+Shopify requests are accepted only when the proxy is enabled, the `shop` domain matches the stored Shopify domain, the timestamp is within five minutes, and the App Proxy HMAC signature validates with the server-side Shopify client secret. POST requests require `Idempotency-Key`. Customer identity links, store scope, Core API rate limiting, audit events, and existing Core API business services are applied at the proxy boundary. Patient records and Shopify identity links are global clinical records; a Shopify proxy clinic credential is not required for registration, availability, or booking.
 
 Routes:
 

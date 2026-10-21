@@ -63,9 +63,9 @@ class Patient extends BaseAdminController
             $query->where('patients.source_type', $sourceType);
         }
 
-        if ($this->clinicScope() > 0) {
-            $query->where('patients.clinic_id', $this->clinicScope());
-        }
+        // Patients are global clinical records. Admin patient visibility is
+        // governed by the existing Admin permissions, not the optional
+        // billing clinic metadata.
         $data['patients'] = $query->orderBy('patients.first_name', 'ASC')->orderBy('patients.last_name', 'ASC')->paginate($pageSize, 'patients');
         $data['pager'] = $this->patient->pager;
         $data['filters'] = ['search' => $search, 'status' => $status, 'source_type' => $sourceType, 'page_size' => $pageSize];
@@ -109,9 +109,6 @@ class Patient extends BaseAdminController
                 localities.name AS locality_name
             ')->join('clinics', 'clinics.id = patients.clinic_id', 'left')->join('countries', 'countries.id = patients.country_id', 'left')->join('states', 'states.id = patients.state_id', 'left')->join('cities', 'cities.id = patients.city_id', 'left')->join('localities', 'localities.id = patients.locality_id', 'left')->where('patients.id', $id);
 
-        if ($this->clinicScope() > 0) {
-            $query->where('patients.clinic_id', $this->clinicScope());
-        }
         $patient = $query->first();
 
         if ($patient === null) {

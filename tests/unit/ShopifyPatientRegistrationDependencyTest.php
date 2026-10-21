@@ -17,7 +17,7 @@ final class ShopifyPatientRegistrationDependencyTest extends TestCase
         foreach ([
             'PATIENT_REGISTRATION_DATABASE_UNAVAILABLE',
             'PATIENT_IDENTITY_LINK_UNAVAILABLE',
-            'PATIENT_CLINIC_SCOPE_INVALID',
+            'SHOPIFY_PROXY_CONFIGURATION_INVALID',
             'PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE',
             'PATIENT_REGISTRATION_INTERNAL_ERROR',
         ] as $code) {

@@ -23,7 +23,7 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("proxy-setup/rotate-secret", $routes);
         self::assertStringContainsString("proxy-setup/enable", $routes);
         self::assertStringContainsString("proxy-setup/disable", $routes);
-        foreach (['Idempotency-Key', 'ShopifyProxyService', 'CoreApiRateLimitService', 'ShopifyOperationIdempotencyService', 'logged_in_customer_id'] as $contract) self::assertStringContainsString($contract, $proxy . file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
+        foreach (['Idempotency-Key', 'ShopifyProxyService', 'ShopifyProxyRateLimitService', 'ShopifyOperationIdempotencyService', 'logged_in_customer_id'] as $contract) self::assertStringContainsString($contract, $proxy . file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
         self::assertStringContainsString('shopify_core_api_proxy_configurations', file_get_contents(ROOTPATH . 'app/Modules/Shopify/Models/ShopifyCoreApiProxyConfigurationModel.php'));
         self::assertStringNotContainsString('new ShopifyConfiguration()', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
     }
@@ -67,7 +67,7 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("SHOPIFY_CUSTOMER_ID_MISMATCH", $controller);
         self::assertStringContainsString("SHOPIFY_CUSTOMER_LOGIN_REQUIRED", $controller);
         self::assertStringContainsString("PATIENT_DATA_INVALID", $controller);
-        self::assertStringContainsString("PATIENT_CLINIC_SCOPE_INVALID", $controller);
+        self::assertStringContainsString("SHOPIFY_PROXY_CONFIGURATION_INVALID", $controller);
         self::assertStringContainsString("SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE", $controller);
         self::assertStringContainsString('APPOINTMENT_AVAILABILITY_INVALID', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_INTERNAL_ERROR', $controller);

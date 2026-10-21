@@ -8,7 +8,6 @@ use App\Modules\CoreApi\Models\CoreApiCredentialModel;
 use App\Modules\CoreApi\Services\CoreApiAppointmentService;
 use App\Modules\CoreApi\Services\CoreApiException;
 use App\Modules\CoreApi\Services\CoreApiPrescriptionUploadService;
-use App\Modules\CoreApi\Services\CoreApiRateLimitService;
 use App\Modules\Shopify\Models\ShopifyPatientIdentityLinkModel;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use InvalidArgumentException;
@@ -110,8 +109,12 @@ final class ShopifyProxyService
         if (in_array($operation, ['appointments.book', 'patients.register'], true) && $customerId === '') {
             $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN'], 401);
         }
-        $credential = $operation === 'appointments.availability' ? [] : $this->credential();
-        if ($operation !== 'appointments.availability') $this->rateLimit((int) ($credential['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
+        // Availability, registration, and appointment booking use the
+        // application-wide clinical services. They must not require a
+        // clinic-scoped Core API credential. Prescription uploads remain a
+        // clinic-scoped operation and keep the existing credential path.
+        $credential = $operation === 'prescriptions.upload' ? $this->credential() : [];
+        if ($operation !== 'appointments.availability') $this->rateLimit((int) ($configuration['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
         $autoLinkPatient = $operation === 'appointments.book';
         if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
@@ -139,16 +142,11 @@ final class ShopifyProxyService
             $this->identityFailure('SHOPIFY_CUSTOMER_UNLINKED', 'Complete patient registration before booking.', ['next_action' => 'REGISTER_PATIENT']);
         }
         if ($patientScoped && $link !== null) {
-            $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $link['patient_id'])->get()->getRowArray();
+            $patient = db_connect()->table('patients')->select('registration_number, status')->where('id', (int) $link['patient_id'])->get()->getRowArray();
             if ($patient === null || (int) $patient['status'] !== 1) {
                 $this->identityFailure('SHOPIFY_PATIENT_INACTIVE', 'The linked ROOTINS patient is inactive.', ['patient' => 'Reactivate the patient before booking.']);
             }
-            if ((int) $patient['clinic_id'] !== (int) $credential['clinic_id']) {
-                service('audit')->record('shopify.proxy_booking_identity_rejected', ['code' => 'SHOPIFY_STORE_SCOPE_MISMATCH', 'operation' => 'appointments.book']);
-                $this->identityFailure('SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.', ['clinic' => 'The linked patient is outside the configured clinic scope.']);
-            }
             $payload['patient_reference'] = (string) $patient['registration_number'];
-            $payload['clinic_id'] = (int) $credential['clinic_id'];
             $context['patient_id'] = (int) $link['patient_id'];
             $context['patient_reference'] = $payload['patient_reference'];
         }
@@ -156,7 +154,7 @@ final class ShopifyProxyService
             'appointments.availability' => (new CoreApiAppointmentService())->availability([], $payload),
             'appointments.book' => (new ShopifyAppointmentIntentService())->create($context, $credential, $payload),
             'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new CoreApiPrescriptionUploadService())->upload($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']], $file),
-            'patients.register' => $this->register($context, $payload, $credential),
+            'patients.register' => $this->register($context, $payload, []),
             default => throw new InvalidArgumentException('Unsupported Shopify proxy operation.'),
         };
     }
@@ -265,7 +263,9 @@ final class ShopifyProxyService
                 throw new CoreApiException(422, 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE', 'Required customer details are missing.', ['required_fields' => implode(',', $customerRequired)]);
             }
         }
-        $registrationFields['clinic_id'] = (int) $credential['clinic_id'];
+        // Patients are global clinical records. A Shopify proxy request must
+        // never invent or require a clinic merely to create the identity.
+        $registrationFields['clinic_id'] = null;
         try {
             $existing = $links->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->first();
         } catch (Throwable $exception) {
@@ -273,15 +273,12 @@ final class ShopifyProxyService
         }
         if ($existing !== null && (string) ($existing['link_status'] ?? '') === 'linked') {
             try {
-                $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
+                $patient = db_connect()->table('patients')->select('registration_number, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
             } catch (Throwable $exception) {
                 $this->registrationDependency('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', $exception);
             }
-            if ($patient !== null && (int) $patient['clinic_id'] === (int) $credential['clinic_id'] && (int) $patient['status'] === 1) {
+            if ($patient !== null && (int) $patient['status'] === 1) {
                 return ['patient_id' => (int) $existing['patient_id'], 'patient_reference' => (string) $patient['registration_number'], 'already_registered' => true];
-            }
-            if ($patient !== null && (int) $patient['clinic_id'] !== (int) $credential['clinic_id']) {
-                $this->identityFailure('SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.', ['clinic' => 'The linked patient is outside the configured clinic scope.']);
             }
             $this->identityFailure('SHOPIFY_PATIENT_INACTIVE', 'The linked ROOTINS patient is inactive.', ['patient' => 'Reactivate the patient before booking.']);
         }
@@ -296,7 +293,7 @@ final class ShopifyProxyService
         $profileRequired = $this->requiredProfileFields($registrationFields);
         if ($profileRequired !== []) throw new CoreApiException(422, 'PATIENT_PROFILE_INCOMPLETE', 'The ROOTINS patient profile is incomplete for registration.', ['required_fields' => implode(',', $profileRequired)]);
         try {
-            $result = $this->findExistingPatient($registrationFields, (int) $credential['clinic_id'], $links);
+            $result = $this->findExistingPatient($registrationFields, null, $links);
         } catch (CoreApiException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -534,11 +531,12 @@ final class ShopifyProxyService
     }
 
     /** @return array{id: int, registration_number: string}|null */
-    private function findExistingPatient(array $fields, int $clinicId, ShopifyPatientIdentityLinkModel $links): ?array
+    private function findExistingPatient(array $fields, ?int $clinicId, ShopifyPatientIdentityLinkModel $links): ?array
     {
         $mobile = preg_replace('/[^0-9]/', '', (string) ($fields['mobile_number'] ?? ''));
         $country = trim((string) ($fields['country_code'] ?? ''));
-        $query = db_connect()->table('patients')->select('id, registration_number')->where('clinic_id', $clinicId)->where('status', 1);
+        $query = db_connect()->table('patients')->select('id, registration_number')->where('status', 1);
+        if ($clinicId !== null && $clinicId > 0) $query->where('clinic_id', $clinicId);
         if ($mobile !== '' && $country !== '') {
             $query->where('country_code', $country)->where('mobile_normalized', $mobile);
         } elseif (trim((string) ($fields['email'] ?? '')) !== '') {
@@ -581,9 +579,9 @@ final class ShopifyProxyService
         return $credential;
     }
 
-    private function rateLimit(int $credentialId, int $limit): void
+    private function rateLimit(int $configurationId, int $limit): void
     {
-        try { $result = (new CoreApiRateLimitService())->consume($credentialId, $limit); } catch (\Throwable) { throw new CoreApiException(503, 'RATE_LIMITER_UNAVAILABLE', 'The request could not be admitted safely.'); }
+        try { $result = (new ShopifyProxyRateLimitService())->consume($configurationId, $limit); } catch (\Throwable) { throw new CoreApiException(503, 'RATE_LIMITER_UNAVAILABLE', 'The request could not be admitted safely.'); }
         if (! $result['allowed']) throw new CoreApiException(429, 'RATE_LIMITED', 'Too many Shopify proxy requests.', [], $result['retry_after']);
     }
 }

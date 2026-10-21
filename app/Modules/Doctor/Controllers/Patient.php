@@ -187,8 +187,7 @@ class Patient extends BaseController
 
         $query = db_connect()->table('patients')
             ->select('patients.id, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.gender, patients.mobile_number, patients.mobile_normalized, patients.country_code, telephone_country_codes.normalized_code AS telephone_country_code, patients.status, patients.source_type, patients.created_at')
-            ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
-            ->where('patients.clinic_id', $context['clinic_id']);
+            ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left');
         $this->applyDoctorPatientScope($query, $context);
 
         if ($search !== '') {
@@ -273,9 +272,9 @@ class Patient extends BaseController
         if ($patient === null) {
             return redirect()->to(base_url('permission-denied'));
         }
-        $appointments = $db->table('appointments')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('appointment_date', 'DESC')->orderBy('appointment_time', 'DESC')->limit(25)->get()->getResultArray();
-        $consultations = $db->table('consultations')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('consultation_date', 'DESC')->limit(25)->get()->getResultArray();
-        $prescriptions = $db->table('prescriptions')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('prescription_date', 'DESC')->limit(25)->get()->getResultArray();
+        $appointments = $db->table('appointments')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('appointment_date', 'DESC')->orderBy('appointment_time', 'DESC')->limit(25)->get()->getResultArray();
+        $consultations = $db->table('consultations')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('consultation_date', 'DESC')->limit(25)->get()->getResultArray();
+        $prescriptions = $db->table('prescriptions')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('prescription_date', 'DESC')->limit(25)->get()->getResultArray();
         service('audit')->record('doctor.patient_view', ['patient_id' => $patientId, 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id']]);
 
         return view(DOCTOR_VIEW . 'pages/patient', ['patient' => $patient, 'appointments' => $appointments, 'consultations' => $consultations, 'prescriptions' => $prescriptions, 'countries' => service('location')->countries(), 'telephoneCodes' => service('location')->telephoneCodes()]);
@@ -307,9 +306,17 @@ class Patient extends BaseController
 
     private function applyDoctorPatientScope($query, array $context): void
     {
-        $appointmentPatients = db_connect()->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id']);
-        $registeredPatients = db_connect()->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
-        $query->where('patients.clinic_id', $context['clinic_id'])->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $registeredPatients)->groupEnd();
+        $db = db_connect();
+        $appointmentPatients = $db->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id']);
+        $consultationPatients = $db->table('consultations')->select('patient_id')->where('doctor_id', $context['doctor_id']);
+        $prescriptionPatients = $db->table('prescriptions')->select('patient_id')->where('doctor_id', $context['doctor_id']);
+        $registeredPatients = $db->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
+        $query->groupStart()
+            ->whereIn('patients.id', $appointmentPatients)
+            ->orWhereIn('patients.id', $consultationPatients)
+            ->orWhereIn('patients.id', $prescriptionPatients)
+            ->orWhereIn('patients.id', $registeredPatients)
+            ->groupEnd();
     }
 
     private function patientErrors(): array

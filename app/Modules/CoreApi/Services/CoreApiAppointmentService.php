@@ -26,7 +26,9 @@ final class CoreApiAppointmentService
         $this->assertDoctorFilter($doctorReference, $clinicId);
 
         $query = $db->table('doctors')->select('doctors.id, doctors.clinic_id, doctors.doctor_code, doctors.first_name, doctors.last_name, doctors.qualification, doctors.experience, doctors.profile_photo, clinics.clinic_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.pincode AS clinic_pincode, cities.name AS clinic_city, states.name AS clinic_state, countries.name AS clinic_country')
-            ->join('clinics', 'clinics.id = doctors.clinic_id AND clinics.status = 1')
+            // Clinic is optional proxy/billing metadata. Keep doctors
+            // discoverable when no active clinic configuration exists.
+            ->join('clinics', 'clinics.id = doctors.clinic_id AND clinics.status = 1', 'left')
             ->join('cities', 'cities.id = clinics.city_id', 'left')
             ->join('states', 'states.id = clinics.state_id', 'left')
             ->join('countries', 'countries.id = clinics.country_id', 'left')

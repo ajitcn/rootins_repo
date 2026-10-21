@@ -51,7 +51,7 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
         self::assertStringContainsString('if ($patientScoped && $link === null && ! $autoLinkPatient)', $proxy);
         self::assertStringContainsString('$link = $patientScoped ? $links->where', $proxy);
         self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability([], \$payload)", $proxy);
-        self::assertStringContainsString("\$credential = \$operation === 'appointments.availability' ? [] : \$this->credential()", $proxy);
+        self::assertStringContainsString("\$credential = \$operation === 'prescriptions.upload' ? \$this->credential() : []", $proxy);
         self::assertStringContainsString("if (\$operation !== 'appointments.availability')", $proxy);
         foreach (['date_from', 'date_to', 'doctor_id', 'specialization_id', 'service_id', 'doctor_reference', 'specialization_reference', 'service_reference'] as $filter) {
             self::assertStringContainsString($filter, $proxy);
@@ -68,7 +68,7 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
         self::assertStringContainsString('return $this->json(503', $controller);
         foreach (['CORE_API_CONFIGURATION_MISSING', 'CLINIC_CONFIGURATION_INVALID', 'DATABASE_UNAVAILABLE', 'APPOINTMENT_SERVICE_UNAVAILABLE', 'AVAILABILITY_DEPENDENCY_FAILURE'] as $code) self::assertStringContainsString($code, $controller);
         self::assertStringContainsString('SHOPIFY_CUSTOMER_UNLINKED', $proxy);
-        self::assertStringContainsString('SHOPIFY_SCOPE_INVALID', $proxy);
+        self::assertStringNotContainsString('SHOPIFY_SCOPE_INVALID', $proxy);
         self::assertStringContainsString('CORE_API_UNAVAILABLE', $proxy);
         self::assertStringContainsString('RATE_LIMITER_UNAVAILABLE', $proxy);
         self::assertStringContainsString('database', $controller);

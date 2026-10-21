@@ -22,7 +22,10 @@ final class ShopifyAppointmentIntentService
         $store = strtolower(trim((string) ($context['store_domain'] ?? '')));
         $customerId = trim((string) ($context['customer_id'] ?? ''));
         $patientId = (int) ($context['patient_id'] ?? 0);
-        $clinicId = (int) ($credential['clinic_id'] ?? 0);
+        // The proxy configuration authenticates the store; it is not a
+        // clinical scope. Resolve the billing/operational clinic from the
+        // selected ROOTINS doctor after validating the public reference.
+        $clinicId = 0;
         $idempotencyKey = trim((string) ($input['idempotency_key'] ?? ''));
         $doctorReference = trim((string) ($input['doctor_reference'] ?? ''));
         $serviceReference = trim((string) ($input['service_reference'] ?? ''));
@@ -65,9 +68,11 @@ final class ShopifyAppointmentIntentService
             return $this->intentResponse($existing);
         }
 
-        $doctor = $db->table('doctors')->where('doctor_code', $doctorReference)->where('clinic_id', $clinicId)->where('status', 1)->where('online_booking', 1)->get(1)->getRowArray();
+        $doctor = $db->table('doctors')->where('doctor_code', $doctorReference)->where('status', 1)->where('online_booking', 1)->get(1)->getRowArray();
+        $clinicId = (int) ($doctor['clinic_id'] ?? 0);
         $service = $db->table('admin_services')->groupStart()->where('clinic_id', $clinicId)->orWhere('clinic_id', null)->groupEnd()->where('id', (int) $serviceMatch[1])->where('status', 1)->get(1)->getRowArray();
         if ($doctor === null) throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', [$doctorField => 'The selected doctor is unavailable for online booking.']);
+        if ($clinicId < 1) throw new CoreApiException(503, 'BILLING_CLINIC_UNAVAILABLE', 'Billing scope is unavailable for the selected doctor.');
         if ($service === null) throw new CoreApiException(422, 'SERVICE_INVALID', 'The selected service is invalid.', [$serviceField => 'The selected service is unavailable.']);
 
         $db->transBegin();
@@ -132,6 +137,9 @@ final class ShopifyAppointmentIntentService
             }
             if (! in_array((string) $intent['status'], self::ACTIVE_INTENT_STATUSES, true)) throw new RuntimeException('Appointment intent is not payable.');
             if ((string) ($payload['customer_id'] ?? '') !== (string) $intent['shopify_customer_id']) throw new RuntimeException('Shopify customer does not match the appointment intent.');
+            if ((int) ($intent['clinic_id'] ?? 0) < 1 || $db->table('clinics')->where('id', (int) $intent['clinic_id'])->where('status', 1)->get(1)->getRowArray() === null) {
+                throw new RuntimeException('BILLING_CLINIC_UNAVAILABLE');
+            }
             if (strtotime((string) $intent['expires_at']) < time()) throw new RuntimeException('Appointment intent has expired.');
             if (strtoupper((string) ($payload['currency'] ?? '')) !== strtoupper((string) $intent['currency']) || abs((float) ($payload['total_price'] ?? 0) - (float) $intent['amount']) > 0.01) throw new RuntimeException('Shopify payment amount or currency does not match the appointment intent.');
             $day = (int) (new DateTimeImmutable((string) $intent['appointment_date'], $this->timezone()))->format('N');

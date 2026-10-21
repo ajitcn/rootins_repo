@@ -85,7 +85,7 @@ final class Proxy extends BaseController
             if ($operation === 'patients.register') {
                 $code = $exception->errorCode === 'SHOPIFY_PROXY_SIGNATURE_INVALID'
                     ? 'SHOPIFY_PROXY_SIGNATURE_INVALID'
-                    : 'PATIENT_CLINIC_SCOPE_INVALID';
+                    : 'SHOPIFY_PROXY_CONFIGURATION_INVALID';
                 $status = $code === 'SHOPIFY_PROXY_SIGNATURE_INVALID' ? 401 : 503;
                 if ($status === 503) return $this->registrationDependencyError($code);
                 return $this->json(401, false, 'The Shopify proxy signature is invalid.', [], $code);
@@ -218,8 +218,8 @@ final class Proxy extends BaseController
             $status = 403;
             $message = 'The Shopify customer identity does not match the signed customer.';
         } elseif (in_array($code, ['CORE_API_UNAVAILABLE', 'CORE_API_SCOPE_UNAVAILABLE', 'CORE_API_CONFIGURATION_MISSING'], true)) {
-            return $this->registrationDependencyError('PATIENT_CLINIC_SCOPE_INVALID');
-        } elseif (in_array($code, ['PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', 'PATIENT_IDENTITY_LINK_UNAVAILABLE', 'PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE', 'PATIENT_CLINIC_SCOPE_INVALID', 'PATIENT_REGISTRATION_INTERNAL_ERROR'], true)) {
+            return $this->registrationDependencyError('SHOPIFY_PROXY_CONFIGURATION_INVALID');
+        } elseif (in_array($code, ['PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', 'PATIENT_IDENTITY_LINK_UNAVAILABLE', 'PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE', 'PATIENT_REGISTRATION_INTERNAL_ERROR', 'SHOPIFY_PROXY_CONFIGURATION_INVALID'], true)) {
             return $this->registrationDependencyError($code);
         } elseif ($status >= 500) {
             return $this->registrationDependencyError('PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE');

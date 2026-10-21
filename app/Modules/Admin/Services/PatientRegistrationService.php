@@ -32,12 +32,12 @@ class PatientRegistrationService
      */
     public function register(array $patientData, ?int $transferredBy = null, array $source = []): array
     {
-        if (empty($patientData['clinic_id'])) {
-            throw new InvalidArgumentException('A clinic is required for patient registration.');
-        }
         $sourceType = (string) ($source['source_type'] ?? 'self');
         if (!in_array($sourceType, ['self', 'shopify'], true)) {
             throw new InvalidArgumentException('Patient source is invalid.');
+        }
+        if ($sourceType !== 'shopify' && empty($patientData['clinic_id'])) {
+            throw new InvalidArgumentException('A clinic is required for patient registration.');
         }
         $patientData['mobile_number'] = self::normalizeRequiredMobileNumber($patientData['mobile_number'] ?? null);
         // The deployed patients schema requires a non-null DATE. Validate and
@@ -66,13 +66,12 @@ class PatientRegistrationService
                 if ($country === null) {
                     throw new InvalidArgumentException('A valid country code is required.');
                 }
-                $duplicate = $this->db->table('patients')
-                    ->where('clinic_id', (int) $patientData['clinic_id'])
+                $duplicateQuery = $this->db->table('patients')
                     ->where('country_code', (string) $country['phone_code'])
                     ->where('mobile_normalized', $mobileNormalized)
-                    ->where('status', 1)
-                    ->get()
-                    ->getRowArray();
+                    ->where('status', 1);
+                if ((int) ($patientData['clinic_id'] ?? 0) > 0) $duplicateQuery->where('clinic_id', (int) $patientData['clinic_id']);
+                $duplicate = $duplicateQuery->get()->getRowArray();
 
                 if ($duplicate !== null) {
                     throw new InvalidArgumentException('A patient with this mobile number already exists in the clinic.');
@@ -106,7 +105,7 @@ class PatientRegistrationService
                 throw new RuntimeException('Patient registration number assignment failed.');
             }
 
-            if (!$this->db->table('patient_clinic_transfers')->insert(['patient_id' => $patientId, 'from_clinic_id' => null, 'to_clinic_id' => (int) $patientData['clinic_id'], 'transferred_at' => date('Y-m-d H:i:s'), 'transferred_by' => $transferredBy, 'reason' => 'Initial clinic assignment', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')])) {
+            if ((int) ($patientData['clinic_id'] ?? 0) > 0 && !$this->db->table('patient_clinic_transfers')->insert(['patient_id' => $patientId, 'from_clinic_id' => null, 'to_clinic_id' => (int) $patientData['clinic_id'], 'transferred_at' => date('Y-m-d H:i:s'), 'transferred_by' => $transferredBy, 'reason' => 'Initial clinic assignment', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')])) {
                 throw new RuntimeException('Initial clinic assignment history failed.');
             }
 
