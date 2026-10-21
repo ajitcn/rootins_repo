@@ -49,7 +49,7 @@ final class ShopifyProxyAvailabilityRegressionTest extends TestCase
 
         self::assertStringContainsString('$patientScoped = in_array($operation, [\'appointments.book\', \'prescriptions.upload\'], true)', $proxy);
         self::assertStringContainsString('if ($patientScoped && $link === null)', $proxy);
-        self::assertStringContainsString('$link = $patientScoped && $customerId !== \'\'', $proxy);
+        self::assertStringContainsString('$link = $patientScoped ? $links->where', $proxy);
         self::assertStringContainsString("'appointments.availability' => (new CoreApiAppointmentService())->availability(\$credential, \$payload)", $proxy);
         foreach (['date_from', 'date_to', 'doctor_id', 'specialization_id', 'service_id', 'doctor_reference', 'specialization_reference', 'service_reference'] as $filter) {
             self::assertStringContainsString($filter, $proxy);

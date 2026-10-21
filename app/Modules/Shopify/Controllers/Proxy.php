@@ -123,6 +123,14 @@ final class Proxy extends BaseController
             ? ['status' => true, 'data' => $data === [] ? (object) [] : $data]
             : ['status' => false, 'error' => ['code' => $code !== '' ? $code : 'SHOPIFY_PROXY_ERROR', 'message' => $message]];
         if (! $success) {
+            if (isset($fields['next_action'])) {
+                $body['error']['next_action'] = $fields['next_action'];
+                unset($fields['next_action']);
+            }
+            if (isset($fields['required_fields'])) {
+                $body['error']['required_fields'] = array_values(array_filter(array_map('trim', explode(',', (string) $fields['required_fields']))));
+                unset($fields['required_fields']);
+            }
             if ($fields !== []) $body['error']['fields'] = $fields;
             $body['error']['correlation_id'] = $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable';
         }

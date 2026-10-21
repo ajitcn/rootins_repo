@@ -10,6 +10,7 @@ final class ShopifyCustomerLookupService
         private readonly ?ShopifyConfigurationService $configurationService = null,
         private readonly ?ShopifyClient $client = null,
         private readonly ?ShopifyCustomerIdentityService $identityService = null,
+        private readonly ?ShopifyConfiguration $runtimeConfiguration = null,
     ) {
     }
 
@@ -35,7 +36,7 @@ final class ShopifyCustomerLookupService
         $configuration = null;
 
         try {
-            $configuration = ($this->configurationService ?? new ShopifyConfigurationService())->runtime();
+            $configuration = $this->runtimeConfiguration ?? ($this->configurationService ?? new ShopifyConfigurationService())->runtime();
         } catch (ShopifyConfigurationException $exception) {
             throw new ShopifyCustomerLookupException('SHOPIFY_CONFIGURATION_MISSING', 422, 'Shopify configuration is missing.', $publicId, null, $exception);
         }

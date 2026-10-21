@@ -35,21 +35,23 @@ class PatientRegistrationService
         if (empty($patientData['clinic_id'])) {
             throw new InvalidArgumentException('A clinic is required for patient registration.');
         }
+        $sourceType = (string) ($source['source_type'] ?? 'self');
+        if (!in_array($sourceType, ['self', 'shopify'], true)) {
+            throw new InvalidArgumentException('Patient source is invalid.');
+        }
         $patientData['mobile_number'] = self::normalizeRequiredMobileNumber($patientData['mobile_number'] ?? null);
         // The deployed patients schema requires a non-null DATE. Validate and
         // normalize before starting the transaction so callers receive a
         // field-level validation error instead of a database exception.
-        $patientData['date_of_birth'] = $this->normalizeRequiredDateOfBirth($patientData['date_of_birth'] ?? null);
+        $dateOfBirth = trim((string) ($patientData['date_of_birth'] ?? ''));
+        $patientData['date_of_birth'] = $dateOfBirth === '' && $sourceType === 'shopify' && $this->isNullableColumn('date_of_birth')
+            ? null
+            : $this->normalizeRequiredDateOfBirth($patientData['date_of_birth'] ?? null);
         $appointment = $patientData['_appointment'] ?? null;
         unset($patientData['_appointment']);
         // The source is a server-side decision. Never derive it from the
         // submitted patient payload, because forms and API clients can post
         // arbitrary source_type values.
-        $sourceType = (string) ($source['source_type'] ?? 'self');
-
-        if (!in_array($sourceType, ['self', 'shopify'], true)) {
-            throw new InvalidArgumentException('Patient source is invalid.');
-        }
         unset($patientData['source_type']);
         $patientData['source_type'] = $sourceType;
         $patientData['source_user_id'] = $source['source_user_id'] ?? $transferredBy;
@@ -300,5 +302,13 @@ class PatientRegistrationService
         $country['phone_code'] = (string) $country['normalized_code'];
 
         return $country;
+    }
+
+    private function isNullableColumn(string $column): bool
+    {
+        foreach ($this->db->getFieldData('patients') as $field) {
+            if ((string) ($field->name ?? '') === $column) return (bool) ($field->nullable ?? false);
+        }
+        return false;
     }
 }

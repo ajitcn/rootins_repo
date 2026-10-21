@@ -35,6 +35,7 @@ final class ShopifyCustomerLookupTest extends TestCase
         self::assertStringContainsString("'shopify_customer_id'", $service);
         self::assertStringContainsString("'linked_patient_reference'", $service);
         self::assertStringContainsString('identityMatch', $service);
+        self::assertStringContainsString('runtimeConfiguration', $service);
         self::assertStringNotContainsString('patient_id', $service);
         self::assertStringNotContainsString('access_token', $service . $controller);
         self::assertStringNotContainsString('webhook_secret', $service . $controller);

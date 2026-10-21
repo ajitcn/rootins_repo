@@ -163,11 +163,19 @@ final class ShopifyCustomerIdentityService
         $configuration = $this->configuration ?? new ShopifyConfiguration();
         $model = $this->links ?? new ShopifyPatientIdentityLinkModel();
 
-        return $model
+        $rows = $model
             ->where('shopify_store_domain', strtolower($configuration->storeDomain()))
             ->whereIn('link_status', ['unmatched', 'ambiguous', 'linked'])
             ->orderBy('updated_at', 'DESC')
             ->findAll(100);
+
+        foreach ($rows as &$row) {
+            $patient = ! empty($row['patient_id']) ? ($this->patients ?? new PatientModel())->select('registration_number')->where('id', (int) $row['patient_id'])->first() : null;
+            $row['patient_reference'] = (string) ($patient['registration_number'] ?? '');
+            unset($row['patient_id']);
+        }
+        unset($row);
+        return $rows;
     }
 
     /**

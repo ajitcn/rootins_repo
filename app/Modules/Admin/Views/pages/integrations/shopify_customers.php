@@ -40,11 +40,12 @@
                 <div class="p-4 text-muted">No Shopify customer identities require review.</div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0"><caption class="sr-only">Shopify customer identity review queue</caption><thead><tr><th>Customer</th><th>Contact snapshot</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+                    <table class="table table-sm mb-0"><caption class="sr-only">Shopify customer identity review queue</caption><thead><tr><th>Shopify store</th><th>Customer ID</th><th>ROOTINS patient</th><th>Status</th><th>Actions</th></tr></thead><tbody>
                     <?php foreach ($customerLinks as $link): ?>
                         <tr>
-                            <td class="text-break"><?= esc($link['shopify_customer_id']) ?></td>
-                            <td class="small text-break"><?= esc($link['email_snapshot'] ?: 'No email') ?><br><?= esc($link['mobile_snapshot'] ?: 'No mobile') ?></td>
+                            <td class="text-break"><?= esc($link['shopify_store_domain']) ?></td>
+                            <td class="text-break"><code><?= esc($link['shopify_customer_id']) ?></code><br><span class="small text-muted"><?= esc($link['email_snapshot'] ?: 'No email') ?><br><?= esc($link['mobile_snapshot'] ?: 'No mobile') ?></span></td>
+                            <td><?= esc($link['patient_reference'] ?: 'Not linked') ?></td>
                             <td><span class="badge badge-light"><?= esc(ucfirst((string) $link['link_status'])) ?></span></td>
                             <td>
                                 <?php if ($link['link_status'] !== 'linked'): ?>

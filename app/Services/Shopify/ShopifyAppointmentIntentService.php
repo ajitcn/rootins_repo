@@ -31,6 +31,7 @@ final class ShopifyAppointmentIntentService
         $time = $this->normalizeTime((string) ($input['appointment_time'] ?? ''));
         $endTimeValue = array_key_exists('_requested_end_time', $input) ? (string) $input['_requested_end_time'] : '';
         $endTime = $this->normalizeTime($endTimeValue);
+        $consultationMode = strtolower(trim((string) ($input['consultation_mode'] ?? $input['appointment_type'] ?? 'in_person')));
         $doctorField = (string) ($input['_doctor_field'] ?? 'doctor_reference');
         $serviceField = (string) ($input['_service_field'] ?? 'service_reference');
         $timeField = (string) ($input['_start_time_field'] ?? 'appointment_time');
@@ -44,6 +45,7 @@ final class ShopifyAppointmentIntentService
         if ($time === null) $errors[$timeField] = 'Enter a valid start time as HH:mm.';
         if ($endTimeValue === '' || $endTime === null) $errors['end_time'] = 'Enter a valid end time as HH:mm.';
         if ($slotReference === '') $errors['slot_reference'] = 'Select a valid slot from availability.';
+        if (! in_array($consultationMode, ['in_person', 'video', 'phone'], true)) $errors['consultation_mode'] = 'Select a valid consultation mode.';
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 191) $errors['idempotency_key'] = 'A valid Idempotency-Key header is required.';
         if ($this->consentRequired() && ! $this->acceptedConsent($input['consent'] ?? null)) $errors['consent'] = 'Appointment consent is required.';
         if ($errors !== []) throw new CoreApiException(422, $this->validationCode($errors), 'Review the booking fields.', $errors);
@@ -57,7 +59,7 @@ final class ShopifyAppointmentIntentService
         $intentModel = new ShopifyAppointmentIntentModel();
         $existing = $intentModel->where('shopify_store_domain', $store)->where('idempotency_key', $idempotencyKey)->first();
         if ($existing !== null) {
-            if ((int) $existing['patient_id'] !== $patientId || (string) $existing['appointment_date'] !== $date || substr((string) $existing['appointment_time'], 0, 5) !== $time) {
+            if ((int) $existing['patient_id'] !== $patientId || (string) $existing['appointment_date'] !== $date || substr((string) $existing['appointment_time'], 0, 5) !== $time || (string) ($existing['consultation_mode'] ?? 'in_person') !== $consultationMode) {
                 throw new CoreApiException(409, 'APPOINTMENT_INTENT_REUSED', 'This Idempotency-Key was used for different booking details.');
             }
             return $this->intentResponse($existing);
@@ -90,7 +92,7 @@ final class ShopifyAppointmentIntentService
                 'shopify_store_domain' => $store, 'shopify_customer_id' => $customerId, 'patient_id' => $patientId,
                 'patient_reference' => (string) ($context['patient_reference'] ?? ''), 'clinic_id' => $clinicId,
                 'doctor_id' => (int) $doctor['id'], 'service_id' => (int) $service['id'], 'appointment_date' => $date,
-                'appointment_time' => $time, 'duration_minutes' => $duration, 'amount' => $amount, 'currency' => 'INR',
+                'appointment_time' => $time, 'consultation_mode' => $consultationMode, 'duration_minutes' => $duration, 'amount' => $amount, 'currency' => 'INR',
                 'idempotency_key' => $idempotencyKey, 'status' => 'pending_payment',
                 'expires_at' => date('Y-m-d H:i:s', time() + self::HOLD_MINUTES * 60), 'created_at' => $now, 'updated_at' => $now,
             ];
@@ -123,7 +125,11 @@ final class ShopifyAppointmentIntentService
         try {
             $intent = $db->query('SELECT * FROM shopify_appointment_intents WHERE shopify_store_domain = ? AND public_reference = ? LIMIT 1 FOR UPDATE', [$store, $reference])->getRowArray();
             if ($intent === null) throw new RuntimeException('Appointment intent was not found.');
-            if ((string) $intent['status'] === 'booked') { $db->transCommit(); return ['status' => 'booked', 'appointment_id' => (int) $intent['appointment_id'], 'intent_reference' => $reference]; }
+            if ((string) $intent['status'] === 'booked') {
+                if ((string) ($intent['shopify_order_id'] ?? '') !== $orderId) throw new RuntimeException('Appointment intent is already linked to another Shopify order.');
+                $db->transCommit();
+                return ['status' => 'booked', 'appointment_id' => (int) $intent['appointment_id'], 'intent_reference' => $reference];
+            }
             if (! in_array((string) $intent['status'], self::ACTIVE_INTENT_STATUSES, true)) throw new RuntimeException('Appointment intent is not payable.');
             if ((string) ($payload['customer_id'] ?? '') !== (string) $intent['shopify_customer_id']) throw new RuntimeException('Shopify customer does not match the appointment intent.');
             if (strtotime((string) $intent['expires_at']) < time()) throw new RuntimeException('Appointment intent has expired.');
@@ -138,7 +144,7 @@ final class ShopifyAppointmentIntentService
             if ($this->leaveOverlaps((int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $intent['appointment_time'] < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new RuntimeException('The paid appointment slot is inside a break or outside working hours.');
             $this->assertSlotAvailable($db, (int) $intent['clinic_id'], (int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd, date('Y-m-d H:i:s'), (int) ($schedule['max_patients'] ?? 0), (int) $intent['id']);
             $now = date('Y-m-d H:i:s');
-            $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => (int) $intent['patient_id'], 'doctor_id' => (int) $intent['doctor_id'], 'clinic_id' => (int) $intent['clinic_id'], 'appointment_date' => $intent['appointment_date'], 'appointment_time' => $intent['appointment_time'], 'duration_minutes' => $duration, 'appointment_type' => 'in_person', 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => (int) $intent['patient_id'], 'booking_source' => 'shopify', 'created_at' => $now, 'updated_at' => $now]);
+            $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => (int) $intent['patient_id'], 'doctor_id' => (int) $intent['doctor_id'], 'clinic_id' => (int) $intent['clinic_id'], 'appointment_date' => $intent['appointment_date'], 'appointment_time' => $intent['appointment_time'], 'duration_minutes' => $duration, 'appointment_type' => (string) ($intent['consultation_mode'] ?? 'in_person'), 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => (int) $intent['patient_id'], 'booking_source' => 'shopify', 'created_at' => $now, 'updated_at' => $now]);
             $appointmentId = (int) $db->insertID();
             if ($appointmentId < 1 || ! $db->table('appointments')->where('id', $appointmentId)->update(['appointment_number' => sprintf('APT-%06d', $appointmentId)])) throw new RuntimeException('Final appointment creation failed.');
             if (! $db->table('appointment_services')->insert(['appointment_id' => $appointmentId, 'service_id' => (int) $intent['service_id'], 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'created_at' => $now])) throw new RuntimeException('Appointment service link failed.');
@@ -179,11 +185,21 @@ final class ShopifyAppointmentIntentService
         if (isset($errors['doctor_id']) || isset($errors['doctor_reference'])) return 'DOCTOR_INVALID';
         if (isset($errors['service_id']) || isset($errors['service_reference'])) return 'SERVICE_INVALID';
         if (isset($errors['consent'])) return 'CONSENT_REQUIRED';
+        if (isset($errors['consultation_mode'])) return 'CONSULTATION_MODE_INVALID';
         if (isset($errors['idempotency_key'])) return 'IDEMPOTENCY_KEY_REQUIRED';
         return 'APPOINTMENT_INTENT_INVALID';
     }
     private function consentRequired(): bool { return filter_var(env('SHOPIFY_APPOINTMENT_CONSENT_REQUIRED', false), FILTER_VALIDATE_BOOLEAN); }
-    private function acceptedConsent(mixed $value): bool { return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'accepted'], true); }
+    private function acceptedConsent(mixed $value): bool
+    {
+        if (is_array($value)) {
+            foreach ($value as $consent) {
+                if (in_array(strtolower(trim((string) $consent)), ['1', 'true', 'yes', 'accepted'], true)) return true;
+            }
+            return false;
+        }
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'accepted'], true);
+    }
     private function parseDate(string $value): ?string { $date = DateTimeImmutable::createFromFormat('!d-m-Y', trim($value), $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) && $date->format('d-m-Y') === trim($value) ? $date->format('Y-m-d') : null; }
     /** @return array{doctor_reference: string, service_reference: string, date: string, start_time: string}|null */
     private function slotParts(string $reference): ?array

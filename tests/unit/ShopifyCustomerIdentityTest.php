@@ -68,4 +68,13 @@ final class ShopifyCustomerIdentityTest extends TestCase
         self::assertStringContainsString('permission:shopify.integration.manage', $routes);
         self::assertStringContainsString('I confirm this identity action', $controller);
     }
+
+    public function testAdminDiagnosticUsesStoreCustomerPatientReferenceAndStatusWithoutInternalPatientId(): void
+    {
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/integrations/shopify_customers.php');
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerIdentityService.php');
+
+        foreach (['shopify_store_domain', 'shopify_customer_id', 'patient_reference', 'link_status'] as $field) self::assertStringContainsString($field, $view);
+        self::assertStringContainsString("unset(\$row['patient_id'])", $service);
+    }
 }
