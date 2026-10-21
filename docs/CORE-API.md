@@ -77,6 +77,85 @@ credential and cannot be used to bypass data isolation.
 
 ## Endpoints
 
+### Shopify Core API App Proxy patient registration
+
+The Shopify storefront registration endpoint is separate from the Core API
+credential endpoints and from the Shopify Webhooks / Order Integration app:
+
+```text
+POST /public/rootins-proxy/patients/register
+```
+
+The request must contain a valid Shopify App Proxy signature and signed
+`shop`, `timestamp`, `path_prefix`, and `logged_in_customer_id` context. The
+store must have an active Core API Proxy configuration, and writes must include
+an `Idempotency-Key`. The request body contains a `patient` object; `{}` is
+rejected with `PATIENT_DATA_INVALID`. The server does not fetch the Shopify
+customer profile for registration. The signed `logged_in_customer_id` is the
+only authoritative Shopify identity. A submitted `patient.shopify_customer_id`
+is optional for compatibility, but if present it must match that signed value
+and is never used as the link key.
+
+Required patient fields are `first_name`, `last_name`, `mobile` or
+`mobile_number`, `country_code`, `gender`, and `booking_for`. Currently
+`booking_for: "self"` is supported. Optional fields include `name`, `age`,
+`guardian_name`, `email`, `date_of_birth`, and `address`. Names and strings are
+trimmed; phone and country code are normalized; optional email is validated
+when present. The browser must not submit a ROOTINS patient ID, store domain,
+or alternate Shopify customer identity.
+
+Example request body:
+
+```json
+{
+  "patient": {
+    "first_name": "Nitish",
+    "last_name": "Prajapati",
+    "name": "Nitish Prajapati",
+    "age": 29,
+    "gender": "male",
+    "guardian_name": "",
+    "mobile": "+919876543210",
+    "country_code": "+91",
+    "mobile_number": "9876543210",
+    "email": "n@x.com",
+    "booking_for": "self",
+    "shopify_customer_id": 1234567890
+  }
+}
+```
+
+Identity is scoped exactly by `store_domain + logged_in_customer_id`. An
+existing active link is reused idempotently; otherwise ROOTINS applies its
+clinic-scoped duplicate checks, creates a patient only when needed, and then
+creates the identity link. Internal database IDs, Shopify payloads, tokens,
+and secrets are never returned.
+
+Successful response:
+
+```json
+{
+  "status": true,
+  "data": {
+    "booking_enabled": true,
+    "patient_reference": "safe-public-reference"
+  }
+}
+```
+
+Before any patient or identity-link write, submitted patient data is
+validated. Invalid or missing values return HTTP 422 `PATIENT_DATA_INVALID`
+with safe field-level errors and no patient or link is created. A submitted
+customer ID mismatch returns HTTP 403 `SHOPIFY_CUSTOMER_ID_MISMATCH`.
+
+Important error codes are `SHOPIFY_CUSTOMER_LOGIN_REQUIRED` (HTTP 401/403),
+`SHOPIFY_CUSTOMER_DATA_INCOMPLETE` (HTTP 422),
+`PATIENT_PROFILE_INCOMPLETE` (HTTP 422, with `required_fields`),
+`SHOPIFY_PATIENT_INACTIVE` (HTTP 403), and
+`SHOPIFY_STORE_MISMATCH` (HTTP 403). Every error includes a safe correlation
+ID. Date of birth remains optional when the ROOTINS schema permits it to remain
+blank; existing patient values are preserved on repeated registration.
+
 <!-- BEGIN CORE API ENDPOINT CATALOG -->
 
 | Method | Path | Purpose | Required headers | Parameters | Response fields | Errors |

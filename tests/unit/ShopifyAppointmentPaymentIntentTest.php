@@ -43,27 +43,39 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         self::assertStringNotContainsString("'patient_id' => " . '$input', $intent);
     }
 
-    public function testShopifyCustomerRegistrationIsSignedScopedIdempotentAndDoesNotTrustPatientId(): void
+    public function testShopifyCustomerRegistrationIsSignedScopedIdempotentAndUsesSignedCustomerIdentity(): void
     {
         $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
 
-        foreach (['logged_in_customer_id', 'shopify_store_domain', 'shopify_customer_id', 'booking_enabled', 'already_registered', 'findExistingPatient', 'verifiedShopifyCustomer', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE'] as $contract) self::assertStringContainsString($contract, $proxy);
+        foreach (['logged_in_customer_id', 'shopify_store_domain', 'shopify_customer_id', 'booking_enabled', 'patient_reference', 'findExistingPatient', 'validateSubmittedPatient', 'SHOPIFY_CUSTOMER_ID_MISMATCH', 'PATIENT_DATA_INVALID', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED'] as $contract) self::assertStringContainsString($contract, $proxy);
         self::assertStringContainsString("'next_action' => 'REGISTER_PATIENT'", $proxy);
         self::assertStringContainsString("\$body['error']['next_action']", $controller);
         self::assertStringNotContainsString("\$payload['patient_id']", $proxy);
     }
 
-    public function testRegistrationUsesServerSideShopifyCustomerDataAndSupportsEmptyBody(): void
+    public function testRegistrationValidatesSubmittedPatientDataAndDoesNotFetchShopifyProfile(): void
     {
         $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
-        $lookup = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerLookupService.php');
+        $start = strpos($proxy, 'private function register(');
+        $end = strpos($proxy, '/** @return array{patient_id:int, patient_reference:string, already_registered:bool} */', $start);
+        self::assertNotFalse($start);
+        self::assertNotFalse($end);
+        $registration = substr($proxy, $start, $end - $start);
+        $validatorStart = strpos($proxy, 'private function validateSubmittedPatient(');
+        $validatorEnd = strpos($proxy, 'private function invalidPatientName(', $validatorStart);
+        self::assertNotFalse($validatorStart);
+        self::assertNotFalse($validatorEnd);
+        $validator = substr($proxy, $validatorStart, $validatorEnd - $validatorStart);
 
-        foreach (['verifiedShopifyCustomer', 'ShopifyCustomerLookupService', 'verifiedRegistrationFields', 'runtimeConfiguration', 'booking_enabled'] as $contract) self::assertStringContainsString($contract, $proxy . $lookup);
-        foreach (['first_name', 'last_name', 'email', 'mobile_number', 'country_code'] as $field) self::assertStringContainsString($field, $proxy);
-        self::assertStringNotContainsString("\$payload['first_name']", $proxy);
-        self::assertStringNotContainsString("\$payload['email']", $proxy);
-        self::assertStringNotContainsString("\$payload['mobile_number']", $proxy);
+        foreach (['patient', 'validateSubmittedPatient', 'PATIENT_DATA_INVALID'] as $contract) self::assertStringContainsString($contract, $registration);
+        foreach (['first_name', 'last_name', 'mobile', 'mobile_number', 'country_code', 'gender', 'booking_for', 'SHOPIFY_CUSTOMER_ID_MISMATCH', 'PATIENT_DATA_INVALID'] as $contract) self::assertStringContainsString($contract, $validator);
+        self::assertStringNotContainsString('verifiedShopifyCustomer', $registration);
+        self::assertStringNotContainsString('ShopifyCustomerLookupService', $registration);
+        self::assertStringContainsString("return ['booking_enabled' => true, 'patient_reference' =>", $proxy);
+        self::assertStringContainsString("'source_type' => 'shopify'", $proxy);
+        self::assertStringContainsString("'telephone_country_code_id'", $proxy);
+        self::assertStringNotContainsString("\$payload['patient_id']", $proxy);
     }
 
     public function testBookingAttemptsTheSameIdentityLinkingPathAsRegistration(): void

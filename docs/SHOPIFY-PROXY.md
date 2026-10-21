@@ -107,11 +107,52 @@ The browser must disable the confirm button for guests and must use only the
 public identifiers returned by availability. It must not submit patient IDs,
 fees, doctor names, service names, or source values.
 
-Patient registration is intentionally body-independent. Send an empty JSON
-object (`{}`) with the signed App Proxy query, including Shopify's
-`logged_in_customer_id`; ROOTINS fetches the customer through the Core API
-Proxy app's server-side client-credentials connection. The browser must not
-send name, email, mobile, country code, or `patient_id`. A successful response
-is `data.booking_enabled: true` with only the safe `patient_reference`.
-Date of birth and gender remain optional for this Shopify registration path;
-they can be completed later without overwriting existing ROOTINS values.
+Patient registration uses the signed App Proxy identity and a validated
+`patient` object. The signed `logged_in_customer_id` is authoritative;
+`patient.shopify_customer_id`, when present, must match it exactly after string
+normalization and is never used as the link key. An empty JSON body (`{}`) is
+invalid because the patient fields are required for this registration flow.
+The browser must not submit a patient database ID or use a customer ID to
+override the signed identity. A successful response is
+`data.booking_enabled: true` with only the safe `patient_reference`:
+
+```http
+POST /public/rootins-proxy/patients/register?shop=d0j6a1-ge.myshopify.com&timestamp=...&logged_in_customer_id=...&path_prefix=%2Fapps%2Frootins&signature=...
+Idempotency-Key: shopify-registration-unique-key
+Content-Type: application/json
+
+{
+  "patient": {
+    "first_name": "Nitish",
+    "last_name": "Prajapati",
+    "gender": "male",
+    "mobile": "+919876543210",
+    "country_code": "+91",
+    "mobile_number": "9876543210",
+    "email": "n@x.com",
+    "booking_for": "self",
+    "shopify_customer_id": 1234567890
+  }
+}
+```
+
+```json
+{
+  "status": true,
+  "data": {
+    "booking_enabled": true,
+    "patient_reference": "safe-public-reference"
+  }
+}
+```
+
+The signed request context is mandatory: `shop`/store domain,
+`logged_in_customer_id`, a timestamp within the configured tolerance, the App
+Proxy signature, and an active Core API Proxy configuration. Missing login
+context returns `SHOPIFY_CUSTOMER_LOGIN_REQUIRED`; an ID mismatch returns HTTP
+403 `SHOPIFY_CUSTOMER_ID_MISMATCH`; and invalid patient fields return HTTP 422
+`PATIENT_DATA_INVALID` with safe field-level errors. The required patient
+fields are `first_name`, `last_name`, `mobile` or `mobile_number`,
+`country_code`, `gender`, and `booking_for` (`self` is currently supported).
+Optional email is validated when supplied. Cross-store and inactive-link
+checks remain enforced, and error responses include a safe correlation ID.

@@ -233,19 +233,35 @@ final class ShopifyProxyService
 
     private function register(array $context, array $payload, array $credential): array
     {
-        $resolved = $this->ensureCustomerPatientLink($context, $credential);
-        return ['patient_reference' => $resolved['patient_reference'], 'booking_enabled' => true, 'already_registered' => $resolved['already_registered'], 'message' => 'Patient registration is complete. Booking is enabled.'];
+        $customerId = trim((string) ($context['customer_id'] ?? ''));
+        if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
+
+        $patient = $payload['patient'] ?? null;
+        if (! is_array($patient)) {
+            throw new CoreApiException(422, 'PATIENT_DATA_INVALID', 'Patient details are required.', ['patient' => 'Submit a patient object with the required registration fields.']);
+        }
+        $validated = $this->validateSubmittedPatient($patient, $customerId);
+        $resolved = $this->ensureCustomerPatientLink($context, $credential, $validated);
+        return ['booking_enabled' => true, 'patient_reference' => $resolved['patient_reference']];
     }
 
     /** @return array{patient_id:int, patient_reference:string, already_registered:bool} */
-    private function ensureCustomerPatientLink(array $context, array $credential): array
+    private function ensureCustomerPatientLink(array $context, array $credential, ?array $registrationFields = null): array
     {
         $customerId = trim((string) ($context['customer_id'] ?? ''));
         if ($customerId === '') $this->identityFailure('SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'Sign in to Shopify before continuing.', ['next_action' => 'SHOPIFY_CUSTOMER_LOGIN']);
 
         $links = new ShopifyPatientIdentityLinkModel();
         $store = (string) $context['store_domain'];
-        $verified = $this->verifiedShopifyCustomer($context['configuration'], $customerId);
+        if ($registrationFields === null) {
+            $verified = $this->verifiedShopifyCustomer($context['configuration'], $customerId);
+            $registrationFields = $this->verifiedRegistrationFields($verified);
+            $customerRequired = $this->requiredCustomerDataFields($registrationFields);
+            if ($customerRequired !== []) {
+                throw new CoreApiException(422, 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE', 'Required customer details are missing.', ['required_fields' => implode(',', $customerRequired)]);
+            }
+        }
+        $registrationFields['clinic_id'] = (int) $credential['clinic_id'];
         $existing = $links->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->first();
         if ($existing !== null && (string) ($existing['link_status'] ?? '') === 'linked') {
             $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
@@ -261,10 +277,6 @@ final class ShopifyProxyService
         $foreignLink = $links->where('shopify_customer_id', $customerId)->where('shopify_store_domain !=', $store)->where('link_status', 'linked')->first();
         if ($foreignLink !== null) $this->identityFailure('SHOPIFY_STORE_MISMATCH', 'The Shopify customer is linked to another store.', ['shopify_customer' => 'This customer cannot be linked across stores.']);
 
-        $registrationFields = $this->verifiedRegistrationFields($verified);
-        $registrationFields['clinic_id'] = (int) $credential['clinic_id'];
-        $customerRequired = $this->requiredCustomerDataFields($registrationFields);
-        if ($customerRequired !== []) throw new CoreApiException(422, 'SHOPIFY_CUSTOMER_DATA_INCOMPLETE', 'Required Shopify customer data is unavailable.', ['required_fields' => implode(',', $customerRequired)]);
         $profileRequired = $this->requiredProfileFields($registrationFields);
         if ($profileRequired !== []) throw new CoreApiException(422, 'PATIENT_PROFILE_INCOMPLETE', 'The ROOTINS patient profile is incomplete for registration.', ['required_fields' => implode(',', $profileRequired)]);
         $result = $this->findExistingPatient($registrationFields, (int) $credential['clinic_id'], $links);
@@ -290,6 +302,107 @@ final class ShopifyProxyService
     }
 
     /** @return array<string, mixed> */
+    private function validateSubmittedPatient(array $patient, string $customerId): array
+    {
+        $submittedCustomerId = array_key_exists('shopify_customer_id', $patient) ? $this->patientString($patient['shopify_customer_id']) : null;
+        if ($submittedCustomerId !== null && $submittedCustomerId !== $customerId) {
+            $this->identityFailure('SHOPIFY_CUSTOMER_ID_MISMATCH', 'The submitted Shopify customer does not match the signed-in customer.', ['shopify_customer_id' => 'The submitted customer identity must match the signed App Proxy identity.']);
+        }
+
+        $errors = [];
+        $firstName = $this->patientString($patient['first_name'] ?? null);
+        $lastName = $this->patientString($patient['last_name'] ?? null);
+        if ($this->invalidPatientName($firstName)) $errors['first_name'] = 'First name is required and must be 1–100 characters.';
+        if ($this->invalidPatientName($lastName)) $errors['last_name'] = 'Last name is required and must be 1–100 characters.';
+
+        $gender = strtolower($this->patientString($patient['gender'] ?? null));
+        if (! in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Select a valid gender.';
+
+        $bookingFor = strtolower($this->patientString($patient['booking_for'] ?? null));
+        if ($bookingFor !== 'self') $errors['booking_for'] = 'Select a supported booking subject.';
+
+        $countryCode = TelephoneCountryCode::normalizeCode($this->patientString($patient['country_code'] ?? null));
+        $country = $countryCode === null ? null : (new TelephoneCountryCode())->activeByCode($countryCode);
+        if ($country === null) $errors['country_code'] = 'Enter a valid country code.';
+
+        $mobile = $this->patientString($patient['mobile'] ?? null);
+        $mobileNumber = $this->patientString($patient['mobile_number'] ?? null);
+        $phoneDigits = (new TelephoneContactService())->normalizedMobile($mobile !== '' ? $mobile : $mobileNumber);
+        $numberDigits = (new TelephoneContactService())->normalizedMobile($mobileNumber);
+        $normalizedMobile = '';
+        if ($phoneDigits === null) {
+            $errors['mobile'] = 'Mobile number is required.';
+        } elseif ($countryCode !== null && str_starts_with($phoneDigits, $countryCode) && strlen($phoneDigits) > strlen($countryCode)) {
+            $normalizedMobile = substr($phoneDigits, strlen($countryCode));
+        } else {
+            $normalizedMobile = $phoneDigits;
+        }
+        if ($numberDigits !== null) {
+            if (preg_match('/^[0-9]{7,15}$/', $numberDigits) !== 1) {
+                $errors['mobile_number'] = 'Enter a valid mobile number.';
+            } elseif ($normalizedMobile !== '' && $numberDigits !== $normalizedMobile) {
+                $errors['mobile_number'] = 'Mobile values must identify the same number.';
+            } else {
+                $normalizedMobile = $numberDigits;
+            }
+        }
+        if ($normalizedMobile === '' || preg_match('/^[0-9]{7,15}$/', $normalizedMobile) !== 1 || $this->isPlaceholderValue($normalizedMobile, true)) {
+            $errors['mobile'] = 'Enter a valid mobile number.';
+        }
+
+        $email = strtolower($this->patientString($patient['email'] ?? null));
+        if ($email !== '' && ($this->isPlaceholderValue($email) || filter_var($email, FILTER_VALIDATE_EMAIL) === false || mb_strlen($email) > 255)) $errors['email'] = 'Enter a valid email address.';
+
+        $age = $patient['age'] ?? null;
+        if ($age !== null && $this->patientString($age) !== '' && (filter_var($age, FILTER_VALIDATE_INT) === false || (int) $age < 0 || (int) $age > 150)) $errors['age'] = 'Enter a valid age.';
+
+        $dateOfBirth = $this->patientString($patient['date_of_birth'] ?? null);
+        if ($dateOfBirth !== '') {
+            $dateOfBirth = $this->normalizePatientDate($dateOfBirth);
+            if ($dateOfBirth === null) $errors['date_of_birth'] = 'Enter a valid date of birth.';
+        }
+
+        if ($errors !== []) throw new CoreApiException(422, 'PATIENT_DATA_INVALID', 'Patient data is invalid.', $errors);
+
+        return [
+            'clinic_id' => 0,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'gender' => $gender,
+            'date_of_birth' => $dateOfBirth !== '' ? $dateOfBirth : null,
+            'email' => $email,
+            'country_code' => $countryCode,
+            'telephone_country_code_id' => (int) $country['id'],
+            'country_code_id' => $country['country_id'] !== null ? (int) $country['country_id'] : null,
+            'mobile_number' => $normalizedMobile,
+            'mobile_normalized' => $normalizedMobile,
+            'address' => $this->patientString($patient['address'] ?? null) ?: null,
+            'source_type' => 'shopify',
+        ];
+    }
+
+    private function patientString(mixed $value): string
+    {
+        if ($value === null) return '';
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    private function invalidPatientName(string $value): bool
+    {
+        return $value === '' || mb_strlen($value) > 100 || $this->isPlaceholderValue($value);
+    }
+
+    private function normalizePatientDate(string $value): ?string
+    {
+        foreach (['Y-m-d', 'd-m-Y'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+            $errors = \DateTimeImmutable::getLastErrors();
+            if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) && $date->format($format) === $value && $date->format('Y-m-d') <= date('Y-m-d')) return $date->format('Y-m-d');
+        }
+        return null;
+    }
+
+    /** @return array<string, mixed> */
     private function verifiedShopifyCustomer(array $configuration, string $customerId): array
     {
         try {
@@ -312,14 +425,25 @@ final class ShopifyProxyService
     /** @return array<string, mixed> */
     private function verifiedRegistrationFields(array $customer): array
     {
-        $fields = ['first_name' => trim((string) ($customer['first_name'] ?? '')), 'last_name' => trim((string) ($customer['last_name'] ?? '')), 'email' => strtolower(trim((string) ($customer['email'] ?? ''))), 'mobile_number' => '', 'country_code' => ''];
+        $fields = [
+            'first_name' => trim((string) ($customer['first_name'] ?? '')),
+            'last_name' => trim((string) ($customer['last_name'] ?? '')),
+            'email' => strtolower(trim((string) ($customer['email'] ?? ''))),
+            'mobile_number' => '',
+            'country_code' => '',
+        ];
         $digits = (new TelephoneContactService())->normalizedMobile($customer['mobile'] ?? null);
-        if ($digits !== null) {
+        if ($digits !== null && preg_match('/^[0-9]{7,15}$/', $digits) === 1) {
             foreach ((new TelephoneCountryCode())->select('normalized_code')->where('status', 1)->orderBy('normalized_code', 'DESC')->findAll() as $code) {
                 $prefix = trim((string) ($code['normalized_code'] ?? ''));
                 $national = $prefix !== '' && str_starts_with($digits, $prefix) ? substr($digits, strlen($prefix)) : '';
-                if ($national !== '' && preg_match('/^[0-9]{7,15}$/', $national) === 1) { $fields['country_code'] = $prefix; $fields['mobile_number'] = $national; break; }
+                if ($national !== '' && preg_match('/^[0-9]{7,15}$/', $national) === 1) {
+                    $fields['country_code'] = $prefix;
+                    $fields['mobile_number'] = $national;
+                    break;
+                }
             }
+            if ($fields['mobile_number'] === '') $fields['mobile_number'] = $digits;
         }
         return $fields;
     }
@@ -328,8 +452,32 @@ final class ShopifyProxyService
     private function requiredCustomerDataFields(array $fields): array
     {
         $required = [];
-        foreach (['first_name', 'last_name', 'mobile_number', 'country_code'] as $field) if (trim((string) ($fields[$field] ?? '')) === '') $required[] = $field;
-        return $required;
+        foreach (['first_name', 'last_name'] as $field) {
+            $value = trim((string) ($fields[$field] ?? ''));
+            if ($this->isPlaceholderValue($value) || $value === '' || mb_strlen($value) > 100) $required[] = $field;
+        }
+
+        $mobile = trim((string) ($fields['mobile_number'] ?? ''));
+        $mobileValid = ! $this->isPlaceholderValue($mobile, true) && preg_match('/^[0-9]{7,15}$/', $mobile) === 1;
+        if (! $mobileValid) {
+            $required[] = 'mobile';
+        } else {
+            $countryCode = trim((string) ($fields['country_code'] ?? ''));
+            if ($countryCode === '' || TelephoneCountryCode::normalizeCode($countryCode) === null || (new TelephoneCountryCode())->activeByCode($countryCode) === null) $required[] = 'country_code';
+        }
+
+        $email = trim((string) ($fields['email'] ?? ''));
+        if ($email !== '' && ($this->isPlaceholderValue($email) || filter_var($email, FILTER_VALIDATE_EMAIL) === false || mb_strlen($email) > 255)) $required[] = 'email';
+
+        return array_values(array_unique($required));
+    }
+
+    private function isPlaceholderValue(string $value, bool $numeric = false): bool
+    {
+        $normalized = strtolower(trim($value));
+        if ($normalized === '' || in_array($normalized, ['-', '--', 'n/a', 'na', 'none', 'null', 'unknown', 'undefined', 'test'], true)) return true;
+        if ($numeric && (preg_match('/^(\d)\1+$/', $normalized) === 1 || in_array($normalized, ['1234567', '12345678', '123456789', '1234567890'], true))) return true;
+        return false;
     }
 
     /** @return list<string> */
