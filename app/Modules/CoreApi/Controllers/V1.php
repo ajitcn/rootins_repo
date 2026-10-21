@@ -15,6 +15,8 @@ use Throwable;
 
 final class V1 extends BaseController
 {
+    private string $requestCorrelationId = '';
+
     public function register(): ResponseInterface
     {
         return $this->write('patient.register', function (array $credential, array $payload): array {
@@ -198,6 +200,7 @@ final class V1 extends BaseController
             $response->setHeader('Retry-After', (string) $exception->retryAfter);
         }
 
+        $error['correlation_id'] = $this->correlationId();
         return $response->setJSON(['status' => false, 'error' => $error]);
     }
 
@@ -206,7 +209,17 @@ final class V1 extends BaseController
         log_message('error', 'Core API operation failed: operation=' . $operation . ' file=' . $exception->getFile() . ' line=' . $exception->getLine());
         service('audit')->record('core_api.operation_failed', ['operation' => $operation]);
 
-        return $this->response->setStatusCode(500)->setJSON(['status' => false, 'error' => ['code' => 'INTERNAL_ERROR', 'message' => 'The request could not be processed safely.']]);
+        return $this->response->setStatusCode(500)->setJSON(['status' => false, 'error' => ['code' => 'INTERNAL_ERROR', 'message' => 'The request could not be processed safely.', 'correlation_id' => $this->correlationId()]]);
+    }
+
+    private function correlationId(): string
+    {
+        if ($this->requestCorrelationId !== '') return $this->requestCorrelationId;
+        try {
+            return $this->requestCorrelationId = bin2hex(random_bytes(16));
+        } catch (\Throwable) {
+            return $this->requestCorrelationId = 'unavailable';
+        }
     }
 
     /** @param array<string, mixed> $context */

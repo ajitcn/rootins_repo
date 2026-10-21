@@ -14,6 +14,8 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 final class Webhook extends BaseController
 {
+    private string $requestCorrelationId = '';
+
     public function receive(string $topic): ResponseInterface
     {
         $rawBody = (string) $this->request->getBody();
@@ -25,10 +27,7 @@ final class Webhook extends BaseController
         if (! (new ShopifyWebhookVerifier($configuration))->isValid($rawBody, $signature)) {
             log_message('warning', 'Shopify webhook signature rejected.');
 
-            return $this->response->setStatusCode(401)->setJSON([
-                'status' => false,
-                'msg' => 'Webhook authentication failed.',
-            ]);
+            return $this->error(401, 'SHOPIFY_WEBHOOK_AUTH_FAILED', 'Webhook authentication failed.');
         }
 
         $shopDomain = strtolower(trim($this->request->getHeaderLine('X-Shopify-Shop-Domain')));
@@ -36,18 +35,12 @@ final class Webhook extends BaseController
         if ($shopDomain === '' || rtrim($shopDomain, '/') !== rtrim($configuredDomain, '/')) {
             log_message('warning', 'Shopify webhook store scope rejected.');
 
-            return $this->response->setStatusCode(403)->setJSON([
-                'status' => false,
-                'msg' => 'Webhook store scope is not authorized.',
-            ]);
+            return $this->error(403, 'SHOPIFY_WEBHOOK_SCOPE_INVALID', 'Webhook store scope is not authorized.');
         }
 
         $eventId = trim($this->request->getHeaderLine('X-Shopify-Webhook-Id'));
         if ($eventId === '') {
-            return $this->response->setStatusCode(422)->setJSON([
-                'status' => false,
-                'msg' => 'Webhook delivery identifier is required.',
-            ]);
+            return $this->error(422, 'SHOPIFY_WEBHOOK_EVENT_ID_REQUIRED', 'Webhook delivery identifier is required.');
         }
 
         $testPayload = json_decode($rawBody, true);
@@ -87,10 +80,7 @@ final class Webhook extends BaseController
         );
 
         if (! $result['accepted']) {
-            return $this->response->setStatusCode(422)->setJSON([
-                'status' => false,
-                'msg' => 'Webhook event could not be accepted safely.',
-            ]);
+            return $this->error(422, 'SHOPIFY_WEBHOOK_EVENT_INVALID', 'Webhook event could not be accepted safely.');
         }
 
         if ($result['duplicate']) {
@@ -106,7 +96,7 @@ final class Webhook extends BaseController
                     } catch (\Throwable $exception) {
                         $events->markFailed((int) $result['id'], 'Appointment payment processing failed.');
                         log_message('error', 'Shopify paid appointment retry failed safely.');
-                        return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Paid appointment could not be finalized safely.']);
+                        return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
                     }
                 }
             }
@@ -129,10 +119,7 @@ final class Webhook extends BaseController
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Customer identity processing failed.');
                 log_message('error', 'Shopify customer identity processing failed safely.');
 
-                return $this->response->setStatusCode(500)->setJSON([
-                    'status' => false,
-                    'msg' => 'Customer identity could not be processed safely.',
-                ]);
+                return $this->error(500, 'SHOPIFY_CUSTOMER_SYNC_FAILED', 'Customer identity could not be processed safely.');
             }
         }
 
@@ -147,7 +134,7 @@ final class Webhook extends BaseController
             } catch (\Throwable $exception) {
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Appointment payment processing failed.');
                 log_message('error', 'Shopify paid appointment processing failed safely.');
-                return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Paid appointment could not be finalized safely.']);
+                return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
             }
         }
 
@@ -161,10 +148,7 @@ final class Webhook extends BaseController
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], $failure->category);
                 log_message('error', 'Shopify order import failed category=' . $failure->category . ' topic=' . $topic . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
-                return $this->response->setStatusCode(500)->setJSON([
-                    'status' => false,
-                    'msg' => 'Shopify order could not be imported safely.',
-                ]);
+                return $this->error(500, 'SHOPIFY_ORDER_IMPORT_FAILED', 'Shopify order could not be imported safely.');
             }
         }
 
@@ -180,6 +164,22 @@ final class Webhook extends BaseController
         return $this->response->setStatusCode(202)->setJSON([
             'status' => true,
             'msg' => $result['duplicate'] ? 'Webhook event was already accepted.' : 'Webhook event accepted.',
+        ]);
+    }
+
+    private function error(int $status, string $code, string $message): ResponseInterface
+    {
+        if ($this->requestCorrelationId === '') {
+            try {
+                $this->requestCorrelationId = bin2hex(random_bytes(16));
+            } catch (\Throwable) {
+                $this->requestCorrelationId = 'unavailable';
+            }
+        }
+        return $this->response->setStatusCode($status)->setJSON([
+            'status' => false,
+            'msg' => $message,
+            'error' => ['code' => $code, 'message' => $message, 'correlation_id' => $this->requestCorrelationId],
         ]);
     }
 }

@@ -18,6 +18,21 @@ final class ShopifyAppointmentPaymentIntentTest extends TestCase
         self::assertStringNotContainsString("CoreApiAppointmentService())->book", $proxy);
     }
 
+    public function testProxyBookingContractHasSafeFieldErrorsAndServerSideResolution(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $intent = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyAppointmentIntentService.php');
+
+        foreach (['IDEMPOTENCY_KEY_REQUIRED', 'INVALID_JSON', 'correlation_id', 'fields'] as $contract) self::assertStringContainsString($contract, $controller);
+        foreach (['DOCTOR_INVALID', 'SERVICE_INVALID', 'INVALID_DATE', 'INVALID_TIME', 'INVALID_SLOT', 'CONSENT_REQUIRED', 'SLOT_UNAVAILABLE'] as $code) self::assertStringContainsString($code, $intent . $proxy);
+        foreach (['SHOPIFY_CUSTOMER_UNLINKED', 'patient_reference', 'clinic_id', 'online_booking'] as $contract) self::assertStringContainsString($contract, $proxy);
+        self::assertStringContainsString("'status' => 'pending_payment'", $intent);
+        self::assertStringContainsString("'rootins_appointment_intent'", $intent);
+        self::assertStringNotContainsString("'fee' => " . '$input', $intent);
+        self::assertStringNotContainsString("'patient_id' => " . '$input', $intent);
+    }
+
     public function testPaidWebhookFinalizesOnlyFromTheServerCreatedIntent(): void
     {
         $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');

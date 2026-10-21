@@ -28,16 +28,23 @@ final class ShopifyAppointmentIntentService
         $serviceReference = trim((string) ($input['service_reference'] ?? ''));
         $date = $this->parseDate((string) ($input['appointment_date'] ?? ''));
         $time = $this->normalizeTime((string) ($input['appointment_time'] ?? ''));
+        $endTimeValue = array_key_exists('_requested_end_time', $input) ? (string) $input['_requested_end_time'] : '';
+        $endTime = $this->normalizeTime($endTimeValue);
+        $doctorField = (string) ($input['_doctor_field'] ?? 'doctor_reference');
+        $serviceField = (string) ($input['_service_field'] ?? 'service_reference');
+        $timeField = (string) ($input['_start_time_field'] ?? 'appointment_time');
         $errors = [];
 
         if ($customerId === '') $errors['customer'] = 'A linked Shopify customer is required.';
         if ($patientId < 1) $errors['patient'] = 'A linked ROOTINS patient is required.';
-        if ($doctorReference === '') $errors['doctor_reference'] = 'Doctor is required.';
-        if (! preg_match('/^service-(\d+)$/', $serviceReference, $serviceMatch)) $errors['service_reference'] = 'Service is required.';
+        if ($doctorReference === '') $errors[$doctorField] = 'Select a valid doctor available for online booking.';
+        if (! preg_match('/^service-(\d+)$/', $serviceReference, $serviceMatch)) $errors[$serviceField] = 'Select a valid service.';
         if ($date === null || $date < date('Y-m-d')) $errors['appointment_date'] = 'Enter a valid appointment date as dd-mm-yyyy.';
-        if ($time === null) $errors['appointment_time'] = 'Enter a valid appointment time as HH:mm.';
+        if ($time === null) $errors[$timeField] = 'Enter a valid start time as HH:mm.';
+        if ($endTimeValue === '' || $endTime === null) $errors['end_time'] = 'Enter a valid end time as HH:mm.';
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 191) $errors['idempotency_key'] = 'A valid Idempotency-Key header is required.';
-        if ($errors !== []) throw new CoreApiException(422, 'APPOINTMENT_INTENT_INVALID', 'Review the booking details.', $errors);
+        if ($this->consentRequired() && ! $this->acceptedConsent($input['consent'] ?? null)) $errors['consent'] = 'Appointment consent is required.';
+        if ($errors !== []) throw new CoreApiException(422, $this->validationCode($errors), 'Review the booking fields.', $errors);
 
         $db = db_connect();
         $intentModel = new ShopifyAppointmentIntentModel();
@@ -51,8 +58,8 @@ final class ShopifyAppointmentIntentService
 
         $doctor = $db->table('doctors')->where('doctor_code', $doctorReference)->where('clinic_id', $clinicId)->where('status', 1)->where('online_booking', 1)->get(1)->getRowArray();
         $service = $db->table('admin_services')->groupStart()->where('clinic_id', $clinicId)->orWhere('clinic_id', null)->groupEnd()->where('id', (int) $serviceMatch[1])->where('status', 1)->get(1)->getRowArray();
-        if ($doctor === null) throw new CoreApiException(422, 'DOCTOR_UNAVAILABLE', 'The selected doctor is unavailable.', ['doctor_reference' => 'The selected doctor is unavailable.']);
-        if ($service === null) throw new CoreApiException(422, 'SERVICE_UNAVAILABLE', 'The selected service is unavailable.', ['service_reference' => 'The selected service is unavailable.']);
+        if ($doctor === null) throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', [$doctorField => 'The selected doctor is unavailable for online booking.']);
+        if ($service === null) throw new CoreApiException(422, 'SERVICE_INVALID', 'The selected service is invalid.', [$serviceField => 'The selected service is unavailable.']);
 
         $db->transBegin();
         try {
@@ -61,7 +68,8 @@ final class ShopifyAppointmentIntentService
             if ($schedule === null) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
             $duration = max(1, (int) ($schedule['slot_duration'] ?? 15));
             $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
-            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $duration)) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
+            if ($endTime !== $slotEnd) throw new CoreApiException(422, 'INVALID_SLOT', 'The selected slot does not match the schedule duration.', ['end_time' => 'End time must match the selected slot duration.']);
+            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $duration)) throw new CoreApiException(422, 'INVALID_SLOT', 'The selected appointment slot is not aligned to the schedule.', ['start_time' => 'Select one of the available slots.']);
             $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
             $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
             if ($this->leaveOverlaps((int) $doctor['id'], $date, $time, $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
@@ -154,6 +162,20 @@ final class ShopifyAppointmentIntentService
 
     private function serviceName($db, int $serviceId): string { return (string) ($db->table('admin_services')->select('name')->where('id', $serviceId)->get(1)->getRow('name') ?? 'Consultation'); }
     private function intentResponse(array $intent): array { return ['booking_intent_reference' => (string) $intent['public_reference'], 'status' => (string) $intent['status'], 'amount' => number_format((float) $intent['amount'], 2, '.', ''), 'currency' => (string) $intent['currency'], 'expires_at' => (string) $intent['expires_at'], 'checkout' => ['attributes' => [['name' => 'rootins_appointment_intent', 'value' => (string) $intent['public_reference']]], 'line_item_properties' => ['rootins_appointment_intent' => (string) $intent['public_reference']]]]; }
+    /** @param array<string, string> $errors */
+    private function validationCode(array $errors): string
+    {
+        if (isset($errors['appointment_date'])) return 'INVALID_DATE';
+        if (isset($errors['appointment_time']) || isset($errors['start_time'])) return 'INVALID_TIME';
+        if (isset($errors['end_time'])) return 'INVALID_TIME';
+        if (isset($errors['doctor_id']) || isset($errors['doctor_reference'])) return 'DOCTOR_INVALID';
+        if (isset($errors['service_id']) || isset($errors['service_reference'])) return 'SERVICE_INVALID';
+        if (isset($errors['consent'])) return 'CONSENT_REQUIRED';
+        if (isset($errors['idempotency_key'])) return 'IDEMPOTENCY_KEY_REQUIRED';
+        return 'APPOINTMENT_INTENT_INVALID';
+    }
+    private function consentRequired(): bool { return filter_var(env('SHOPIFY_APPOINTMENT_CONSENT_REQUIRED', false), FILTER_VALIDATE_BOOLEAN); }
+    private function acceptedConsent(mixed $value): bool { return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'accepted'], true); }
     private function parseDate(string $value): ?string { $date = DateTimeImmutable::createFromFormat('!d-m-Y', trim($value), $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) && $date->format('d-m-Y') === trim($value) ? $date->format('Y-m-d') : null; }
     private function normalizeTime(string $value): ?string { $value = trim($value); if (! preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) return null; [$hour, $minute] = array_map('intval', explode(':', $value)); return $hour < 24 && $minute < 60 ? sprintf('%02d:%02d:00', $hour, $minute) : null; }
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }

@@ -9,6 +9,7 @@ use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
+use JsonException;
 use Throwable;
 
 final class Proxy extends BaseController
@@ -33,14 +34,15 @@ final class Proxy extends BaseController
         $this->begin($operation);
         $correlationId = $this->requestCorrelationId;
         $key = trim($this->request->getHeaderLine('Idempotency-Key'));
-        if ($write && ($key === '' || strlen($key) > 191)) return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_KEY_INVALID');
+        if ($write && ($key === '' || strlen($key) > 191)) {
+            return $this->json(422, false, 'A valid Idempotency-Key header is required.', [], 'IDEMPOTENCY_KEY_REQUIRED', ['Idempotency-Key' => 'A valid Idempotency-Key header is required.']);
+        }
         $claimed = false;
         try {
             $queryString = (string) $this->request->getUri()->getQuery();
             $query = (new \App\Services\Shopify\ShopifyProxySignatureService())->query($queryString);
             $context = (new ShopifyProxyService())->verify($operation, $query, $queryString);
-            $payload = strtoupper($this->request->getMethod()) === 'GET' ? $this->request->getGet() : ($this->request->getJSON(true) ?: $this->request->getPost());
-            if (! is_array($payload)) $payload = [];
+            $payload = strtoupper($this->request->getMethod()) === 'GET' ? $this->request->getGet() : $this->requestPayload();
             $idempotencyKey = $operation === 'appointments.book'
                 ? hash('sha256', $operation . '|' . strtolower((string) ($context['store_domain'] ?? '')) . '|' . $key)
                 : $key;
@@ -64,16 +66,16 @@ final class Proxy extends BaseController
             }
             if ($operation === 'appointments.availability' && $exception->httpStatus === 422 && in_array($exception->errorCode, ['VALIDATION_FAILED', 'APPOINTMENT_AVAILABILITY_INVALID'], true)) {
                 $message = $exception->errorCode === 'APPOINTMENT_AVAILABILITY_INVALID' ? 'Required availability parameters are missing.' : 'Review the availability fields.';
-                return $this->json(422, false, $message, [], 'APPOINTMENT_AVAILABILITY_INVALID');
+                return $this->json(422, false, $message, [], 'APPOINTMENT_AVAILABILITY_INVALID', $exception->fields);
             }
-            return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
+            return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode, $exception->fields);
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (InvalidArgumentException $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'validation');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);
-            return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST');
+            return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST', []);
         } catch (Throwable $exception) {
             if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'internal');
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
@@ -89,11 +91,41 @@ final class Proxy extends BaseController
         }
     }
 
-    private function json(int $status, bool $success, string $message, array $data = [], string $code = ''): ResponseInterface
+    /** @return array<string, mixed> */
+    private function requestPayload(): array
+    {
+        $contentType = strtolower($this->request->getHeaderLine('Content-Type'));
+        if (! str_contains($contentType, 'application/json')) {
+            $payload = $this->request->getPost();
+            return is_array($payload) ? $payload : [];
+        }
+
+        $rawBody = trim((string) $this->request->getBody());
+        if ($rawBody === '') {
+            throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
+        }
+
+        try {
+            $payload = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
+        }
+        if (! is_array($payload)) {
+            throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
+        }
+        return $payload;
+    }
+
+    /** @param array<string, string> $fields */
+    private function json(int $status, bool $success, string $message, array $data = [], string $code = '', array $fields = []): ResponseInterface
     {
         $body = $success
             ? ['status' => true, 'data' => $data === [] ? (object) [] : $data]
             : ['status' => false, 'error' => ['code' => $code !== '' ? $code : 'SHOPIFY_PROXY_ERROR', 'message' => $message]];
+        if (! $success) {
+            if ($fields !== []) $body['error']['fields'] = $fields;
+            $body['error']['correlation_id'] = $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable';
+        }
         return $this->response($body, $status);
     }
 

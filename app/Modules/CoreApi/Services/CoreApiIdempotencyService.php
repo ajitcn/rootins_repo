@@ -16,7 +16,7 @@ final class CoreApiIdempotencyService
         $key = trim($key);
 
         if ($key === '' || mb_strlen($key) > 191) {
-            throw new CoreApiException(422, 'IDEMPOTENCY_KEY_REQUIRED', 'A valid Idempotency-Key header is required.');
+            throw new CoreApiException(422, 'IDEMPOTENCY_KEY_REQUIRED', 'A valid Idempotency-Key header is required.', ['Idempotency-Key' => 'A valid Idempotency-Key header is required.']);
         }
 
         $model = $this->model ?? new CoreApiIdempotencyModel();

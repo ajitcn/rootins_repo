@@ -27,4 +27,18 @@ application timezone. Storefront clients may provide an explicit `date`,
 does not require a linked patient and continues to exclude unavailable,
 booked, past, leave, break, and payment-held slots.
 
+Appointment booking requires an `Idempotency-Key` header and the server-resolved
+doctor, service, date, start time, and end time. The proxy resolves the patient
+from the signed-in Shopify customer link and resolves doctor, service, fee,
+clinic, and slot data in ROOTINS. Client-submitted fee, patient, source, doctor
+display data, and calculated amounts are ignored. A valid request creates only a
+`pending_payment` intent and returns `rootins_appointment_intent` checkout
+metadata. The `orders/paid` webhook rechecks the held slot before creating the
+final appointment.
+
+Proxy errors use HTTP 422 for invalid fields, 403 for an unlinked Shopify
+customer, and 409 for an unavailable or already-held slot. Error responses
+include a safe `error.code`, field-level `error.fields` when applicable, and a
+request `error.correlation_id`; secrets and submitted values are not logged.
+
 The Core API client ID and client secret are stored encrypted in the separate Core API proxy configuration record. Secrets are never returned to storefront clients, rendered into HTML/JavaScript, placed in URLs, or logged. Secret rotation is available from the Core API proxy section.

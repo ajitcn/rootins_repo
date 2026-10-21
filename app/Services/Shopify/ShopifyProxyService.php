@@ -112,7 +112,7 @@ final class ShopifyProxyService
         $customerId = (string) $context['customer_id'];
         $link = $patientScoped && $customerId !== '' ? (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $context['store_domain'])->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first() : null;
 
-        if ($patientScoped && $link === null) throw new CoreApiException(403, 'SHOPIFY_CUSTOMER_UNLINKED', 'The Shopify customer is not linked to a ROOTINS patient.');
+        if ($patientScoped && $link === null) throw new CoreApiException(403, 'SHOPIFY_CUSTOMER_UNLINKED', 'The Shopify customer is not linked to a ROOTINS patient.', ['shopify_customer' => 'Link the signed-in Shopify customer to a ROOTINS patient before booking.']);
         if ($patientScoped && $link !== null) {
             $payload['patient_reference'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $link['patient_id'])->where('clinic_id', (int) $credential['clinic_id'])->where('status', 1)->get()->getRow('registration_number');
             if ($payload['patient_reference'] === '') throw new CoreApiException(403, 'SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.');
@@ -144,27 +144,56 @@ final class ShopifyProxyService
             $payload['from_date'] = $today->format('d-m-Y');
             $payload['to_date'] = $today->modify('+1 day')->format('d-m-Y');
         }
-        if (! array_key_exists('doctor_reference', $payload) && array_key_exists('doctor_id', $payload)) {
-            $doctorId = (int) $payload['doctor_id'];
-            $payload['doctor_reference'] = (string) (db_connect()->table('doctors')->select('doctor_code')->where('id', $doctorId)->where('status', 1)->where('online_booking', 1)->get()->getRow('doctor_code') ?? '__invalid__');
+        if (array_key_exists('doctor_id', $payload)) {
+            $doctorId = filter_var($payload['doctor_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($doctorId === false) {
+                throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', ['doctor_id' => 'Select an active doctor available for online booking.']);
+            }
+            $doctorCode = db_connect()->table('doctors')->select('doctor_code')->where('id', $doctorId)->where('status', 1)->where('online_booking', 1)->get()->getRow('doctor_code');
+            if (! is_string($doctorCode) || trim($doctorCode) === '') {
+                throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', ['doctor_id' => 'Select an active doctor available for online booking.']);
+            }
+            if (! array_key_exists('doctor_reference', $payload)) $payload['doctor_reference'] = trim($doctorCode);
         }
         if (! array_key_exists('specialization_reference', $payload) && array_key_exists('specialization_id', $payload)) {
             $payload['specialization_reference'] = 'specialization-' . (int) $payload['specialization_id'];
         }
-        if (! array_key_exists('service_reference', $payload) && array_key_exists('service_id', $payload)) {
-            $payload['service_reference'] = 'service-' . (int) $payload['service_id'];
+        if (array_key_exists('service_id', $payload) && ! array_key_exists('service_reference', $payload)) {
+            $serviceId = filter_var($payload['service_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($serviceId === false) {
+                throw new CoreApiException(422, 'SERVICE_INVALID', 'The selected service is invalid.', ['service_id' => 'Select a valid service.']);
+            }
+            $payload['service_reference'] = 'service-' . $serviceId;
         }
         return $payload;
     }
 
     private function normalizeBookingPayload(array $payload): array
     {
-        if (! array_key_exists('doctor_reference', $payload) && array_key_exists('doctor_id', $payload)) {
-            $payload['doctor_reference'] = (string) (db_connect()->table('doctors')->select('doctor_code')->where('id', (int) $payload['doctor_id'])->where('status', 1)->where('online_booking', 1)->get(1)->getRow('doctor_code') ?? '');
+        $payload['_doctor_field'] = array_key_exists('doctor_id', $payload) ? 'doctor_id' : 'doctor_reference';
+        $payload['_service_field'] = array_key_exists('service_id', $payload) ? 'service_id' : 'service_reference';
+        $payload['_start_time_field'] = array_key_exists('start_time', $payload) ? 'start_time' : 'appointment_time';
+
+        if (array_key_exists('doctor_id', $payload)) {
+            $doctorId = filter_var($payload['doctor_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($doctorId === false) {
+                throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', ['doctor_id' => 'Select an active doctor available for online booking.']);
+            }
+            $doctorCode = db_connect()->table('doctors')->select('doctor_code')->where('id', $doctorId)->where('status', 1)->where('online_booking', 1)->get(1)->getRow('doctor_code');
+            if (! is_string($doctorCode) || trim($doctorCode) === '') {
+                throw new CoreApiException(422, 'DOCTOR_INVALID', 'The selected doctor is invalid.', ['doctor_id' => 'Select an active doctor available for online booking.']);
+            }
+            if (! array_key_exists('doctor_reference', $payload)) $payload['doctor_reference'] = trim($doctorCode);
         }
         if (! array_key_exists('service_reference', $payload) && array_key_exists('service_id', $payload)) {
-            $payload['service_reference'] = 'service-' . (int) $payload['service_id'];
+            $serviceId = filter_var($payload['service_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($serviceId === false) {
+                throw new CoreApiException(422, 'SERVICE_INVALID', 'The selected service is invalid.', ['service_id' => 'Select a valid service.']);
+            }
+            $payload['service_reference'] = 'service-' . $serviceId;
         }
+        if (! array_key_exists('appointment_time', $payload) && array_key_exists('start_time', $payload)) $payload['appointment_time'] = $payload['start_time'];
+        if (array_key_exists('end_time', $payload)) $payload['_requested_end_time'] = $payload['end_time'];
         return $payload;
     }
 
