@@ -59,6 +59,10 @@ authorization failures, and 409 for an unavailable or already-held slot. Registr
 the exact store/customer pair. Error responses
 include a safe `error.code`, field-level `error.fields` when applicable, and a
 request `error.correlation_id`; secrets and submitted values are not logged.
+For registration dependency and unexpected failures, the JSON error envelope
+is returned with HTTP 200 at the Shopify App Proxy transport boundary because
+Shopify replaces upstream 5xx App Proxy responses with the storefront
+document.
 
 The Core API client ID and client secret are stored encrypted in the separate Core API proxy configuration record. Secrets are never returned to storefront clients, rendered into HTML/JavaScript, placed in URLs, or logged. Secret rotation is available from the Core API proxy section.
 

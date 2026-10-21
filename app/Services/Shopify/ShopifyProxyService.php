@@ -266,9 +266,17 @@ final class ShopifyProxyService
             }
         }
         $registrationFields['clinic_id'] = (int) $credential['clinic_id'];
-        $existing = $links->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->first();
+        try {
+            $existing = $links->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->first();
+        } catch (Throwable $exception) {
+            $this->registrationDependency('PATIENT_IDENTITY_LINK_UNAVAILABLE', $exception);
+        }
         if ($existing !== null && (string) ($existing['link_status'] ?? '') === 'linked') {
-            $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
+            try {
+                $patient = db_connect()->table('patients')->select('registration_number, clinic_id, status')->where('id', (int) $existing['patient_id'])->get()->getRowArray();
+            } catch (Throwable $exception) {
+                $this->registrationDependency('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', $exception);
+            }
             if ($patient !== null && (int) $patient['clinic_id'] === (int) $credential['clinic_id'] && (int) $patient['status'] === 1) {
                 return ['patient_id' => (int) $existing['patient_id'], 'patient_reference' => (string) $patient['registration_number'], 'already_registered' => true];
             }
@@ -278,31 +286,60 @@ final class ShopifyProxyService
             $this->identityFailure('SHOPIFY_PATIENT_INACTIVE', 'The linked ROOTINS patient is inactive.', ['patient' => 'Reactivate the patient before booking.']);
         }
 
-        $foreignLink = $links->where('shopify_customer_id', $customerId)->where('shopify_store_domain !=', $store)->where('link_status', 'linked')->first();
+        try {
+            $foreignLink = $links->where('shopify_customer_id', $customerId)->where('shopify_store_domain !=', $store)->where('link_status', 'linked')->first();
+        } catch (Throwable $exception) {
+            $this->registrationDependency('PATIENT_IDENTITY_LINK_UNAVAILABLE', $exception);
+        }
         if ($foreignLink !== null) $this->identityFailure('SHOPIFY_STORE_MISMATCH', 'The Shopify customer is linked to another store.', ['shopify_customer' => 'This customer cannot be linked across stores.']);
 
         $profileRequired = $this->requiredProfileFields($registrationFields);
         if ($profileRequired !== []) throw new CoreApiException(422, 'PATIENT_PROFILE_INCOMPLETE', 'The ROOTINS patient profile is incomplete for registration.', ['required_fields' => implode(',', $profileRequired)]);
-        $result = $this->findExistingPatient($registrationFields, (int) $credential['clinic_id'], $links);
+        try {
+            $result = $this->findExistingPatient($registrationFields, (int) $credential['clinic_id'], $links);
+        } catch (CoreApiException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->registrationDependency('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', $exception);
+        }
         if ($result === null) {
-            $result = (new PatientRegistrationService())->register($registrationFields, null, ['source_type' => 'shopify', 'source_reference' => $customerId]);
+            try {
+                $result = (new PatientRegistrationService())->register($registrationFields, null, ['source_type' => 'shopify', 'source_reference' => $customerId]);
+            } catch (InvalidArgumentException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $this->registrationDependency('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', $exception);
+            }
         }
         $now = date('Y-m-d H:i:s');
         $linkData = ['shopify_store_domain' => $store, 'shopify_customer_id' => $customerId, 'patient_id' => (int) $result['id'], 'email_snapshot' => trim((string) ($registrationFields['email'] ?? '')), 'mobile_snapshot' => trim((string) ($registrationFields['mobile_number'] ?? '')), 'link_status' => 'linked', 'matched_by' => 'proxy_registration', 'active_patient_key' => 'shopify:' . (int) $result['id'], 'linked_at' => $now, 'created_at' => $now, 'updated_at' => $now];
         try {
             if ($existing !== null) $links->update((int) $existing['id'], $linkData);
             else $links->insert($linkData);
-        } catch (\Throwable) {
-            $duplicate = (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first();
+        } catch (\Throwable $exception) {
+            try {
+                $duplicate = (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first();
+            } catch (Throwable $duplicateLookupException) {
+                $this->registrationDependency('PATIENT_IDENTITY_LINK_UNAVAILABLE', $duplicateLookupException);
+            }
             if ($duplicate === null) {
                 service('audit')->record('shopify.proxy_identity_link_failed', ['code' => 'DUPLICATE_IDENTITY_LINK']);
                 throw new CoreApiException(409, 'SHOPIFY_IDENTITY_LINK_CONFLICT', 'The Shopify customer identity could not be linked safely.');
             }
             $result['id'] = (int) $duplicate['patient_id'];
-            $result['registration_number'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $duplicate['patient_id'])->get()->getRow('registration_number');
+            try {
+                $result['registration_number'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $duplicate['patient_id'])->get()->getRow('registration_number');
+            } catch (Throwable $duplicatePatientException) {
+                $this->registrationDependency('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', $duplicatePatientException);
+            }
         }
         service('audit')->record('shopify.proxy_patient_registered', ['code' => 'IDENTITY_LINKED', 'booking_enabled' => true]);
         return ['patient_id' => (int) $result['id'], 'patient_reference' => (string) $result['registration_number'], 'already_registered' => false];
+    }
+
+    private function registrationDependency(string $code, Throwable $exception): never
+    {
+        throw new CoreApiException(503, $code, 'Shopify patient registration dependency unavailable.');
     }
 
     /** @return array<string, mixed> */

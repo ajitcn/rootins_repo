@@ -85,10 +85,10 @@ final class Proxy extends BaseController
             if ($operation === 'patients.register') {
                 $code = $exception->errorCode === 'SHOPIFY_PROXY_SIGNATURE_INVALID'
                     ? 'SHOPIFY_PROXY_SIGNATURE_INVALID'
-                    : 'SHOPIFY_PROXY_CONFIGURATION_INVALID';
+                    : 'PATIENT_CLINIC_SCOPE_INVALID';
                 $status = $code === 'SHOPIFY_PROXY_SIGNATURE_INVALID' ? 401 : 503;
-                $message = $status === 401 ? 'The Shopify proxy signature is invalid.' : 'The Shopify proxy configuration is unavailable.';
-                return $this->json($status, false, $message, [], $code);
+                if ($status === 503) return $this->registrationDependencyError($code);
+                return $this->json(401, false, 'The Shopify proxy signature is invalid.', [], $code);
             }
             if ($operation === 'appointments.availability' && $exception->errorCode === 'SHOPIFY_PROXY_CONFIGURATION_MISSING') {
                 $this->logAvailabilityFailure($exception, 'CORE_API_CONFIGURATION_MISSING');
@@ -100,6 +100,10 @@ final class Proxy extends BaseController
             if ($operation === 'appointments.availability') {
                 $this->logAvailabilityFailure($exception, 'DATABASE_UNAVAILABLE');
                 return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'DATABASE_UNAVAILABLE');
+            }
+            if ($operation === 'patients.register') {
+                $this->logBoundaryFailure($exception, 'registration_database');
+                return $this->registrationDependencyError('PATIENT_REGISTRATION_DATABASE_UNAVAILABLE');
             }
             log_message('error', 'Shopify proxy boundary failure ' . json_encode(['correlation_id' => $correlationId, 'operation' => $operation, 'exception_class' => get_class($exception), 'category' => 'database', 'route' => $this->safeRoute()], JSON_UNESCAPED_SLASHES));
             return $this->json(503, false, 'The Shopify proxy service is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
@@ -113,10 +117,10 @@ final class Proxy extends BaseController
             if ($operation === 'patients.register') {
                 if ($this->isDependencyFailure($exception)) {
                     $this->logBoundaryFailure($exception, 'dependency');
-                    return $this->json(503, false, 'The Shopify proxy dependency is temporarily unavailable.', [], 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE');
+                    return $this->registrationDependencyError('PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE');
                 }
                 $this->logBoundaryFailure($exception, 'unexpected');
-                return $this->json(500, false, 'The Shopify proxy request could not be processed safely.', [], 'SHOPIFY_PROXY_INTERNAL_ERROR');
+                return $this->registrationDependencyError('PATIENT_REGISTRATION_INTERNAL_ERROR');
             }
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
             if ($dependency !== null) {
@@ -181,8 +185,12 @@ final class Proxy extends BaseController
     private function response(array $body, int $status): ResponseInterface
     {
         $contentType = 'application/json; charset=UTF-8';
+        // Shopify App Proxy replaces upstream 5xx responses with the
+        // storefront document. Keep the safe error envelope while using a
+        // successful transport status for this JSON-only proxy operation.
+        $transportStatus = $this->requestOperation === 'patients.register' && $status >= 500 ? 200 : $status;
         $this->logResponse($status, $contentType);
-        return $this->response->setStatusCode($status)->setContentType('application/json')->setJSON($body)->setHeader('Content-Type', $contentType);
+        return $this->response->setStatusCode($transportStatus)->setContentType('application/json')->setJSON($body)->setHeader('Content-Type', $contentType);
     }
 
     private function forceJsonResponse(): void
@@ -210,16 +218,31 @@ final class Proxy extends BaseController
             $status = 403;
             $message = 'The Shopify customer identity does not match the signed customer.';
         } elseif (in_array($code, ['CORE_API_UNAVAILABLE', 'CORE_API_SCOPE_UNAVAILABLE', 'CORE_API_CONFIGURATION_MISSING'], true)) {
-            $status = 503;
-            $code = 'SHOPIFY_PROXY_CONFIGURATION_INVALID';
-            $message = 'The Shopify proxy configuration is unavailable.';
+            return $this->registrationDependencyError('PATIENT_CLINIC_SCOPE_INVALID');
+        } elseif (in_array($code, ['PATIENT_REGISTRATION_DATABASE_UNAVAILABLE', 'PATIENT_IDENTITY_LINK_UNAVAILABLE', 'PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE', 'PATIENT_CLINIC_SCOPE_INVALID', 'PATIENT_REGISTRATION_INTERNAL_ERROR'], true)) {
+            return $this->registrationDependencyError($code);
         } elseif ($status >= 500) {
-            $status = 503;
-            $code = 'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE';
-            $message = 'The Shopify proxy dependency is temporarily unavailable.';
+            return $this->registrationDependencyError('PATIENT_REGISTRATION_DEPENDENCY_UNAVAILABLE');
         }
 
         return $this->json($status, false, $message, [], $code, $fields);
+    }
+
+    private function registrationDependencyError(string $code): ResponseInterface
+    {
+        log_message('error', 'Shopify patient registration dependency failure ' . json_encode([
+            'correlation_id' => $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable',
+            'operation' => 'patients.register',
+            'code' => $code,
+            'route' => $this->safeRoute(),
+        ], JSON_UNESCAPED_SLASHES));
+        return $this->response([
+            'status' => false,
+            'error' => [
+                'code' => $code,
+                'correlation_id' => $this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable',
+            ],
+        ], 503);
     }
 
     private function logBoundaryFailure(Throwable $exception, string $category): void

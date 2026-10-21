@@ -63,10 +63,11 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("application/json; charset=UTF-8", $controller);
         self::assertStringContainsString("private function forceJsonResponse", $controller);
         self::assertStringContainsString("private function registrationCoreApiError", $controller);
+        self::assertStringContainsString('$transportStatus = $this->requestOperation === \'patients.register\' && $status >= 500 ? 200 : $status;', $controller);
         self::assertStringContainsString("SHOPIFY_CUSTOMER_ID_MISMATCH", $controller);
         self::assertStringContainsString("SHOPIFY_CUSTOMER_LOGIN_REQUIRED", $controller);
         self::assertStringContainsString("PATIENT_DATA_INVALID", $controller);
-        self::assertStringContainsString("SHOPIFY_PROXY_CONFIGURATION_INVALID", $controller);
+        self::assertStringContainsString("PATIENT_CLINIC_SCOPE_INVALID", $controller);
         self::assertStringContainsString("SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE", $controller);
         self::assertStringContainsString('APPOINTMENT_AVAILABILITY_INVALID', $controller);
         self::assertStringContainsString('SHOPIFY_PROXY_INTERNAL_ERROR', $controller);
@@ -93,6 +94,23 @@ final class ShopifyProxySetupTest extends TestCase
         self::assertStringContainsString("'SHOPIFY_PROXY_INTERNAL_ERROR'", $controller);
         self::assertStringContainsString("'SHOPIFY_PROXY_DEPENDENCY_UNAVAILABLE'", $controller);
         self::assertStringNotContainsString('$this->json(500, false, $exception->getMessage()', $controller);
+    }
+
+    public function testRegistrationAppProxyContractIsJsonOnly(): void
+    {
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
+        $configuration = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyConfigurationService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+
+        self::assertStringContainsString("\$routes->post('rootins-proxy/patients/register'", $routes);
+        self::assertStringContainsString("'/public/rootins-proxy'", $configuration);
+        self::assertStringContainsString("'rootins-proxy/patients/register'", $routes);
+        self::assertStringContainsString("\$payload = strtoupper(\$this->request->getMethod()) === 'GET' ? \$this->request->getGet() : \$this->requestPayload();", $controller);
+        self::assertStringContainsString("\$patient = \$payload['patient'] ?? null;", file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
+        self::assertStringContainsString("\$submittedCustomerId !== \$customerId", file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
+        self::assertStringNotContainsString('redirect()', $controller);
+        self::assertStringNotContainsString('<!doctype html>', strtolower($controller));
+        self::assertStringContainsString("'booking_enabled' => true", file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php'));
     }
 
     public function testProxyConnectionVerifiesIsolatedCredentialsAndKeepsErrorsSafe(): void
