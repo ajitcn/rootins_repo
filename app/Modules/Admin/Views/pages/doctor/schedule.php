@@ -99,7 +99,9 @@
 
                                 <button
                                     class="btn btn-sm btn-outline-primary"
-                                    onclick="editDoctorScheduleForm(<?= $row['id'] ?>)">
+                                    type="button"
+                                    data-target="#doctorScheduleModal"
+                                    data-schedule-id="<?= (int) $row['id'] ?>">
                                     <i class="fa fa-edit"></i>
                                 </button>
 
@@ -133,6 +135,6 @@
 
 
 	<?= $this->section('scripts') ?>
-	<script src="<?= base_url('assets/js/admin/doctor/doctor_schedule.js') ?>"></script>
+	<script src="<?= base_url('assets/js/admin/doctor/doctor_schedule.js?v=20261021-schedule-edit1') ?>"></script>
 	<?= $this->endSection() ?>
  <?= $this->endSection()?>

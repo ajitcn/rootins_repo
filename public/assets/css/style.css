@@ -1,3 +1,13 @@
+.doctor-schedule-modal { z-index: 1060; }
+.doctor-schedule-modal .modal-dialog { height: calc(100vh - 2rem); max-height: calc(100vh - 2rem); }
+.doctor-schedule-modal .modal-content { display: flex; height: 100%; max-height: 100%; overflow: hidden; flex-direction: column; }
+.doctor-schedule-modal form { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+.doctor-schedule-modal .modal-header,
+.doctor-schedule-modal .modal-footer { flex: 0 0 auto; }
+.doctor-schedule-modal .modal-body { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+@media (max-width: 575.98px) {
+  .doctor-schedule-modal .modal-dialog { height: calc(100vh - 1rem); max-height: calc(100vh - 1rem); margin: .5rem; }
+}
 .action-btn-container{
 	text-align: right;
 	margin-bottom: 10px;

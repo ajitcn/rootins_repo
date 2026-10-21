@@ -247,6 +247,9 @@ final class CoreApiAppointmentService
                 $inBreak = $breakStart !== '' && $breakEnd !== '' && $slotStart < $breakEnd && $slotEnd > $breakStart;
                 $slotLeave = $leave !== null && ! $fullDayLeave && $slotStart < $leaveEnd && $slotEnd > $leaveStart;
                 $count = (int) $db->query('SELECT COUNT(*) AS total FROM appointments WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status NOT IN (\'cancelled\', \'no_show\')', [$clinicId, $doctorId, $date, $slotEnd, $slotStart])->getRow('total');
+                if ($db->tableExists('shopify_appointment_intents')) {
+                    $count += (int) $db->query("SELECT COUNT(*) AS total FROM shopify_appointment_intents WHERE clinic_id = ? AND doctor_id = ? AND appointment_date = ? AND appointment_time < ? AND ADDTIME(appointment_time, SEC_TO_TIME(COALESCE(duration_minutes, 15) * 60)) > ? AND status IN ('pending_payment','paid') AND expires_at > ?", [$clinicId, $doctorId, $date, $slotEnd, $slotStart, date('Y-m-d H:i:s')])->getRow('total');
+                }
                 $capacity = (int) ($schedule['max_patients'] ?? 0);
                 $remaining = $capacity > 0 ? max(0, $capacity - $count) : null;
                 $past = $date < $today || ($date === $today && $slotStart <= $now->format('H:i:s'));

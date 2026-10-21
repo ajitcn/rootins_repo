@@ -16,7 +16,7 @@ class DoctorScheduleModel extends Model
 
     protected $protectFields = true;
 
-    protected $allowedFields = ['doctor_id', 'day_of_week', 'shift_name', 'start_time', 'end_time', 'slot_duration', 'max_patients', 'status'];
+    protected $allowedFields = ['doctor_id', 'day_of_week', 'shift_name', 'start_time', 'end_time', 'break_start_time', 'break_end_time', 'slot_duration', 'max_patients', 'status'];
 
     protected $useTimestamps = true;
 

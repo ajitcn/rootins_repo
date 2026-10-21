@@ -41,17 +41,23 @@ final class Proxy extends BaseController
             $context = (new ShopifyProxyService())->verify($operation, $query, $queryString);
             $payload = strtoupper($this->request->getMethod()) === 'GET' ? $this->request->getGet() : ($this->request->getJSON(true) ?: $this->request->getPost());
             if (! is_array($payload)) $payload = [];
+            $idempotencyKey = $operation === 'appointments.book'
+                ? hash('sha256', $operation . '|' . strtolower((string) ($context['store_domain'] ?? '')) . '|' . $key)
+                : $key;
             $idempotency = new ShopifyOperationIdempotencyService();
             if ($write) {
-                if (! $idempotency->claim($key, $operation)) return $this->json(409, false, 'This Shopify operation has already been submitted.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_REPLAY');
+                if (! $idempotency->claim($idempotencyKey, $operation)) return $this->json(409, false, 'This Shopify operation has already been submitted.', [], 'SHOPIFY_PROXY_IDEMPOTENCY_REPLAY');
                 $claimed = true;
             }
+            if ($operation === 'appointments.book') {
+                $payload['idempotency_key'] = $key;
+            }
             $data = (new ShopifyProxyService())->execute($operation, $context, $payload, $this->request->getFile('document'));
-            if ($claimed) $idempotency->complete($key, hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES) ?: ''));
+            if ($claimed) $idempotency->complete($idempotencyKey, hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES) ?: ''));
             service('audit')->record('shopify.proxy_request_succeeded', ['operation' => $operation, 'store_domain' => $context['store_domain']]);
             return $this->json($write && $operation === 'patients.register' ? 201 : 200, true, 'Shopify proxy operation completed.', $data);
         } catch (CoreApiException $exception) {
-            if ($claimed) $idempotency->fail($key, $exception->errorCode);
+            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, $exception->errorCode);
             if ($exception->retryAfter !== null) $this->response->setHeader('Retry-After', (string) $exception->retryAfter);
             if ($operation === 'appointments.availability' && $exception->httpStatus >= 500) {
                 $this->logAvailabilityFailure($exception, $this->dependencyCategory($exception));
@@ -62,14 +68,14 @@ final class Proxy extends BaseController
             }
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (ShopifyProxyAuthenticationException $exception) {
-            if ($claimed) $idempotency->fail($key, 'authentication');
+            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (InvalidArgumentException $exception) {
-            if ($claimed) $idempotency->fail($key, 'validation');
+            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'validation');
             service('audit')->record('shopify.proxy_request_rejected', ['operation' => $operation, 'reason' => 'validation']);
             return $this->json(422, false, $exception->getMessage(), [], 'SHOPIFY_PROXY_INVALID_REQUEST');
         } catch (Throwable $exception) {
-            if ($claimed) $idempotency->fail($key, 'internal');
+            if ($claimed) $idempotency->fail($idempotencyKey ?? $key, 'internal');
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
             if ($dependency !== null) {
                 $this->logAvailabilityFailure($exception, $dependency);

@@ -9,6 +9,7 @@ use App\Services\Shopify\ShopifyOrderImportService;
 use App\Services\Shopify\ShopifyOrderImportFailure;
 use App\Services\Shopify\ShopifyWebhookEventService;
 use App\Services\Shopify\ShopifyWebhookVerifier;
+use App\Services\Shopify\ShopifyAppointmentIntentService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 final class Webhook extends BaseController
@@ -116,6 +117,21 @@ final class Webhook extends BaseController
                     'status' => false,
                     'msg' => 'Customer identity could not be processed safely.',
                 ]);
+            }
+        }
+
+        if ($topic === 'orders/paid' && $result['id'] !== null) {
+            try {
+                $event = (new ShopifyWebhookEventService())->find((int) $result['id']);
+                $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+                if (is_array($event) && is_array($payload)) {
+                    (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
+                }
+                (new ShopifyWebhookEventService())->markProcessed((int) $result['id']);
+            } catch (\Throwable $exception) {
+                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Appointment payment processing failed.');
+                log_message('error', 'Shopify paid appointment processing failed safely.');
+                return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Paid appointment could not be finalized safely.']);
             }
         }
 

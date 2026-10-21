@@ -11,6 +11,7 @@ use App\Modules\CoreApi\Services\CoreApiRateLimitService;
 use App\Modules\Shopify\Models\ShopifyPatientIdentityLinkModel;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use InvalidArgumentException;
+use App\Services\Shopify\ShopifyAppointmentIntentService;
 
 final class ShopifyProxyService
 {
@@ -107,6 +108,7 @@ final class ShopifyProxyService
         $this->rateLimit((int) $credential['id'], (int) $configuration['rate_limit_per_minute']);
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
         if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
+        if ($operation === 'appointments.book') $payload = $this->normalizeBookingPayload($payload);
         $customerId = (string) $context['customer_id'];
         $link = $patientScoped && $customerId !== '' ? (new ShopifyPatientIdentityLinkModel())->where('shopify_store_domain', $context['store_domain'])->where('shopify_customer_id', $customerId)->where('link_status', 'linked')->first() : null;
 
@@ -115,10 +117,12 @@ final class ShopifyProxyService
             $payload['patient_reference'] = (string) db_connect()->table('patients')->select('registration_number')->where('id', (int) $link['patient_id'])->where('clinic_id', (int) $credential['clinic_id'])->where('status', 1)->get()->getRow('registration_number');
             if ($payload['patient_reference'] === '') throw new CoreApiException(403, 'SHOPIFY_SCOPE_INVALID', 'The Shopify customer is outside the configured clinic scope.');
             $payload['clinic_id'] = (int) $credential['clinic_id'];
+            $context['patient_id'] = (int) $link['patient_id'];
+            $context['patient_reference'] = $payload['patient_reference'];
         }
         return match ($operation) {
             'appointments.availability' => (new CoreApiAppointmentService())->availability($credential, $payload),
-            'appointments.book' => (new CoreApiAppointmentService())->book($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']]),
+            'appointments.book' => (new ShopifyAppointmentIntentService())->create($context, $credential, $payload),
             'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new CoreApiPrescriptionUploadService())->upload($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']], $file),
             'patients.register' => $this->register($context, $payload, $credential),
             default => throw new InvalidArgumentException('Unsupported Shopify proxy operation.'),
@@ -146,6 +150,17 @@ final class ShopifyProxyService
         }
         if (! array_key_exists('specialization_reference', $payload) && array_key_exists('specialization_id', $payload)) {
             $payload['specialization_reference'] = 'specialization-' . (int) $payload['specialization_id'];
+        }
+        if (! array_key_exists('service_reference', $payload) && array_key_exists('service_id', $payload)) {
+            $payload['service_reference'] = 'service-' . (int) $payload['service_id'];
+        }
+        return $payload;
+    }
+
+    private function normalizeBookingPayload(array $payload): array
+    {
+        if (! array_key_exists('doctor_reference', $payload) && array_key_exists('doctor_id', $payload)) {
+            $payload['doctor_reference'] = (string) (db_connect()->table('doctors')->select('doctor_code')->where('id', (int) $payload['doctor_id'])->where('status', 1)->where('online_booking', 1)->get(1)->getRow('doctor_code') ?? '');
         }
         if (! array_key_exists('service_reference', $payload) && array_key_exists('service_id', $payload)) {
             $payload['service_reference'] = 'service-' . (int) $payload['service_id'];

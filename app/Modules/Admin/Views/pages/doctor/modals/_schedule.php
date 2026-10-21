@@ -1,5 +1,5 @@
-<div class="modal fade" id="doctorScheduleModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade doctor-schedule-modal" id="doctorScheduleModal" tabindex="-1" role="dialog" aria-labelledby="doctorScheduleModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
 
             <?= form_open('', ['id' => 'doctorScheduleForm' , 'autocomplete' => 'off']) ?>
@@ -7,7 +7,7 @@
                 <input type="hidden" name="schedule_id" id="schedule_id">
 
                 <div class="modal-header">
-                    <h5 class="modal-title">
+                    <h5 class="modal-title" id="doctorScheduleModalTitle">
                     Add New Schedule
                 </h5>
 
@@ -17,6 +17,7 @@
                 </div>
 
                 <div class="modal-body">
+                    <?= csrf_field() ?>
                     
 
                     <div class="row">
@@ -36,6 +37,22 @@
                                 </select>
                                 <div class="validation-error" id="doctor_idErr"></div>
 
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Break Start</label>
+                                <input type="time" class="form-control" name="break_start_time" id="break_start_time" step="60">
+                                <div class="validation-error" id="break_start_timeErr"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Break End</label>
+                                <input type="time" class="form-control" name="break_end_time" id="break_end_time" step="60">
+                                <div class="validation-error" id="break_end_timeErr"></div>
                             </div>
                         </div>
 

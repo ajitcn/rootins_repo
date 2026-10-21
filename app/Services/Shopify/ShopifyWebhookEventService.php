@@ -146,9 +146,11 @@ final class ShopifyWebhookEventService
                     'title' => (string) ($item['title'] ?? ''),
                     'quantity' => (int) ($item['quantity'] ?? 0),
                     'price' => (float) ($item['price'] ?? 0),
+                    'properties' => $this->safeAppointmentProperties($item['properties'] ?? []),
                 ];
             }
             $safe['rootins_prescription_id'] = $this->prescriptionReference($payload);
+            $safe['rootins_appointment_intent'] = $this->appointmentIntentReference($payload);
 
             return json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         }
@@ -204,6 +206,35 @@ final class ShopifyWebhookEventService
         }
 
         return null;
+    }
+
+    private function appointmentIntentReference(array $payload): ?string
+    {
+        foreach ((array) ($payload['note_attributes'] ?? []) as $attribute) {
+            if (!is_array($attribute) || strtolower(trim((string) ($attribute['name'] ?? ''))) !== 'rootins_appointment_intent') continue;
+            $value = trim((string) ($attribute['value'] ?? ''));
+            return preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1 ? $value : null;
+        }
+        foreach ((array) ($payload['line_items'] ?? []) as $item) {
+            foreach ((array) ($item['properties'] ?? []) as $property) {
+                if (!is_array($property) || strtolower(trim((string) ($property['name'] ?? ''))) !== 'rootins_appointment_intent') continue;
+                $value = trim((string) ($property['value'] ?? ''));
+                return preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1 ? $value : null;
+            }
+        }
+        return null;
+    }
+
+    /** @return list<array{name:string,value:string}> */
+    private function safeAppointmentProperties(mixed $properties): array
+    {
+        $safe = [];
+        foreach ((array) $properties as $property) {
+            if (!is_array($property) || strtolower(trim((string) ($property['name'] ?? ''))) !== 'rootins_appointment_intent') continue;
+            $value = trim((string) ($property['value'] ?? ''));
+            if (preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1) $safe[] = ['name' => 'rootins_appointment_intent', 'value' => $value];
+        }
+        return $safe;
     }
 
     public function markFailed(int $eventId, string $error): bool

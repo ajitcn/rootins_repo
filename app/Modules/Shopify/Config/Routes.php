@@ -41,6 +41,7 @@ $routes->group('admin/integrations/shopify', [
     $routes->post('orders/reconcile', 'Integration::importOrder', ['filter' => 'permission:shopify.order.reconcile']);
 });
 
+$routes->post('integrations/shopify/webhooks/orders/paid', '\App\Modules\Shopify\Controllers\Webhook::receive/orders/paid');
 $routes->post('integrations/shopify/webhooks/(:any)', '\App\Modules\Shopify\Controllers\Webhook::receive/$1');
 $routes->get('patient/login/shopify', '\App\Modules\Shopify\Controllers\Handoff::patientLogin');
 $routes->get('integrations/shopify/appointments/availability', '\App\Modules\Shopify\Controllers\Appointment::availability');
