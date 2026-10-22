@@ -10,6 +10,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
     public const CUSTOMER_NOT_LINKED = 'CUSTOMER_NOT_LINKED';
     public const PRESCRIPTION_MISSING = 'PRESCRIPTION_MISSING';
     public const MEDICINE_NOT_MAPPED = 'MEDICINE_NOT_MAPPED';
+    public const MEDICINE_INACTIVE = 'MEDICINE_INACTIVE';
     public const ORDER_NOT_FOUND = 'ORDER_NOT_FOUND';
     public const ORDER_ALREADY_CANCELLED = 'ORDER_ALREADY_CANCELLED';
     public const ORDER_ALREADY_IMPORTED = 'ORDER_ALREADY_IMPORTED';
@@ -23,7 +24,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
 
     /** @var list<string> */
     private const CATEGORIES = [
-        self::CUSTOMER_NOT_LINKED, self::PRESCRIPTION_MISSING, self::MEDICINE_NOT_MAPPED,
+        self::CUSTOMER_NOT_LINKED, self::PRESCRIPTION_MISSING, self::MEDICINE_NOT_MAPPED, self::MEDICINE_INACTIVE,
         self::ORDER_NOT_FOUND, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
         self::INVALID_FULFILLMENT_STATE, self::REFUND_ORDER_NOT_FOUND, self::STOCK_UNAVAILABLE,
         self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::BILLING_CLINIC_UNAVAILABLE,

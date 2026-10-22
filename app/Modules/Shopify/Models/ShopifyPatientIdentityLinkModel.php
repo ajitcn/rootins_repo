@@ -19,6 +19,7 @@ final class ShopifyPatientIdentityLinkModel extends Model
         'matched_by',
         'active_patient_key',
         'linked_at',
+        'registration_attempt_at', 'registration_error',
         'created_at',
         'updated_at',
     ];

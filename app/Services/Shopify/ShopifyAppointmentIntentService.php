@@ -54,7 +54,7 @@ final class ShopifyAppointmentIntentService
         if ($errors !== []) throw new CoreApiException(422, $this->validationCode($errors), 'Review the booking fields.', $errors);
 
         $slotParts = $this->slotParts($slotReference);
-        if ($slotParts === null || $slotParts['doctor_reference'] !== $doctorReference || $slotParts['service_reference'] !== $serviceReference || $slotParts['date'] !== $date || $slotParts['start_time'] !== substr((string) $time, 0, 5)) {
+        if ($slotParts === null || $slotParts['doctor_reference'] !== $doctorReference || ! in_array($slotParts['service_reference'], ['service-0', $serviceReference], true) || $slotParts['date'] !== $date || $slotParts['start_time'] !== substr((string) $time, 0, 5)) {
             throw new CoreApiException(422, 'INVALID_SLOT', 'The selected slot reference is invalid.', ['slot_reference' => 'Select a slot returned for the selected doctor, service, date, and time.']);
         }
 
@@ -80,10 +80,12 @@ final class ShopifyAppointmentIntentService
             $day = (int) (new DateTimeImmutable($date, $this->timezone()))->format('N');
             $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND deleted_at IS NULL AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $doctor['id'], $day, $time, $time])->getRowArray();
             if ($schedule === null) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
-            $duration = max(1, (int) ($schedule['slot_duration'] ?? 15));
+            $scheduleDuration = max(1, (int) ($schedule['slot_duration'] ?? 15));
+            $duration = $this->serviceDuration($service, $scheduleDuration);
+            if ($duration > $scheduleDuration) throw new CoreApiException(422, 'SERVICE_SLOT_INCOMPATIBLE', 'The selected service requires more time than this schedule slot allows.', ['slot_reference' => 'Select a longer compatible slot.']);
             $slotEnd = (new DateTimeImmutable($date . ' ' . $time, $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
-            if ($endTime !== $slotEnd) throw new CoreApiException(422, 'INVALID_SLOT', 'The selected slot does not match the schedule duration.', ['end_time' => 'End time must match the selected slot duration.']);
-            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $duration)) throw new CoreApiException(422, 'INVALID_SLOT', 'The selected appointment slot is not aligned to the schedule.', ['start_time' => 'Select one of the available slots.']);
+            if ($endTime !== $slotEnd) throw new CoreApiException(422, 'SERVICE_SLOT_INCOMPATIBLE', 'The selected service does not fit the selected slot.', ['end_time' => 'End time must match the selected service duration.']);
+            if (! $this->isSlotAligned((string) $schedule['start_time'], $time, $scheduleDuration)) throw new CoreApiException(422, 'INVALID_SLOT', 'The selected appointment slot is not aligned to the schedule.', ['start_time' => 'Select one of the available slots.']);
             $breakStart = trim((string) ($schedule['break_start_time'] ?? ''));
             $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
             if ($this->leaveOverlaps((int) $doctor['id'], $date, $time, $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new CoreApiException(409, 'SLOT_UNAVAILABLE', 'The selected appointment slot is unavailable.');
@@ -179,6 +181,17 @@ final class ShopifyAppointmentIntentService
         if ($serviceAmount > 0) return round($serviceAmount, 2);
         $fee = $db->table('doctor_consultation_fees')->where('doctor_id', $doctorId)->where('status', 1)->where('effective_from <=', $date)->groupStart()->where('effective_to', null)->orWhere('effective_to >=', $date)->groupEnd()->orderBy('effective_from', 'DESC')->get(1)->getRow('fee');
         return round((float) $fee, 2);
+    }
+
+    private function serviceDuration(array $service, int $scheduleDuration): int
+    {
+        $configured = (int) ($service['duration_minutes'] ?? 0);
+        if ($configured > 0) return $configured;
+        // Existing services do not carry a duration column. In that schema,
+        // the locked doctor schedule is the authoritative duration. If a
+        // service duration is added later, the configured value above is used
+        // and the compatibility check remains enforced.
+        return $scheduleDuration;
     }
 
     private function serviceName($db, int $serviceId): string { return (string) ($db->table('admin_services')->select('name')->where('id', $serviceId)->get(1)->getRow('name') ?? 'Consultation'); }

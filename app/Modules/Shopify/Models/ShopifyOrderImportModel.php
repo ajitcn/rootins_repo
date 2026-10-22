@@ -15,6 +15,8 @@ final class ShopifyOrderImportModel extends Model
         'currency', 'total_snapshot', 'shipping_address_snapshot', 'payload_hash', 'last_event_id',
         'retry_count', 'processed_at', 'created_at', 'updated_at',
         'prescription_reference', 'prescription_status',
+        'shopify_customer_id', 'customer_name_snapshot', 'customer_email_snapshot', 'customer_mobile_snapshot',
+        'patient_status', 'mapping_status', 'quarantine_reason', 'last_error', 'last_attempted_at',
     ];
     protected $useTimestamps = false;
 }

@@ -6,6 +6,16 @@ use CodeIgniter\Router\RouteCollection;
 $routes->group('admin', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Dashboard::index');
 });
+$routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\Integration', 'filter' => 'auth'], function ($routes) {
+    $routes->get('order-mappings', 'ShopifyOrderOperations::mappings', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('patient-readiness', 'ShopifyOrderOperations::readiness', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('order-operations', 'ShopifyOrderOperations::queue', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('order-operations/(:num)', 'ShopifyOrderOperations::detail/$1', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('order-operations/prescriptions/(:num)/view', 'ShopifyOrderOperations::viewPrescription/$1', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/save', 'ShopifyOrderOperations::saveMapping', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/toggle/(:num)', 'ShopifyOrderOperations::toggleMapping/$1', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-operations/(:num)/action', 'ShopifyOrderOperations::action/$1', ['filter' => 'permission:shopify.order.operations']);
+});
 $routes->group('admin/access', ['namespace' => 'Admin\Controllers\Access', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Access::index', ['filter' => 'permission:role.manage']);
     $routes->get('users', 'Access::users', ['filter' => 'permission:user.view']);

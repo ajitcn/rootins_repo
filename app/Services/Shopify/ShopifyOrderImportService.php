@@ -50,6 +50,21 @@ final class ShopifyOrderImportService
         $import = $this->upsertImport($event, $payload);
         $importId = (int) $import['id'];
 
+        $financialStatus = strtolower(trim((string) ($payload['financial_status'] ?? '')));
+        if (trim((string) ($payload['cancelled_at'] ?? '')) !== '' || in_array($financialStatus, ['refunded', 'voided'], true)) {
+            $this->setImportState($importId, 'cancelled', ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED, $eventId);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['quarantine_reason' => ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED, 'last_error' => 'Shopify order is cancelled or refunded.']);
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED);
+            service('audit')->record('shopify.order_cancelled', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'cancelled_or_refunded']);
+            return ['status' => 'cancelled', 'import_id' => $importId];
+        }
+        if ($financialStatus !== '' && ! in_array($financialStatus, ['paid', 'authorized', 'partially_paid'], true)) {
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, $eventId);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['quarantine_reason' => ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, 'last_error' => 'Shopify payment is not in an importable state.']);
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::PAYMENT_STATE_INVALID);
+            return ['status' => 'quarantined', 'import_id' => $importId];
+        }
+
         if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true) && (int) ($import['rootins_order_id'] ?? 0) > 0) {
             $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0), (string) ($event['topic'] ?? ''));
             $events->markProcessed($eventId, ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED);
@@ -60,6 +75,7 @@ final class ShopifyOrderImportService
         $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
 
         if ($identity === null) {
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, 'last_attempted_at' => date('Y-m-d H:i:s')]);
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
             $events->markProcessed($eventId, ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'customer_not_linked']);
@@ -71,11 +87,14 @@ final class ShopifyOrderImportService
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
         if ($patientId <= 0) {
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, 'last_attempted_at' => date('Y-m-d H:i:s')]);
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
             $events->markProcessed($eventId);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
+
+        ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'linked', 'last_attempted_at' => date('Y-m-d H:i:s')]);
 
         // Clinic scope is a financial/fulfilment concern. A globally stored
         // prescription and its patient identity must not depend on a clinic.
@@ -120,12 +139,15 @@ final class ShopifyOrderImportService
 
         if ($mappingResult['status'] !== 'ready') {
             $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'unmapped', 'quarantine_reason' => $category, 'last_error' => (string) ($mappingResult['reason'] ?? $category)]);
             $this->setImportState($importId, 'pending_mapping', $category, $eventId, $patientId, $clinicId);
             $events->markProcessed($eventId, $category);
             service('audit')->record('shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
 
             return ['status' => 'pending_mapping', 'import_id' => $importId];
         }
+
+        ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'mapped']);
 
         $prescriptionId = $this->candidatePrescriptionId($payload);
 
@@ -244,6 +266,11 @@ final class ShopifyOrderImportService
             'updated_at' => date('Y-m-d H:i:s'),
             'prescription_reference' => trim((string) ($payload['prescription_reference'] ?? '')) ?: null,
             'prescription_status' => trim((string) ($payload['prescription_reference'] ?? '')) !== '' ? 'awaiting_review' : null,
+            'shopify_customer_id' => trim((string) ($payload['customer_id'] ?? '')) ?: null,
+            'customer_name_snapshot' => trim((string) (($payload['customer']['first_name'] ?? '') . ' ' . ($payload['customer']['last_name'] ?? ''))) ?: null,
+            'customer_email_snapshot' => trim((string) ($payload['customer']['email'] ?? '')) ?: null,
+            'customer_mobile_snapshot' => trim((string) ($payload['customer']['phone'] ?? '')) ?: null,
+            'last_attempted_at' => date('Y-m-d H:i:s'),
         ];
 
         if ($existing === null) {
@@ -285,6 +312,14 @@ final class ShopifyOrderImportService
                 ->where('status', 'active')
                 ->first();
             $medicineId = $mapping['medicine_id'] ?? null;
+            if ($medicineId !== null) {
+                $medicine = db_connect()->table('medicines')->select('id, status')->where('id', (int) $medicineId)->get(1)->getRowArray();
+                if ($medicine === null || (string) ($medicine['status'] ?? '') !== 'active') {
+                    $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->delete();
+                    $lineModel->insert(['import_id' => $importId, 'shopify_line_item_id' => $lineId, 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId, 'medicine_id' => $medicineId, 'title_snapshot' => (string) ($item['title'] ?? ''), 'quantity' => max(0, (int) ($item['quantity'] ?? 0)), 'shopify_price_snapshot' => (float) ($item['price'] ?? 0), 'status' => 'medicine_inactive', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+                    return ['status' => 'pending', 'reason' => ShopifyOrderImportFailure::MEDICINE_INACTIVE, 'category' => ShopifyOrderImportFailure::MEDICINE_INACTIVE];
+                }
+            }
             $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->delete();
             $lineModel->insert([
                 'import_id' => $importId,

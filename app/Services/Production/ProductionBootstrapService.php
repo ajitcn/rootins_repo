@@ -44,7 +44,7 @@ final class ProductionBootstrapService
         'delivery_provider.view', 'delivery_provider.manage',
         'payment_status.view', 'payment_status.manage', 'payment_provider.view', 'payment_provider.manage',
         'core_api.view', 'core_api.create', 'core_api.manage',
-        'shopify.integration.view', 'shopify.integration.manage', 'shopify.order.import', 'shopify.order.reconcile',
+        'shopify.integration.view', 'shopify.integration.manage', 'shopify.order.import', 'shopify.order.reconcile', 'shopify.order.operations',
         'pharmacy.dashboard.view', 'pharmacy.order.view', 'pharmacy.order.create', 'pharmacy.order.cancel',
         'pharmacy.inventory.view', 'pharmacy.inventory.batch.create', 'pharmacy.inventory.batch.adjust',
         'pharmacy.medicine.edit', 'pharmacy.prescription.review.view',

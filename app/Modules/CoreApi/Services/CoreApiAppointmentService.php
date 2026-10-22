@@ -21,7 +21,10 @@ final class CoreApiAppointmentService
         $specializationReference = trim((string) ($input['specialization_reference'] ?? $input['specialization'] ?? ''));
         $search = trim((string) ($input['search'] ?? ''));
 
-        $service = $this->resolveService($serviceReference, $clinicId);
+        // Availability is intentionally service-independent.  A service may
+        // still be supplied by older clients, but it must never resolve,
+        // join, or filter the doctor schedule slots returned here.
+        $service = null;
         $specializationId = $this->resolveSpecialization($specializationReference);
         $this->assertDoctorFilter($doctorReference, $clinicId);
 
@@ -60,7 +63,7 @@ final class CoreApiAppointmentService
             $first = $doctorDates[0];
             $specializations = $this->specializations((int) $doctor['id']);
             $slotDuration = (int) ($first['slot_duration'] ?? 15);
-            $servicesForDoctor = $this->services((int) $doctor['clinic_id'], $serviceReference === '' ? null : $service, (int) $doctor['id'], $dates[0], $slotDuration);
+            $servicesForDoctor = $this->services((int) $doctor['clinic_id'], null, (int) $doctor['id'], $dates[0], $slotDuration);
             $modes = $this->consultationModes((int) $doctor['id']);
             $clinic = $this->clinicDetails($doctor);
             $availability = array_map(fn (array $day): array => [
@@ -83,6 +86,8 @@ final class CoreApiAppointmentService
                 'qualifications' => $doctor['qualification'] ? [(string) $doctor['qualification']] : [],
                 'qualification' => $doctor['qualification'] ?: null,
                 'specializations' => $specializations,
+                'languages' => $this->languages((int) $doctor['id']),
+                'popular_treatments' => $this->popularTreatments((int) $doctor['id']),
                 'experience' => (int) ($doctor['experience'] ?? 0),
                 'fees' => $fees,
                 'consultation_fees' => $fees,
@@ -102,7 +107,20 @@ final class CoreApiAppointmentService
             ];
         }
 
-        return ['requested_date_range' => ['from' => $dates[0], 'to' => $dates[count($dates) - 1], 'from_display' => $this->formatDate($dates[0]), 'to_display' => $this->formatDate($dates[count($dates) - 1])], 'date' => $this->formatDate($dates[0]), 'date_iso' => $dates[0], 'dates' => array_map(fn (string $date): string => $this->formatDate($date), $dates), 'doctors' => $doctors, 'services' => $this->services(null, $service), 'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total]];
+        return [
+            'requested_date_range' => ['from' => $dates[0], 'to' => $dates[count($dates) - 1], 'from_display' => $this->formatDate($dates[0]), 'to_display' => $this->formatDate($dates[count($dates) - 1])],
+            'date' => $this->formatDate($dates[0]),
+            'date_iso' => $dates[0],
+            'dates' => array_map(fn (string $date): string => $this->formatDate($date), $dates),
+            'doctors' => $doctors,
+            // Kept as a discovery list for older clients; it does not drive
+            // slot generation or availability filtering.
+            'services' => $this->services(null, null),
+            'availability_mode' => 'doctor_schedule',
+            'service_required_for_booking' => true,
+            'slot_duration_minutes' => 15,
+            'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total],
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -136,7 +154,7 @@ final class CoreApiAppointmentService
         }
         if ($slotReference !== '') {
             $slotParts = $this->slotParts($slotReference);
-            if ($slotParts === null || $slotParts['doctor_reference'] !== $doctorReference || $slotParts['service_reference'] !== $serviceReference || $slotParts['date'] !== $date || $slotParts['start_time'] !== substr((string) $time, 0, 5)) {
+            if ($slotParts === null || $slotParts['doctor_reference'] !== $doctorReference || ! in_array($slotParts['service_reference'], ['service-0', $serviceReference], true) || $slotParts['date'] !== $date || $slotParts['start_time'] !== substr((string) $time, 0, 5)) {
                 throw new CoreApiException(422, 'INVALID_SLOT', 'The selected slot reference is invalid.', ['slot_reference' => 'Select a slot returned for the selected doctor, service, date, and time.']);
             }
         }
@@ -303,6 +321,20 @@ final class CoreApiAppointmentService
     }
 
     /** @return list<string> */
+    private function languages(int $doctorId): array
+    {
+        $rows = db_connect()->table('doctor_language_map')->select('doctor_languages.language_name')->join('doctor_languages', 'doctor_languages.id = doctor_language_map.language_id')->where('doctor_language_map.doctor_id', $doctorId)->where('doctor_languages.status', 1)->orderBy('doctor_languages.language_name', 'ASC')->get()->getResultArray();
+        return array_values(array_map(static fn (array $row): string => (string) $row['language_name'], $rows));
+    }
+
+    /** @return list<string> */
+    private function popularTreatments(int $doctorId): array
+    {
+        $rows = db_connect()->table('doctor_treatment_map')->select('popular_treatments.treatment_name')->join('popular_treatments', 'popular_treatments.id = doctor_treatment_map.treatment_id')->where('doctor_treatment_map.doctor_id', $doctorId)->where('popular_treatments.status', 1)->orderBy('popular_treatments.treatment_name', 'ASC')->get()->getResultArray();
+        return array_values(array_map(static fn (array $row): string => (string) $row['treatment_name'], $rows));
+    }
+
+    /** @return list<string> */
     private function consultationModes(int $doctorId): array
     {
         $rows = db_connect()->table('doctor_consultation_fees')->select('consultation_mode')->where('doctor_id', $doctorId)->where('status', 1)->get()->getResultArray();
@@ -343,19 +375,19 @@ final class CoreApiAppointmentService
     {
         $public = [];
         foreach ($slots as $slot) {
-            foreach ($services as $service) {
-                $serviceReference = (string) ($service['service_reference'] ?? $service['reference'] ?? '');
-                if ($serviceReference === '') continue;
-                $public[] = [
-                    'slot_reference' => $this->slotReference($doctorReference, $serviceReference, $date, (string) $slot['start_time_raw']),
-                    'service_reference' => $serviceReference,
-                    'date' => $this->formatDate((string) $slot['date_iso']),
-                    'start_time' => (string) $slot['start_time'],
-                    'end_time' => (string) $slot['end_time'],
-                    'timezone' => (string) ($slot['timezone'] ?? $this->timezone()->getName()),
-                    'is_available' => true,
-                ];
-            }
+            // The slot belongs to the doctor schedule, not to a service.
+            // Keep service-0 in the public reference for compatibility with
+            // the existing reference grammar; booking resolves the selected
+            // service separately and validates its duration server-side.
+            $public[] = [
+                'slot_reference' => $this->slotReference($doctorReference, 'service-0', $date, (string) $slot['start_time_raw']),
+                'service_reference' => 'service-0',
+                'date' => $this->formatDate((string) $slot['date_iso']),
+                'start_time' => (string) $slot['start_time'],
+                'end_time' => (string) $slot['end_time'],
+                'timezone' => (string) ($slot['timezone'] ?? $this->timezone()->getName()),
+                'is_available' => true,
+            ];
         }
         return $public;
     }
