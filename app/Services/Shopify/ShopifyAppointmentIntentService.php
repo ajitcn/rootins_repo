@@ -4,6 +4,7 @@ namespace App\Services\Shopify;
 
 use App\Modules\CoreApi\Services\CoreApiException;
 use App\Modules\Shopify\Models\ShopifyAppointmentIntentModel;
+use App\Modules\Shopify\Models\ShopifyWebhookEventModel;
 use App\Services\AppointmentBillingService;
 use Admin\Models\Doctor\DoctorLeaveModel;
 use DateTimeImmutable;
@@ -121,37 +122,52 @@ final class ShopifyAppointmentIntentService
     /** @return array<string, mixed> */
     public function finalizePaid(array $event, array $payload): array
     {
-        $reference = trim((string) ($payload['rootins_appointment_intent'] ?? ''));
         $store = strtolower(trim((string) ($event['store_domain'] ?? '')));
         $orderId = trim((string) ($payload['id'] ?? $payload['order_id'] ?? ''));
-        if ($reference === '' || $orderId === '') throw new RuntimeException('Appointment payment metadata is missing.');
-        if (strtolower(trim((string) ($payload['financial_status'] ?? ''))) !== 'paid') throw new RuntimeException('Shopify order payment is not confirmed.');
+        $customerId = trim((string) ($payload['customer_id'] ?? ($payload['customer']['id'] ?? '')));
+        $reference = $this->appointmentIntentReference($payload);
+        $topic = strtolower(trim((string) ($event['topic'] ?? 'orders/paid')));
+        $this->diagnostic($event, $orderId, $reference, 'finalization_started', null);
+        if ($topic !== 'orders/paid') throw new RuntimeException('SHOPIFY_PAID_TOPIC_INVALID');
+        if ($reference === '' || $orderId === '' || $customerId === '') throw new RuntimeException('APPOINTMENT_INTENT_METADATA_MISSING');
+        $financialStatus = strtolower(trim((string) ($payload['financial_status'] ?? '')));
+        $cancelledAt = trim((string) ($payload['cancelled_at'] ?? ''));
+        if ($cancelledAt !== '' || in_array($financialStatus, ['cancelled', 'refunded', 'partially_refunded'], true)) {
+            $this->markNonPayable($store, $reference, $customerId, $orderId, 'SHOPIFY_ORDER_CANCELLED_OR_REFUNDED');
+            $this->diagnostic($event, $orderId, $reference, 'finalization_rejected', 'cancelled_or_refunded');
+            throw new RuntimeException('SHOPIFY_ORDER_CANCELLED_OR_REFUNDED');
+        }
+        if ($financialStatus !== 'paid') throw new RuntimeException('SHOPIFY_PAYMENT_NOT_CONFIRMED');
 
         $db = db_connect();
         $db->transBegin();
         try {
-            $intent = $db->query('SELECT * FROM shopify_appointment_intents WHERE shopify_store_domain = ? AND public_reference = ? LIMIT 1 FOR UPDATE', [$store, $reference])->getRowArray();
-            if ($intent === null) throw new RuntimeException('Appointment intent was not found.');
+            $intent = $db->query('SELECT * FROM shopify_appointment_intents WHERE shopify_store_domain = ? AND shopify_customer_id = ? AND public_reference = ? AND (shopify_order_id IS NULL OR shopify_order_id = ?) LIMIT 1 FOR UPDATE', [$store, $customerId, $reference, $orderId])->getRowArray();
+            if ($intent === null) throw new RuntimeException('APPOINTMENT_INTENT_NOT_FOUND_OR_SCOPE_INVALID');
             if ((string) $intent['status'] === 'booked') {
                 if ((string) ($intent['shopify_order_id'] ?? '') !== $orderId) throw new RuntimeException('Appointment intent is already linked to another Shopify order.');
                 $db->transCommit();
+                $this->diagnostic($event, $orderId, $reference, 'finalization_duplicate_completed', null);
                 return ['status' => 'booked', 'appointment_id' => (int) $intent['appointment_id'], 'intent_reference' => $reference];
             }
             if (! in_array((string) $intent['status'], self::ACTIVE_INTENT_STATUSES, true)) throw new RuntimeException('Appointment intent is not payable.');
-            if ((string) ($payload['customer_id'] ?? '') !== (string) $intent['shopify_customer_id']) throw new RuntimeException('Shopify customer does not match the appointment intent.');
+            if ($customerId !== (string) $intent['shopify_customer_id']) throw new RuntimeException('SHOPIFY_CUSTOMER_MISMATCH');
             if ((int) ($intent['clinic_id'] ?? 0) < 1 || $db->table('clinics')->where('id', (int) $intent['clinic_id'])->where('status', 1)->get(1)->getRowArray() === null) {
                 throw new RuntimeException('BILLING_CLINIC_UNAVAILABLE');
             }
-            if (strtotime((string) $intent['expires_at']) < time()) throw new RuntimeException('Appointment intent has expired.');
-            if (strtoupper((string) ($payload['currency'] ?? '')) !== strtoupper((string) $intent['currency']) || abs((float) ($payload['total_price'] ?? 0) - (float) $intent['amount']) > 0.01) throw new RuntimeException('Shopify payment amount or currency does not match the appointment intent.');
+            $orderCurrency = strtoupper(trim((string) ($payload['currency'] ?? $payload['presentment_currency'] ?? '')));
+            $orderTotal = (float) ($payload['total_price'] ?? $payload['current_total_price'] ?? 0);
+            if ($orderCurrency !== strtoupper((string) $intent['currency']) || abs($orderTotal - (float) $intent['amount']) > 0.01) throw new RuntimeException('SHOPIFY_PAYMENT_MISMATCH');
             $day = (int) (new DateTimeImmutable((string) $intent['appointment_date'], $this->timezone()))->format('N');
             $schedule = $db->query('SELECT * FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ? AND status = 1 AND deleted_at IS NULL AND start_time <= ? AND end_time > ? ORDER BY start_time ASC LIMIT 1 FOR UPDATE', [(int) $intent['doctor_id'], $day, $intent['appointment_time'], $intent['appointment_time']])->getRowArray();
-            if ($schedule === null) throw new RuntimeException('The paid appointment slot is no longer available.');
-            $duration = max(1, (int) ($schedule['slot_duration'] ?? $intent['duration_minutes']));
+            if ($schedule === null) throw new RuntimeException('SLOT_UNAVAILABLE');
+            $scheduleDuration = max(1, (int) ($schedule['slot_duration'] ?? 15));
+            $duration = max(1, (int) ($intent['duration_minutes'] ?? $scheduleDuration));
+            if ($duration > $scheduleDuration) throw new RuntimeException('SERVICE_SLOT_INCOMPATIBLE');
             $slotEnd = (new DateTimeImmutable($intent['appointment_date'] . ' ' . $intent['appointment_time'], $this->timezone()))->modify('+' . $duration . ' minutes')->format('H:i:s');
-            if (! $this->isSlotAligned((string) $schedule['start_time'], (string) $intent['appointment_time'], $duration)) throw new RuntimeException('The paid appointment slot is no longer available.');
+            if (! $this->isSlotAligned((string) $schedule['start_time'], (string) $intent['appointment_time'], $scheduleDuration)) throw new RuntimeException('SLOT_UNAVAILABLE');
             $breakStart = trim((string) ($schedule['break_start_time'] ?? '')); $breakEnd = trim((string) ($schedule['break_end_time'] ?? ''));
-            if ($this->leaveOverlaps((int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $intent['appointment_time'] < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new RuntimeException('The paid appointment slot is inside a break or outside working hours.');
+            if ($this->leaveOverlaps((int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd) || (($breakStart !== '' && $breakEnd !== '' && $intent['appointment_time'] < $breakEnd && $slotEnd > $breakStart) || $slotEnd > (string) $schedule['end_time'])) throw new RuntimeException('SLOT_UNAVAILABLE');
             $this->assertSlotAvailable($db, (int) $intent['clinic_id'], (int) $intent['doctor_id'], (string) $intent['appointment_date'], (string) $intent['appointment_time'], $slotEnd, date('Y-m-d H:i:s'), (int) ($schedule['max_patients'] ?? 0), (int) $intent['id']);
             $now = date('Y-m-d H:i:s');
             $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => (int) $intent['patient_id'], 'doctor_id' => (int) $intent['doctor_id'], 'clinic_id' => (int) $intent['clinic_id'], 'appointment_date' => $intent['appointment_date'], 'appointment_time' => $intent['appointment_time'], 'duration_minutes' => $duration, 'appointment_type' => (string) ($intent['consultation_mode'] ?? 'in_person'), 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => (int) $intent['patient_id'], 'booking_source' => 'shopify', 'created_at' => $now, 'updated_at' => $now]);
@@ -159,11 +175,112 @@ final class ShopifyAppointmentIntentService
             if ($appointmentId < 1 || ! $db->table('appointments')->where('id', $appointmentId)->update(['appointment_number' => sprintf('APT-%06d', $appointmentId)])) throw new RuntimeException('Final appointment creation failed.');
             if (! $db->table('appointment_services')->insert(['appointment_id' => $appointmentId, 'service_id' => (int) $intent['service_id'], 'service_name' => $this->serviceName($db, (int) $intent['service_id']), 'created_at' => $now])) throw new RuntimeException('Appointment service link failed.');
             (new AppointmentBillingService())->createOrUpdate((int) $intent['clinic_id'], (int) $intent['patient_id'], $appointmentId, (float) $intent['amount'], (string) $intent['currency'], 'paid', 'shopify-appointment-' . $intent['id']);
-            $db->table('shopify_appointment_intents')->where('id', (int) $intent['id'])->update(['status' => 'booked', 'shopify_order_id' => $orderId, 'shopify_order_number' => (string) ($payload['order_number'] ?? ''), 'appointment_id' => $appointmentId, 'paid_at' => $now, 'updated_at' => $now]);
+            if (! $db->table('shopify_appointment_intents')->where('id', (int) $intent['id'])->whereIn('status', self::ACTIVE_INTENT_STATUSES)->update(['status' => 'booked', 'shopify_order_id' => $orderId, 'shopify_order_number' => (string) ($payload['order_number'] ?? ''), 'appointment_id' => $appointmentId, 'paid_at' => $now, 'failure_reason' => null, 'updated_at' => $now])) throw new RuntimeException('Appointment intent completion failed.');
+            service('audit')->record('shopify.appointment_finalized_paid', ['correlation_id' => $this->correlationId($event), 'shopify_order_id' => $orderId, 'intent_reference' => $reference, 'appointment_id' => $appointmentId]);
             if (! $db->transCommit()) throw new RuntimeException('Final appointment transaction failed.');
-        } catch (\Throwable $exception) { $db->transRollback(); throw $exception; }
-        service('audit')->record('shopify.appointment_booked_after_payment', ['intent_reference' => $reference, 'appointment_id' => $appointmentId, 'shopify_order_id' => $orderId]);
+        } catch (\Throwable $exception) {
+            $db->transRollback();
+            $this->markRetryableFailure($store, $reference, $customerId, $orderId, $this->failureCategory($exception));
+            $this->diagnostic($event, $orderId, $reference, 'finalization_failed', $this->failureCategory($exception));
+            throw $exception;
+        }
+        $this->diagnostic($event, $orderId, $reference, 'finalization_completed', null);
         return ['status' => 'booked', 'intent_reference' => $reference, 'appointment_id' => $appointmentId];
+    }
+
+    /** Retry a paid order from an already stored, verified webhook event. */
+    public function reprocessPaidOrder(string $store, string $orderId): array
+    {
+        $store = strtolower(trim($store));
+        $orderId = trim($orderId);
+        foreach ((new ShopifyWebhookEventModel())->where('store_domain', $store)->where('topic', 'orders/paid')->like('payload_json', $orderId)->orderBy('id', 'DESC')->findAll(25) as $event) {
+            $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+            if (! is_array($payload) || (string) ($payload['id'] ?? $payload['order_id'] ?? '') !== $orderId) continue;
+            $result = $this->finalizePaid($event, $payload);
+            (new ShopifyWebhookEventService())->markProcessed((int) $event['id']);
+            return $result;
+        }
+        throw new RuntimeException('The stored paid Shopify webhook could not be found for this order.');
+    }
+
+    private function appointmentIntentReference(array $payload): string
+    {
+        $values = [(string) ($payload['rootins_appointment_intent'] ?? '')];
+        foreach ([(array) ($payload['note_attributes'] ?? []), (array) ($payload['attributes'] ?? []), (array) ($payload['custom_attributes'] ?? [])] as $attributes) {
+            foreach ($attributes as $attribute) {
+                if (!is_array($attribute)) continue;
+                $name = strtolower(trim((string) ($attribute['name'] ?? $attribute['key'] ?? '')));
+                if (in_array($name, ['rootins_appointment_intent', 'rootins.appointment_intent'], true)) $values[] = (string) ($attribute['value'] ?? '');
+            }
+        }
+        foreach ((array) ($payload['line_items'] ?? []) as $item) {
+            foreach ((array) ($item['properties'] ?? []) as $property) {
+                if (!is_array($property)) continue;
+                $name = strtolower(trim((string) ($property['name'] ?? $property['key'] ?? '')));
+                if (in_array($name, ['rootins_appointment_intent', 'rootins.appointment_intent'], true)) $values[] = (string) ($property['value'] ?? '');
+            }
+        }
+        foreach ((array) ($payload['metafields'] ?? []) as $field) {
+            if (!is_array($field)) continue;
+            if (strtolower(trim((string) ($field['namespace'] ?? ''))) !== 'rootins' || ! in_array(strtolower(trim((string) ($field['key'] ?? ''))), ['appointment_intent', 'rootins_appointment_intent'], true)) continue;
+            $values[] = (string) ($field['value'] ?? '');
+        }
+        foreach ($values as $value) {
+            $value = trim($value);
+            if (preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1) return $value;
+        }
+        return '';
+    }
+
+    private function markRetryableFailure(string $store, string $reference, string $customerId, string $orderId, string $reason): void
+    {
+        try {
+            db_connect()->table('shopify_appointment_intents')
+                ->where('shopify_store_domain', $store)
+                ->where('shopify_customer_id', $customerId)
+                ->where('public_reference', $reference)
+                ->whereIn('status', self::ACTIVE_INTENT_STATUSES)
+                ->update(['status' => 'paid', 'shopify_order_id' => $orderId ?: null, 'failure_reason' => substr($reason, 0, 191), 'updated_at' => date('Y-m-d H:i:s')]);
+        } catch (\Throwable) {
+            log_message('error', 'Shopify paid appointment retry state could not be stored safely.');
+        }
+    }
+
+    private function markNonPayable(string $store, string $reference, string $customerId, string $orderId, string $reason): void
+    {
+        db_connect()->table('shopify_appointment_intents')
+            ->where('shopify_store_domain', $store)
+            ->where('shopify_customer_id', $customerId)
+            ->where('public_reference', $reference)
+            ->whereIn('status', self::ACTIVE_INTENT_STATUSES)
+            ->update(['status' => 'cancelled', 'shopify_order_id' => $orderId ?: null, 'failure_reason' => $reason, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    private function failureCategory(\Throwable $exception): string
+    {
+        $message = strtoupper(trim($exception->getMessage()));
+        foreach (['SHOPIFY_PAYMENT_MISMATCH', 'SHOPIFY_CUSTOMER_MISMATCH', 'SHOPIFY_PAYMENT_NOT_CONFIRMED', 'SHOPIFY_ORDER_CANCELLED_OR_REFUNDED', 'APPOINTMENT_INTENT_METADATA_MISSING', 'BILLING_CLINIC_UNAVAILABLE', 'SERVICE_SLOT_INCOMPATIBLE', 'SLOT_UNAVAILABLE', 'APPOINTMENT_INTENT_NOT_FOUND_OR_SCOPE_INVALID'] as $category) {
+            if (str_contains($message, $category)) return $category;
+        }
+        return 'APPOINTMENT_FINALIZATION_DEPENDENCY_FAILED';
+    }
+
+    private function correlationId(array $event): string
+    {
+        $value = trim((string) ($event['correlation_id'] ?? ''));
+        return $value !== '' ? $value : 'unavailable';
+    }
+
+    private function diagnostic(array $event, string $orderId, string $reference, string $stage, ?string $category): void
+    {
+        log_message('info', 'Shopify paid appointment diagnostic ' . json_encode([
+            'correlation_id' => $this->correlationId($event),
+            'shopify_order_id' => $orderId,
+            'intent_public_reference' => $reference,
+            'topic' => (string) ($event['topic'] ?? 'orders/paid'),
+            'processing_stage' => $stage,
+            'failure_category' => $category,
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     private function assertSlotAvailable($db, int $clinicId, int $doctorId, string $date, string $start, string $end, string $now, int $capacity, int $ignoreIntentId = 0): void

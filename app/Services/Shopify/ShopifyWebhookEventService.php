@@ -123,7 +123,7 @@ final class ShopifyWebhookEventService
         $safe = [];
 
         if ((isset($payload['line_items']) && is_array($payload['line_items'])) || isset($payload['order_id'])) {
-            foreach (['id', 'order_id', 'order_number', 'currency', 'total_price', 'financial_status', 'fulfillment_status', 'cancelled_at', 'gateway', 'shipping_provider', 'tracking_number'] as $key) {
+            foreach (['id', 'order_id', 'order_number', 'currency', 'presentment_currency', 'total_price', 'current_total_price', 'financial_status', 'fulfillment_status', 'cancelled_at', 'gateway', 'shipping_provider', 'tracking_number'] as $key) {
                 if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
                     $safe[$key] = $payload[$key];
                 }
@@ -131,7 +131,7 @@ final class ShopifyWebhookEventService
             if (!isset($safe['id']) && isset($payload['order_id'])) {
                 $safe['id'] = (string) $payload['order_id'];
             }
-            $safe['customer_id'] = (string) ($payload['customer']['id'] ?? '');
+            $safe['customer_id'] = (string) ($payload['customer']['id'] ?? $payload['customer_id'] ?? '');
             $safe['shipping_address'] = $this->safeAddress($payload['shipping_address'] ?? []);
             $safe['line_items'] = [];
 
@@ -252,16 +252,34 @@ final class ShopifyWebhookEventService
 
     private function appointmentIntentReference(array $payload): ?string
     {
-        foreach ((array) ($payload['note_attributes'] ?? []) as $attribute) {
-            if (!is_array($attribute) || strtolower(trim((string) ($attribute['name'] ?? ''))) !== 'rootins_appointment_intent') continue;
-            $value = trim((string) ($attribute['value'] ?? ''));
-            return preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1 ? $value : null;
+        $collections = [
+            (array) ($payload['note_attributes'] ?? []),
+            (array) ($payload['attributes'] ?? []),
+            (array) ($payload['custom_attributes'] ?? []),
+            (array) ($payload['checkout_attributes'] ?? []),
+        ];
+        foreach ($collections as $attributes) {
+            foreach ($attributes as $attribute) {
+                if (!is_array($attribute)) continue;
+                $name = strtolower(trim((string) ($attribute['name'] ?? $attribute['key'] ?? '')));
+                if ($name !== 'rootins_appointment_intent' && $name !== 'rootins.appointment_intent') continue;
+                $value = trim((string) ($attribute['value'] ?? ''));
+                if (preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1) return $value;
+            }
+        }
+        foreach ((array) ($payload['metafields'] ?? []) as $field) {
+            if (!is_array($field)) continue;
+            if (strtolower(trim((string) ($field['namespace'] ?? ''))) !== 'rootins' || ! in_array(strtolower(trim((string) ($field['key'] ?? ''))), ['appointment_intent', 'rootins_appointment_intent'], true)) continue;
+            $value = trim((string) ($field['value'] ?? ''));
+            if (preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1) return $value;
         }
         foreach ((array) ($payload['line_items'] ?? []) as $item) {
-            foreach ((array) ($item['properties'] ?? []) as $property) {
-                if (!is_array($property) || strtolower(trim((string) ($property['name'] ?? ''))) !== 'rootins_appointment_intent') continue;
+            foreach (array_merge((array) ($item['properties'] ?? []), (array) ($item['custom_attributes'] ?? [])) as $property) {
+                if (!is_array($property)) continue;
+                $name = strtolower(trim((string) ($property['name'] ?? $property['key'] ?? '')));
+                if ($name !== 'rootins_appointment_intent' && $name !== 'rootins.appointment_intent') continue;
                 $value = trim((string) ($property['value'] ?? ''));
-                return preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1 ? $value : null;
+                if (preg_match('/^RINT-[A-Z0-9]+$/', $value) === 1) return $value;
             }
         }
         return null;

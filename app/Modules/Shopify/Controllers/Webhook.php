@@ -18,14 +18,16 @@ final class Webhook extends BaseController
 
     public function receive(string $topic): ResponseInterface
     {
+        $this->requestCorrelationId = $this->newCorrelationId();
         $rawBody = (string) $this->request->getBody();
         $configuration = new ShopifyConfiguration();
         $signature = $this->request->getHeaderLine('X-Shopify-Hmac-Sha256');
         $headerTopic = trim($this->request->getHeaderLine('X-Shopify-Topic'));
         $topic = $headerTopic !== '' ? $headerTopic : trim($topic);
+        $this->diagnostic($topic, '', '', 'request_received', 'none');
 
         if (! (new ShopifyWebhookVerifier($configuration))->isValid($rawBody, $signature)) {
-            log_message('warning', 'Shopify webhook signature rejected.');
+            $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_HMAC_INVALID');
 
             return $this->error(401, 'SHOPIFY_WEBHOOK_AUTH_FAILED', 'Webhook authentication failed.');
         }
@@ -33,13 +35,14 @@ final class Webhook extends BaseController
         $shopDomain = strtolower(trim($this->request->getHeaderLine('X-Shopify-Shop-Domain')));
         $configuredDomain = strtolower(trim((string) preg_replace('#^https?://#', '', $configuration->storeDomain())));
         if ($shopDomain === '' || rtrim($shopDomain, '/') !== rtrim($configuredDomain, '/')) {
-            log_message('warning', 'Shopify webhook store scope rejected.');
+            $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_SCOPE_INVALID');
 
             return $this->error(403, 'SHOPIFY_WEBHOOK_SCOPE_INVALID', 'Webhook store scope is not authorized.');
         }
 
         $eventId = trim($this->request->getHeaderLine('X-Shopify-Webhook-Id'));
         if ($eventId === '') {
+            $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_EVENT_ID_REQUIRED');
             return $this->error(422, 'SHOPIFY_WEBHOOK_EVENT_ID_REQUIRED', 'Webhook delivery identifier is required.');
         }
 
@@ -88,14 +91,16 @@ final class Webhook extends BaseController
                 $events = new ShopifyWebhookEventService();
                 $event = $events->find((int) $result['id']);
                 if (is_array($event) && (string) ($event['status'] ?? '') !== 'processed') {
+                    $payload = [];
                     try {
                         $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
                         if (! is_array($payload)) throw new \RuntimeException('Stored paid order payload is invalid.');
+                        $event['correlation_id'] = $this->requestCorrelationId;
                         (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
                         $events->markProcessed((int) $result['id']);
                     } catch (\Throwable $exception) {
                         $events->markFailed((int) $result['id'], 'Appointment payment processing failed.');
-                        log_message('error', 'Shopify paid appointment retry failed safely.');
+                        $this->diagnostic($topic, (string) ($payload['id'] ?? $payload['order_id'] ?? ''), (string) ($payload['rootins_appointment_intent'] ?? ''), 'retry_failed', 'APPOINTMENT_FINALIZATION_FAILED');
                         return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
                     }
                 }
@@ -124,16 +129,18 @@ final class Webhook extends BaseController
         }
 
         if ($topic === 'orders/paid' && $result['id'] !== null) {
+            $payload = [];
             try {
                 $event = (new ShopifyWebhookEventService())->find((int) $result['id']);
+                if (! is_array($event)) throw new \RuntimeException('Stored Shopify paid event was not found.');
                 $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
-                if (is_array($event) && is_array($payload)) {
-                    (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
-                }
+                if (! is_array($payload)) throw new \RuntimeException('Stored Shopify paid event payload is invalid.');
+                $event['correlation_id'] = $this->requestCorrelationId;
+                (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
                 (new ShopifyWebhookEventService())->markProcessed((int) $result['id']);
             } catch (\Throwable $exception) {
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Appointment payment processing failed.');
-                log_message('error', 'Shopify paid appointment processing failed safely.');
+                $this->diagnostic($topic, (string) ($payload['id'] ?? $payload['order_id'] ?? ''), (string) ($payload['rootins_appointment_intent'] ?? ''), 'processing_failed', 'APPOINTMENT_FINALIZATION_FAILED');
                 return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
             }
         }
@@ -181,5 +188,26 @@ final class Webhook extends BaseController
             'msg' => $message,
             'error' => ['code' => $code, 'message' => $message, 'correlation_id' => $this->requestCorrelationId],
         ]);
+    }
+
+    private function newCorrelationId(): string
+    {
+        try {
+            return bin2hex(random_bytes(16));
+        } catch (\Throwable) {
+            return 'unavailable';
+        }
+    }
+
+    private function diagnostic(string $topic, string $orderId, string $reference, string $stage, string $category): void
+    {
+        log_message('info', 'Shopify paid webhook diagnostic ' . json_encode([
+            'correlation_id' => $this->requestCorrelationId,
+            'shopify_order_id' => $orderId,
+            'intent_public_reference' => $reference,
+            'topic' => $topic,
+            'processing_stage' => $stage,
+            'failure_category' => $category,
+        ], JSON_UNESCAPED_SLASHES));
     }
 }

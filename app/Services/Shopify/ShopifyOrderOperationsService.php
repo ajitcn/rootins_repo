@@ -151,6 +151,11 @@ final class ShopifyOrderOperationsService
         if ($import === null) throw new InvalidArgumentException('Shopify order was not found.');
         $old = (string) ($import['status'] ?? '');
         $model = new ShopifyOrderImportModel();
+        if ($action === 'reprocess_paid_appointment') {
+            $result = (new ShopifyAppointmentIntentService())->reprocessPaidOrder((string) $import['store_domain'], (string) $import['shopify_order_id']);
+            service('audit')->record('shopify.order_operation_reprocess_paid_appointment', ['import_id' => $id, 'shopify_order_id' => (string) $import['shopify_order_id']]);
+            return $result;
+        }
         if ($action === 'retry_validation' || $action === 'retry_import' || $action === 'reprocess_webhook') {
             $result = (new ShopifyOrderImportService())->importExisting($id, null);
             $this->history($id, $action, $old, (string) ($model->find($id)['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
