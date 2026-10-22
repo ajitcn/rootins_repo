@@ -47,6 +47,14 @@ final class AuditLogger
         return $this->correlationId;
     }
 
+    /** Bind audit records to the request correlation identifier. */
+    public function bindCorrelationId(string $correlationId): void
+    {
+        if (preg_match('/^[A-Za-z0-9._:-]{1,64}$/', $correlationId) === 1) {
+            $this->correlationId = $correlationId;
+        }
+    }
+
     /**
      * @param array<string, mixed> $values @return array<string, mixed>
      */

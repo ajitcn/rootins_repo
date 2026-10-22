@@ -15,6 +15,23 @@ final class ShopifyPrescriptionProxyUploadFieldTest extends TestCase
         foreach (['isValid()', 'getError()', 'hasMoved()', 'FILE_REQUIRED', 'UPLOAD_ERR_OK', 'correlation_id'] as $contract) self::assertStringContainsString($contract, $source);
     }
 
+    public function testDiagnosticsUseOneCorrelationIdAndNeverLogSensitiveMultipartValues(): void
+    {
+        $source = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        self::assertStringContainsString('requestDiagnostics()', $source);
+        foreach (['file_field_present', 'file_valid', 'file_size', 'file_mime', 'post_field_names', 'app_proxy_context_present', 'bindCorrelationId', 'request started', 'response ready'] as $contract) self::assertStringContainsString($contract, $source);
+        foreach (['file contents', 'file_path', 'storage key', 'signature value'] as $sensitive) self::assertStringNotContainsString($sensitive, strtolower($source));
+    }
+
+    public function testMissingProxyContextAndInvalidFileUseStableCodes(): void
+    {
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        self::assertStringContainsString('SHOPIFY_PROXY_CONTEXT_MISSING', $proxy . $controller);
+        self::assertStringContainsString("'FILE_REQUIRED'", $controller);
+        self::assertStringContainsString("'FILE_INVALID'", $controller);
+    }
+
     public function testProductHandleFormsAndUploadMimeContractsAreCovered(): void
     {
         $proxy = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');

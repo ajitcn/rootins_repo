@@ -28,7 +28,7 @@ final class ShopifyProxyService
         if ($operation === 'prescriptions.upload') {
             $required[] = 'logged_in_customer_id';
         }
-        $missing = array_values(array_diff($required, $received));
+        $missing = array_values(array_filter($required, static fn (string $name): bool => ! array_key_exists($name, $query) || is_array($query[$name]) || trim((string) $query[$name]) === ''));
         try {
             $configuration = (new ShopifyProxyConfigurationService())->runtime();
         } catch (InvalidArgumentException $exception) {
@@ -47,6 +47,9 @@ final class ShopifyProxyService
         }
         if ($missing !== []) {
             $this->logValidationFailure($missing, $received, null, null, 'missing_parameters', $secretPresent);
+            if ($operation === 'prescriptions.upload') {
+                throw new ShopifyProxyAuthenticationException('The Shopify App Proxy context is missing.', 'SHOPIFY_PROXY_CONTEXT_MISSING', 401);
+            }
             throw new ShopifyProxyAuthenticationException('The Shopify proxy request is missing required parameters.', 'SHOPIFY_PROXY_PARAMETERS_MISSING');
         }
 

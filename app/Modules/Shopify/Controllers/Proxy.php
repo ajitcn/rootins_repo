@@ -7,6 +7,7 @@ use App\Modules\CoreApi\Services\CoreApiException;
 use App\Services\Shopify\ShopifyOperationIdempotencyService;
 use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
+use App\Services\Shopify\ShopifyPrescriptionUploadValidationException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -54,7 +55,7 @@ final class Proxy extends BaseController
             $payload = strtoupper($this->request->getMethod()) === 'GET' ? $this->request->getGet() : $this->requestPayload();
             $file = $operation === 'prescriptions.upload' ? $this->prescriptionFile() : null;
             if ($operation === 'prescriptions.upload') {
-                $payload['product_handles'] = $this->normalizeProductHandles($payload['product_handles'] ?? null);
+                $payload['product_handles'] = $this->normalizeProductHandles($this->request->getPost('product_handles'));
             }
             $idempotencyKey = $operation === 'appointments.book'
                 ? hash('sha256', $operation . '|' . strtolower((string) ($context['store_domain'] ?? '')) . '|' . $key)
@@ -88,6 +89,9 @@ final class Proxy extends BaseController
             }
             if ($operation === 'patients.register') return $this->registrationCoreApiError($exception);
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode, $exception->fields);
+        } catch (ShopifyPrescriptionUploadValidationException $exception) {
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'file_invalid');
+            return $this->json(422, false, 'The prescription file is invalid.', [], 'FILE_INVALID', $exception->errors);
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             if ($operation === 'patients.register') {
@@ -97,6 +101,9 @@ final class Proxy extends BaseController
                 $status = $code === 'SHOPIFY_PROXY_SIGNATURE_INVALID' ? 401 : 503;
                 if ($status === 503) return $this->registrationDependencyError($code);
                 return $this->json(401, false, 'The Shopify proxy signature is invalid.', [], $code);
+            }
+            if ($operation === 'prescriptions.upload' && $exception->errorCode === 'SHOPIFY_PROXY_CONTEXT_MISSING') {
+                return $this->json(401, false, 'The Shopify App Proxy context is missing.', [], 'SHOPIFY_PROXY_CONTEXT_MISSING');
             }
             if ($operation === 'appointments.availability' && $exception->errorCode === 'SHOPIFY_PROXY_CONFIGURATION_MISSING') {
                 $this->logAvailabilityFailure($exception, 'CORE_API_CONFIGURATION_MISSING');
@@ -173,12 +180,19 @@ final class Proxy extends BaseController
     {
         // `file` is the canonical Shopify multipart field. `document` is the
         // existing backward-compatible alias used by older ROOTINS clients.
+        if (! str_starts_with(strtolower($this->request->getHeaderLine('Content-Type')), 'multipart/form-data')) {
+            throw new CoreApiException(422, 'FILE_INVALID', 'A multipart/form-data prescription upload is required.');
+        }
         $file = $this->request->getFile('file');
+        $legacy = null;
         if (! $this->validUploadedFile($file)) {
             $legacy = $this->request->getFile('document');
             if ($this->validUploadedFile($legacy)) $file = $legacy;
         }
         if (! $this->validUploadedFile($file)) {
+            if ($file instanceof UploadedFile || $legacy instanceof UploadedFile) {
+                throw new CoreApiException(422, 'FILE_INVALID', 'The prescription file is invalid.');
+            }
             throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.');
         }
         return $file;
@@ -320,14 +334,17 @@ final class Proxy extends BaseController
 
     private function begin(string $operation): void
     {
-        $this->requestCorrelationId = $this->correlationId();
+        if ($this->requestCorrelationId === '') {
+            $this->requestCorrelationId = $this->correlationId();
+        }
         $this->requestOperation = $operation;
-        log_message('info', 'Shopify proxy request started correlation_id=' . $this->requestCorrelationId . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . $operation . ' http_status=START content_type=unknown parameter_names=' . implode(',', $this->requestParameterNames()) . ' timestamp=' . date(DATE_ATOM));
+        service('audit')->bindCorrelationId($this->requestCorrelationId);
+        log_message('info', 'Shopify proxy request started correlation_id=' . $this->requestCorrelationId . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . $operation . ' http_status=START diagnostics=' . json_encode($this->requestDiagnostics(), JSON_UNESCAPED_SLASHES) . ' timestamp=' . date(DATE_ATOM));
     }
 
     private function logResponse(int $status, string $contentType): void
     {
-        log_message('info', 'Shopify proxy response ready correlation_id=' . ($this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable') . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . ($this->requestOperation !== '' ? $this->requestOperation : 'unknown') . ' http_status=' . $status . ' content_type=' . $contentType . ' parameter_names=' . implode(',', $this->requestParameterNames()) . ' timestamp=' . date(DATE_ATOM));
+        log_message('info', 'Shopify proxy response ready correlation_id=' . ($this->requestCorrelationId !== '' ? $this->requestCorrelationId : 'unavailable') . ' route=' . $this->safeRoute() . ' method=' . strtoupper($this->request->getMethod()) . ' operation=' . ($this->requestOperation !== '' ? $this->requestOperation : 'unknown') . ' http_status=' . $status . ' diagnostics=' . json_encode($this->requestDiagnostics(), JSON_UNESCAPED_SLASHES) . ' timestamp=' . date(DATE_ATOM));
     }
 
     /** @return list<string> */
@@ -339,8 +356,10 @@ final class Proxy extends BaseController
             if (is_array($get)) $names = array_keys($get);
             $post = $this->request->getPost();
             if (is_array($post)) $names = array_merge($names, array_keys($post));
-            $json = $this->request->getJSON(true);
-            if (is_array($json)) $names = array_merge($names, array_keys($json));
+            if (! str_starts_with(strtolower($this->request->getHeaderLine('Content-Type')), 'multipart/form-data')) {
+                $json = $this->request->getJSON(true);
+                if (is_array($json)) $names = array_merge($names, array_keys($json));
+            }
         } catch (Throwable) {
             // Request diagnostics must never interfere with proxy handling.
             $names = [];
@@ -348,6 +367,30 @@ final class Proxy extends BaseController
         $names = array_values(array_unique(array_map(static fn ($name): string => preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) $name) ?: 'unknown', $names)));
         sort($names);
         return $names;
+    }
+
+    /** @return array<string, mixed> */
+    private function requestDiagnostics(): array
+    {
+        $file = $this->request->getFile('file');
+        $query = (new \App\Services\Shopify\ShopifyProxySignatureService())->query((string) $this->request->getUri()->getQuery());
+        $required = ['shop', 'timestamp', 'signature', 'path_prefix', 'logged_in_customer_id'];
+        $contextPresent = count(array_filter($required, static fn (string $name): bool => array_key_exists($name, $query) && ! is_array($query[$name]) && trim((string) $query[$name]) !== '')) === count($required);
+        $mime = null;
+        if ($file instanceof UploadedFile && is_file($file->getTempName()) && function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo !== false) { $mime = finfo_file($finfo, $file->getTempName()) ?: null; finfo_close($finfo); }
+        }
+        $post = $this->request->getPost();
+        return [
+            'content_type' => strtolower($this->request->getHeaderLine('Content-Type')),
+            'file_field_present' => $file instanceof UploadedFile,
+            'file_valid' => $file instanceof UploadedFile && $file->isValid() && $file->getError() === UPLOAD_ERR_OK && ! $file->hasMoved(),
+            'file_size' => $file instanceof UploadedFile ? $file->getSize() : null,
+            'file_mime' => $mime,
+            'post_field_names' => is_array($post) ? array_values(array_unique(array_map('strval', array_keys($post)))) : [],
+            'app_proxy_context_present' => $contextPresent,
+        ];
     }
 
     private function correlationId(): string
