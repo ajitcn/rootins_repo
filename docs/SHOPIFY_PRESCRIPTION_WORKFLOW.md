@@ -1,8 +1,27 @@
 # Shopify prescription-to-order contract
 
 The Core API App Proxy endpoint is `POST /rootins-proxy/prescriptions/upload`.
-It accepts a multipart `document` plus an `Idempotency-Key`. Shopify must send
+It accepts a multipart `file` plus an `Idempotency-Key`. Shopify must send
 the signed App Proxy query parameters, including `logged_in_customer_id`.
+
+Shopify developer request (the canonical multipart field is `file`):
+
+`POST /apps/rootins/prescriptions/upload` (Shopify App Proxy mapping to
+`/rootins-proxy/prescriptions/upload`)
+
+```text
+Form-data:
+
+file: <binary>
+product_handles: dummy-product-02
+
+Header:
+
+Idempotency-Key: <unique-uuid>
+```
+
+The older `document` multipart field remains accepted only as a backward-
+compatible alias. New Shopify storefront code must use `file`.
 
 The response contains only `prescription_reference`, status, timestamp, MIME
 type, and byte size. The R2 object key is private and is never returned.

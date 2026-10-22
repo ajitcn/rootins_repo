@@ -8,6 +8,7 @@ use App\Services\Shopify\ShopifyOperationIdempotencyService;
 use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\HTTP\Files\UploadedFile;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use InvalidArgumentException;
 use JsonException;
@@ -51,6 +52,10 @@ final class Proxy extends BaseController
             $query = (new \App\Services\Shopify\ShopifyProxySignatureService())->query($queryString);
             $context = (new ShopifyProxyService())->verify($operation, $query, $queryString);
             $payload = strtoupper($this->request->getMethod()) === 'GET' ? $this->request->getGet() : $this->requestPayload();
+            $file = $operation === 'prescriptions.upload' ? $this->prescriptionFile() : null;
+            if ($operation === 'prescriptions.upload') {
+                $payload['product_handles'] = $this->normalizeProductHandles($payload['product_handles'] ?? null);
+            }
             $idempotencyKey = $operation === 'appointments.book'
                 ? hash('sha256', $operation . '|' . strtolower((string) ($context['store_domain'] ?? '')) . '|' . $key)
                 : $key;
@@ -65,7 +70,7 @@ final class Proxy extends BaseController
             if ($operation === 'prescriptions.upload' && trim((string) ($payload['external_upload_reference'] ?? '')) === '') {
                 $payload['external_upload_reference'] = 'RXP-' . strtoupper(substr(hash('sha256', $context['store_domain'] . '|' . $context['customer_id'] . '|' . $key), 0, 32));
             }
-            $data = (new ShopifyProxyService())->execute($operation, $context, $payload, $this->request->getFile('document'));
+            $data = (new ShopifyProxyService())->execute($operation, $context, $payload, $file);
             if ($claimed) $idempotency->complete($idempotencyKey, hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES) ?: ''));
             service('audit')->record('shopify.proxy_request_succeeded', ['operation' => $operation, 'store_domain' => $context['store_domain']]);
             return $this->json($write && $operation === 'patients.register' ? 201 : 200, true, 'Shopify proxy operation completed.', $data);
@@ -162,6 +167,51 @@ final class Proxy extends BaseController
             throw new CoreApiException(422, 'INVALID_JSON', 'A valid JSON request body is required.');
         }
         return $payload;
+    }
+
+    private function prescriptionFile(): UploadedFile
+    {
+        // `file` is the canonical Shopify multipart field. `document` is the
+        // existing backward-compatible alias used by older ROOTINS clients.
+        $file = $this->request->getFile('file');
+        if (! $this->validUploadedFile($file)) {
+            $legacy = $this->request->getFile('document');
+            if ($this->validUploadedFile($legacy)) $file = $legacy;
+        }
+        if (! $this->validUploadedFile($file)) {
+            throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.');
+        }
+        return $file;
+    }
+
+    private function validUploadedFile(mixed $file): bool
+    {
+        return $file instanceof UploadedFile
+            && $file->isValid()
+            && $file->getError() === UPLOAD_ERR_OK
+            && ! $file->hasMoved();
+    }
+
+    /** @return list<string> */
+    private function normalizeProductHandles(mixed $value): array
+    {
+        if ($value === null || $value === '') return [];
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            $decoded = json_decode($trimmed, true);
+            $parts = preg_split('/\s*,\s*/', $trimmed);
+            $value = is_array($decoded) ? $decoded : (is_array($parts) ? $parts : [$trimmed]);
+        }
+        if (! is_array($value)) throw new CoreApiException(422, 'PRODUCT_HANDLES_INVALID', 'Product handles must be a handle, comma-separated string, or JSON array.');
+        $handles = [];
+        foreach ($value as $handle) {
+            $handle = strtolower(trim((string) $handle));
+            if ($handle === '' || preg_match('/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/', $handle) !== 1) {
+                throw new CoreApiException(422, 'PRODUCT_HANDLES_INVALID', 'Each product handle must contain only letters, numbers, hyphens, or underscores.');
+            }
+            $handles[] = $handle;
+        }
+        return array_values(array_unique($handles));
     }
 
     /** @param array<string, string> $fields */
