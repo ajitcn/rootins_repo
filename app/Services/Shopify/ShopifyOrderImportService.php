@@ -70,9 +70,24 @@ final class ShopifyOrderImportService
         $clinicId = ($this->configuration ?? new ShopifyConfiguration())->clinicId();
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
-        if ($clinicId === null || $patientId <= 0) {
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE, $eventId);
+        if ($patientId <= 0) {
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
             $events->markProcessed($eventId);
+
+            return ['status' => 'quarantined', 'import_id' => $importId];
+        }
+
+        // Clinic scope is a financial/fulfilment concern. A globally stored
+        // prescription and its patient identity must not depend on a clinic.
+        if ($clinicId === null) {
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::BILLING_CLINIC_UNAVAILABLE, $eventId, $patientId);
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::BILLING_CLINIC_UNAVAILABLE);
+            service('audit')->record('shopify.order_quarantined', [
+                'event_id' => $eventId,
+                'import_id' => $importId,
+                'patient_id' => $patientId,
+                'reason' => 'billing_clinic_unavailable',
+            ]);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
         }

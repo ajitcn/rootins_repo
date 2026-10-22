@@ -26,6 +26,12 @@ compatible alias. New Shopify storefront code must use `file`.
 The response contains only `prescription_reference`, status, timestamp, MIME
 type, and byte size. The R2 object key is private and is never returned.
 
+Prescription uploads are global clinical records and do not require a patient
+`clinic_id`. Clinic scope is resolved later only for billing, invoicing,
+financial reporting, or order fulfilment. If that later step cannot resolve a
+clinic, it returns `BILLING_CLINIC_UNAVAILABLE`; upload/file failures use
+`FILE_INVALID` or `PRESCRIPTION_DEPENDENCY_UNAVAILABLE` as appropriate.
+
 ## Cart and order data
 
 Use the Shopify cart metafield `rootins.prescription_reference` (type

@@ -8,6 +8,7 @@ use App\Services\Shopify\ShopifyOperationIdempotencyService;
 use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use App\Services\Shopify\ShopifyPrescriptionUploadValidationException;
+use App\Services\Shopify\ShopifyPrescriptionUploadCustomerException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -92,6 +93,9 @@ final class Proxy extends BaseController
         } catch (ShopifyPrescriptionUploadValidationException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'file_invalid');
             return $this->json(422, false, 'The prescription file is invalid.', [], 'FILE_INVALID', $exception->errors);
+        } catch (ShopifyPrescriptionUploadCustomerException $exception) {
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'customer_unlinked');
+            return $this->json(403, false, $exception->getMessage(), [], 'SHOPIFY_CUSTOMER_UNLINKED');
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             if ($operation === 'patients.register') {
@@ -112,6 +116,10 @@ final class Proxy extends BaseController
             return $this->json($exception->httpStatus, false, $exception->getMessage(), [], $exception->errorCode);
         } catch (DatabaseException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'database');
+            if ($operation === 'prescriptions.upload') {
+                $this->logBoundaryFailure($exception, 'prescription_dependency');
+                return $this->json(503, false, 'Prescription upload could not be processed safely.', [], 'PRESCRIPTION_DEPENDENCY_UNAVAILABLE');
+            }
             if ($operation === 'appointments.availability') {
                 $this->logAvailabilityFailure($exception, 'DATABASE_UNAVAILABLE');
                 return $this->json(503, false, 'The appointment availability service is temporarily unavailable.', [], 'DATABASE_UNAVAILABLE');
@@ -136,6 +144,9 @@ final class Proxy extends BaseController
                 }
                 $this->logBoundaryFailure($exception, 'unexpected');
                 return $this->registrationDependencyError('PATIENT_REGISTRATION_INTERNAL_ERROR');
+            }
+            if ($operation === 'prescriptions.upload') {
+                return $this->json(503, false, 'Prescription upload could not be processed safely.', [], 'PRESCRIPTION_DEPENDENCY_UNAVAILABLE');
             }
             $dependency = $operation === 'appointments.availability' ? $this->availabilityDependencyCategory($exception) : null;
             if ($dependency !== null) {

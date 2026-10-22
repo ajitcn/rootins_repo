@@ -49,4 +49,18 @@ final class ShopifyPrescriptionProxyUploadFieldTest extends TestCase
         self::assertStringContainsString('product_handles: dummy-product-02', $docs);
         self::assertStringContainsString('Idempotency-Key: <unique-uuid>', $docs);
     }
+
+    public function testUploadIsGlobalAndClinicIsDeferredToFinancialProcessing(): void
+    {
+        $upload = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $orderImport = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        self::assertStringContainsString("'clinic_id' => null", $upload);
+        self::assertStringNotContainsString('no active pharmacy clinic', strtolower($upload));
+        self::assertStringContainsString('SHOPIFY_CUSTOMER_UNLINKED', file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php'));
+        self::assertStringContainsString('BILLING_CLINIC_UNAVAILABLE', $orderImport . $upload . file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php'));
+        self::assertStringContainsString('prescription_upload_reviewed', $upload);
+        $proxy = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        self::assertStringContainsString('PRESCRIPTION_DEPENDENCY_UNAVAILABLE', $proxy);
+        self::assertStringContainsString('BILLING_CLINIC_UNAVAILABLE', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyAppointmentIntentService.php'));
+    }
 }

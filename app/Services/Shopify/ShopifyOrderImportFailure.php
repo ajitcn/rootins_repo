@@ -18,6 +18,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
     public const STOCK_UNAVAILABLE = 'STOCK_UNAVAILABLE';
     public const PAYMENT_STATE_INVALID = 'PAYMENT_STATE_INVALID';
     public const DELIVERY_STATE_INVALID = 'DELIVERY_STATE_INVALID';
+    public const BILLING_CLINIC_UNAVAILABLE = 'BILLING_CLINIC_UNAVAILABLE';
     public const UNKNOWN_IMPORT_FAILURE = 'UNKNOWN_IMPORT_FAILURE';
 
     /** @var list<string> */
@@ -25,7 +26,8 @@ final class ShopifyOrderImportFailure extends RuntimeException
         self::CUSTOMER_NOT_LINKED, self::PRESCRIPTION_MISSING, self::MEDICINE_NOT_MAPPED,
         self::ORDER_NOT_FOUND, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
         self::INVALID_FULFILLMENT_STATE, self::REFUND_ORDER_NOT_FOUND, self::STOCK_UNAVAILABLE,
-        self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::UNKNOWN_IMPORT_FAILURE,
+        self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::BILLING_CLINIC_UNAVAILABLE,
+        self::UNKNOWN_IMPORT_FAILURE,
     ];
 
     public function __construct(public readonly string $category, string $internalMessage = '')

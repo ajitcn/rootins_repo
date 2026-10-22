@@ -173,7 +173,7 @@ final class ShopifyPrescriptionUploadService
             ->get(1)->getRowArray();
         $patient = (new PatientModel())->where('id', $patientId)->where('status', 1)->first();
         if ($link === null || $patient === null) {
-            throw new ShopifyPrescriptionUploadValidationException(['customer' => 'The Shopify customer is not linked to an active ROOTINS patient.']);
+            throw new ShopifyPrescriptionUploadCustomerException('The Shopify customer is not linked to an active ROOTINS patient.');
         }
 
         $externalReference = trim($externalReference);
@@ -193,10 +193,6 @@ final class ShopifyPrescriptionUploadService
         }
 
         $this->validateFile($file);
-        $clinicId = (int) ($patient['clinic_id'] ?? 0);
-        if ($clinicId < 1) {
-            throw new ShopifyPrescriptionUploadValidationException(['customer' => 'The linked patient has no active pharmacy clinic.']);
-        }
         $mime = $this->detectedMime($file);
         $bundleReference = trim($bundleReference);
         if ($bundleReference !== '' && ! preg_match('/^RXB-[A-Z0-9-]{16,191}$/', $bundleReference)) {
@@ -212,7 +208,7 @@ final class ShopifyPrescriptionUploadService
             $retention = (new DateTimeImmutable($now))->modify('+' . max(1, (int) env('SHOPIFY_PRESCRIPTION_RETENTION_DAYS', 365)) . ' days')->format('Y-m-d H:i:s');
             $db->transBegin();
             $id = $this->documents->insert([
-                'patient_id' => $patientId, 'clinic_id' => $clinicId, 'document_type' => 'prescription_upload',
+                'patient_id' => $patientId, 'clinic_id' => null, 'document_type' => 'prescription_upload',
                 'title' => $title, 'file_name' => basename($key), 'original_file_name' => $file->getClientName(),
                 'file_path' => $key, 'file_size' => (int) $file->getSize(), 'mime_type' => $mime,
                 'source_type' => 'shopify', 'shopify_store_domain' => $store, 'shopify_customer_id' => $customer,
@@ -228,7 +224,7 @@ final class ShopifyPrescriptionUploadService
             throw $exception;
         }
         service('audit')->record('shopify.prescription_upload_created', ['source_type' => 'shopify', 'store_domain' => $store, 'external_upload_reference' => $externalReference]);
-        $this->notifyReviewers($clinicId, (int) $id);
+        $this->notifyReviewers(null, (int) $id);
         return $this->proxyResponse(['external_upload_reference' => $externalReference, 'upload_status' => 'uploaded', 'created_at' => date('Y-m-d H:i:s'), 'mime_type' => $mime, 'file_size' => (int) $file->getSize()]);
     }
 
@@ -237,8 +233,9 @@ final class ShopifyPrescriptionUploadService
     {
         $pharmacy = new PharmacyScope();
         $clinicId = $pharmacy->clinicId();
+        $isPharmacist = in_array('Pharmacy Assistant', session('roles') ?? [], true);
 
-        if ($clinicId === null || ! $pharmacy->can('pharmacy.prescription.review.view')) {
+        if (! $isPharmacist || ! $pharmacy->can('pharmacy.prescription.review.view')) {
             throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload review is not permitted.');
         }
 
@@ -282,7 +279,6 @@ final class ShopifyPrescriptionUploadService
 
         $document = $this->documents
             ->where('id', $documentId)
-            ->where('clinic_id', $clinicId)
             ->where('source_type', 'shopify')
             ->first();
 
@@ -299,7 +295,6 @@ final class ShopifyPrescriptionUploadService
 
         $updated = $this->documents
             ->where('id', $documentId)
-            ->where('clinic_id', $clinicId)
             ->where('upload_status', $previous)
             ->set([
                 'upload_status' => $target,
@@ -313,16 +308,17 @@ final class ShopifyPrescriptionUploadService
             throw new ShopifyPrescriptionUploadConflictException('The upload status changed. Refresh and try again.');
         }
 
-        $pharmacy->audit('shopify.prescription_upload_reviewed', [
+        service('audit')->record('shopify.prescription_upload_reviewed', [
             'document_id' => $documentId,
             'previous_status' => $previous,
             'new_status' => $target,
             'reason' => $reason,
+            'clinic_id' => $clinicId,
         ]);
         try {
             (new \Patient\Services\PatientNotificationService())->create(
                 (int) $document['patient_id'],
-                $clinicId,
+                (int) $clinicId,
                 'Prescription upload status updated',
                 'Your prescription upload status is now ' . str_replace('_', ' ', $target) . '.',
                 'shopify-prescription-upload:' . $documentId . ':' . $target,
@@ -384,7 +380,7 @@ final class ShopifyPrescriptionUploadService
         if (in_array('Pharmacy Assistant', $roles, true)) {
             $pharmacy = new PharmacyScope();
 
-            if (! $pharmacy->can('pharmacy.prescription.review.view') || $pharmacy->clinicId() === null || $pharmacy->clinicId() !== (int) $document['clinic_id']) {
+            if (! $pharmacy->can('pharmacy.prescription.review.view')) {
                 throw new ShopifyPrescriptionUploadAuthorizationException('Prescription upload access is not permitted.');
             }
 
@@ -553,13 +549,19 @@ final class ShopifyPrescriptionUploadService
         ];
     }
 
-    private function notifyReviewers(int $clinicId, int $documentId): void
+    private function notifyReviewers(?int $clinicId, int $documentId): void
     {
         try {
             $db = db_connect();
             $message = 'A new Shopify prescription upload is waiting for review.';
 
-            foreach ($db->table('doctors')->select('id')->where('clinic_id', $clinicId)->where('status', 1)->get()->getResultArray() as $doctor) {
+            // Global uploads have no billing clinic yet. Pharmacy notifications
+            // remain clinic-scoped, so defer notification creation until the
+            // later order/billing scope is resolved.
+            if ($clinicId === null) return;
+
+            $doctors = $clinicId === null ? [] : $db->table('doctors')->select('id')->where('clinic_id', $clinicId)->where('status', 1)->get()->getResultArray();
+            foreach ($doctors as $doctor) {
                 $db->table('doctor_notifications')->insert([
                     'doctor_id' => (int) $doctor['id'],
                     'clinic_id' => $clinicId,
@@ -572,15 +574,14 @@ final class ShopifyPrescriptionUploadService
                 ]);
             }
 
-            $users = $db->table('users AS users')
+            $usersQuery = $db->table('users AS users')
                 ->select('users.id')
                 ->join('user_roles', 'user_roles.user_id = users.id')
                 ->join('roles', 'roles.id = user_roles.role_id')
-                ->where('users.clinic_id', $clinicId)
                 ->where('users.status', 1)
-                ->where('roles.role_name', 'Pharmacy Assistant')
-                ->get()
-                ->getResultArray();
+                ->where('roles.role_name', 'Pharmacy Assistant');
+            if ($clinicId !== null) $usersQuery->where('users.clinic_id', $clinicId);
+            $users = $usersQuery->get()->getResultArray();
 
             foreach ($users as $user) {
                 $eventKey = 'shopify-prescription-upload:' . $documentId . ':pharmacy:' . (int) $user['id'];
@@ -617,6 +618,10 @@ final class ShopifyPrescriptionUploadValidationException extends InvalidArgument
     {
         parent::__construct('Shopify prescription upload validation failed.');
     }
+}
+
+final class ShopifyPrescriptionUploadCustomerException extends RuntimeException
+{
 }
 
 final class ShopifyPrescriptionUploadAuthorizationException extends RuntimeException
