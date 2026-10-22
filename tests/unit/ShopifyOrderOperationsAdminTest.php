@@ -31,7 +31,7 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
     {
         $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
         $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
-        foreach (['Total Shopify products', 'Needs Mapping', 'Conflicts', 'Map medicine', 'Apply mapping', 'affected order', 'Prescription required', 'medicine-results'] as $text) self::assertStringContainsString($text, $view . $service);
+        foreach (['Total Shopify products', 'Needs Mapping', 'Conflicts', 'Map medicine', 'Apply mapping', 'affected order', 'Prescription required', 'mappingMedicineSelect'] as $text) self::assertStringContainsString($text, $view . $service);
         foreach (['mappingDashboard', 'bulkSaveMappings', 'ignoreMapping', 'recheckMappings', 'suggestions'] as $method) self::assertStringContainsString($method, $service);
         self::assertStringContainsString('shopify_mapping_ignores', $this->source('app/Database/Migrations/2026-10-22-123000_CreateShopifyMappingIgnores.php'));
     }
@@ -71,5 +71,179 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringContainsString('X-Shopify-Webhook-Id', $webhook);
         self::assertStringContainsString('upsertImport', $import);
         self::assertStringContainsString('processEvent', $webhook);
+    }
+
+    public function testProductCatalogueSyncUsesSeparateShopifyConfigurationAndPagination(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $routes = $this->source('app/Modules/Admin/Config/Routes.php');
+        $migration = $this->source('app/Database/Migrations/2026-10-22-124000_CreateShopifyProductCatalogue.php');
+
+        foreach (['accessScopes', 'read_products', 'graphql', 'hasNextPage', 'shopify_product_catalogue', 'shopify_variant_catalogue', 'last_seen_at'] as $text) {
+            self::assertStringContainsString($text, $service . $migration);
+        }
+        foreach (['SHOPIFY_PRODUCTS_SCOPE_MISSING', 'SHOPIFY_CONFIGURATION_MISSING', 'SHOPIFY_INVALID_CREDENTIALS', 'SHOPIFY_API_VERSION_INVALID', 'SHOPIFY_RATE_LIMITED', 'SHOPIFY_PRODUCTS_SYNC_FAILED'] as $category) {
+            self::assertStringContainsString($category, $service . $controller);
+        }
+        self::assertStringContainsString('order-mappings/sync', $routes);
+        self::assertStringContainsString('last_sync', $service);
+        self::assertStringContainsString('No Shopify variants were synchronized yet.', $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php'));
+    }
+
+    public function testMappingUpdateUsesStoreScopedVariantValidationAndStructuredErrors(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+
+        foreach (['shopify_product_id', 'shopify_variant_id', 'medicine_id', 'store_domain', 'status', 'shopify_variant_catalogue', 'transBegin', 'transCommit', 'transRollback'] as $field) {
+            self::assertStringContainsString($field, $service . $view);
+        }
+        foreach (['SHOPIFY_VARIANT_NOT_FOUND', 'ROOTINS_MEDICINE_NOT_FOUND', 'SHOPIFY_MAPPING_DUPLICATE', 'SHOPIFY_MAPPING_STORE_MISMATCH', 'SHOPIFY_MAPPING_PERMISSION_DENIED', 'SHOPIFY_MAPPING_CSRF_INVALID', 'SHOPIFY_MAPPING_DATABASE_FAILURE'] as $code) {
+            self::assertStringContainsString($code, $service . $controller);
+        }
+        foreach (['error', 'correlation_id', 'error.fields', 'response.ok', 'button.disabled = false', 'data-mapping-errors'] as $marker) {
+            self::assertStringContainsString($marker, $controller . $script . $view);
+        }
+        self::assertStringContainsString('Product mapping saved.', $service);
+    }
+
+    public function testMappingAjaxUsesConfiguredCi4CsrfTokenAndRecoversAfterFailure(): void
+    {
+        $security = $this->source('app/Config/Security.php');
+        $filters = $this->source('app/Config/Filters.php');
+        $csrfFilter = $this->source('app/Filters/ShopifyMappingCsrf.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        self::assertStringContainsString("csrfProtection = 'cookie'", $security);
+        self::assertStringContainsString("tokenName = 'csrf_rtn'", $security);
+        self::assertStringContainsString('ShopifyMappingCsrf::class', $filters);
+        foreach (['parent::before', 'SHOPIFY_MAPPING_CSRF_INVALID', 'Your session expired. Refresh the page and try again.'] as $marker) {
+            self::assertStringContainsString($marker, $csrfFilter);
+        }
+        foreach (['csrf_token()', 'csrf_hash()', 'credentials', 'same-origin', 'refreshCsrfToken', 'updateCsrf', 'SHOPIFY_MAPPING_CSRF_INVALID'] as $marker) {
+            self::assertStringContainsString($marker, $controller . $script);
+        }
+        self::assertStringNotContainsString('csrf exclusion', strtolower($filters));
+    }
+
+    public function testManualMappingUsesOnlyStoreAndVariantIdentityAndQuarantinesInactiveMedicines(): void
+    {
+        $operations = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        self::assertStringContainsString("where('shopify_variant_id', \$variantId)", $operations);
+        self::assertStringContainsString('$mappingStatus', $operations);
+        self::assertStringNotContainsString("\$fields['shopify_product_id']", $operations);
+        self::assertStringNotContainsString("\$fields['medicine_id'] = 'Select an active", $operations);
+        self::assertStringContainsString("'status' => 'medicine_inactive'", $import);
+        self::assertStringContainsString('MEDICINE_INACTIVE', $import);
+        self::assertStringContainsString("where('shopify_variant_id', \$variantId)", $import);
+        self::assertStringContainsString('Save this Shopify variant to the selected ROOTINS medicine?', $script);
+        self::assertStringNotContainsString("where('status', 'active')->first() === null) throw new InvalidArgumentException('Select an active ROOTINS medicine.')", $operations);
+    }
+
+    public function testMappingTabsUseCanonicalStatusFiltersAndSaveAlwaysCleansUp(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        foreach (['mapping_status', "'needs'", "'mapped'", "'conflicts'", "'inactive'", 'tab_counts', 'active_mapping_status'] as $marker) {
+            self::assertStringContainsString($marker, $service . $view . $script);
+        }
+        self::assertStringNotContainsString('mapping-fix=1', $view . $script);
+        foreach (['fetchWithTimeout', 'MAPPING_REQUEST_TIMEOUT', 'jsonResponse', 'finally', 'credentials', 'same-origin', 'The mapping request returned an invalid server response.'] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
+        self::assertStringContainsString('refreshWorkspace', $script);
+    }
+
+    public function testMappingDatabaseFailuresAreClassifiedAndSchemaRepairIsMigrated(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $migration = $this->source('app/Database/Migrations/2026-10-22-125000_RepairShopifyMedicineMappingIndexes.php');
+
+        foreach (['SHOPIFY_MAPPING_TABLE_MISSING', 'SHOPIFY_MAPPING_COLUMN_MISSING', 'SHOPIFY_MAPPING_FOREIGN_KEY_FAILURE', 'SHOPIFY_MAPPING_DUPLICATE', 'SHOPIFY_MAPPING_DATABASE_FAILURE', 'fieldExists', 'created_at', 'updated_at'] as $marker) {
+            self::assertStringContainsString($marker, $service . $controller);
+        }
+        self::assertStringContainsString('store_domain_status', $migration);
+        self::assertStringContainsString('shopify_medicine_mapping_status', $migration);
+    }
+
+    public function testMappingModalHasOneSubmitPathAndGuaranteedCleanup(): void
+    {
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        self::assertStringContainsString('bindSubmitHandler', $script);
+        self::assertSame(0, substr_count($script, "document.addEventListener('submit'"));
+        self::assertStringNotContainsString('submitNoReload', $view . $script);
+        self::assertStringNotContainsString('function send(', $view . $script);
+        foreach (['csrf-token-hash', 'csrfHeaders', 'show.bs.modal', 'shown.bs.modal', 'hide.bs.modal', 'hidden.bs.modal', 'finally', 'modal-backdrop', 'modal-open'] as $marker) {
+            self::assertStringContainsString($marker, $view . $script);
+        }
+    }
+
+    public function testMappingTabsRenderOnlyTheSelectedResultSection(): void
+    {
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        foreach (["\$activeMappingStatus === 'needs'", "\$activeMappingStatus === 'mapped'", "\$activeMappingStatus === 'conflicts'", "\$activeMappingStatus === 'inactive'"] as $condition) {
+            self::assertStringContainsString($condition, $view);
+        }
+        self::assertStringContainsString('aria-selected', $view . $script);
+        self::assertStringNotContainsString('mapping-fix=1', $view . $script);
+        self::assertStringNotContainsString("inactive.remove(); mapped.id", $script);
+    }
+
+    public function testMappingActionsUseDelegatedBootstrapCompatibleModalTargets(): void
+    {
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+
+        foreach (['shopifyMappingModal', 'shopifyIgnoreModal', 'data-toggle', 'data-target', 'wireModalTargets', "modal('show')", 'document.addEventListener(\'click\'', 'mapping-bulk-form', 'console.error', 'modal-backdrop', 'rootins-modal-lock'] as $marker) {
+            self::assertStringContainsString($marker, $view . $script);
+        }
+        self::assertSame(1, substr_count($script, "document.addEventListener('click'"));
+        self::assertStringContainsString('bindSubmitHandler', $script);
+        self::assertSame(0, substr_count($script, "document.addEventListener('submit'"));
+        self::assertStringContainsString('event.preventDefault()', $script);
+        self::assertStringContainsString('z-index: 1060', $view . $this->source('public/assets/css/style.css'));
+    }
+
+    public function testMedicineSelectorUsesMedicineIdsAndPreservesSelection(): void
+    {
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+
+        foreach (['name="medicine_id"', 'id="mappingMedicineSelect"', 'class="form-control btSelect"', 'data-live-search="true"', 'data-live-search-placeholder="Search medicine..."', 'Select ROOTINS medicine'] as $marker) {
+            self::assertStringContainsString($marker, $view);
+        }
+        self::assertStringNotContainsString('mapping-medicine-search', $view . $script);
+        self::assertStringNotContainsString('Search ROOTINS medicines', $view . $script);
+        self::assertStringNotContainsString('medicine-option', $view . $script . $this->source('public/assets/css/style.css'));
+        self::assertStringNotContainsString('data-medicine-results', $view . $script);
+        self::assertStringNotContainsString('medicine-results', $view . $script . $this->source('public/assets/css/style.css'));
+        foreach (['mappingMedicineSelect', 'initializeMedicineSelector', 'setMedicineValue', "$('#mappingMedicineSelect').btSelect({", 'liveSearch: true', "$('#mappingMedicineSelect').btSelect('destroy')"] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
+        self::assertStringContainsString('No active ROOTINS medicines are available.', $view);
+        self::assertStringContainsString("where('status', 'active')", $service);
+        self::assertStringContainsString("'medicines' => " . '$this->activeMedicines()', $service);
+        self::assertStringContainsString('mappingDashboard', $controller);
+        foreach (['data-medicines-url', 'responseMedicines', 'payload.data.medicines', 'payload.medicines', 'ROOTINS medicines response was invalid.', 'response_medicine_count', 'rendered_option_count'] as $marker) {
+            self::assertStringContainsString($marker, $view . $script);
+        }
+        self::assertStringContainsString("if (key !== 'medicine_id') setField", $script);
+        self::assertStringContainsString("event.target.id === 'mappingMedicineSelect'", $script);
     }
 }

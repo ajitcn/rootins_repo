@@ -8,6 +8,7 @@ $routes->group('admin', ['namespace' => 'Admin\Controllers', 'filter' => 'auth']
 });
 $routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\Integration', 'filter' => 'auth'], function ($routes) {
     $routes->get('order-mappings', 'ShopifyOrderOperations::mappings', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/sync', 'ShopifyOrderOperations::syncProducts', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('patient-readiness', 'ShopifyOrderOperations::readiness', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations', 'ShopifyOrderOperations::queue', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations/(:num)', 'ShopifyOrderOperations::detail/$1', ['filter' => 'permission:shopify.order.operations']);

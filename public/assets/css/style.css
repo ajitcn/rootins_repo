@@ -533,6 +533,45 @@
     .patient-dashboard-row .patient-row-status-stack { grid-column: 2 / 4; justify-content: flex-start; }
     .patient-row-status-stack { gap: .35rem; }
 }
+/* Mapping modals are body-level layers: page content < dropdowns < backdrop < modal. */
+body > .modal-backdrop,
+.modal-backdrop { z-index: 1060 !important; }
+body > .modal,
+.modal { z-index: 1070 !important; }
+body > .modal.show,
+.modal.show { z-index: 1070 !important; }
+body > .modal .modal-dialog,
+.modal .modal-dialog { position: relative; z-index: 1071 !important; }
+#shopifyMappingModal,
+#shopifyMappingDetailsModal,
+#shopifyIgnoreModal,
+#shopifySyncDetailsModal {
+    z-index: 1070 !important;
+}
+#shopifyMappingModal.show,
+#shopifyMappingDetailsModal.show,
+#shopifyIgnoreModal.show,
+#shopifySyncDetailsModal.show {
+    z-index: 1070 !important;
+}
+#shopifyMappingModal .modal-dialog,
+#shopifyMappingDetailsModal .modal-dialog,
+#shopifyIgnoreModal .modal-dialog,
+#shopifySyncDetailsModal .modal-dialog {
+    position: relative;
+    z-index: 1071 !important;
+}
+#mappingResults .dropdown-menu,
+#mappingResults .more-actions-menu {
+    z-index: 1050 !important;
+}
+#shopifyMappingModal .modal-body,
+#shopifyMappingDetailsModal .modal-body,
+#shopifyIgnoreModal .modal-body,
+#shopifySyncDetailsModal .modal-body {
+    max-height: calc(100vh - 140px);
+    overflow-y: auto !important;
+}
 
 /* Keep CRM master navigation visually distinct inside the existing Masters menu. */
 #sidebar .sidebar-submenu-nested {
@@ -1712,7 +1751,6 @@
 /* Shopify mapping workspace */
 .shopify-mapping-page .mapping-summary-card { border: 0; box-shadow: 0 6px 20px rgba(27, 31, 35, .06); }
 .shopify-mapping-page > .d-flex.flex-wrap.justify-content-between.align-items-center.mb-4:not(.mapping-page-header) { display: none !important; }
-.shopify-mapping-page .mapping-toolbar > form { display: none !important; }
 .mapping-page-header h1, .mapping-page-header h2, .mapping-page-header h3 { color: #20252b; }
 .mapping-header-actions .btn, .shopify-mapping-page .btn { font-size: 12px; font-weight: 600; }
 .mapping-filter-card { border: 1px solid #e5e7eb; box-shadow: none; }
@@ -1727,14 +1765,18 @@
 .mapping-workspace-table .dropdown-menu, .mapping-product-card .dropdown-menu { z-index: 1060; }
 .mapping-workspace-table .dropdown-item { font-size: 12px; padding: .55rem .8rem; }
 .mapping-tabs .nav-link:focus, .mapping-workspace-table button:focus, .mapping-filter-card input:focus, .mapping-filter-card select:focus { box-shadow: 0 0 0 3px rgba(32, 37, 43, .18); outline: 0; }
-.mapping-modal { z-index: 1060; } .mapping-modal + .modal-backdrop { z-index: 1050; }
+.mapping-modal, #shopifyMappingModal, #shopifyIgnoreModal { position: fixed; z-index: 1060 !important; }
+.mapping-modal + .modal-backdrop, body > .modal-backdrop { z-index: 1040 !important; }
+.mapping-modal .modal-dialog, .mapping-modal .modal-content, .mapping-modal .modal-body { overflow: visible !important; }
+.mapping-modal .modal-dialog, .mapping-modal .modal-content, .mapping-modal .modal-body { transform: none !important; }
+.mapping-modal .bootstrap-select .dropdown-menu, #shopifyMappingModal .dropdown-menu { z-index: 1065 !important; }
+.mapping-modal .bs-container .dropdown-menu { min-height: 0 !important; max-height: 50vh; overflow-y: auto !important; }
 #shopifyMappingModal, #shopifyIgnoreModal { display: none !important; }
 #shopifyMappingModal.show, #shopifyIgnoreModal.show { display: block !important; }
 .mapping-modal .modal-content { border: 0; box-shadow: 0 18px 50px rgba(0, 0, 0, .2); }
-.mapping-modal .modal-body { overflow-y: auto; }
+.mapping-modal .modal-body { overflow: visible; }
 .mapping-modal .mapping-preview-panel { border-right: 1px solid #e5e7eb; }
 .mapping-modal .modal-dialog { max-width: 960px; }
-.mapping-modal .medicine-option { font-size: 12px; }
 .shopify-mapping-page .badge { font-size: 11px; font-weight: 700; }
 .shopify-mapping-page .badge-warning { background: #f4d98b; color: #5b4300; }
 .shopify-mapping-page .badge-success { background: #b9e3cc; color: #14532d; }
@@ -1750,11 +1792,123 @@
 .mapping-product-image, .mapping-preview-image { width: 72px; height: 72px; border-radius: .5rem; background: #f2f3f5; color: #87909a; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex: 0 0 auto; margin-right: 1rem; }
 .mapping-preview-image { width: 112px; height: 112px; margin: 0 0 1rem; }
 .mapping-bulk-bar { align-items: center; background: #f7f8f9; border: 1px solid #e4e7eb; border-radius: .5rem; display: flex; padding: .7rem 1rem; }
-.medicine-results { max-height: 330px; overflow-y: auto; border: 1px solid #e3e6e8; border-radius: .35rem; }
-.medicine-option { width: 100%; border: 0; border-bottom: 1px solid #eceff1; background: #fff; padding: .7rem .8rem; display: flex; justify-content: space-between; text-align: left; }
-.medicine-option:hover, .medicine-option:focus { background: #f5f6f7; outline: 0; }
-.mapping-modal .modal-body { max-height: calc(100vh - 190px); overflow-y: auto; }
+.mapping-modal .modal-body { max-height: calc(100vh - 190px); overflow: visible; }
 @media (max-width: 767.98px) { .mapping-bulk-bar { display: block; } .mapping-bulk-bar select, .mapping-bulk-bar button { margin: .6rem 0 0 !important; width: 100%; } .mapping-desktop-list { display: none; } .shopify-mapping-page [data-needs-list] { display: block; } .mapping-page-header .mapping-header-actions { width: 100%; } .mapping-page-header .mapping-header-actions .btn { margin: .25rem 0; width: 100%; } .mapping-filter-card .form-control { width: 100%; } .mapping-tabs { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; } .mapping-tabs .nav-link { white-space: nowrap; } .mapping-modal .modal-dialog { margin: .5rem; max-width: none; } .mapping-modal .modal-body { max-height: calc(100vh - 180px); } .mapping-preview-panel { border-bottom: 1px solid #e5e7eb; border-right: 0; margin-bottom: 1rem; padding-bottom: 1rem; } .mapping-product-image { width: 52px; height: 52px; margin-right: .7rem; } .mapping-product-card .btn { margin-top: .25rem; } }
+.mapping-results-card { border: 1px solid #e5e7eb; box-shadow: none; overflow: visible; }
+.mapping-results-card .table-responsive { overflow-x: auto; overflow-y: visible; }
+.mapping-results-table { min-width: 960px; table-layout: fixed; }
+.mapping-results-table th { width: 13%; background: #f7f8f9; color: #5b6570; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.mapping-results-table th:nth-child(1) { width: 18%; }
+.mapping-results-table th:nth-child(2) { width: 14%; }
+.mapping-results-table th:nth-child(3) { width: 14%; }
+.mapping-results-table th:nth-child(4) { width: 16%; }
+.mapping-results-table th:nth-child(5) { width: 11%; }
+.mapping-results-table th:nth-child(6) { width: 11%; }
+.mapping-results-table th:nth-child(7) { width: 10%; }
+.mapping-results-table th:nth-child(8) { width: 10%; }
+.mapping-results-table td { color: #2f3740; font-size: 12px; vertical-align: middle; overflow-wrap: anywhere; }
+.mapping-results-table .mapping-primary-text { display: block; color: #20252b; font-size: 13px; line-height: 1.35; }
+.mapping-secondary-text { display: block; color: #6b7280; font-size: 11px; line-height: 1.45; }
+.mapping-actions-column, .mapping-actions-cell { width: 10rem !important; white-space: nowrap; }
+.mapping-actions-cell { overflow: visible !important; }
+.mapping-actions-cell .dropdown-menu { z-index: 1080; min-width: 12rem; max-width: calc(100vw - 2rem); box-shadow: 0 12px 30px rgba(0, 0, 0, .14); }
+.mapping-actions-cell .dropdown-item { font-size: 12px; padding: .55rem .8rem; }
+.mapping-empty-state { min-height: 9rem; }
+.mapping-results-table .badge { white-space: nowrap; }
+.mapping-results-table th:nth-child(1) { width: 24%; }
+.mapping-results-table th:nth-child(2) { width: 21%; }
+.mapping-results-table th:nth-child(3) { width: 14%; }
+.mapping-results-table th:nth-child(4) { width: 13%; }
+.mapping-results-table th:nth-child(5) { width: 14%; }
+.mapping-results-table th:nth-child(6) { width: 14%; }
+.mapping-details-list { margin: 0; }
+.mapping-details-list dt { margin-top: .8rem; color: #6b7280; font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.mapping-details-list dt:first-child { margin-top: 0; }
+.mapping-details-list dd { margin: .2rem 0 0; color: #20252b; font-size: .85rem; overflow-wrap: anywhere; }
+.mapping-details-image { display: block; width: 100%; height: 100%; border-radius: .5rem; object-fit: cover; }
+.mapping-details-heading .mapping-preview-image { overflow: hidden; }
+@media (max-width: 767.98px) {
+    .mapping-results-card { border: 0; background: transparent; }
+    .mapping-results-card .table-responsive { overflow: visible; }
+    .mapping-results-table { display: block; min-width: 0; }
+    .mapping-results-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    .mapping-results-table tbody, .mapping-results-table tr, .mapping-results-table td { display: block; width: 100%; }
+    .mapping-results-table tbody tr { margin-bottom: 1rem; padding: .55rem .85rem; border: 1px solid #e5e7eb; border-radius: .65rem; background: #fff; box-shadow: 0 4px 14px rgba(27, 31, 35, .04); }
+    .mapping-results-table tbody tr td { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: .75rem; align-items: start; padding: .55rem 0; border: 0; text-align: left; }
+    .mapping-results-table tbody tr td::before { content: attr(data-label); color: #6b7280; font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.4; text-transform: uppercase; }
+    .mapping-results-table tbody tr td.mapping-actions-cell { display: block; padding-top: .75rem; border-top: 1px solid #e5e7eb; }
+    .mapping-results-table tbody tr td.mapping-actions-cell::before { display: block; margin-bottom: .45rem; }
+    .mapping-actions-cell .dropdown, .mapping-actions-cell .dropdown-toggle { width: 100%; }
+    .mapping-actions-cell .dropdown-menu { right: 0; left: auto; }
+    .mapping-results-table tbody tr td.mapping-empty-state { display: block; min-height: 0; padding: 2rem .5rem; }
+    .mapping-results-table tbody tr td.mapping-empty-state::before { display: none; }
+}
+@media (max-width: 374.98px) {
+    .mapping-results-table tbody tr td { grid-template-columns: 7rem minmax(0, 1fr); gap: .55rem; }
+}
+/* Shopify mapping modals use one viewport-bounded body scroll area. */
+#shopifyMappingModal .modal-dialog,
+#shopifyMappingDetailsModal .modal-dialog,
+#shopifyIgnoreModal .modal-dialog,
+#shopifySyncDetailsModal .modal-dialog {
+    display: flex;
+    width: auto;
+    max-width: min(960px, calc(100vw - 2rem));
+    max-height: calc(100vh - 140px);
+    margin: 70px auto;
+}
+#shopifyMappingDetailsModal .modal-dialog,
+#shopifyIgnoreModal .modal-dialog,
+#shopifySyncDetailsModal .modal-dialog { max-width: min(720px, calc(100vw - 2rem)); }
+#shopifyMappingModal .modal-content,
+#shopifyMappingDetailsModal .modal-content,
+#shopifyIgnoreModal .modal-content,
+#shopifySyncDetailsModal .modal-content {
+    display: flex;
+    min-height: 0;
+    max-height: calc(100vh - 140px);
+    overflow: hidden;
+    flex-direction: column;
+}
+#shopifyMappingModal .modal-header,
+#shopifyMappingModal .modal-footer,
+#shopifyMappingDetailsModal .modal-header,
+#shopifyMappingDetailsModal .modal-footer,
+#shopifyIgnoreModal .modal-header,
+#shopifyIgnoreModal .modal-footer,
+#shopifySyncDetailsModal .modal-header,
+#shopifySyncDetailsModal .modal-footer { flex: 0 0 auto; }
+#shopifyMappingModal .modal-body,
+#shopifyMappingDetailsModal .modal-body,
+#shopifyIgnoreModal .modal-body,
+#shopifySyncDetailsModal .modal-body {
+    min-height: 0;
+    max-height: calc(100vh - 140px);
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    flex: 1 1 auto;
+}
+#shopifyMappingModal .bs-container,
+#shopifyMappingDetailsModal .bs-container { z-index: 1070 !important; }
+@media (max-width: 767.98px) {
+    #shopifyMappingModal .modal-dialog,
+    #shopifyMappingDetailsModal .modal-dialog,
+    #shopifyIgnoreModal .modal-dialog,
+    #shopifySyncDetailsModal .modal-dialog {
+        width: calc(100vw - 1rem);
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100vh - 1rem);
+        margin: .5rem auto;
+    }
+    #shopifyMappingModal .modal-content,
+    #shopifyMappingDetailsModal .modal-content,
+    #shopifyIgnoreModal .modal-content,
+    #shopifySyncDetailsModal .modal-content { max-height: calc(100vh - 1rem); }
+    #shopifyMappingModal .modal-body,
+    #shopifyMappingDetailsModal .modal-body,
+    #shopifyIgnoreModal .modal-body,
+    #shopifySyncDetailsModal .modal-body { max-height: none; }
+}
 .appointment-reschedule-modal,
 #appointmentModal,
 #appointmentFilterModal { position: fixed; }

@@ -139,12 +139,13 @@ final class ShopifyOrderImportService
 
         if ($mappingResult['status'] !== 'ready') {
             $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'unmapped', 'quarantine_reason' => $category, 'last_error' => (string) ($mappingResult['reason'] ?? $category)]);
-            $this->setImportState($importId, 'pending_mapping', $category, $eventId, $patientId, $clinicId);
+            $inactiveMedicine = $category === ShopifyOrderImportFailure::MEDICINE_INACTIVE;
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => $inactiveMedicine ? 'inactive_medicine' : 'unmapped', 'quarantine_reason' => $category, 'last_error' => (string) ($mappingResult['reason'] ?? $category)]);
+            $this->setImportState($importId, $inactiveMedicine ? 'quarantined' : 'pending_mapping', $category, $eventId, $patientId, $clinicId);
             $events->markProcessed($eventId, $category);
-            service('audit')->record('shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
+            service('audit')->record($inactiveMedicine ? 'shopify.order_quarantined' : 'shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
 
-            return ['status' => 'pending_mapping', 'import_id' => $importId];
+            return ['status' => $inactiveMedicine ? 'quarantined' : 'pending_mapping', 'import_id' => $importId];
         }
 
         ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'mapped']);
@@ -304,14 +305,14 @@ final class ShopifyOrderImportService
             $variantId = trim((string) ($item['variant_id'] ?? '')) ?: null;
             $mapping = $mappingModel
                 ->where('store_domain', $store)
-                ->where('shopify_product_id', $productId)
-                ->groupStart()
                 ->where('shopify_variant_id', $variantId)
-                ->orWhere('shopify_variant_id', null)
-                ->groupEnd()
-                ->where('status', 'active')
                 ->first();
             $medicineId = $mapping['medicine_id'] ?? null;
+            if ($mapping !== null && (string) ($mapping['status'] ?? '') !== 'active') {
+                $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->delete();
+                $lineModel->insert(['import_id' => $importId, 'shopify_line_item_id' => $lineId, 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId, 'medicine_id' => $medicineId, 'title_snapshot' => (string) ($item['title'] ?? ''), 'shopify_sku' => (string) ($item['sku'] ?? ''), 'shopify_barcode' => (string) ($item['barcode'] ?? ''), 'product_image_url' => filter_var((string) ($item['image_url'] ?? ''), FILTER_VALIDATE_URL) ? (string) $item['image_url'] : null, 'quantity' => max(0, (int) ($item['quantity'] ?? 0)), 'shopify_price_snapshot' => (float) ($item['price'] ?? 0), 'status' => 'medicine_inactive', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+                return ['status' => 'pending', 'reason' => ShopifyOrderImportFailure::MEDICINE_INACTIVE, 'category' => ShopifyOrderImportFailure::MEDICINE_INACTIVE];
+            }
             if ($medicineId !== null) {
                 $medicine = db_connect()->table('medicines')->select('id, status')->where('id', (int) $medicineId)->get(1)->getRowArray();
                 if ($medicine === null || (string) ($medicine['status'] ?? '') !== 'active') {
