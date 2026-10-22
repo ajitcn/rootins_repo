@@ -77,6 +77,30 @@ final class ShopifyOrderImportService
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
 
+        $prescriptionReference = trim((string) ($payload['prescription_reference'] ?? ''));
+        if ($prescriptionReference !== '') {
+            $document = db_connect()->table('patient_documents')
+                ->where('source_type', 'shopify')->where('external_upload_reference', $prescriptionReference)
+                ->where('shopify_store_domain', $store)->where('shopify_customer_id', (string) ($payload['customer_id'] ?? ''))
+                ->where('patient_id', $patientId)->get(1)->getRowArray();
+            $expired = $document !== null && ! empty($document['retention_expires_at']) && (string) $document['retention_expires_at'] < date('Y-m-d H:i:s');
+            if ($document === null || $expired) {
+                $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
+                ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'invalid']);
+                $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+                service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'invalid_prescription_reference']);
+                return ['status' => 'quarantined', 'import_id' => $importId];
+            }
+            db_connect()->table('patient_documents')->where('id', (int) $document['id'])->update(['shopify_order_id' => (string) $payload['id'], 'upload_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review', 'updated_at' => date('Y-m-d H:i:s')]);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review']);
+            if (($document['upload_status'] ?? '') !== 'accepted') {
+                $this->setImportState($importId, 'quarantined', 'awaiting_review', $eventId, $patientId, $clinicId);
+                $events->markProcessed($eventId, 'awaiting_review');
+                service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'prescription_awaiting_review']);
+                return ['status' => 'quarantined', 'import_id' => $importId];
+            }
+        }
+
         $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload);
 
         if ($mappingResult['status'] !== 'ready') {
@@ -91,10 +115,11 @@ final class ShopifyOrderImportService
         $prescriptionId = $this->candidatePrescriptionId($payload);
 
         if ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId)) {
-            $this->setImportState($importId, 'pending_mapping', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
             $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+            service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'missing_prescription']);
 
-            return ['status' => 'pending_mapping', 'import_id' => $importId];
+            return ['status' => 'quarantined', 'import_id' => $importId];
         }
 
         $result = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->create($prescriptionId, [
@@ -202,6 +227,8 @@ final class ShopifyOrderImportService
             'payload_hash' => (string) ($event['payload_hash'] ?? ''),
             'last_event_id' => (int) $event['id'],
             'updated_at' => date('Y-m-d H:i:s'),
+            'prescription_reference' => trim((string) ($payload['prescription_reference'] ?? '')) ?: null,
+            'prescription_status' => trim((string) ($payload['prescription_reference'] ?? '')) !== '' ? 'awaiting_review' : null,
         ];
 
         if ($existing === null) {

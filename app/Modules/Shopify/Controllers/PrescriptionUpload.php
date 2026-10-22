@@ -62,6 +62,7 @@ final class PrescriptionUpload extends BaseController
             $token = trim((string) $this->request->getGet('handoff_token'));
             $authorized = (new ShopifyPrescriptionUploadService())->authorizeDownload($documentId, $token !== '' ? $token : null);
 
+            // temporaryUrl() delegates to R2StorageLibrary::getTemporaryUrl only after authorization.
             return redirect()->to((new ShopifyPrescriptionUploadService())->temporaryUrl($authorized['document']));
         } catch (ShopifyPrescriptionUploadNotFoundException $exception) {
             return $this->response->setStatusCode(404)->setBody('Prescription upload not found.');

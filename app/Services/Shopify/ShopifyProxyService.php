@@ -25,6 +25,9 @@ final class ShopifyProxyService
         $received = array_keys($query);
         sort($received, SORT_STRING);
         $required = ['shop', 'timestamp', 'signature', 'path_prefix'];
+        if ($operation === 'prescriptions.upload') {
+            $required[] = 'logged_in_customer_id';
+        }
         $missing = array_values(array_diff($required, $received));
         try {
             $configuration = (new ShopifyProxyConfigurationService())->runtime();
@@ -113,7 +116,9 @@ final class ShopifyProxyService
         // application-wide clinical services. They must not require a
         // clinic-scoped Core API credential. Prescription uploads remain a
         // clinic-scoped operation and keep the existing credential path.
-        $credential = $operation === 'prescriptions.upload' ? $this->credential() : [];
+        // Legacy contract retained in comments for older integrations:
+        // $credential = $operation === 'prescriptions.upload' ? $this->credential() : [];
+        $credential = [];
         if ($operation !== 'appointments.availability') $this->rateLimit((int) ($configuration['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
         $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
         $autoLinkPatient = $operation === 'appointments.book';
@@ -153,7 +158,13 @@ final class ShopifyProxyService
         return match ($operation) {
             'appointments.availability' => (new CoreApiAppointmentService())->availability([], $payload),
             'appointments.book' => (new ShopifyAppointmentIntentService())->create($context, $credential, $payload),
-            'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new CoreApiPrescriptionUploadService())->upload($credential, $payload + ['clinic_id' => (int) $credential['clinic_id']], $file),
+            'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new ShopifyPrescriptionUploadService())->uploadFromProxy(
+                ['store_domain' => (string) $context['store_domain'], 'customer_id' => $customerId, 'patient_id' => (int) $context['patient_id']],
+                $file,
+                trim((string) ($payload['external_upload_reference'] ?? '')),
+                trim((string) ($payload['title'] ?? 'Prescription upload')),
+                trim((string) ($payload['bundle_reference'] ?? '')),
+            ),
             'patients.register' => $this->register($context, $payload, []),
             default => throw new InvalidArgumentException('Unsupported Shopify proxy operation.'),
         };

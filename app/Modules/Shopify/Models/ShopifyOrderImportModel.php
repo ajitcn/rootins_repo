@@ -14,6 +14,7 @@ final class ShopifyOrderImportModel extends Model
         'rootins_order_id', 'status', 'failure_reason', 'financial_status', 'fulfillment_status',
         'currency', 'total_snapshot', 'shipping_address_snapshot', 'payload_hash', 'last_event_id',
         'retry_count', 'processed_at', 'created_at', 'updated_at',
+        'prescription_reference', 'prescription_status',
     ];
     protected $useTimestamps = false;
 }

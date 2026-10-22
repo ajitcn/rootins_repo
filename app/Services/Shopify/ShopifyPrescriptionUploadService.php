@@ -30,10 +30,11 @@ final class ShopifyPrescriptionUploadService
         'png' => 'image/png',
     ];
 
-    private const STATUSES = ['uploaded', 'under_review', 'accepted', 'rejected', 'clarification_required'];
+    private const STATUSES = ['uploaded', 'awaiting_review', 'under_review', 'accepted', 'rejected', 'clarification_required'];
 
     private const TRANSITIONS = [
-        'uploaded' => ['under_review'],
+        'uploaded' => ['awaiting_review', 'under_review'],
+        'awaiting_review' => ['under_review', 'accepted', 'rejected', 'clarification_required'],
         'under_review' => ['accepted', 'rejected', 'clarification_required'],
         'accepted' => [],
         'rejected' => [],
@@ -145,6 +146,90 @@ final class ShopifyPrescriptionUploadService
             'upload_status' => 'uploaded',
             'created_at' => date('Y-m-d H:i:s'),
         ], false);
+    }
+
+    /**
+     * Upload through the signed Shopify App Proxy customer scope.
+     * The reference is the only Shopify-facing identifier; storage keys and
+     * ROOTINS identifiers remain server-side.
+     *
+     * @param array{store_domain:string,customer_id:string,patient_id:int} $context
+     * @return array{prescription_reference:string,status:string,received_at:string,file_type:string,file_size:int}
+     */
+    public function uploadFromProxy(array $context, UploadedFile $file, string $externalReference, string $title = '', string $bundleReference = ''): array
+    {
+        $store = strtolower(trim((string) ($context['store_domain'] ?? '')));
+        $customer = trim((string) ($context['customer_id'] ?? ''));
+        $patientId = (int) ($context['patient_id'] ?? 0);
+        if ($store === '' || $customer === '' || $patientId < 1) {
+            throw new ShopifyPrescriptionUploadValidationException(['customer' => 'A signed Shopify customer scope is required.']);
+        }
+
+        $link = db_connect()->table('shopify_patient_identity_links')
+            ->where('shopify_store_domain', $store)
+            ->where('shopify_customer_id', $customer)
+            ->where('patient_id', $patientId)
+            ->where('link_status', 'linked')
+            ->get(1)->getRowArray();
+        $patient = (new PatientModel())->where('id', $patientId)->where('status', 1)->first();
+        if ($link === null || $patient === null) {
+            throw new ShopifyPrescriptionUploadValidationException(['customer' => 'The Shopify customer is not linked to an active ROOTINS patient.']);
+        }
+
+        $externalReference = trim($externalReference);
+        if (! preg_match('/^RXP-[A-Z0-9-]{16,191}$/', $externalReference)) {
+            throw new ShopifyPrescriptionUploadValidationException(['prescription_reference' => 'A valid prescription reference is required.']);
+        }
+        $title = trim($title) ?: 'Prescription upload';
+        if (mb_strlen($title) > 255) {
+            throw new ShopifyPrescriptionUploadValidationException(['title' => 'The upload title is too long.']);
+        }
+
+        $existing = $this->documents->where('source_type', 'shopify')
+            ->where('shopify_store_domain', $store)->where('shopify_customer_id', $customer)
+            ->where('external_upload_reference', $externalReference)->first();
+        if ($existing !== null) {
+            return $this->proxyResponse($existing);
+        }
+
+        $this->validateFile($file);
+        $clinicId = (int) ($patient['clinic_id'] ?? 0);
+        if ($clinicId < 1) {
+            throw new ShopifyPrescriptionUploadValidationException(['customer' => 'The linked patient has no active pharmacy clinic.']);
+        }
+        $mime = $this->detectedMime($file);
+        $bundleReference = trim($bundleReference);
+        if ($bundleReference !== '' && ! preg_match('/^RXB-[A-Z0-9-]{16,191}$/', $bundleReference)) {
+            throw new ShopifyPrescriptionUploadValidationException(['bundle_reference' => 'The prescription bundle reference is invalid.']);
+        }
+        $key = 'patients/' . $patientId . '/shopify-prescriptions/' . bin2hex(random_bytes(24)) . '.' . strtolower((string) $file->getClientExtension());
+        $uploaded = false;
+        $db = db_connect();
+        try {
+            $this->storage->uploadFile($key, $file);
+            $uploaded = true;
+            $now = date('Y-m-d H:i:s');
+            $retention = (new DateTimeImmutable($now))->modify('+' . max(1, (int) env('SHOPIFY_PRESCRIPTION_RETENTION_DAYS', 365)) . ' days')->format('Y-m-d H:i:s');
+            $db->transBegin();
+            $id = $this->documents->insert([
+                'patient_id' => $patientId, 'clinic_id' => $clinicId, 'document_type' => 'prescription_upload',
+                'title' => $title, 'file_name' => basename($key), 'original_file_name' => $file->getClientName(),
+                'file_path' => $key, 'file_size' => (int) $file->getSize(), 'mime_type' => $mime,
+                'source_type' => 'shopify', 'shopify_store_domain' => $store, 'shopify_customer_id' => $customer,
+                'external_upload_reference' => $externalReference, 'upload_status' => 'uploaded',
+                'shopify_bundle_reference' => $bundleReference !== '' ? $bundleReference : null,
+                'retention_expires_at' => $retention, 'uploaded_by_type' => 'shopify', 'uploaded_by_id' => $patientId,
+                'created_at' => $now, 'updated_at' => $now,
+            ]);
+            if (! $id || ! $db->transCommit()) throw new RuntimeException('Prescription metadata could not be saved.');
+        } catch (\Throwable $exception) {
+            $db->transRollback();
+            if ($uploaded) { try { $this->storage->delete($key); } catch (\Throwable) { log_message('error', 'Shopify prescription cleanup failed safely.'); } }
+            throw $exception;
+        }
+        service('audit')->record('shopify.prescription_upload_created', ['source_type' => 'shopify', 'store_domain' => $store, 'external_upload_reference' => $externalReference]);
+        $this->notifyReviewers($clinicId, (int) $id);
+        return $this->proxyResponse(['external_upload_reference' => $externalReference, 'upload_status' => 'uploaded', 'created_at' => date('Y-m-d H:i:s'), 'mime_type' => $mime, 'file_size' => (int) $file->getSize()]);
     }
 
     /** @return array{document_id: int, status: string} */
@@ -381,6 +466,18 @@ final class ShopifyPrescriptionUploadService
             'status' => (string) ($document['upload_status'] ?? 'uploaded'),
             'received_at' => (string) ($document['created_at'] ?? date('Y-m-d H:i:s')),
             'message' => $duplicate ? 'This upload was already received.' : 'Prescription upload received for review.',
+        ];
+    }
+
+    /** @return array{prescription_reference:string,status:string,received_at:string,file_type:string,file_size:int} */
+    private function proxyResponse(array $document): array
+    {
+        return [
+            'prescription_reference' => (string) ($document['external_upload_reference'] ?? ''),
+            'status' => (string) ($document['upload_status'] ?? 'uploaded'),
+            'received_at' => (string) ($document['created_at'] ?? date('Y-m-d H:i:s')),
+            'file_type' => (string) ($document['mime_type'] ?? 'application/octet-stream'),
+            'file_size' => (int) ($document['file_size'] ?? 0),
         ];
     }
 

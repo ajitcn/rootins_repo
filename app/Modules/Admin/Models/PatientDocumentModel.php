@@ -30,6 +30,8 @@ class PatientDocumentModel extends Model
         'shopify_store_domain',
         'shopify_customer_id',
         'external_upload_reference',
+        'shopify_bundle_reference',
+        'shopify_order_id',
         'upload_status',
         'review_message',
         'reviewed_at',

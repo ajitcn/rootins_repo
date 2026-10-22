@@ -62,6 +62,9 @@ final class Proxy extends BaseController
             if ($operation === 'appointments.book') {
                 $payload['idempotency_key'] = $key;
             }
+            if ($operation === 'prescriptions.upload' && trim((string) ($payload['external_upload_reference'] ?? '')) === '') {
+                $payload['external_upload_reference'] = 'RXP-' . strtoupper(substr(hash('sha256', $context['store_domain'] . '|' . $context['customer_id'] . '|' . $key), 0, 32));
+            }
             $data = (new ShopifyProxyService())->execute($operation, $context, $payload, $this->request->getFile('document'));
             if ($claimed) $idempotency->complete($idempotencyKey, hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES) ?: ''));
             service('audit')->record('shopify.proxy_request_succeeded', ['operation' => $operation, 'store_domain' => $context['store_domain']]);

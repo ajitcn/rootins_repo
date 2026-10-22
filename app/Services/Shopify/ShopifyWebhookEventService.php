@@ -150,6 +150,8 @@ final class ShopifyWebhookEventService
                 ];
             }
             $safe['rootins_prescription_id'] = $this->prescriptionReference($payload);
+            $safe['prescription_reference'] = $this->shopifyPrescriptionReference($payload);
+            $safe['prescription_bundle_reference'] = $this->shopifyPrescriptionBundleReference($payload);
             $safe['rootins_appointment_intent'] = $this->appointmentIntentReference($payload);
 
             return json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -205,6 +207,46 @@ final class ShopifyWebhookEventService
             }
         }
 
+        return null;
+    }
+
+    private function shopifyPrescriptionReference(array $payload): ?string
+    {
+        $values = [];
+        foreach ((array) ($payload['metafields'] ?? []) as $field) {
+            if (is_array($field) && strtolower(trim((string) ($field['namespace'] ?? ''))) === 'rootins' && strtolower(trim((string) ($field['key'] ?? ''))) === 'prescription_reference') $values[] = (string) ($field['value'] ?? '');
+        }
+        foreach ([(array) ($payload['note_attributes'] ?? []), (array) ($payload['attributes'] ?? [])] as $attributes) {
+            foreach ($attributes as $attribute) {
+                if (!is_array($attribute)) continue;
+                $name = strtolower(trim((string) ($attribute['name'] ?? $attribute['key'] ?? '')));
+                if (in_array($name, ['rootins.prescription_reference', 'rootins_prescription_reference'], true)) $values[] = (string) ($attribute['value'] ?? '');
+            }
+        }
+        foreach ((array) ($payload['line_items'] ?? []) as $item) {
+            foreach ((array) ($item['properties'] ?? []) as $property) {
+                if (!is_array($property)) continue;
+                $name = strtolower(trim((string) ($property['name'] ?? '')));
+                if (in_array($name, ['rootins.prescription_reference', 'rootins_prescription_reference'], true)) $values[] = (string) ($property['value'] ?? '');
+            }
+        }
+        foreach ($values as $value) {
+            $value = trim($value);
+            if (preg_match('/^RXP-[A-Z0-9-]{16,191}$/', $value)) return $value;
+        }
+        return null;
+    }
+
+    private function shopifyPrescriptionBundleReference(array $payload): ?string
+    {
+        foreach ([(array) ($payload['note_attributes'] ?? []), (array) ($payload['attributes'] ?? [])] as $attributes) {
+            foreach ($attributes as $attribute) {
+                if (!is_array($attribute)) continue;
+                $name = strtolower(trim((string) ($attribute['name'] ?? $attribute['key'] ?? '')));
+                $value = trim((string) ($attribute['value'] ?? ''));
+                if (in_array($name, ['rootins.prescription_bundle_reference', 'rootins_prescription_bundle_reference'], true) && preg_match('/^RXB-[A-Z0-9-]{16,191}$/', $value)) return $value;
+            }
+        }
         return null;
     }
 

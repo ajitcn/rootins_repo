@@ -109,7 +109,7 @@ final class CoreApiPrescriptionUploadService
             throw new CoreApiException(404, 'PRESCRIPTION_NOT_FOUND', 'Prescription document not found.');
         }
 
-        $status = in_array((string) ($document['upload_status'] ?? ''), ['uploaded', 'under_review', 'accepted', 'rejected', 'clarification_required'], true) ? (string) $document['upload_status'] : 'uploaded';
+        $status = in_array((string) ($document['upload_status'] ?? ''), ['uploaded', 'awaiting_review', 'under_review', 'accepted', 'rejected', 'clarification_required'], true) ? (string) $document['upload_status'] : 'uploaded';
         $message = $this->reviewMessage($status, $document['review_message'] ?? null);
         $now = new DateTimeImmutable('now', $this->timezone());
         $minutes = 10;
@@ -148,7 +148,7 @@ final class CoreApiPrescriptionUploadService
         $safe = mb_substr($safe, 0, 500);
         if ($safe !== '' && in_array($status, ['rejected', 'clarification_required'], true)) return $safe;
         return match ($status) {
-            'under_review' => 'Prescription is under review.',
+            'awaiting_review', 'under_review' => 'Prescription is under review.',
             'accepted' => 'Prescription has been accepted.',
             'rejected' => 'Prescription was rejected.',
             'clarification_required' => 'Additional clarification is required.',
