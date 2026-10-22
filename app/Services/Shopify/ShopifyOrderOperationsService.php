@@ -5,6 +5,7 @@ namespace App\Services\Shopify;
 use Admin\Models\MedicineModel;
 use Admin\Models\PatientModel;
 use App\Modules\Shopify\Models\ShopifyMedicineMappingModel;
+use App\Modules\Shopify\Models\ShopifyMappingIgnoreModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportLineModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportModel;
 use App\Modules\Shopify\Models\ShopifyPatientIdentityLinkModel;
@@ -13,12 +14,60 @@ use InvalidArgumentException;
 /** Admin-only operations surface for Shopify order reconciliation. */
 final class ShopifyOrderOperationsService
 {
+    /** @return array<string, mixed> */
+    public function mappingDashboard(array $filters = []): array
+    {
+        $db = db_connect();
+        $store = strtolower(trim((string) ($filters['store_domain'] ?? (new ShopifyConfiguration())->storeDomain())));
+        $mappedRows = $this->mappings(array_merge($filters, ['store_domain' => $store]));
+        $mappedKeys = [];
+        foreach ($mappedRows as $row) $mappedKeys[$row['shopify_product_id'] . ':' . ($row['shopify_variant_id'] ?? '')] = true;
+
+        $items = $db->table('shopify_order_import_lines l')
+            ->select('i.store_domain, l.shopify_product_id, l.shopify_variant_id, l.title_snapshot, l.shopify_sku, l.shopify_barcode, l.product_image_url, COUNT(DISTINCT l.import_id) AS pending_orders, MIN(i.created_at) AS earliest_order_date, SUM(CASE WHEN i.status IN (\'quarantined\', \'pending_mapping\', \'failed\') THEN 1 ELSE 0 END) AS quarantined_orders')
+            ->join('shopify_order_imports i', 'i.id = l.import_id', 'inner')
+            ->where('i.store_domain', $store)
+            ->groupStart()->where('l.medicine_id', null)->orWhere('l.status', 'pending_mapping')->groupEnd()
+            ->groupBy('i.store_domain, l.shopify_product_id, l.shopify_variant_id, l.title_snapshot, l.shopify_sku, l.shopify_barcode, l.product_image_url')
+            ->orderBy('earliest_order_date', 'ASC')
+            ->get(250)->getResultArray();
+        $ignoreModel = new ShopifyMappingIgnoreModel();
+        foreach ($items as &$item) {
+            $item['shopify_product_id'] = (string) ($item['shopify_product_id'] ?? '');
+            $item['shopify_variant_id'] = (string) ($item['shopify_variant_id'] ?? '');
+            $item['key'] = $item['shopify_product_id'] . ':' . $item['shopify_variant_id'];
+            $item['ignored'] = $ignoreModel->where('store_domain', $store)->where('shopify_product_id', $item['shopify_product_id'])->where('shopify_variant_id', $item['shopify_variant_id'])->first() !== null;
+            $item['sku'] = (string) ($item['shopify_sku'] ?? '');
+            $item['barcode'] = (string) ($item['shopify_barcode'] ?? '');
+            $item['image_url'] = (string) ($item['product_image_url'] ?? '');
+            $item['prescription_required'] = true;
+            $item['suggestions'] = $this->suggestions((string) ($item['title_snapshot'] ?? ''), '', '');
+        }
+        unset($item);
+        $items = array_values(array_filter($items, static fn (array $item): bool => empty($item['ignored'])));
+
+        $total = count($mappedRows) + count($items);
+        $inactive = 0;
+        foreach ($mappedRows as $row) if (($row['medicine_status'] ?? 'active') !== 'active') $inactive++;
+        $conflicts = $db->table('shopify_medicine_mappings')->select('store_domain, shopify_product_id, shopify_variant_id')->groupBy('store_domain, shopify_product_id, shopify_variant_id')->having('COUNT(*) >', 1)->countAllResults();
+
+        return [
+            'mappings' => $mappedRows,
+            'items' => $items,
+            'medicines' => $this->activeMedicines(),
+            'filters' => $filters,
+            'summary' => ['total_products' => $total, 'mapped' => count($mappedRows), 'unmapped' => count($items), 'conflicts' => $conflicts, 'inactive' => $inactive],
+            'store_domain' => $store,
+        ];
+    }
+
     public function mappings(array $filters = []): array
     {
         $query = db_connect()->table('shopify_medicine_mappings m')
             ->select('m.*, med.medicine_name, med.generic_name, med.strength, med.unit, med.status AS medicine_status')
             ->join('medicines med', 'med.id = m.medicine_id', 'left')
             ->orderBy('m.updated_at', 'DESC');
+        if (($filters['store_domain'] ?? '') !== '') $query->where('m.store_domain', strtolower(trim((string) $filters['store_domain'])));
         $this->like($query, 'm.shopify_product_title', $filters['product'] ?? '');
         $this->like($query, 'm.shopify_variant_title', $filters['variant'] ?? '');
         $this->like($query, 'm.shopify_sku', $filters['sku'] ?? '');
@@ -55,6 +104,8 @@ final class ShopifyOrderOperationsService
             'shopify_product_title' => trim((string) ($input['shopify_product_title'] ?? '')) ?: null,
             'shopify_variant_title' => trim((string) ($input['shopify_variant_title'] ?? '')) ?: null,
             'shopify_sku' => trim((string) ($input['shopify_sku'] ?? '')) ?: null,
+            'shopify_barcode' => trim((string) ($input['shopify_barcode'] ?? '')) ?: null,
+            'product_image_url' => filter_var((string) ($input['product_image_url'] ?? ''), FILTER_VALIDATE_URL) ? (string) $input['product_image_url'] : null,
             'medicine_id' => $medicineId,
             'status' => ($input['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active',
             'updated_at' => date('Y-m-d H:i:s'),
@@ -86,7 +137,83 @@ final class ShopifyOrderOperationsService
 
     public function activeMedicines(): array
     {
-        return (new MedicineModel())->select('id, medicine_name, generic_name, strength, unit')->where('status', 'active')->orderBy('medicine_name', 'ASC')->findAll(500);
+        return (new MedicineModel())->select('id, medicine_name, generic_name, strength, unit, manufacturer, medicine_code, status')->orderBy('medicine_name', 'ASC')->findAll(500);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function searchMedicines(string $query): array
+    {
+        $query = trim($query);
+        $model = new MedicineModel();
+        if ($query !== '') $model->groupStart()->like('medicine_name', $query)->orLike('strength', $query)->orLike('unit', $query)->orLike('manufacturer', $query)->orLike('medicine_code', $query)->groupEnd();
+        return $model->select('id, medicine_name, strength, unit, manufacturer, medicine_code, status')->orderBy('medicine_name')->findAll(50);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function suggestions(string $title, string $sku, string $barcode): array
+    {
+        $normalized = $this->normalized($title);
+        $suggestions = [];
+        foreach ((new MedicineModel())->where('status', 'active')->findAll(500) as $medicine) {
+            $name = $this->normalized((string) ($medicine['medicine_name'] ?? ''));
+            $strength = $this->normalized((string) ($medicine['strength'] ?? ''));
+            $score = 0; $confidence = 'Manual selection required';
+            if ($sku !== '' && $sku === (string) ($medicine['medicine_code'] ?? '')) { $score = 100; $confidence = 'Exact match'; }
+            elseif ($normalized !== '' && $normalized === $name) { $score = 90; $confidence = 'Strong match'; }
+            elseif ($normalized !== '' && $strength !== '' && str_contains($normalized, $name) && str_contains($normalized, $strength)) { $score = 75; $confidence = 'Possible match'; }
+            if ($score > 0) $suggestions[] = ['medicine' => $medicine, 'score' => $score, 'confidence' => $confidence];
+        }
+        usort($suggestions, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+        return array_slice($suggestions, 0, 5);
+    }
+
+    private function normalized(string $value): string { return trim((string) preg_replace('/[^a-z0-9]+/i', ' ', strtolower($value))); }
+
+    /** @return array<string, mixed> */
+    public function bulkSaveMappings(array $input, int $actor): array
+    {
+        $variants = $input['variants'] ?? $input['variant_ids'] ?? [];
+        if (is_string($variants)) $variants = json_decode($variants, true) ?: array_filter(array_map('trim', explode(',', $variants)));
+        if (! is_array($variants) || $variants === []) throw new InvalidArgumentException('Select at least one Shopify variant.');
+        $medicineId = (int) ($input['medicine_id'] ?? 0);
+        if ($medicineId < 1 || (new MedicineModel())->where('id', $medicineId)->where('status', 'active')->first() === null) throw new InvalidArgumentException('Select an active ROOTINS medicine.');
+        $saved = 0;
+        foreach ($variants as $variant) {
+            $productId = is_array($variant) ? (string) ($variant['product_id'] ?? '') : '';
+            $variantId = is_array($variant) ? (string) ($variant['variant_id'] ?? '') : (string) $variant;
+            if ($variantId === '') continue;
+            $this->saveMapping(['store_domain' => $input['store_domain'] ?? '', 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId, 'shopify_product_title' => is_array($variant) ? ($variant['title'] ?? '') : '', 'shopify_variant_title' => is_array($variant) ? ($variant['variant_title'] ?? '') : '', 'shopify_sku' => is_array($variant) ? ($variant['sku'] ?? '') : '', 'medicine_id' => $medicineId], null);
+            $saved++;
+        }
+        service('audit')->record('shopify.order_mapping_bulk_created', ['actor' => $actor, 'count' => $saved, 'medicine_id' => $medicineId]);
+        return ['saved' => $saved];
+    }
+
+    public function ignoreMapping(array $input, int $actor): bool
+    {
+        $store = strtolower(trim((string) ($input['store_domain'] ?? (new ShopifyConfiguration())->storeDomain())));
+        $product = trim((string) ($input['shopify_product_id'] ?? '')); $variant = trim((string) ($input['shopify_variant_id'] ?? '')); $reason = trim((string) ($input['reason'] ?? ''));
+        if ($store === '' || $product === '' || $variant === '' || $reason === '') throw new InvalidArgumentException('Product, variant, and an ignore reason are required.');
+        $model = new ShopifyMappingIgnoreModel();
+        $existing = $model->where('store_domain', $store)->where('shopify_product_id', $product)->where('shopify_variant_id', $variant)->first();
+        $data = ['store_domain' => $store, 'shopify_product_id' => $product, 'shopify_variant_id' => $variant, 'reason' => $reason, 'created_by' => $actor, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($existing) $model->update((int) $existing['id'], $data); else { $data['created_at'] = date('Y-m-d H:i:s'); $model->insert($data); }
+        service('audit')->record('shopify.order_mapping_ignored', ['store_domain' => $store, 'product_id' => $product, 'variant_id' => $variant, 'actor' => $actor]);
+        return true;
+    }
+
+    /** @return array<string, int> */
+    public function recheckMappings(array $input): array
+    {
+        $store = strtolower(trim((string) ($input['store_domain'] ?? ''))); $variant = trim((string) ($input['shopify_variant_id'] ?? ''));
+        if ($store === '' || $variant === '') throw new InvalidArgumentException('A store and Shopify variant are required.');
+        $query = db_connect()->table('shopify_order_import_lines l')->select('l.import_id')->join('shopify_order_imports i', 'i.id = l.import_id')->where('i.store_domain', $store);
+        if ($variant !== 'all') $query->where('l.shopify_variant_id', $variant);
+        $imports = $query->groupBy('l.import_id')->get()->getResultArray();
+        $service = new ShopifyOrderImportService(); $processed = 0;
+        foreach ($imports as $import) { $service->importExisting((int) $import['import_id'], null); $processed++; }
+        service('audit')->record('shopify.order_mapping_recheck', ['store_domain' => $store, 'variant_id' => $variant, 'count' => $processed]);
+        return ['processed' => $processed];
     }
 
     public function readiness(array $filters = []): array

@@ -28,7 +28,7 @@
                     };
                     $sourceTone = match ($consultation['patient_source'] ?? '') { 'shopify' => 'purple', 'self' => 'charcoal', default => 'gray' };
                     $appointmentDate = rootins_format_date($consultation['appointment_date'] ?? '');
-                    $appointmentTime = substr((string) ($consultation['appointment_time'] ?? ''), 0, 5);
+                    $appointmentTime = rootins_format_time($consultation['appointment_time'] ?? '');
                     ?>
                     <tr>
                         <td data-label="Patient"><div class="ri-stack-cell"><strong class="clinical-primary"><?= esc($patientName ?: 'Unknown patient') ?></strong><span class="clinical-secondary"><?= esc($consultation['registration_number'] ?? 'Registration unavailable') ?></span><span class="clinical-secondary"><?= esc($consultation['patient_mobile'] ?? 'Mobile unavailable') ?></span><span class="badge ri-status ri-status--<?= esc($sourceTone) ?> clinical-source-badge"><?= esc(patient_source_label($consultation['patient_source'] ?? null)) ?></span></div></td>

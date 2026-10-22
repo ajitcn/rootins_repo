@@ -72,5 +72,6 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
+<script>$(function(){ $('#registration_appointment_time').attr({type:'text',placeholder:'hh:mm AM/PM',inputmode:'text',autocomplete:'off'}); });</script>
 <script src="<?= base_url('assets/js/admin/patient/patient_registration.js?v=20261010.2') ?>"></script>
 <?= $this->endSection() ?>

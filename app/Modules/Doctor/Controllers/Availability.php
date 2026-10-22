@@ -412,13 +412,7 @@ class Availability extends BaseController
 
     private function normalizeTime(string $value): ?string
     {
-        $value = trim($value);
-
-        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
-            return null;
-        }
-
-        return $value . ':00';
+        return rootins_parse_time($value);
     }
 
     private function validation(array $errors): ResponseInterface

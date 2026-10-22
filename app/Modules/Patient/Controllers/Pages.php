@@ -944,6 +944,11 @@ final class Pages extends BaseController
 
     private function formatPatientTime(?string $value): string
     {
+        $formatted = rootins_format_time($value);
+        if ($formatted !== '') {
+            return $formatted;
+        }
+
         if (! $value) {
             return '—';
         }

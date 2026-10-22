@@ -117,7 +117,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
                 <div class="modal-body">
                     <input type="hidden" name="appointment_id" id="patient-edit-appointment-id">
                     <div class="form-group"><label for="patient-edit-date">Appointment date</label><input class="form-control datepicker" id="patient-edit-date" name="appointment_date" placeholder="dd-mm-yyyy" autocomplete="off"><div class="validation-error" id="appointment_dateErr"></div></div>
-                    <div class="form-group"><label for="patient-edit-time">Appointment time</label><input class="form-control" id="patient-edit-time" name="appointment_time" type="time"><div class="validation-error" id="appointment_timeErr"></div></div>
+                    <div class="form-group"><label for="patient-edit-time">Appointment time</label><input class="form-control" id="patient-edit-time" name="appointment_time" type="text" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off"><div class="validation-error" id="appointment_timeErr"></div></div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-light" type="button" data-dismiss="modal">Close</button><button class="btn btn-primary" type="submit" id="patient-reschedule-submit">Save changes</button></div>
             </form>

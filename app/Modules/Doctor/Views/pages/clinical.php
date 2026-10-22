@@ -612,7 +612,7 @@ $clinicalActionContext = [
             </div>
             <div class="col-md-3 col-12 mb-2">
                 <label for="follow-up-time">Expected Follow-up Time</label>
-                <input id="follow-up-time" class="form-control" type="time" name="follow_up_time" value="<?= esc($displayTime($selectedAppointment['follow_up_time'] ?? '')) ?>" <?= $selectedAppointment === null ? 'disabled' : '' ?> aria-describedby="follow_up_timeErr">
+                <input id="follow-up-time" class="form-control" type="text" name="follow_up_time" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off" value="<?= esc($displayTime($selectedAppointment['follow_up_time'] ?? '')) ?>" <?= $selectedAppointment === null ? 'disabled' : '' ?> aria-describedby="follow_up_timeErr">
                 <div class="validation-error" id="follow_up_timeErr" data-error-for="follow_up_time"></div>
             </div>
             <div class="col-md-3 col-12 mb-2">
@@ -649,7 +649,7 @@ $clinicalActionContext = [
             </div>
             <div class="col-md-3 col-12 mb-2">
                 <label for="next-appointment-time">Next Appointment Time</label>
-                <input id="next-appointment-time" class="form-control" type="time" name="next_appointment_time" value="<?= esc($displayTime($selectedAppointment['next_appointment_time'] ?? '')) ?>" <?= $selectedAppointment === null ? 'disabled' : '' ?> aria-describedby="next_appointment_timeErr">
+                <input id="next-appointment-time" class="form-control" type="text" name="next_appointment_time" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off" value="<?= esc($displayTime($selectedAppointment['next_appointment_time'] ?? '')) ?>" <?= $selectedAppointment === null ? 'disabled' : '' ?> aria-describedby="next_appointment_timeErr">
                 <div class="validation-error" id="next_appointment_timeErr" data-error-for="next_appointment_time"></div>
             </div>
             <div class="col-md-3 col-12 mb-2">

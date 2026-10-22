@@ -34,7 +34,7 @@ class Patient extends BaseController
             $data = $this->patientData($context['clinic_id']);
 
             if ($this->request->getPost('create_appointment_now')) {
-                $data['_appointment'] = ['doctor_id' => $context['doctor_id'], 'appointment_date' => $this->normalizeDate($this->request->getPost('appointment_date')), 'appointment_time' => $this->request->getPost('appointment_time'), 'service_name' => $this->request->getPost('service_name'), 'appointment_type' => $this->request->getPost('appointment_type') ?: 'in_person', 'reason' => $this->request->getPost('appointment_reason'), 'status' => $this->request->getPost('appointment_status') ?: 'scheduled', 'created_by_type' => 'user', 'booking_source' => 'doctor'];
+                $data['_appointment'] = ['doctor_id' => $context['doctor_id'], 'appointment_date' => $this->normalizeDate($this->request->getPost('appointment_date')), 'appointment_time' => rootins_parse_time($this->request->getPost('appointment_time')) ?? '', 'service_name' => $this->request->getPost('service_name'), 'appointment_type' => $this->request->getPost('appointment_type') ?: 'in_person', 'reason' => $this->request->getPost('appointment_reason'), 'status' => $this->request->getPost('appointment_status') ?: 'scheduled', 'created_by_type' => 'user', 'booking_source' => 'doctor'];
             }
             $result = (new PatientRegistrationService())->register($data, (int) (session('user')['id'] ?? 0), ['source_type' => 'self', 'source_user_id' => (int) (session('user')['id'] ?? 0)]);
             service('audit')->record('doctor.patient_created', ['patient_id' => $result['id'], 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id']]);
@@ -393,7 +393,7 @@ class Patient extends BaseController
 
         if ($this->request->getPost('create_appointment_now')) {
             $date = trim((string) $this->request->getPost('appointment_date'));
-            $time = trim((string) $this->request->getPost('appointment_time'));
+            $time = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
             $service = trim((string) $this->request->getPost('service_name'));
 
             if ($date === '') {
@@ -404,7 +404,7 @@ class Patient extends BaseController
                 $errors['appointment_date'] = 'Appointment date cannot be in the past.';
             }
 
-            if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+            if ($time === '') {
                 $errors['appointment_time'] = 'A valid appointment time is required.';
             }
 

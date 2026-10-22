@@ -46,7 +46,7 @@
                                 <td><?= esc($appointment['appointment_number'] ?? '') ?></td>
                                 <td><?= esc($patientName) ?></td>
                                 <td><?= esc(trim(($appointment['doctor_first_name'] ?? '') . ' ' . ($appointment['doctor_last_name'] ?? ''))) ?></td>
-                                <td><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?> <?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></td>
+                                <td><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?> <?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?></td>
                                 <td><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['status'] ?? '')))) ?></td>
                             </tr>
                         <?php endforeach; ?>

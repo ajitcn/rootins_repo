@@ -104,6 +104,36 @@ if (!function_exists('rootins_format_time')) {
     }
 }
 
+if (!function_exists('rootins_parse_time')) {
+    /** Normalize a user/API time to the database HH:mm:ss format. */
+    function rootins_parse_time(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $formats = [];
+        if (preg_match('/^(?:0[1-9]|1[0-2]):[0-5]\d [AP]M$/', $value)) {
+            $formats[] = '!h:i A';
+        } elseif (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $value)) {
+            $formats[] = strlen($value) === 8 ? '!H:i:s' : '!H:i';
+        } else {
+            return null;
+        }
+
+        $time = DateTimeImmutable::createFromFormat($formats[0], $value, new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())));
+        $errors = DateTimeImmutable::getLastErrors();
+
+        if ($time === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+            return null;
+        }
+
+        return $time->format('H:i:s');
+    }
+}
+
 if (!function_exists('patient_source_label')) {
     function patient_source_label(mixed $source): string
     {

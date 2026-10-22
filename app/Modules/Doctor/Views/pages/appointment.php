@@ -30,7 +30,7 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6 mb-3"><strong>Patient</strong><div><?= esc($patientName) ?> <span class="text-muted small"><?= esc($appointment['registration_number'] ?? '') ?></span> <span class="badge <?= esc(patient_source_badge_class($appointment['patient_source_type'] ?? null)) ?>"><?= esc(patient_source_label($appointment['patient_source_type'] ?? null)) ?></span><br><small class="text-muted"><?= esc($patientContact) ?></small></div></div>
-                <div class="col-md-6 mb-3"><strong>Date and time</strong><div><?= esc($appointment['appointment_date'] ?? '') ?> <?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></div></div>
+                <div class="col-md-6 mb-3"><strong>Date and time</strong><div><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?> <?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?></div></div>
                 <div class="col-md-6 mb-3"><strong>Type</strong><div><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['appointment_type'] ?? '')))) ?></div></div>
                 <div class="col-md-6 mb-3"><strong>Service</strong><div><?= esc($appointment['service_name'] ?? '—') ?></div></div>
                 <div class="col-md-6 mb-3"><strong>Status</strong><div><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['status'] ?? '')))) ?></div></div>

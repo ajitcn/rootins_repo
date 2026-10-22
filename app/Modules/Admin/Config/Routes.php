@@ -13,6 +13,10 @@ $routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\
     $routes->get('order-operations/(:num)', 'ShopifyOrderOperations::detail/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations/prescriptions/(:num)/view', 'ShopifyOrderOperations::viewPrescription/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-mappings/save', 'ShopifyOrderOperations::saveMapping', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('order-mappings/medicines', 'ShopifyOrderOperations::searchMedicines', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/bulk-save', 'ShopifyOrderOperations::bulkSaveMappings', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/ignore', 'ShopifyOrderOperations::ignoreMapping', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-mappings/recheck', 'ShopifyOrderOperations::recheckMappings', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-mappings/toggle/(:num)', 'ShopifyOrderOperations::toggleMapping/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-operations/(:num)/action', 'ShopifyOrderOperations::action/$1', ['filter' => 'permission:shopify.order.operations']);
 });

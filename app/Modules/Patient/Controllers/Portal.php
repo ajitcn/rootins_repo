@@ -327,7 +327,7 @@ class Portal extends BaseController
         $context = $this->context();
         $doctorId = (int) $this->request->getPost('doctor_id');
         $date = trim((string) $this->request->getPost('appointment_date'));
-        $time = trim((string) $this->request->getPost('appointment_time'));
+        $time = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
         $type = strtolower(trim((string) $this->request->getPost('appointment_type')));
         $errors = [];
 
@@ -343,7 +343,7 @@ class Portal extends BaseController
             $errors['appointment_date'] = 'Appointment date is invalid.';
         }
 
-        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+        if ($time === '') {
             $errors['appointment_time'] = 'Appointment time is invalid.';
         }
 
@@ -406,14 +406,14 @@ class Portal extends BaseController
             return $this->json(403, false, 'Patient scope is unavailable.');
         }
         $date = $this->normalizeAppointmentDate((string) $this->request->getPost('appointment_date'));
-        $time = trim((string) $this->request->getPost('appointment_time'));
+        $time = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
         $errors = [];
 
         if ($date === null || $date < date('Y-m-d')) {
             $errors['appointment_date'] = 'Enter a valid appointment date as dd-mm-yyyy.';
         }
 
-        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+        if ($time === '') {
             $errors['appointment_time'] = 'Appointment time is invalid.';
         }
 

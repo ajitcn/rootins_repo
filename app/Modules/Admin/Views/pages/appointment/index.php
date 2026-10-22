@@ -92,7 +92,7 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                             <div class="admin-appointment-date-time">
                                 <span class="admin-appointment-number" title="<?= esc($appointmentNumber) ?>"><?= esc($appointmentNumber) ?></span>
                                 <time class="admin-appointment-date" datetime="<?= esc($appointment['appointment_date'] ?? '') ?>"><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?></time>
-                                <time class="admin-appointment-time" datetime="<?= esc(($appointment['appointment_date'] ?? '') . 'T' . ($appointment['appointment_time'] ?? '')) ?>"><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></time>
+                                <time class="admin-appointment-time" datetime="<?= esc(($appointment['appointment_date'] ?? '') . 'T' . ($appointment['appointment_time'] ?? '')) ?>"><?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?></time>
                             </div>
                             <span class="admin-appointment-meta admin-appointment-service" title="<?= esc($serviceName) ?>"><i class="bi bi-briefcase mr-1" aria-hidden="true"></i><?= esc($serviceName) ?></span>
                             <span class="badge badge-light admin-appointment-queue" title="<?= $queuePosition !== null ? 'Queue #' . $queuePosition : 'No queue position' ?>">Queue <?= $queuePosition !== null ? '#' . $queuePosition : '—' ?></span>
@@ -116,7 +116,8 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                             <a href="<?= base_url('admin/appointments/view/' . (int) $appointment['id']) ?>"
                                class="dropdown-item" role="menuitem" aria-label="View appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-eye mr-2" aria-hidden="true"></i>View appointment
                             </a>
-                            <?php if ($canReschedule): ?><button type="button" class="dropdown-item edit-appointment" data-id="<?= (int) $appointment['id'] ?>" aria-label="Edit or reschedule appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-calendar2-week mr-2" aria-hidden="true"></i>Edit / reschedule</button><?php endif; ?>
+                            <?php if ($canEdit): ?><button type="button" class="dropdown-item edit-appointment" data-appointment-id="<?= (int) $appointment['id'] ?>" data-id="<?= (int) $appointment['id'] ?>" data-toggle="modal" data-target="#appointmentModal" aria-label="Edit appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-pencil-square mr-2" aria-hidden="true"></i>Edit appointment</button><?php endif; ?>
+                            <?php if ($canReschedule): ?><button type="button" class="dropdown-item reschedule-appointment" data-appointment-id="<?= (int) $appointment['id'] ?>" data-id="<?= (int) $appointment['id'] ?>" data-toggle="modal" data-target="#appointmentRescheduleModal" aria-label="Reschedule appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-calendar2-week mr-2" aria-hidden="true"></i>Reschedule appointment</button><?php endif; ?>
                             <?php if ($canCancel): ?><button type="button" class="dropdown-item text-danger cancel-appointment" data-id="<?= (int) $appointment['id'] ?>" data-appointment-number="<?= esc($appointmentNumber) ?>" aria-label="Cancel appointment <?= esc($appointmentNumber) ?>"><i class="bi bi-x-circle mr-2" aria-hidden="true"></i>Cancel appointment</button><?php endif; ?>
                             <?php if ($canConsult && ! empty($appointment['consultation_eligible'])): ?><a href="<?= base_url('admin/consultations') . '?appointment_id=' . (int) $appointment['id'] ?>" class="dropdown-item" role="menuitem"><i class="bi bi-clipboard2-pulse mr-2" aria-hidden="true"></i>Consult</a><?php endif; ?>
                             <?php if ($canBilling): ?><a href="<?= base_url('admin/billing') . '?appointment_id=' . (int) $appointment['id'] ?>" class="dropdown-item" role="menuitem"><i class="bi bi-receipt mr-2" aria-hidden="true"></i>Billing / payment</a><?php endif; ?>
@@ -219,6 +220,7 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
             <?= form_open('', 'id="appointmentForm" autocomplete="off"') ?>
                 <input type="hidden" name="id" id="appointment_id">
                 <div class="modal-body">
+                    <div id="appointmentLoading" class="alert alert-info d-none" role="status">Loading appointment…</div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
@@ -261,6 +263,12 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                                 <div class="validation-error" id="clinic_idErr"></div>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="appointment_service_name">Service</label>
+                                <input type="text" id="appointment_service_name" class="form-control" readonly>
+                            </div>
+                        </div>
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="appointment_date">Date <span class="text-danger">*</span></label>
@@ -271,8 +279,14 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="appointment_time">Time <span class="text-danger">*</span></label>
-                                <input type="time" name="appointment_time" id="appointment_time" class="form-control">
+                                <input type="text" name="appointment_time" id="appointment_time" class="form-control" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off">
                                 <div class="validation-error" id="appointment_timeErr"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="appointment_end_time">End time</label>
+                                <input type="text" id="appointment_end_time" class="form-control" readonly>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -337,6 +351,43 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary save">Save Appointment</button>
                 </div>
+            <?= form_close() ?>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade appointment-reschedule-modal" id="appointmentRescheduleModal" tabindex="-1" role="dialog" aria-labelledby="appointmentRescheduleTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable ri-scroll-modal" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appointmentRescheduleTitle">Reschedule Appointment</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <?= form_open('', 'id="appointmentRescheduleForm" autocomplete="off"') ?>
+                <input type="hidden" name="patient_id" id="reschedule_patient_id">
+                <input type="hidden" name="doctor_id" id="reschedule_doctor_id">
+                <input type="hidden" name="clinic_id" id="reschedule_clinic_id">
+                <input type="hidden" name="duration_minutes" id="reschedule_duration_minutes">
+                <input type="hidden" name="appointment_type" id="reschedule_appointment_type">
+                <input type="hidden" name="status" id="reschedule_status">
+                <input type="hidden" name="reason_for_visit" id="reschedule_reason_for_visit">
+                <input type="hidden" name="notes" id="reschedule_notes">
+                <input type="hidden" name="cancellation_reason" id="reschedule_cancellation_reason">
+                <div class="modal-body">
+                    <div id="appointmentRescheduleLoading" class="alert alert-info d-none" role="status">Loading appointment…</div>
+                    <div id="appointmentRescheduleErrors" class="alert alert-danger d-none" role="alert"></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6"><label for="reschedule_patient_name">Patient</label><input type="text" class="form-control" id="reschedule_patient_name" readonly></div>
+                        <div class="form-group col-md-6"><label for="reschedule_doctor_name">Current doctor</label><input type="text" class="form-control" id="reschedule_doctor_name" readonly></div>
+                        <div class="form-group col-md-6"><label for="reschedule_current_datetime">Current date/time</label><input type="text" class="form-control" id="reschedule_current_datetime" readonly></div>
+                        <div class="form-group col-md-6"><label for="reschedule_current_end_time">Current end time</label><input type="text" class="form-control" id="reschedule_current_end_time" readonly></div>
+                        <div class="form-group col-md-6"><label for="reschedule_new_date">New date <span class="text-danger">*</span></label><input type="text" name="appointment_date" class="form-control datepicker" id="reschedule_new_date" placeholder="dd-mm-yyyy" autocomplete="off"><div class="validation-error" id="reschedule_appointment_dateErr"></div></div>
+                        <div class="form-group col-md-6"><label for="reschedule_new_start_time">New start time <span class="text-danger">*</span></label><input type="text" name="appointment_time" class="form-control" id="reschedule_new_start_time" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off"><div class="validation-error" id="reschedule_appointment_timeErr"></div></div>
+                        <div class="form-group col-md-6"><label for="reschedule_new_end_time">New end time</label><input type="text" class="form-control" id="reschedule_new_end_time" readonly></div>
+                        <div class="form-group col-md-6"><label for="reschedule_reason">Reason / remarks</label><textarea name="reschedule_remarks" class="form-control" id="reschedule_reason" rows="3" placeholder="Reason for rescheduling"></textarea></div>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn btn-primary reschedule-save">Save reschedule</button></div>
             <?= form_close() ?>
         </div>
     </div>

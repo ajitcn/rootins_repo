@@ -80,7 +80,7 @@ $patientName = trim(implode(' ', array_filter([
                                     <td><?= esc($item['appointment_number']) ?></td>
                                     <td>
                                         <?= esc(rootins_format_date($item['appointment_date'] ?? '')) ?>
-                                        <?= esc(substr((string) $item['appointment_time'], 0, 5)) ?>
+                                        <?= esc(rootins_format_time($item['appointment_time'] ?? '')) ?>
                                     </td>
                                     <td><?= esc(ucwords(str_replace('_', ' ', $item['appointment_type']))) ?></td>
                                     <td><?= esc(ucwords(str_replace('_', ' ', $item['status']))) ?></td>

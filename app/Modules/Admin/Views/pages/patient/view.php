@@ -15,6 +15,7 @@ $mobile = trim((string) ($patient['country_code'] ?? '') . ' ' . (string) ($pati
 $upcoming = $activity['upcoming_appointment'] ?? [];
 $lastAppointment = $activity['last_appointment'] ?? [];
 $appointmentLabel = static function (array $appointment, string $fallback = 'Not provided') use ($formatDate): string { if ($appointment === []) { return $fallback; } $date = $formatDate($appointment['appointment_date'] ?? null); $time = trim((string) ($appointment['appointment_time'] ?? '')); return $date . ($time !== '' ? ' · ' . date('h:i A', strtotime($time)) : ''); };
+$appointmentLabel = static function (array $appointment, string $fallback = 'Not provided') use ($formatDate): string { if ($appointment === []) { return $fallback; } $date = $formatDate($appointment['appointment_date'] ?? null); $time = rootins_format_time($appointment['appointment_time'] ?? ''); return $date . ' · ' . ($time !== '' ? $time : 'Not provided'); };
 $detailItem = static function (string $label, string $content, string $class = ''): string { return '<div class="admin-patient-detail-item ' . esc($class) . '"><dt>' . esc($label) . '</dt><dd>' . $content . '</dd></div>'; };
 ?>
 

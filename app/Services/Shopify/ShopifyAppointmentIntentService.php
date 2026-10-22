@@ -47,7 +47,7 @@ final class ShopifyAppointmentIntentService
         if (! preg_match('/^service-(\d+)$/', $serviceReference, $serviceMatch)) $errors[$serviceField] = 'Select a valid service.';
         if ($date === null || $date < date('Y-m-d')) $errors['appointment_date'] = 'Enter a valid appointment date as dd-mm-yyyy.';
         if ($time === null) $errors[$timeField] = 'Enter a valid start time as HH:mm.';
-        if ($endTimeValue === '' || $endTime === null) $errors['end_time'] = 'Enter a valid end time as HH:mm.';
+        if ($endTimeValue === '' || $endTime === null) $errors['end_time'] = 'Enter a valid end time as hh:mm AM/PM.';
         if ($slotReference === '') $errors['slot_reference'] = 'Select a valid slot from availability.';
         if (! in_array($consultationMode, ['in_person', 'video', 'phone'], true)) $errors['consultation_mode'] = 'Select a valid consultation mode.';
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 191) $errors['idempotency_key'] = 'A valid Idempotency-Key header is required.';
@@ -347,7 +347,7 @@ final class ShopifyAppointmentIntentService
         if ($date === false || $date->format('Ymd') !== $matches[3]) return null;
         return ['doctor_reference' => $matches[1], 'service_reference' => 'service-' . $matches[2], 'date' => $date->format('Y-m-d'), 'start_time' => substr($matches[4], 0, 2) . ':' . substr($matches[4], 2, 2)];
     }
-    private function normalizeTime(string $value): ?string { $value = trim($value); foreach (['!H:i:s', '!H:i', '!h:i A'] as $format) { $time = DateTimeImmutable::createFromFormat($format, $value, $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); if ($time !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) return $time->format('H:i:s'); } return null; }
+    private function normalizeTime(string $value): ?string { return rootins_parse_time($value); }
     private function timezone(): DateTimeZone { return new DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())); }
     private function isSlotAligned(string $scheduleStart, string $time, int $duration): bool { $start = new DateTimeImmutable('2000-01-01 ' . substr($scheduleStart, 0, 8), $this->timezone()); $slot = new DateTimeImmutable('2000-01-01 ' . $time, $this->timezone()); $seconds = $slot->getTimestamp() - $start->getTimestamp(); return $seconds >= 0 && $seconds % ($duration * 60) === 0; }
     private function leaveOverlaps(int $doctorId, string $date, string $start, string $end): bool { foreach ((new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll() as $leave) { $leaveStart = trim((string) ($leave['start_time'] ?? '')); $leaveEnd = trim((string) ($leave['end_time'] ?? '')); if ($leaveStart === '' || $leaveEnd === '' || ($start < $leaveEnd && $end > $leaveStart)) return true; } return false; }

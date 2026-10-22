@@ -32,7 +32,7 @@ $statusBadge = static function (string $status): string {
                         <small class="text-muted d-block text-truncate" title="<?= esc($appointment['specialization'] ?? '') ?>"><?= esc($appointment['specialization'] ?: 'Specialization not recorded') ?></small>
                     </td>
                     <td data-label="Service"><span class="text-truncate d-block" title="<?= esc($appointment['service_name'] ?: $appointment['appointment_type']) ?>"><?= esc($appointment['service_name'] ?: $label((string) $appointment['appointment_type'])) ?></span></td>
-                    <td data-label="Date / time"><strong><?= esc($formatDate($appointment['appointment_date'] ?? null)) ?></strong><small class="text-muted d-block"><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5) ?: '—') ?></small></td>
+                    <td data-label="Date / time"><strong><?= esc($formatDate($appointment['appointment_date'] ?? null)) ?></strong><small class="text-muted d-block"><?= esc(rootins_format_time($appointment['appointment_time'] ?? '') ?: '—') ?></small></td>
                     <td data-label="Queue / type"><span class="d-block">Queue <?= esc((string) ($appointment['queue_position'] ?? '—')) ?></span><small class="text-muted"><?= esc($label((string) ($appointment['appointment_type'] ?? ''))) ?></small></td>
                     <td data-label="Status"><span class="badge <?= $statusBadge((string) $appointment['status']) ?> patient-status-badge"><?= esc($label((string) $appointment['status'])) ?></span></td>
                     <td data-label="Actions" class="patient-appointments-actions">
@@ -41,7 +41,7 @@ $statusBadge = static function (string $status): string {
                             <div class="dropdown-menu dropdown-menu-right">
                                 <button class="dropdown-item patient-appointment-view" type="button" data-id="<?= (int) $appointment['id'] ?>" data-toggle="modal" data-target="#patient-appointment-detail-modal"><i class="bi bi-eye mr-2" aria-hidden="true"></i>View appointment</button>
                                 <?php if ($editable): ?>
-                                    <button class="dropdown-item patient-appointment-reschedule" type="button" data-id="<?= (int) $appointment['id'] ?>" data-date-display="<?= esc($formatDate($appointment['appointment_date'] ?? null)) ?>" data-time="<?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?>"><i class="bi bi-calendar2-event mr-2" aria-hidden="true"></i>Reschedule</button>
+                                    <button class="dropdown-item patient-appointment-reschedule" type="button" data-id="<?= (int) $appointment['id'] ?>" data-date-display="<?= esc($formatDate($appointment['appointment_date'] ?? null)) ?>" data-time="<?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?>"><i class="bi bi-calendar2-event mr-2" aria-hidden="true"></i>Reschedule</button>
                                     <button class="dropdown-item text-danger patient-appointment-cancel" type="button" data-id="<?= (int) $appointment['id'] ?>"><i class="bi bi-x-circle mr-2" aria-hidden="true"></i>Cancel appointment</button>
                                 <?php endif; ?>
                                 <?php if ((int) ($appointment['prescription_id'] ?? 0) > 0): ?><a class="dropdown-item" href="<?= base_url('patient/prescriptions?prescription_id=' . (int) $appointment['prescription_id']) ?>"><i class="bi bi-file-medical mr-2" aria-hidden="true"></i>View prescription</a><?php endif; ?>

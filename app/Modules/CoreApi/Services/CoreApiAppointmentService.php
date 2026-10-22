@@ -257,7 +257,7 @@ final class CoreApiAppointmentService
 
         service('audit')->record('core_api.appointment_booked', ['clinic_id' => $clinicId, 'appointment_id' => $id]);
 
-        return ['appointment_reference' => sprintf('APT-%06d', $id), 'date' => (new DateTimeImmutable($date))->format('d-m-Y'), 'time' => substr($time, 0, 5), 'status' => 'scheduled'];
+        return ['appointment_reference' => sprintf('APT-%06d', $id), 'date' => (new DateTimeImmutable($date))->format('d-m-Y'), 'time' => rootins_format_time($time), 'status' => 'scheduled'];
     }
 
     /** @return array<string, mixed> */
@@ -519,14 +519,14 @@ final class CoreApiAppointmentService
         if ($date === false || $date->format('Ymd') !== $matches[3]) return null;
         return ['doctor_reference' => $matches[1], 'service_reference' => 'service-' . $matches[2], 'date' => $date->format('Y-m-d'), 'start_time' => substr($matches[4], 0, 2) . ':' . substr($matches[4], 2, 2)];
     }
-    private function normalizeTime(string $value): ?string { $value = trim($value); foreach (['!H:i:s', '!H:i', '!h:i A'] as $format) { $time = DateTimeImmutable::createFromFormat($format, $value, $this->timezone()); $errors = DateTimeImmutable::getLastErrors(); if ($time !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) return $time->format('H:i:s'); } return null; }
+    private function normalizeTime(string $value): ?string { return rootins_parse_time($value); }
     private function isSlotAligned(string $scheduleStart, string $time, int $duration): bool { $start = new DateTimeImmutable('2000-01-01 ' . substr($scheduleStart, 0, 8), $this->timezone()); $slot = new DateTimeImmutable('2000-01-01 ' . $time, $this->timezone()); $seconds = $slot->getTimestamp() - $start->getTimestamp(); return $seconds >= 0 && $seconds % ($duration * 60) === 0; }
     private function leaveOverlaps(int $doctorId, string $date, string $start, string $end): bool { foreach ((new DoctorLeaveModel())->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll() as $leave) { $leaveStart = trim((string) ($leave['start_time'] ?? '')); $leaveEnd = trim((string) ($leave['end_time'] ?? '')); if ($leaveStart === '' || $leaveEnd === '' || ($start < $leaveEnd && $end > $leaveStart)) return true; } return false; }
     private function formatDate(string $date): string { return (new DateTimeImmutable($date, $this->timezone()))->format('d-m-Y'); }
 
     private function displayTime(string $time, DateTimeZone $timezone): string
     {
-        return (new DateTimeImmutable('2000-01-01 ' . substr($time, 0, 8), $timezone))->format('h:i A');
+        return rootins_format_time($time);
     }
 
     private function slotReference(string $doctorReference, string $serviceReference, string $date, string $start): string

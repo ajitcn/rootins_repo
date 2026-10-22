@@ -280,6 +280,36 @@
       return iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}` : '';
     }
 
+    window.rootinsFormatDate = displayDate;
+
+    function formatTime(value) {
+      const text = String(value || '').trim();
+      const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*([AP]M))?$/i);
+      if (!match) return text;
+      let hour = Number(match[1]);
+      if (match[3]) {
+        if (hour < 1 || hour > 12) return text;
+        if (match[3].toUpperCase() === 'PM' && hour !== 12) hour += 12;
+        if (match[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+      } else if (hour > 23) return text;
+      const suffix = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 || 12;
+      return String(displayHour).padStart(2, '0') + ':' + match[2] + ' ' + suffix;
+    }
+
+    window.rootinsFormatTime = formatTime;
+
+    window.rootinsNormalizeTime = function (value) {
+      const text = String(value || '').trim();
+      const display = formatTime(text);
+      const match = display.match(/^(\d{2}):(\d{2}) ([AP]M)$/);
+      if (!match) return null;
+      let hour = Number(match[1]);
+      if (match[3] === 'PM' && hour !== 12) hour += 12;
+      if (match[3] === 'AM' && hour === 12) hour = 0;
+      return String(hour).padStart(2, '0') + ':' + match[2] + ':00';
+    };
+
     window.rootinsDateToIso = function (selector) {
       return isoDate($(selector).val());
     };

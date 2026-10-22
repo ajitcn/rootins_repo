@@ -229,7 +229,7 @@ class Appointment extends BaseAdminController
                 'doctor_code' => $appointment['doctor_code'] ?? null,
                 'clinic_name' => $appointment['clinic_name'],
                 'appointment_date' => $appointment['appointment_date'],
-                'appointment_time' => substr((string) $appointment['appointment_time'], 0, 5),
+                'appointment_time' => rootins_format_time($appointment['appointment_time'] ?? ''),
                 'service_name' => $appointment['service_name'] ?? null,
                 'queue_position' => $appointment['queue_position'] ?? null,
                 'appointment_type' => $appointment['appointment_type'],
@@ -463,11 +463,13 @@ class Appointment extends BaseAdminController
         if (!$this->request->isAJAX() || $this->request->getMethod(true) !== 'GET') {
             return $this->invalidRequest();
         }
-        $appointment = $this->appointment->find($id);
+        $appointment = $this->appointment->select('appointments.*, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')->join('patients', 'patients.id = appointments.patient_id')->join('doctors', 'doctors.id = appointments.doctor_id')->where('appointments.id', $id)->first();
 
         if ($appointment === null) {
             return $this->failure('Appointment not found.');
         }
+
+        log_message('info', 'Admin appointment modal action=edit appointment_reference=' . (string) ($appointment['appointment_number'] ?? $id));
 
         return $this->response->setJSON(['status' => true, 'msg' => '', 'data' => $appointment]);
     }
@@ -572,7 +574,7 @@ class Appointment extends BaseAdminController
         }
 
         if (!$this->appointment->update($id, $data)) {
-            log_message('error', 'Appointment update failed for ID ' . $id . '.');
+            log_message('error', 'Admin appointment action=update appointment_reference=' . (string) ($existing['appointment_number'] ?? $id) . ' failed.');
 
             return $this->failure('Unable to update appointment.');
         }
@@ -599,13 +601,17 @@ class Appointment extends BaseAdminController
 
     private function validateAppointment(): array
     {
-        $rules = ['patient_id' => ['label' => 'Patient', 'rules' => 'required|is_natural_no_zero'], 'doctor_id' => ['label' => 'Doctor', 'rules' => 'required|is_natural_no_zero'], 'clinic_id' => ['label' => 'Clinic', 'rules' => 'required|is_natural_no_zero'], 'appointment_date' => ['label' => 'Appointment Date', 'rules' => 'required'], 'appointment_time' => ['label' => 'Appointment Time', 'rules' => 'required|regex_match[/^\d{2}:\d{2}(:\d{2})?$/]'], 'duration_minutes' => ['label' => 'Duration', 'rules' => 'required|integer|greater_than[0]|less_than_equal_to[999]'], 'appointment_type' => ['label' => 'Appointment Type', 'rules' => 'required|in_list[in_person,video,phone]'], 'status' => ['label' => 'Status', 'rules' => 'required|in_list[scheduled,confirmed,checked_in,in_queue,completed,cancelled,no_show]'], 'reason_for_visit' => ['label' => 'Reason for Visit', 'rules' => 'permit_empty'], 'notes' => ['label' => 'Notes', 'rules' => 'permit_empty'], 'cancellation_reason' => ['label' => 'Cancellation Reason', 'rules' => 'permit_empty']];
+        $rules = ['patient_id' => ['label' => 'Patient', 'rules' => 'required|is_natural_no_zero'], 'doctor_id' => ['label' => 'Doctor', 'rules' => 'required|is_natural_no_zero'], 'clinic_id' => ['label' => 'Clinic', 'rules' => 'required|is_natural_no_zero'], 'appointment_date' => ['label' => 'Appointment Date', 'rules' => 'required'], 'appointment_time' => ['label' => 'Appointment Time', 'rules' => 'required'], 'duration_minutes' => ['label' => 'Duration', 'rules' => 'required|integer|greater_than[0]|less_than_equal_to[999]'], 'appointment_type' => ['label' => 'Appointment Type', 'rules' => 'required|in_list[in_person,video,phone]'], 'status' => ['label' => 'Status', 'rules' => 'required|in_list[scheduled,confirmed,checked_in,in_queue,completed,cancelled,no_show]'], 'reason_for_visit' => ['label' => 'Reason for Visit', 'rules' => 'permit_empty'], 'notes' => ['label' => 'Notes', 'rules' => 'permit_empty'], 'cancellation_reason' => ['label' => 'Cancellation Reason', 'rules' => 'permit_empty']];
 
         if (! $this->validate($rules)) {
             return $this->validator->getErrors();
         }
 
-        return rootins_parse_date($this->request->getPost('appointment_date')) === null ? ['appointment_date' => 'Enter a valid appointment date as dd-mm-yyyy.'] : [];
+        if (rootins_parse_date($this->request->getPost('appointment_date')) === null) {
+            return ['appointment_date' => 'Enter a valid appointment date as dd-mm-yyyy.'];
+        }
+
+        return rootins_parse_time($this->request->getPost('appointment_time')) === null ? ['appointment_time' => 'Enter a valid time as hh:mm AM/PM.'] : [];
     }
 
     private function validateReferences(): array
@@ -781,7 +787,7 @@ class Appointment extends BaseAdminController
                     'id' => (int) $row['id'],
                     'appointment_number' => $row['appointment_number'],
                     'appointment_date' => rootins_format_date($row['appointment_date']),
-                    'appointment_time' => substr((string) $row['appointment_time'], 0, 5),
+                    'appointment_time' => rootins_format_time($row['appointment_time'] ?? ''),
                     'registration_number' => $row['registration_number'] ?? null,
                     'patient_name' => trim(implode(' ', array_filter([$row['patient_first_name'] ?? '', $row['patient_middle_name'] ?? '', $row['patient_last_name'] ?? ''], static fn ($part) => $part !== null && $part !== ''))),
                     'patient_mobile' => $row['patient_mobile'] ?? null,
@@ -821,7 +827,7 @@ class Appointment extends BaseAdminController
         $cancelled = $status === 'cancelled';
         $cancellationReason = trim((string) $this->request->getPost('cancellation_reason'));
 
-        return ['patient_id' => (int) $this->request->getPost('patient_id'), 'doctor_id' => (int) $this->request->getPost('doctor_id'), 'clinic_id' => (int) $this->request->getPost('clinic_id'), 'appointment_date' => rootins_parse_date($this->request->getPost('appointment_date')) ?? '', 'appointment_time' => trim((string) $this->request->getPost('appointment_time')), 'duration_minutes' => (int) $this->request->getPost('duration_minutes'), 'appointment_type' => $this->request->getPost('appointment_type'), 'status' => $status, 'created_by_type' => 'user', 'created_by_id' => $userId, 'booking_source' => 'admin', 'reason_for_visit' => $this->nullableString('reason_for_visit'), 'notes' => $this->nullableString('notes'), 'cancelled_at' => $cancelled ? date('Y-m-d H:i:s') : null, 'cancelled_by' => $cancelled ? $userId : null, 'cancellation_reason' => $cancelled && $cancellationReason !== '' ? $cancellationReason : null, 'updated_at' => date('Y-m-d H:i:s')];
+        return ['patient_id' => (int) $this->request->getPost('patient_id'), 'doctor_id' => (int) $this->request->getPost('doctor_id'), 'clinic_id' => (int) $this->request->getPost('clinic_id'), 'appointment_date' => rootins_parse_date($this->request->getPost('appointment_date')) ?? '', 'appointment_time' => rootins_parse_time($this->request->getPost('appointment_time')) ?? '', 'duration_minutes' => (int) $this->request->getPost('duration_minutes'), 'appointment_type' => $this->request->getPost('appointment_type'), 'status' => $status, 'created_by_type' => 'user', 'created_by_id' => $userId, 'booking_source' => 'admin', 'reason_for_visit' => $this->nullableString('reason_for_visit'), 'notes' => $this->nullableString('notes'), 'cancelled_at' => $cancelled ? date('Y-m-d H:i:s') : null, 'cancelled_by' => $cancelled ? $userId : null, 'cancellation_reason' => $cancelled && $cancellationReason !== '' ? $cancellationReason : null, 'updated_at' => date('Y-m-d H:i:s')];
     }
 
     private function authenticatedUserId(): ?int

@@ -465,7 +465,7 @@ class Patient extends BaseAdminController
 
             $appointmentDateInput = trim((string) $this->request->getPost('appointment_date'));
             $appointmentDate = rootins_parse_date($appointmentDateInput);
-            $appointmentTime = trim((string) $this->request->getPost('appointment_time'));
+            $appointmentTime = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
             $doctorId = (int) $this->request->getPost('appointment_doctor_id');
             $serviceId = (int) $this->request->getPost('appointment_service_id');
 
@@ -475,8 +475,8 @@ class Patient extends BaseAdminController
                 $errors['appointment_date'] = 'Appointment date cannot be in the past.';
             }
 
-            if (!preg_match('/^\d{2}:\d{2}$/', $appointmentTime)) {
-                $errors['appointment_time'] = 'Enter a valid appointment time.';
+            if ($appointmentTime === '') {
+                $errors['appointment_time'] = 'Enter a valid appointment time as hh:mm AM/PM.';
             }
 
             if ($doctorId < 1 || (new DoctorModel())->where('id', $doctorId)->where('clinic_id', $clinicId)->where('status', 1)->first() === null) {
@@ -487,7 +487,7 @@ class Patient extends BaseAdminController
                 $errors['appointment_service_id'] = 'Select a valid service.';
             }
 
-            if ($appointmentDate !== null && preg_match('/^\d{2}:\d{2}$/', $appointmentTime) && $doctorId > 0) {
+            if ($appointmentDate !== null && $appointmentTime !== '' && $doctorId > 0) {
                 $conflict = db_connect()->table('appointments')->where('doctor_id', $doctorId)->where('clinic_id', $clinicId)->where('appointment_date', $appointmentDate)->where('appointment_time', $appointmentTime)->whereIn('status', ['scheduled', 'confirmed', 'checked_in', 'in_queue'])->get()->getRowArray();
 
                 if ($conflict !== null) {
@@ -508,7 +508,7 @@ class Patient extends BaseAdminController
 
         if ((string) $this->request->getPost('create_appointment_now') === '1') {
             $service = (new ServiceModel())->forScope((int) $data['clinic_id'])->where('id', (int) $this->request->getPost('appointment_service_id'))->where('status', 1)->first();
-            $data['_appointment'] = ['doctor_id' => (int) $this->request->getPost('appointment_doctor_id'), 'appointment_date' => (string) (rootins_parse_date($this->request->getPost('appointment_date')) ?? ''), 'appointment_time' => trim((string) $this->request->getPost('appointment_time')), 'service_name' => (string) ($service['name'] ?? ''), 'appointment_type' => 'in_person', 'status' => 'scheduled', 'created_by_type' => 'user', 'booking_source' => 'admin', 'reason' => $this->nullableString('appointment_reason')];
+            $data['_appointment'] = ['doctor_id' => (int) $this->request->getPost('appointment_doctor_id'), 'appointment_date' => (string) (rootins_parse_date($this->request->getPost('appointment_date')) ?? ''), 'appointment_time' => rootins_parse_time($this->request->getPost('appointment_time')) ?? '', 'service_name' => (string) ($service['name'] ?? ''), 'appointment_type' => 'in_person', 'status' => 'scheduled', 'created_by_type' => 'user', 'booking_source' => 'admin', 'reason' => $this->nullableString('appointment_reason')];
         }
 
         return $data;

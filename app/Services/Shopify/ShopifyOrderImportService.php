@@ -316,7 +316,7 @@ final class ShopifyOrderImportService
                 $medicine = db_connect()->table('medicines')->select('id, status')->where('id', (int) $medicineId)->get(1)->getRowArray();
                 if ($medicine === null || (string) ($medicine['status'] ?? '') !== 'active') {
                     $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->delete();
-                    $lineModel->insert(['import_id' => $importId, 'shopify_line_item_id' => $lineId, 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId, 'medicine_id' => $medicineId, 'title_snapshot' => (string) ($item['title'] ?? ''), 'quantity' => max(0, (int) ($item['quantity'] ?? 0)), 'shopify_price_snapshot' => (float) ($item['price'] ?? 0), 'status' => 'medicine_inactive', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+                    $lineModel->insert(['import_id' => $importId, 'shopify_line_item_id' => $lineId, 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId, 'medicine_id' => $medicineId, 'title_snapshot' => (string) ($item['title'] ?? ''), 'shopify_sku' => (string) ($item['sku'] ?? ''), 'shopify_barcode' => (string) ($item['barcode'] ?? ''), 'product_image_url' => filter_var((string) ($item['image_url'] ?? ''), FILTER_VALIDATE_URL) ? (string) $item['image_url'] : null, 'quantity' => max(0, (int) ($item['quantity'] ?? 0)), 'shopify_price_snapshot' => (float) ($item['price'] ?? 0), 'status' => 'medicine_inactive', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
                     return ['status' => 'pending', 'reason' => ShopifyOrderImportFailure::MEDICINE_INACTIVE, 'category' => ShopifyOrderImportFailure::MEDICINE_INACTIVE];
                 }
             }
@@ -328,6 +328,9 @@ final class ShopifyOrderImportService
                 'shopify_variant_id' => $variantId,
                 'medicine_id' => $medicineId,
                 'title_snapshot' => (string) ($item['title'] ?? ''),
+                'shopify_sku' => (string) ($item['sku'] ?? ''),
+                'shopify_barcode' => (string) ($item['barcode'] ?? ''),
+                'product_image_url' => filter_var((string) ($item['image_url'] ?? ''), FILTER_VALIDATE_URL) ? (string) $item['image_url'] : null,
                 'quantity' => max(0, (int) ($item['quantity'] ?? 0)),
                 'shopify_price_snapshot' => (float) ($item['price'] ?? 0),
                 'status' => $medicineId === null ? 'pending_mapping' : 'mapped',

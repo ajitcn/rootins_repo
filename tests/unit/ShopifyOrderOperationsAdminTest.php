@@ -27,6 +27,25 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringNotContainsString('shopify_price', $service);
     }
 
+    public function testMappingWorkspaceProvidesCardsTabsBulkMappingAndSafeIgnore(): void
+    {
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        foreach (['Total Shopify products', 'Needs Mapping', 'Conflicts', 'Map medicine', 'Apply mapping', 'affected order', 'Prescription required', 'medicine-results'] as $text) self::assertStringContainsString($text, $view . $service);
+        foreach (['mappingDashboard', 'bulkSaveMappings', 'ignoreMapping', 'recheckMappings', 'suggestions'] as $method) self::assertStringContainsString($method, $service);
+        self::assertStringContainsString('shopify_mapping_ignores', $this->source('app/Database/Migrations/2026-10-22-123000_CreateShopifyMappingIgnores.php'));
+    }
+
+    public function testMappingActionsRemainPermissionProtectedAndPreserveCsrf(): void
+    {
+        $routes = $this->source('app/Modules/Admin/Config/Routes.php');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_mappings.php');
+        foreach (['order-mappings/medicines', 'order-mappings/bulk-save', 'order-mappings/ignore', 'order-mappings/recheck'] as $route) self::assertStringContainsString($route, $routes);
+        self::assertStringContainsString('permission:shopify.order.operations', $routes);
+        self::assertGreaterThanOrEqual(2, substr_count($view, 'csrf_field()'));
+        self::assertStringNotContainsString('shopify_price', $view);
+    }
+
     public function testQueuePreservesFailuresAndHasOperationalHistory(): void
     {
         $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');

@@ -32,4 +32,22 @@ final class AdminAppointmentListUiTest extends CIUnitTestCase
             self::assertStringContainsString($contract, $css);
         }
     }
+
+    public function testAppointmentEditAndRescheduleActionsUseDelegatedBodyLevelModals(): void
+    {
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/appointment/index.php');
+        $script = file_get_contents(ROOTPATH . 'public/assets/js/admin/appointment/appointment.js');
+        $css = file_get_contents(ROOTPATH . 'public/assets/css/style.css');
+
+        foreach (['data-appointment-id=', 'data-target="#appointmentModal"', 'data-target="#appointmentRescheduleModal"', 'id="appointmentRescheduleModal"', 'id="appointmentRescheduleForm"'] as $contract) {
+            self::assertStringContainsString($contract, $view);
+        }
+
+        foreach (["off('click.rootinsAppointments'", 'portalAppointmentModals', "attr('data-appointment-id')", 'hidden.bs.modal.rootinsAppointments', 'setBusy'] as $contract) {
+            self::assertStringContainsString($contract, $script);
+        }
+
+        self::assertStringContainsString('.modal-backdrop { z-index: 1040; }', $css);
+        self::assertStringContainsString('.modal { z-index: 1050; }', $css);
+    }
 }

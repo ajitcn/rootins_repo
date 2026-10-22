@@ -47,7 +47,7 @@ $appointmentContext = static function (array $appointment) use ($displayDate): a
         'patientMobile' => $patientMobile !== '' ? $patientMobile : 'Mobile not recorded',
         'appointmentType' => ucwords(str_replace('_', ' ', (string) ($appointment['appointment_type'] ?? ''))),
         'appointmentDateDisplay' => $displayDate($appointment['appointment_date'] ?? ''),
-        'appointmentTimeDisplay' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
+        'appointmentTimeDisplay' => rootins_format_time($appointment['appointment_time'] ?? ''),
     ];
 };
 $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
@@ -196,7 +196,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                             </div>
                             <div class="form-group col-md-4 col-12">
                                 <label for="appointment-time">Time <span class="text-danger" aria-hidden="true">*</span></label>
-                                <input id="appointment-time" name="appointment_time" type="time" class="form-control" required>
+                        <input id="appointment-time" name="appointment_time" type="text" class="form-control" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off" required>
                                 <div class="validation-error" id="appointment_timeErr"></div>
                             </div>
                             <div class="form-group col-md-4 col-12">
@@ -351,7 +351,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                     </div>
                     <div class="form-group">
                         <label for="reschedule-time">New time <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input id="reschedule-time" name="appointment_time" type="time" class="form-control" required>
+                        <input id="reschedule-time" name="appointment_time" type="text" class="form-control" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off" required>
                         <div class="validation-error" id="reschedule_appointment_timeErr" data-error-for="appointment_time"></div>
                     </div>
                 </div>

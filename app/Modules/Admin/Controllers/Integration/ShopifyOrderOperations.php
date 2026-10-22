@@ -19,7 +19,7 @@ final class ShopifyOrderOperations extends BaseAdminController
 
     public function mappings(): string
     {
-        return view(ADMIN_VIEW . 'pages/integrations/shopify_order_mappings', ['mappings' => $this->operations->mappings($this->request->getGet()), 'medicines' => $this->operations->activeMedicines(), 'filters' => $this->request->getGet()]);
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_order_mappings', $this->operations->mappingDashboard($this->request->getGet()));
     }
 
     public function readiness(): string
@@ -52,6 +52,10 @@ final class ShopifyOrderOperations extends BaseAdminController
     }
 
     public function saveMapping(): ResponseInterface { return $this->run(fn () => $this->operations->saveMapping($this->request->getPost(), (int) $this->request->getPost('id') > 0 ? (int) $this->request->getPost('id') : null), 'Shopify medicine mapping saved.'); }
+    public function searchMedicines(): ResponseInterface { return $this->response->setJSON(['status' => true, 'data' => $this->operations->searchMedicines((string) $this->request->getGet('q'))]); }
+    public function bulkSaveMappings(): ResponseInterface { return $this->run(fn () => $this->operations->bulkSaveMappings($this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify medicine mappings saved.'); }
+    public function ignoreMapping(): ResponseInterface { return $this->run(fn () => $this->operations->ignoreMapping($this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify product ignored for mapping.'); }
+    public function recheckMappings(): ResponseInterface { return $this->run(fn () => $this->operations->recheckMappings($this->request->getPost()), 'Affected orders queued for reconciliation.'); }
     public function toggleMapping(int $id): ResponseInterface { return $this->run(fn () => $this->operations->toggleMapping($id), 'Shopify medicine mapping status updated.'); }
 
     public function action(int $id): ResponseInterface

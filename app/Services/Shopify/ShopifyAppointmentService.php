@@ -205,7 +205,7 @@ final class ShopifyAppointmentService
         }
 
         if ($time === null) {
-            $errors['appointment_time'] = 'Enter a valid appointment time as HH:mm.';
+            $errors['appointment_time'] = 'Enter a valid appointment time as hh:mm AM/PM.';
         }
 
         if ($date === date('Y-m-d') && $time !== null && $time <= date('H:i:s')) {
@@ -472,7 +472,7 @@ final class ShopifyAppointmentService
         }
 
         if ($time === null) {
-            $errors['appointment_time'] = 'Enter a valid appointment time as HH:mm.';
+            $errors['appointment_time'] = 'Enter a valid appointment time as hh:mm AM/PM.';
         }
 
         if ($date === date('Y-m-d') && $time !== null && $time <= date('H:i:s')) {
@@ -546,7 +546,7 @@ final class ShopifyAppointmentService
         return [
             'appointment_id' => $appointmentId,
             'appointment_date' => $this->formatDisplayDate($date),
-            'appointment_time' => substr($time, 0, 5),
+            'appointment_time' => rootins_format_time($time),
         ];
     }
 
@@ -639,7 +639,7 @@ final class ShopifyAppointmentService
                         ->countAllResults() > 0;
                     $capacity = (int) ($schedule['max_patients'] ?? 0);
                     $state = $patientConflict || ($capacity > 0 && $count >= $capacity) ? 'full' : 'available';
-                    $slots[] = ['time' => substr($time, 0, 5), 'state' => $state];
+                    $slots[] = ['time' => rootins_format_time($time), 'state' => $state];
                 }
 
                 $cursor = $cursor->modify('+' . $duration . ' minutes');
@@ -709,7 +709,7 @@ final class ShopifyAppointmentService
             'appointment_id' => (int) $appointment['id'],
             'appointment_number' => (string) $appointment['appointment_number'],
             'appointment_date' => $this->formatDisplayDate((string) $appointment['appointment_date']),
-            'appointment_time' => substr((string) $appointment['appointment_time'], 0, 5),
+            'appointment_time' => rootins_format_time($appointment['appointment_time'] ?? ''),
             'status' => (string) $appointment['status'],
             'external_reference' => $externalReference,
             'idempotent_replay' => $duplicate,
@@ -738,11 +738,7 @@ final class ShopifyAppointmentService
 
     private function normalizeTime(string $value): ?string
     {
-        if (! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', trim($value))) {
-            return null;
-        }
-
-        return trim($value) . ':00';
+        return rootins_parse_time($value);
     }
 }
 

@@ -1706,7 +1706,72 @@
 .doctor-document-modal #doctorDocumentForm { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
 .doctor-document-modal .modal-header, .doctor-document-modal .modal-footer { flex: 0 0 auto; }
 .doctor-document-modal .modal-body { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
-.modal-backdrop { z-index: 1050; }
+.modal-backdrop { z-index: 1040; }
+.modal { z-index: 1050; }
+
+/* Shopify mapping workspace */
+.shopify-mapping-page .mapping-summary-card { border: 0; box-shadow: 0 6px 20px rgba(27, 31, 35, .06); }
+.shopify-mapping-page > .d-flex.flex-wrap.justify-content-between.align-items-center.mb-4:not(.mapping-page-header) { display: none !important; }
+.shopify-mapping-page .mapping-toolbar > form { display: none !important; }
+.mapping-page-header h1, .mapping-page-header h2, .mapping-page-header h3 { color: #20252b; }
+.mapping-header-actions .btn, .shopify-mapping-page .btn { font-size: 12px; font-weight: 600; }
+.mapping-filter-card { border: 1px solid #e5e7eb; box-shadow: none; }
+.mapping-filter-card label { color: #4b5563; font-size: 12px; font-weight: 700; margin-bottom: .35rem; }
+.mapping-filter-card .form-control { min-height: 38px; }
+.mapping-desktop-list { border: 1px solid #e5e7eb; box-shadow: none; }
+.mapping-workspace-table { table-layout: fixed; }
+.mapping-workspace-table th { background: #f7f8f9; color: #5b6570; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.mapping-workspace-table td { color: #2f3740; font-size: 12px; vertical-align: middle; }
+.mapping-workspace-table th:nth-child(1) { width: 18%; } .mapping-workspace-table th:nth-child(2) { width: 15%; } .mapping-workspace-table th:nth-child(3) { width: 11%; } .mapping-workspace-table th:nth-child(4) { width: 15%; } .mapping-workspace-table th:nth-child(5) { width: 11%; } .mapping-workspace-table th:nth-child(6) { width: 12%; } .mapping-workspace-table th:nth-child(7) { width: 10%; } .mapping-workspace-table th:nth-child(8) { width: 8%; }
+.mapping-workspace-table .mapping-primary-text { color: #20252b; font-size: 13px; }
+.mapping-workspace-table .dropdown-menu, .mapping-product-card .dropdown-menu { z-index: 1060; }
+.mapping-workspace-table .dropdown-item { font-size: 12px; padding: .55rem .8rem; }
+.mapping-tabs .nav-link:focus, .mapping-workspace-table button:focus, .mapping-filter-card input:focus, .mapping-filter-card select:focus { box-shadow: 0 0 0 3px rgba(32, 37, 43, .18); outline: 0; }
+.mapping-modal { z-index: 1060; } .mapping-modal + .modal-backdrop { z-index: 1050; }
+#shopifyMappingModal, #shopifyIgnoreModal { display: none !important; }
+#shopifyMappingModal.show, #shopifyIgnoreModal.show { display: block !important; }
+.mapping-modal .modal-content { border: 0; box-shadow: 0 18px 50px rgba(0, 0, 0, .2); }
+.mapping-modal .modal-body { overflow-y: auto; }
+.mapping-modal .mapping-preview-panel { border-right: 1px solid #e5e7eb; }
+.mapping-modal .modal-dialog { max-width: 960px; }
+.mapping-modal .medicine-option { font-size: 12px; }
+.shopify-mapping-page .badge { font-size: 11px; font-weight: 700; }
+.shopify-mapping-page .badge-warning { background: #f4d98b; color: #5b4300; }
+.shopify-mapping-page .badge-success { background: #b9e3cc; color: #14532d; }
+.shopify-mapping-page .badge-secondary { background: #e5e7eb; color: #4b5563; }
+.shopify-mapping-page .badge-light { background: #f1f3f5; color: #4b5563; }
+.shopify-mapping-page [data-needs-list] { display: none; }
+.mapping-no-sync .mapping-desktop-list, .mapping-no-sync [data-needs-list], .mapping-no-sync #mapping-needs > .card { display: none !important; }
+@media (max-width: 768px) { .shopify-mapping-page .mapping-desktop-list { display: none; } .shopify-mapping-page [data-needs-list] { display: block; } }
+.shopify-mapping-page .mapping-summary-card .h3 { color: #1f2933; }
+.mapping-tabs .nav-link { color: #5b6570; border-radius: 999px; font-size: .875rem; }
+.mapping-tabs .nav-link.active { background: #20252b; color: #fff; }
+.mapping-product-card { border: 1px solid #e5e7eb; box-shadow: 0 4px 14px rgba(27, 31, 35, .04); }
+.mapping-product-image, .mapping-preview-image { width: 72px; height: 72px; border-radius: .5rem; background: #f2f3f5; color: #87909a; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex: 0 0 auto; margin-right: 1rem; }
+.mapping-preview-image { width: 112px; height: 112px; margin: 0 0 1rem; }
+.mapping-bulk-bar { align-items: center; background: #f7f8f9; border: 1px solid #e4e7eb; border-radius: .5rem; display: flex; padding: .7rem 1rem; }
+.medicine-results { max-height: 330px; overflow-y: auto; border: 1px solid #e3e6e8; border-radius: .35rem; }
+.medicine-option { width: 100%; border: 0; border-bottom: 1px solid #eceff1; background: #fff; padding: .7rem .8rem; display: flex; justify-content: space-between; text-align: left; }
+.medicine-option:hover, .medicine-option:focus { background: #f5f6f7; outline: 0; }
+.mapping-modal .modal-body { max-height: calc(100vh - 190px); overflow-y: auto; }
+@media (max-width: 767.98px) { .mapping-bulk-bar { display: block; } .mapping-bulk-bar select, .mapping-bulk-bar button { margin: .6rem 0 0 !important; width: 100%; } .mapping-desktop-list { display: none; } .shopify-mapping-page [data-needs-list] { display: block; } .mapping-page-header .mapping-header-actions { width: 100%; } .mapping-page-header .mapping-header-actions .btn { margin: .25rem 0; width: 100%; } .mapping-filter-card .form-control { width: 100%; } .mapping-tabs { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; } .mapping-tabs .nav-link { white-space: nowrap; } .mapping-modal .modal-dialog { margin: .5rem; max-width: none; } .mapping-modal .modal-body { max-height: calc(100vh - 180px); } .mapping-preview-panel { border-bottom: 1px solid #e5e7eb; border-right: 0; margin-bottom: 1rem; padding-bottom: 1rem; } .mapping-product-image { width: 52px; height: 52px; margin-right: .7rem; } .mapping-product-card .btn { margin-top: .25rem; } }
+.appointment-reschedule-modal,
+#appointmentModal,
+#appointmentFilterModal { position: fixed; }
+.appointment-reschedule-modal .dropdown-menu,
+#appointmentModal .dropdown-menu,
+.appointment-reschedule-modal .datepicker-dropdown,
+#appointmentModal .datepicker-dropdown { z-index: 1065; }
+.appointment-reschedule-modal .modal-dialog,
+#appointmentModal .modal-dialog { width: calc(100% - 2rem); max-width: 960px; }
+@media (max-width: 575.98px) {
+  .appointment-reschedule-modal .modal-dialog,
+  #appointmentModal .modal-dialog { width: calc(100% - 1rem); margin: .5rem auto; }
+  .appointment-reschedule-modal .modal-footer,
+  #appointmentModal .modal-footer { flex-wrap: wrap; gap: .5rem; }
+  .appointment-reschedule-modal .modal-footer .btn,
+  #appointmentModal .modal-footer .btn { flex: 1 1 auto; }
+}
 @media (max-width: 575.98px) { .doctor-document-modal .modal-dialog { height: calc(100vh - 1rem); max-height: calc(100vh - 1rem); margin: .5rem auto; } .doctor-document-modal .modal-content { border-radius: .75rem; } }
 @media (max-width: 767.98px) { .doctor-document-summary { grid-template-columns: 1fr; }.doctor-documents-heading-actions { width: 100%; }.doctor-documents-heading-actions > * { flex: 1 1 auto; }.doctor-documents-heading-actions .btn { min-height: 42px; }.doctor-document-list-header { align-items: flex-start; flex-direction: column; }.doctor-document-list-header .doctor-document-count-indicator { align-self: flex-start; }.doctor-document-table { min-width: 0; table-layout: auto; }.doctor-document-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }.doctor-document-table, .doctor-document-table tbody, .doctor-document-table tr, .doctor-document-table td { display: block; width: 100%; }.doctor-document-table tbody tr { padding: .8rem 1rem; border-bottom: 1px solid var(--ri-border); }.doctor-document-table tbody tr:last-child { border-bottom: 0; }.doctor-document-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: .45rem 0; border: 0; text-align: right; }.doctor-document-table td::before { flex: 0 0 5.8rem; color: var(--ri-muted); content: attr(data-label); font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-align: left; text-transform: uppercase; }.doctor-document-table td > * { max-width: calc(100% - 6.8rem); }.doctor-document-actions-cell { border-top: 1px solid var(--ri-border) !important; margin-top: .35rem; padding-top: .75rem !important; }.doctor-document-actions .dropdown-menu { right: 0; left: auto; }.doctor-document-empty-state { padding: 2rem .5rem; } }
 @media (max-width: 374.98px) { .doctor-documents-heading-actions { display: block; }.doctor-documents-heading-actions > * { display: block; width: 100%; margin: 0 0 .5rem !important; }.doctor-document-table td { gap: .65rem; }.doctor-document-table td::before { flex-basis: 4.8rem; }.doctor-document-table td > * { max-width: calc(100% - 5.45rem); }.doctor-document-doctor-cell { gap: .4rem; }.doctor-document-avatar { width: 1.75rem; height: 1.75rem; flex-basis: 1.75rem; } }

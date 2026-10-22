@@ -129,7 +129,7 @@ $location = trim(implode(', ', array_filter([
                 <div class="patient-dashboard-list">
                     <?php foreach ($appointments as $appointment): ?>
                         <article class="patient-dashboard-row">
-                            <div class="patient-row-date"><strong><?= esc($displayDate($appointment['appointment_date'] ?? null)) ?></strong><span><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></span></div>
+                            <div class="patient-row-date"><strong><?= esc($displayDate($appointment['appointment_date'] ?? null)) ?></strong><span><?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?></span></div>
                             <div class="patient-row-content"><strong><?= esc(trim(($appointment['doctor_first_name'] ?? '') . ' ' . ($appointment['doctor_last_name'] ?? ''))) ?></strong><span><?= esc($appointment['service_name'] ?? $label((string) ($appointment['appointment_type'] ?? 'Consultation'))) ?></span></div>
                             <span class="patient-status-badge <?= esc($badgeClass((string) ($appointment['status'] ?? ''))) ?>"><?= esc($label((string) ($appointment['status'] ?? 'Not recorded'))) ?></span>
                             <a class="patient-row-action" href="<?= base_url('patient/appointments') ?>" aria-label="View appointment details"><i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>

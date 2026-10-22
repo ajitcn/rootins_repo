@@ -24,7 +24,7 @@ class Records extends BaseController
         $context = $this->context();
         $patientId = (int) $this->request->getPost('patient_id');
         $dateInput = trim((string) $this->request->getPost('appointment_date'));
-        $time = trim((string) $this->request->getPost('appointment_time'));
+        $time = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
         $type = strtolower(trim((string) $this->request->getPost('appointment_type')));
         $service = trim((string) $this->request->getPost('service_name'));
         $status = strtolower(trim((string) ($this->request->getPost('appointment_status') ?? $this->request->getPost('status'))));
@@ -46,7 +46,7 @@ class Records extends BaseController
             $errors['appointment_date'] = 'A valid appointment date is required.';
         }
 
-        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+        if ($time === '') {
             $errors['appointment_time'] = 'A valid appointment time is required.';
         }
 
@@ -819,12 +819,12 @@ class Records extends BaseController
             $action = 'doctor.appointment_cancelled';
         } else {
             $date = $this->normalizeDisplayDate(trim((string) $this->request->getPost('appointment_date')));
-            $time = trim((string) $this->request->getPost('appointment_time'));
+            $time = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
 
-            if ($date === null || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+            if ($date === null || $time === '') {
                 return $this->validation(['appointment_date' => 'Valid date and time are required.']);
             }
-            $databaseTime = strlen($time) === 5 ? $time . ':00' : $time;
+            $databaseTime = $time;
 
             if (($availability = $this->availabilityError($context['doctor_id'], $date, $time)) !== null) {
                 return $this->validation(['appointment_date' => $availability]);

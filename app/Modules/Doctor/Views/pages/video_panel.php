@@ -37,7 +37,7 @@ $canOperate = in_array($status, ['waiting', 'active'], true);
                 <span><?= esc($patientNumber) ?> <span aria-hidden="true">·</span> <?= esc($mobile) ?></span>
             </div>
         </div>
-        <div class="doctor-video-context-item"><span>Date / time</span><strong><?= esc($appointment['appointment_date'] ?? '—') ?> · <?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5) ?: '—') ?></strong></div>
+                <div class="doctor-video-context-item"><span>Date / time</span><strong><?= esc(rootins_format_date($appointment['appointment_date'] ?? '') ?: '—') ?> · <?= esc(rootins_format_time($appointment['appointment_time'] ?? '') ?: '—') ?></strong></div>
         <div class="doctor-video-context-item"><span>Service / queue</span><strong><?= esc($appointment['service_name'] ?? '—') ?> · Queue <?= esc((string) $queue) ?></strong></div>
     </div>
 

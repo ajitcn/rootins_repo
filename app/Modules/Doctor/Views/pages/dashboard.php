@@ -65,7 +65,7 @@
                                 <td><a href="<?= base_url('doctor/appointments/' . (int) ($appointment['id'] ?? 0)) ?>"><?= esc($appointment['appointment_number'] ?? '') ?></a></td>
                                 <td><?= esc($patientName) ?> <span class="text-muted small"><?= esc($appointment['registration_number'] ?? '') ?></span><br><small class="text-muted"><?= esc($patientContact) ?></small></td>
                                 <td><?= esc(rootins_format_date($appointment['appointment_date'] ?? '')) ?></td>
-                                <td><?= esc(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)) ?></td>
+                                <td><?= esc(rootins_format_time($appointment['appointment_time'] ?? '')) ?></td>
                                 <td><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['appointment_type'] ?? '')))) ?></td>
                                 <td><?= esc(ucwords(str_replace('_', ' ', (string) ($appointment['status'] ?? '')))) ?></td>
                             </tr>

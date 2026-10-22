@@ -999,6 +999,11 @@ class Clinical extends BaseController
     {
         $value = trim((string) $this->request->getPost($field));
 
+        $normalized = rootins_parse_time($value);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
         if ($value === '') {
             return null;
         }
