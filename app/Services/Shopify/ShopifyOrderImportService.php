@@ -148,6 +148,7 @@ final class ShopifyOrderImportService
             $importClinicId = (int) (($this->configuration ?? new ShopifyConfiguration())->clinicId() ?? 0);
         }
         $linkedRootinsOrderId = (int) ($import['rootins_order_id'] ?? 0);
+        $this->refreshImportedPatientIdentity($importId, $store, (string) ($payload['customer_id'] ?? ''));
 
         if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true)
             && $linkedRootinsOrderId > 0
@@ -803,11 +804,46 @@ GRAPHQL, ['id' => $orderGid]);
             return null;
         }
 
-        return (new ShopifyPatientIdentityLinkModel())
+        $link = (new ShopifyPatientIdentityLinkModel())
             ->where('shopify_store_domain', $store)
             ->where('shopify_customer_id', $customerId)
             ->where('link_status', 'linked')
             ->first() ?: null;
+        if ($link !== null) {
+            return $link;
+        }
+
+        $resolved = (new ShopifyCustomerIdentityService())->resolveOrderCustomer($store, $customerId, []);
+        if (($resolved['patient_id'] ?? null) === null) {
+            return null;
+        }
+
+        return [
+            'patient_id' => (int) $resolved['patient_id'],
+            'link_status' => 'linked',
+            'matched_by' => (string) ($resolved['matched_by'] ?? 'source_reference'),
+        ];
+    }
+
+    private function refreshImportedPatientIdentity(int $importId, string $store, string $customerId): void
+    {
+        if ($customerId === '') {
+            return;
+        }
+
+        try {
+            $identity = $this->linkedCustomer($store, $customerId);
+            if ($identity !== null && (int) ($identity['patient_id'] ?? 0) > 0) {
+                ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
+                    'patient_id' => (int) $identity['patient_id'],
+                    'patient_status' => 'linked',
+                    'last_error' => null,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Shopify medicine-order patient refresh unavailable exception=' . get_class($exception));
+        }
     }
 
     /** @param array<string, mixed> $event @param array<string, mixed> $payload @return array<string, mixed> */

@@ -31,6 +31,36 @@ final class ShopifyCustomerIdentityTest extends TestCase
         self::assertStringContainsString('$status = \'ambiguous\'', $service);
     }
 
+    public function testOrderResolutionFallsBackToActiveShopifySourceReferenceWithoutClinicRequirement(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerIdentityService.php');
+
+        foreach ([
+            'where(\'shopify_store_domain\', $storeDomain)',
+            'where(\'shopify_customer_id\', $customerId)',
+            "where('source_type', 'shopify')",
+            'where(\'source_reference\', $customerId)',
+            'where(\'status\', 1)',
+            "'matched_by' => 'source_reference'",
+            "'active_patient_key' => 'shopify:' . " . '$patientId',
+        ] as $needle) {
+            self::assertStringContainsString($needle, $service);
+        }
+
+        self::assertStringNotContainsString('->where(\'clinic_id\', $clinicId)', substr($service, strpos($service, '// Shopify-created patients')));
+    }
+
+    public function testOrderResolutionDoesNotCrossStoreOrCreateDuplicatePatients(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerIdentityService.php');
+        $import = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+
+        self::assertStringContainsString('$configuredStore !== $storeDomain', $service);
+        self::assertStringContainsString("->where('active_patient_key', 'shopify:' . " . '$patientId)', $service);
+        self::assertStringContainsString('new ShopifyCustomerIdentityService())->resolveOrderCustomer(' . '$store, $customerId, [])', $import);
+        self::assertStringContainsString("'patient_id' => (int) " . '$resolved' . "['patient_id']", $import);
+    }
+
     public function testMedicineOrderCustomerResolutionUsesWebhookConfigurationAndKeepsUnlinkedCustomersRetryable(): void
     {
         $lookup = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerLookupService.php');

@@ -341,14 +341,19 @@ final class ShopifyCustomerIdentityService
     private function resolveCustomer(string $storeDomain, string $customerId, array $payload): array
     {
         $links = $this->links ?? new ShopifyPatientIdentityLinkModel();
+        $storeDomain = strtolower(trim($storeDomain));
+        $configuredStore = strtolower(trim(($this->configuration ?? new ShopifyConfiguration())->storeDomain()));
+        if ($configuredStore !== '' && $configuredStore !== $storeDomain) {
+            return ['status' => 'unmatched', 'patient_id' => null, 'link_id' => null, 'matched_by' => null];
+        }
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
         $mobile = $this->normalizeFullMobile((string) ($payload['phone'] ?? ''));
         $link = $links
-            ->where('shopify_store_domain', strtolower($storeDomain))
+            ->where('shopify_store_domain', $storeDomain)
             ->where('shopify_customer_id', $customerId)
             ->first();
         $data = [
-            'shopify_store_domain' => strtolower($storeDomain),
+            'shopify_store_domain' => $storeDomain,
             'shopify_customer_id' => $customerId,
             'email_snapshot' => $email !== '' ? $email : null,
             'mobile_snapshot' => $mobile['full'] ?? null,
@@ -359,6 +364,39 @@ final class ShopifyCustomerIdentityService
             $links->update((int) $link['id'], $data);
 
             return ['status' => 'matched', 'patient_id' => (int) $link['patient_id'], 'link_id' => (int) $link['id'], 'matched_by' => 'existing_link'];
+        }
+
+        // Shopify-created patients are the authoritative fallback when the
+        // store-scoped identity link was not created by the customer webhook.
+        // Do not require clinic_id here: Shopify orders remain visible while
+        // clinic assignment is handled by the order/billing scope.
+        $sourcePatient = ($this->patients ?? new PatientModel())
+            ->where('source_type', 'shopify')
+            ->where('source_reference', $customerId)
+            ->where('status', 1)
+            ->first();
+        if ($sourcePatient !== null) {
+            $patientId = (int) ($sourcePatient['id'] ?? 0);
+            $conflict = $links
+                ->where('active_patient_key', 'shopify:' . $patientId)
+                ->where('link_status', 'linked')
+                ->first();
+            if ($conflict === null || (int) ($conflict['id'] ?? 0) === (int) ($link['id'] ?? 0)) {
+                $data['patient_id'] = $patientId;
+                $data['link_status'] = 'linked';
+                $data['matched_by'] = 'source_reference';
+                $data['active_patient_key'] = 'shopify:' . $patientId;
+                $data['linked_at'] = date('Y-m-d H:i:s');
+                $data['created_at'] = $link['created_at'] ?? date('Y-m-d H:i:s');
+                $linkId = $link === null
+                    ? (int) $links->insert($data, true)
+                    : (int) $link['id'];
+                if ($link !== null) {
+                    $links->update($linkId, $data);
+                }
+
+                return ['status' => 'matched', 'patient_id' => $patientId, 'link_id' => $linkId, 'matched_by' => 'source_reference'];
+            }
         }
 
         $matches = $this->findMatches($email, $mobile);
