@@ -125,6 +125,9 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         try {
             $data = $this->operations->action($id, $action, $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
             $this->scope->audit('pharmacy.shopify_order_action', ['import_id' => $id, 'action' => $action]);
+            if (in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true) && array_key_exists('status', $data) && is_bool($data['status'])) {
+                return $this->response->setStatusCode(!empty($data['status']) ? 200 : 422)->setJSON($data + ['csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
+            }
             return $this->json(true, 'Shopify order operation completed.', 200, $data);
         } catch (InvalidArgumentException $exception) {
             return $this->shopifyActionError('SHOPIFY_MAPPING_RECHECK_FAILED', $exception->getMessage(), 422);

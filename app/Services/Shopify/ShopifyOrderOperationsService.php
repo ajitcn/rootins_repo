@@ -708,10 +708,54 @@ GRAPHQL;
             return $this->recheckImportMapping($id, $clinicId, $actor);
         }
         if ($action === 'retry_validation' || $action === 'retry_import' || $action === 'retry_payment' || $action === 'reprocess_webhook') {
-            $result = (new ShopifyOrderImportService())->importExisting($id, null);
-            $this->history($id, $action, $old, (string) ($model->find($id)['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
-            service('audit')->record('shopify.order_operation_' . $action, ['import_id' => $id]);
-            return $result;
+            // Retry is a complete reconciliation, not a mapping-only check.
+            // Record the attempt before invoking the canonical importer so a
+            // failed request remains visible and retryable.
+            $this->history($id, 'retry_started', $old, $old, null, null, $actor);
+            try {
+                $result = (new ShopifyOrderImportService())->importExisting($id, null);
+                $afterRow = $model->find($id) ?? [];
+                $after = (string) ($afterRow['status'] ?? '');
+                $body = (array) ($result['body'] ?? []);
+                $data = (array) ($body['data'] ?? []);
+                $success = (bool) ($body['status'] ?? false) && in_array($after, ['imported', 'processed'], true);
+
+                if ($success) {
+                    $alreadyProcessed = $old === $after;
+                    $this->history($id, 'retry_succeeded', $old, $after, null, null, $actor);
+                    service('audit')->record('shopify.order_operation_retry_succeeded', ['import_id' => $id, 'before_status' => $old, 'after_status' => $after]);
+                    return [
+                        'status' => true,
+                        'before_status' => $old,
+                        'after_status' => $after,
+                        'message' => $alreadyProcessed ? 'Order was already imported.' : 'Order imported successfully.',
+                        'already_processed' => $alreadyProcessed,
+                        'import_id' => $id,
+                    ];
+                }
+
+                $code = (string) ($data['error_category'] ?? $afterRow['failure_reason'] ?? $afterRow['quarantine_reason'] ?? 'SHOPIFY_ORDER_RETRY_FAILED');
+                $message = (string) ($body['msg'] ?? 'Shopify order could not be imported.');
+                $this->history($id, 'retry_failed', $old, $after, $code, $message, $actor);
+                service('audit')->record('shopify.order_operation_retry_failed', ['import_id' => $id, 'before_status' => $old, 'after_status' => $after, 'failure_category' => $code]);
+                return [
+                    'status' => false,
+                    'code' => $code,
+                    'message' => $message,
+                    'current_status' => $after,
+                    'before_status' => $old,
+                    'after_status' => $after,
+                    'import_id' => $id,
+                ];
+            } catch (\Throwable $exception) {
+                $after = (string) (($model->find($id) ?? [])['status'] ?? $old);
+                $code = 'SHOPIFY_ORDER_RETRY_FAILED';
+                $message = 'Shopify order import could not be completed safely.';
+                $this->history($id, 'retry_failed', $old, $after, $code, $message, $actor);
+                service('audit')->record('shopify.order_operation_retry_failed', ['import_id' => $id, 'before_status' => $old, 'after_status' => $after, 'failure_category' => $code]);
+                log_message('error', 'Shopify order retry failed safely. Import ID: ' . $id . ' Exception: ' . get_class($exception));
+                return ['status' => false, 'code' => $code, 'message' => $message, 'current_status' => $after, 'before_status' => $old, 'after_status' => $after, 'import_id' => $id];
+            }
         }
         if (in_array($action, ['quarantine', 'release_quarantine', 'mark_ready'], true)) {
             $status = $action === 'quarantine' ? 'quarantined' : ($action === 'mark_ready' ? 'ready_to_import' : 'received');

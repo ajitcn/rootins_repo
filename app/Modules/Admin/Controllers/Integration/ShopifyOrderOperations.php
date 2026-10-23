@@ -137,7 +137,18 @@ final class ShopifyOrderOperations extends BaseAdminController
 
     public function action(int $id): ResponseInterface
     {
-        return $this->run(fn () => $this->operations->action($id, trim((string) $this->request->getPost('action')), $this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify order operation completed.');
+        $action = trim((string) $this->request->getPost('action'));
+        if (in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true)) {
+            try {
+                $data = $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0));
+                $http = !empty($data['status']) ? 200 : 422;
+                return $this->response->setStatusCode($http)->setJSON($data + ['csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
+            } catch (\Throwable $exception) {
+                log_message('error', 'Shopify order retry endpoint failed safely. Exception: ' . get_class($exception));
+                return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_ORDER_RETRY_FAILED', 'message' => 'Shopify order import could not be completed safely.', 'current_status' => 'unknown', 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
+            }
+        }
+        return $this->run(fn () => $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify order operation completed.');
     }
 
     /** @param array<string, string> $fields */

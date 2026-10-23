@@ -50,9 +50,9 @@
             var text = await response.text(), payload;
             try { payload = JSON.parse(text); } catch (parseError) { throw new Error('The server returned an invalid response. Please try again.'); }
             refreshCsrf(payload);
-            if (!response.ok || !payload.status) throw new Error(payload.msg || ('The action could not be completed (HTTP ' + response.status + ').'));
+            if (!response.ok || !payload.status) throw new Error(payload.message || payload.msg || ('The action could not be completed (HTTP ' + response.status + ').'));
             succeeded = true;
-            feedback(payload.msg || 'Shopify order updated.', false);
+            feedback(payload.message || payload.msg || 'Shopify order updated.', false);
             $('#shopifyProcessOrderModal').one('hidden.bs.modal', function () { clearStaleLoadingState(); }).modal('hide');
             window.setTimeout(function () { window.location.reload(); }, 350);
         } catch (error) {
@@ -77,7 +77,7 @@
         return html + '</tbody></table></div>';
     }
 
-    $(document).off('submit.shopifyOrders', '.shopify-order-action-form, .shopify-prescription-review-form').on('submit.shopifyOrders', '.shopify-order-action-form, .shopify-prescription-review-form', function (event) { event.preventDefault(); handle(this); });
+    $(document).off('submit.shopifyOrders', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-prescription-review-form').on('submit.shopifyOrders', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-prescription-review-form', function (event) { event.preventDefault(); handle(this); });
 
     $(document).off('click.shopifyOrders', '.js-shopify-order-details').on('click.shopifyOrders', '.js-shopify-order-details', function () {
         var $button = $(this), $body = $('#shopifyOrderDetailsBody');

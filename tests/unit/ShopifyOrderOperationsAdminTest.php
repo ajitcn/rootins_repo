@@ -55,6 +55,20 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringContainsString('shopify.order_operation_', $service);
     }
 
+    public function testRetryRunsTheCanonicalImporterAndReportsOnlyAPersistedTerminalState(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $adminController = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $pharmacyController = $this->source('app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_operation_detail.php');
+
+        foreach (['retry_started', 'retry_succeeded', 'retry_failed', 'importExisting', 'before_status', 'after_status', 'Order imported successfully.'] as $marker) {
+            self::assertStringContainsString($marker, $service . $adminController . $pharmacyController . $view);
+        }
+        self::assertStringContainsString("in_array(\$after, ['imported', 'processed'], true)", $service);
+        self::assertStringNotContainsString("'msg' => 'Operation completed.'", $view);
+    }
+
     public function testTemporaryPrescriptionViewingIsAuditedAndSigned(): void
     {
         $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');

@@ -5,4 +5,46 @@
 <form class="mt-3" method="post" action="<?= base_url('admin/integrations/shopify/order-operations/' . (int) $import['id'] . '/action') ?>" data-shopify-operation-form><?= csrf_field() ?><input type="hidden" name="action" value="reprocess_paid_appointment"><button class="btn btn-outline-info" type="submit">Reprocess paid appointment</button></form>
 <script>(function(){var importId=String(<?= (int) ($import['id'] ?? 0) ?>);var actionBase=<?= json_encode(base_url('admin/integrations/shopify/order-operations')) ?>;document.querySelectorAll('[data-shopify-operation-form]').forEach(function(form){form.dataset.shopifyImportId=importId;form.action=actionBase+'/'+encodeURIComponent(importId)+'/action';});}());</script>
 <?= $this->endSection() ?>
-<?= $this->section('scripts') ?><script>document.querySelectorAll('[data-shopify-operation-form]').forEach(function(form){form.addEventListener('submit',function(e){e.preventDefault();fetch(form.action,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'},body:new FormData(form)}).then(function(r){return r.json();}).then(function(d){alert(d.msg||'Operation completed.');if(d.status)location.reload();});});});</script><?= $this->endSection() ?>
+<?= $this->section('scripts') ?><script>
+(function () {
+    document.addEventListener('submit', function (event) {
+        var form = event.target.closest('[data-shopify-operation-form]');
+        if (!form) return;
+        event.preventDefault();
+        var button = form.querySelector('button[type="submit"]');
+        var isRetry = ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'].indexOf((form.querySelector('[name="action"]') || {}).value) !== -1;
+        if (button && button.disabled) return;
+        if (button) button.disabled = true;
+        if (typeof window.show_loader === 'function') window.show_loader();
+        fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, body: new FormData(form) })
+            .then(function (response) {
+                return response.text().then(function (text) {
+                    var payload;
+                    try { payload = JSON.parse(text); } catch (error) { throw new Error('The server returned an invalid response.'); }
+                    if (!response.ok || !payload.status) {
+                        var failure = new Error(payload.message || payload.msg || 'Shopify order import could not be completed.');
+                        failure.payload = payload;
+                        throw failure;
+                    }
+                    return payload;
+                });
+            })
+            .then(function (payload) {
+                var message = payload.message || payload.msg || 'Shopify order import completed.';
+                if (isRetry && payload.before_status === payload.after_status && !payload.already_processed) throw new Error('The order status did not change. ' + message);
+                if (typeof window.showSuccess === 'function') window.showSuccess(message);
+                window.setTimeout(function () { window.location.reload(); }, 350);
+            })
+            .catch(function (error) {
+                var payload = error && error.payload ? error.payload : {};
+                var message = payload.message || payload.msg || (error && error.message) || 'Shopify order import could not be completed.';
+                if (typeof window.showError === 'function') window.showError(message); else window.alert(message);
+            })
+            .finally(function () {
+                if (button) button.disabled = false;
+                if (typeof window.hide_loader === 'function') window.hide_loader();
+                document.querySelectorAll('.loading, .is-loading').forEach(function (node) { node.classList.remove('loading', 'is-loading'); node.removeAttribute('aria-busy'); });
+            });
+    });
+}());
+</script><?= $this->endSection() ?>
