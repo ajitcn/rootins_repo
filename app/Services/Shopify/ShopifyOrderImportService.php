@@ -278,7 +278,26 @@ final class ShopifyOrderImportService
             $data['status'] = 'received';
             $data['retry_count'] = 0;
             $data['created_at'] = date('Y-m-d H:i:s');
-            $model->insert($data);
+            try {
+                $model->insert($data);
+            } catch (\Throwable $exception) {
+                // The identity unique key is the concurrency boundary for two
+                // deliveries of the same Shopify order. If another worker won
+                // the insert race, continue with that row instead of creating
+                // a second import or returning a duplicate-key failure.
+                $existing = $model
+                    ->where('store_domain', $store)
+                    ->where('shopify_order_id', $orderId)
+                    ->first();
+
+                if ($existing === null) {
+                    throw $exception;
+                }
+
+                $model->update((int) $existing['id'], $data);
+
+                return $model->find((int) $existing['id']) ?? $existing;
+            }
 
             return $model->where('id', (int) $model->getInsertID())->first() ?? $data + ['id' => (int) $model->getInsertID()];
         }
