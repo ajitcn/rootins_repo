@@ -138,18 +138,41 @@ final class ShopifyOrderImportService
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
 
-        if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true) && (int) ($import['rootins_order_id'] ?? 0) > 0) {
+        $importClinicId = (int) ($import['clinic_id'] ?? 0);
+        if ($importClinicId <= 0) {
+            $importClinicId = (int) (($this->configuration ?? new ShopifyConfiguration())->clinicId() ?? 0);
+        }
+        $linkedRootinsOrderId = (int) ($import['rootins_order_id'] ?? 0);
+
+        if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true)
+            && $linkedRootinsOrderId > 0
+            && $this->pharmacyOrderExists($linkedRootinsOrderId, $importClinicId)) {
             try {
-                $this->linkImportedLines($importId, (int) $import['rootins_order_id']);
+                $this->linkImportedLines($importId, $linkedRootinsOrderId);
                 $this->stage($event, $orderId, 'line_item_status_update');
             } catch (\Throwable $exception) {
                 $this->stage($event, $orderId, 'line_item_status_update', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE);
                 throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE, 'Shopify order lines could not be linked safely.');
             }
-            $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0), (string) ($event['topic'] ?? ''));
+            $this->applyExternalStatuses($linkedRootinsOrderId, $payload, $store, $eventId, $importClinicId, (string) ($event['topic'] ?? ''), $importId);
             $events->markProcessed($eventId);
 
             return ['status' => (string) $import['status'], 'import_id' => $importId];
+        }
+
+        // A prior retry may have created the pharmacy order while the import
+        // row still carries a stale or missing rootins_order_id. Resolve the
+        // same external identity before creating anything new.
+        $existingPharmacyOrder = $this->findPharmacyOrderByShopifyIdentity($store, $orderId, $importClinicId);
+        if ($existingPharmacyOrder !== null) {
+            $existingRootinsOrderId = (int) $existingPharmacyOrder['id'];
+            $this->setImportState($importId, 'imported', null, $eventId, (int) ($import['patient_id'] ?? 0), $importClinicId, $existingRootinsOrderId);
+            $this->linkImportedLines($importId, $existingRootinsOrderId);
+            $this->applyExternalStatuses($existingRootinsOrderId, $payload, $store, $eventId, $importClinicId, (string) ($event['topic'] ?? ''), $importId);
+            $events->markProcessed($eventId);
+            $this->paymentStage($event, $orderId, $importId, $existingRootinsOrderId, 'payment_update', 'existing_pharmacy_order_reused');
+
+            return ['status' => 'imported', 'import_id' => $importId, 'rootins_order_id' => $existingRootinsOrderId];
         }
 
         try {
@@ -272,7 +295,7 @@ final class ShopifyOrderImportService
             $this->stage($event, $orderId, 'line_item_status_update', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE, 'Shopify order lines could not be linked safely.');
         }
-        $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId, (string) ($event['topic'] ?? ''));
+        $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId, (string) ($event['topic'] ?? ''), $importId);
         $events->markProcessed($eventId);
         service('audit')->record('shopify.order_imported', ['event_id' => $eventId, 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId, 'clinic_id' => $clinicId]);
         $this->stage($event, $orderId, 'audit_history_write');
@@ -860,8 +883,40 @@ GRAPHQL, ['id' => $orderGid]);
         }
     }
 
-    private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId, string $topic = ''): void
+    private function pharmacyOrderExists(int $orderId, int $clinicId): bool
     {
+        return $orderId > 0 && $clinicId > 0 && db_connect()->table('medicine_orders')
+            ->select('id')
+            ->where('id', $orderId)
+            ->where('clinic_id', $clinicId)
+            ->get(1)
+            ->getRowArray() !== null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findPharmacyOrderByShopifyIdentity(string $store, string $orderId, int $clinicId): ?array
+    {
+        if ($store === '' || $orderId === '' || $clinicId <= 0) return null;
+
+        return db_connect()->table('medicine_orders')
+            ->select('id, clinic_id, patient_id, status, payment_status')
+            ->where('external_store_domain', $store)
+            ->where('external_order_id', $orderId)
+            ->where('clinic_id', $clinicId)
+            ->orderBy('id', 'ASC')
+            ->get(1)
+            ->getRowArray() ?: null;
+    }
+
+    private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId, string $topic = '', int $importId = 0): void
+    {
+        $event = ($this->events ?? new ShopifyWebhookEventService())->find($eventId) ?? [
+            'id' => $eventId,
+            'topic' => $topic,
+            'store_domain' => $store,
+        ];
+        $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'lookup_started');
+
         if (trim((string) ($payload['cancelled_at'] ?? '')) !== '') {
             $cancel = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->cancel(
                 $orderId,
@@ -886,9 +941,25 @@ GRAPHQL, ['id' => $orderGid]);
         $db = db_connect();
         $db->transBegin();
         $order = $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->get(1)->getRowArray();
+        if ($order === null) {
+            $externalOrderId = $this->shopifyId($payload['id'] ?? '');
+            if ($externalOrderId !== '' && $store !== '') {
+                $order = $db->table('medicine_orders')
+                    ->where('external_store_domain', $store)
+                    ->where('external_order_id', $externalOrderId)
+                    ->where('clinic_id', $clinicId)
+                    ->get(1)
+                    ->getRowArray();
+                if ($order !== null) {
+                    $orderId = (int) $order['id'];
+                    $this->paymentStage($event, $externalOrderId, $importId, $orderId, 'payment_update', 'external_identity_recovered');
+                }
+            }
+        }
 
         if ($order === null) {
             $db->transRollback();
+            $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'pharmacy_order_not_found', $topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND);
 
             throw new ShopifyOrderImportFailure($topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND, 'Imported ROOTINS order is outside the configured clinic scope.');
         }
@@ -942,6 +1013,7 @@ GRAPHQL, ['id' => $orderGid]);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
+        $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'updated');
         service('audit')->record('shopify.order_status_synchronized', [
             'order_id' => $orderId,
             'event_id' => $eventId,
@@ -952,6 +1024,20 @@ GRAPHQL, ['id' => $orderGid]);
             'previous_delivery_status' => $order['delivery_status'],
             'new_delivery_status' => $changes['delivery_status'] ?? $order['delivery_status'],
         ]);
+    }
+
+    /** Safe payment diagnostics; never include SQL, payloads, or credentials. */
+    private function paymentStage(array $event, string $orderId, int $importId, int $rootinsOrderId, string $stage, string $lookup, string $category = 'none'): void
+    {
+        log_message('info', 'Shopify medicine-order payment stage ' . json_encode([
+            'shopify_order_id' => $orderId,
+            'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+            'internal_import_reference' => $importId > 0 ? $importId : null,
+            'internal_pharmacy_order_reference' => $rootinsOrderId > 0 ? $rootinsOrderId : null,
+            'payment_update_stage' => $stage,
+            'lookup_result' => $lookup,
+            'failure_category' => $category,
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     private function paymentTarget(string $status): ?string

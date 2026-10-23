@@ -699,7 +699,7 @@ GRAPHQL;
         if ($action === 'recheck_mapping') {
             return $this->recheckImportMapping($id, $clinicId, $actor);
         }
-        if ($action === 'retry_validation' || $action === 'retry_import' || $action === 'reprocess_webhook') {
+        if ($action === 'retry_validation' || $action === 'retry_import' || $action === 'retry_payment' || $action === 'reprocess_webhook') {
             $result = (new ShopifyOrderImportService())->importExisting($id, null);
             $this->history($id, $action, $old, (string) ($model->find($id)['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
             service('audit')->record('shopify.order_operation_' . $action, ['import_id' => $id]);

@@ -118,7 +118,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
         if ($clinicId === null) return $this->shopifyActionError('SHOPIFY_MAPPING_PERMISSION_DENIED', 'You do not have permission to recheck mappings.', 403);
         $action = trim((string) $this->request->getPost('action'));
-        if (!in_array($action, ['recheck_mapping', 'retry_validation', 'retry_import', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready', 'reprocess_paid_appointment'], true)) {
+        if (!in_array($action, ['recheck_mapping', 'retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready', 'reprocess_paid_appointment'], true)) {
             return $this->json(false, 'This Shopify order operation is not available in the Pharmacy workspace.', 422);
         }
 

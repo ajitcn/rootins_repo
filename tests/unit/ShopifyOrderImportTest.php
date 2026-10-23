@@ -62,6 +62,21 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('getFile()', $controller);
     }
 
+    public function testMedicinePaymentReusesTheImportedOrderIdentityAndSkipsAppointments(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        foreach (['findPharmacyOrderByShopifyIdentity', 'external_store_domain', 'external_order_id', 'external_identity_recovered', 'paymentStage', 'internal_import_reference', 'internal_pharmacy_order_reference'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('appointment_finalization_skipped', $controller);
+        self::assertStringContainsString('NO_APPOINTMENT_INTENT', $controller);
+        $medicineBranch = substr($controller, strpos($controller, "if (\$intentReference === '')"), strpos($controller, 'appointment_payment_received') - strpos($controller, "if (\$intentReference === '')"));
+        self::assertStringContainsString('processEvent($eventId, false', $medicineBranch);
+        self::assertStringNotContainsString('finalizePaid($event, $payload)', $medicineBranch);
+    }
+
     public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
