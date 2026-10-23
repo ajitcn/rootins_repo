@@ -188,6 +188,12 @@ final class ShopifyAppointmentIntentService
         return ['status' => 'booked', 'intent_reference' => $reference, 'appointment_id' => $appointmentId];
     }
 
+    /** Extract the server-created appointment intent reference without any database lookup. */
+    public function appointmentIntentReferenceForOrder(array $payload): string
+    {
+        return $this->appointmentIntentReference($payload);
+    }
+
     /** Retry a paid order from an already stored, verified webhook event. */
     public function reprocessPaidOrder(string $store, string $orderId): array
     {
@@ -196,6 +202,9 @@ final class ShopifyAppointmentIntentService
         foreach ((new ShopifyWebhookEventModel())->where('store_domain', $store)->where('topic', 'orders/paid')->like('payload_json', $orderId)->orderBy('id', 'DESC')->findAll(25) as $event) {
             $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
             if (! is_array($payload) || (string) ($payload['id'] ?? $payload['order_id'] ?? '') !== $orderId) continue;
+            if ($this->appointmentIntentReference($payload) === '') {
+                return ['status' => 'skipped', 'reason' => 'NO_APPOINTMENT_INTENT', 'shopify_order_id' => $orderId];
+            }
             $result = $this->finalizePaid($event, $payload);
             (new ShopifyWebhookEventService())->markProcessed((int) $event['id']);
             return $result;
@@ -273,11 +282,11 @@ final class ShopifyAppointmentIntentService
 
     private function diagnostic(array $event, string $orderId, string $reference, string $stage, ?string $category): void
     {
-        log_message('info', 'Shopify paid appointment diagnostic ' . json_encode([
+        log_message('info', 'Shopify appointment payment diagnostic ' . json_encode([
             'correlation_id' => $this->correlationId($event),
             'shopify_order_id' => $orderId,
-            'intent_public_reference' => $reference,
             'topic' => (string) ($event['topic'] ?? 'orders/paid'),
+            'intent_present' => $reference !== '',
             'processing_stage' => $stage,
             'failure_category' => $category,
         ], JSON_UNESCAPED_SLASHES));

@@ -48,6 +48,15 @@ final class ShopifyPaidAppointmentFinalizationTest extends TestCase
         foreach (['markRetryableFailure', "'status' => 'paid'", 'failure_reason', "['status'] === 'booked'", 'finalization_duplicate_completed', 'reprocessPaidOrder', 'cancelled_at'] as $contract) self::assertStringContainsString($contract, $this->intent);
     }
 
+    public function testPaidWebhookSeparatesMedicineOrdersFromAppointmentFinalization(): void
+    {
+        foreach (['appointmentIntentReferenceForOrder', 'appointment_finalization_skipped', 'NO_APPOINTMENT_INTENT', 'medicine_order_payment_received', 'appointment_payment_received', 'intent_present'] as $contract) {
+            self::assertStringContainsString($contract, $this->webhook . $this->intent);
+        }
+        self::assertStringContainsString('new ShopifyOrderImportService())->processEvent', $this->webhook);
+        self::assertStringNotContainsString("'intent_public_reference' =>", $this->webhook . $this->intent);
+    }
+
     public function testAdminCanReprocessPaidAppointment(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
@@ -58,7 +67,7 @@ final class ShopifyPaidAppointmentFinalizationTest extends TestCase
 
     public function testDiagnosticsAreSafeAndDoNotLogPayloadOrSecrets(): void
     {
-        foreach (['correlation_id', 'shopify_order_id', 'intent_public_reference', 'processing_stage', 'failure_category'] as $field) self::assertStringContainsString($field, $this->webhook . $this->intent);
+        foreach (['correlation_id', 'shopify_order_id', 'intent_present', 'processing_stage', 'failure_category'] as $field) self::assertStringContainsString($field, $this->webhook . $this->intent);
         foreach (['rawBody', 'webhook_secret', 'X-Shopify-Hmac-Sha256'] as $secret) self::assertStringNotContainsString("json_encode([$secret", $this->intent);
     }
 }

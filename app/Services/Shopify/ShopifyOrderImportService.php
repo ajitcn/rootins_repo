@@ -349,7 +349,7 @@ final class ShopifyOrderImportService
             $failure = ShopifyOrderImportFailure::fromException($exception, (string) ($event['topic'] ?? ''));
             $this->markFailureForEvent($eventId, $failure->category);
             ($this->events ?? new ShopifyWebhookEventService())->markFailed($eventId, $failure->category);
-            log_message('error', 'Shopify order reconciliation failed category=' . $failure->category . ' topic=' . (string) ($event['topic'] ?? '') . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
+            log_message('error', 'Shopify order reconciliation failed category=' . $failure->category . ' topic=' . (string) ($event['topic'] ?? '') . ' exception=' . get_class($exception));
 
             return ['http' => 500, 'body' => ['status' => false, 'msg' => 'Shopify order could not be reconciled safely.', 'data' => ['error_category' => $failure->category]]];
         }

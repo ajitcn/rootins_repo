@@ -110,22 +110,8 @@ final class Webhook extends BaseController
 
         if ($result['duplicate']) {
             if ($topic === 'orders/paid' && $result['id'] !== null) {
-                $events = new ShopifyWebhookEventService();
-                $event = $events->find((int) $result['id']);
-                if (is_array($event) && (string) ($event['status'] ?? '') !== 'processed') {
-                    $payload = [];
-                    try {
-                        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
-                        if (! is_array($payload)) throw new \RuntimeException('Stored paid order payload is invalid.');
-                        $event['correlation_id'] = $this->requestCorrelationId;
-                        (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
-                        $events->markProcessed((int) $result['id']);
-                    } catch (\Throwable $exception) {
-                        $events->markFailed((int) $result['id'], 'Appointment payment processing failed.');
-                        $this->diagnostic($topic, (string) ($payload['id'] ?? $payload['order_id'] ?? ''), (string) ($payload['rootins_appointment_intent'] ?? ''), 'retry_failed', 'APPOINTMENT_FINALIZATION_FAILED');
-                        return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
-                    }
-                }
+                $failureResponse = $this->processPaidEvent((int) $result['id'], $eventId, $shopDomain);
+                if ($failureResponse !== null) return $failureResponse;
             }
             service('audit')->record('shopify.webhook_duplicate', [
                 'topic' => $topic,
@@ -151,20 +137,8 @@ final class Webhook extends BaseController
         }
 
         if ($topic === 'orders/paid' && $result['id'] !== null) {
-            $payload = [];
-            try {
-                $event = (new ShopifyWebhookEventService())->find((int) $result['id']);
-                if (! is_array($event)) throw new \RuntimeException('Stored Shopify paid event was not found.');
-                $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
-                if (! is_array($payload)) throw new \RuntimeException('Stored Shopify paid event payload is invalid.');
-                $event['correlation_id'] = $this->requestCorrelationId;
-                (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
-                (new ShopifyWebhookEventService())->markProcessed((int) $result['id']);
-            } catch (\Throwable $exception) {
-                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Appointment payment processing failed.');
-                $this->diagnostic($topic, (string) ($payload['id'] ?? $payload['order_id'] ?? ''), (string) ($payload['rootins_appointment_intent'] ?? ''), 'processing_failed', 'APPOINTMENT_FINALIZATION_FAILED');
-                return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
-            }
+            $failureResponse = $this->processPaidEvent((int) $result['id'], $eventId, $shopDomain);
+            if ($failureResponse !== null) return $failureResponse;
         }
 
         if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
@@ -233,11 +207,11 @@ final class Webhook extends BaseController
 
     private function diagnostic(string $topic, string $orderId, string $reference, string $stage, string $category): void
     {
-        log_message('info', 'Shopify paid webhook diagnostic ' . json_encode([
+        log_message('info', 'Shopify webhook diagnostic ' . json_encode([
             'correlation_id' => $this->requestCorrelationId,
             'shopify_order_id' => $orderId,
-            'intent_public_reference' => $reference,
             'topic' => $topic,
+            'intent_present' => $reference !== '',
             'processing_stage' => $stage,
             'failure_category' => $category,
         ], JSON_UNESCAPED_SLASHES));
@@ -246,7 +220,7 @@ final class Webhook extends BaseController
     /** @return list<string> */
     private function medicineOrderTopics(): array
     {
-        return ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'];
+        return ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'orders/paid', 'refunds/create', 'fulfillments/create', 'fulfillments/update'];
     }
 
     private function isMedicineOrderTopic(string $topic): bool
@@ -254,7 +228,7 @@ final class Webhook extends BaseController
         return in_array($topic, $this->medicineOrderTopics(), true);
     }
 
-    private function medicineOrderDiagnostic(string $topic, string $orderId, string $eventId, string $storeDomain, string $stage, string $category): void
+    private function medicineOrderDiagnostic(string $topic, string $orderId, string $eventId, string $storeDomain, string $stage, string $category, bool $intentPresent = false): void
     {
         log_message('info', 'Shopify medicine-order webhook diagnostic ' . json_encode([
             'correlation_id' => $this->requestCorrelationId,
@@ -262,8 +236,52 @@ final class Webhook extends BaseController
             'shopify_order_id' => $orderId,
             'webhook_id_hash' => $eventId !== '' ? hash('sha256', $eventId) : '',
             'store_domain' => strtolower(trim($storeDomain)),
+            'intent_present' => $intentPresent,
             'processing_stage' => $stage,
             'failure_category' => $category,
         ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function processPaidEvent(int $eventId, string $webhookId, string $shopDomain): ?ResponseInterface
+    {
+        $events = new ShopifyWebhookEventService();
+        $event = $events->find($eventId);
+        $payload = is_array($event) ? json_decode((string) ($event['payload_json'] ?? ''), true) : null;
+        $orderId = is_array($payload) ? (string) ($payload['id'] ?? $payload['order_id'] ?? '') : '';
+
+        if (! is_array($event) || ! is_array($payload) || trim($orderId) === '') {
+            $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID);
+            $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'payload_parsing', ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID);
+            return $this->error(500, 'SHOPIFY_ORDER_PAYLOAD_INVALID', 'Shopify order payload could not be processed safely.');
+        }
+
+        $event['correlation_id'] = $this->requestCorrelationId;
+        $intentReference = (new ShopifyAppointmentIntentService())->appointmentIntentReferenceForOrder($payload);
+        if ($intentReference === '') {
+            $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'appointment_finalization_skipped', 'NO_APPOINTMENT_INTENT');
+            try {
+                (new ShopifyOrderImportService())->processEvent($eventId, false, $this->requestCorrelationId);
+                $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'medicine_order_payment_received', 'none');
+                return null;
+            } catch (\Throwable $exception) {
+                $failure = ShopifyOrderImportFailure::fromException($exception, 'orders/paid');
+                $events->markFailed($eventId, $failure->category);
+                $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'medicine_order_payment_failed', $failure->category);
+                log_message('error', 'Shopify medicine payment import failed category=' . $failure->category . ' correlation_id=' . $this->requestCorrelationId);
+                return $this->error(500, 'SHOPIFY_ORDER_IMPORT_FAILED', 'Shopify medicine order could not be processed safely.');
+            }
+        }
+
+        $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'appointment_payment_received', 'none', true);
+        if ((string) ($event['status'] ?? '') === 'processed') return null;
+        try {
+            (new ShopifyAppointmentIntentService())->finalizePaid($event, $payload);
+            $events->markProcessed($eventId);
+            return null;
+        } catch (\Throwable $exception) {
+            $events->markFailed($eventId, 'APPOINTMENT_FINALIZATION_FAILED');
+            $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'appointment_finalization_failed', 'APPOINTMENT_FINALIZATION_FAILED', true);
+            return $this->error(500, 'SHOPIFY_APPOINTMENT_FINALIZATION_FAILED', 'Paid appointment could not be finalized safely.');
+        }
     }
 }
