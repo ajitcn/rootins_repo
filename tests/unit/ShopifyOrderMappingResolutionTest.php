@@ -28,7 +28,9 @@ final class ShopifyOrderMappingResolutionTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
         $operations = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
 
-        self::assertStringContainsString("where('import_id', \$importId)->where('shopify_line_item_id', \$lineId)->first()", $service);
+        self::assertStringContainsString("where('store_domain', \$store)", $service);
+        self::assertStringContainsString("where('shopify_order_id', \$orderId)", $service);
+        self::assertStringContainsString("where('shopify_line_item_id', \$lineId)", $service);
         self::assertStringContainsString('$model->update((int) $existing[\'id\'], $data)', $service);
         self::assertStringNotContainsString("->where('shopify_line_item_id', \$lineId)->delete()", $service);
         self::assertStringContainsString("recheckMappings(['store_domain' => \$store, 'shopify_product_id' => \$productId, 'shopify_variant_id' => \$variantId])", $operations);

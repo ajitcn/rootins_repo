@@ -55,7 +55,7 @@ final class ShopifyOrderImportService
         $orderId = $this->shopifyId($payload['id']);
         $this->stage($event, $orderId, 'order_identity_resolution');
 
-        if (!is_array($payload['line_items'] ?? null) || $payload['line_items'] === []) {
+        if ($this->lineItemsNeedHydration($payload['line_items'] ?? null)) {
             $payload = $this->hydrateOrderLineItems($event, $payload);
         }
 
@@ -87,15 +87,15 @@ final class ShopifyOrderImportService
         $db->transBegin();
         try {
             $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload, $preserveLineCommercials, $event);
-            if (! $db->transStatus()) throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line write failed.');
+            if (! $db->transStatus()) throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'Shopify order line write failed.');
             $db->transCommit();
         } catch (ShopifyOrderImportFailure $failure) {
             $db->transRollback();
             throw $failure;
         } catch (\Throwable $exception) {
             $db->transRollback();
-            $this->stage($event, $orderId, 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line import failed.');
+            $this->stage($event, $orderId, 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'Shopify order line import failed.');
         }
         $this->stage($event, $orderId, 'line_item_import');
 
@@ -104,7 +104,13 @@ final class ShopifyOrderImportService
         if ($mappingResult['status'] !== 'ready' && ! $isCancelled) {
             $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
             $inactiveMedicine = $category === ShopifyOrderImportFailure::MEDICINE_INACTIVE;
-            $lineImportFailure = $category === ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE;
+            $lineImportFailure = in_array($category, [
+                ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE,
+                ShopifyOrderImportFailure::SHOPIFY_LINE_ITEMS_MISSING,
+                ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ID_INVALID,
+                ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE,
+                ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE,
+            ], true);
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
                 'mapping_status' => (string) ($mappingResult['mapping_status'] ?? ($inactiveMedicine ? 'inactive_medicine' : 'unmapped')),
                 'quarantine_reason' => $category,
@@ -133,6 +139,13 @@ final class ShopifyOrderImportService
         }
 
         if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true) && (int) ($import['rootins_order_id'] ?? 0) > 0) {
+            try {
+                $this->linkImportedLines($importId, (int) $import['rootins_order_id']);
+                $this->stage($event, $orderId, 'line_item_status_update');
+            } catch (\Throwable $exception) {
+                $this->stage($event, $orderId, 'line_item_status_update', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE);
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE, 'Shopify order lines could not be linked safely.');
+            }
             $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0), (string) ($event['topic'] ?? ''));
             $events->markProcessed($eventId);
 
@@ -252,7 +265,13 @@ final class ShopifyOrderImportService
         $rootinsOrderId = (int) ($result['body']['data']['order_id'] ?? 0);
         $this->stage($event, $orderId, 'order_status_update');
         $this->setImportState($importId, 'imported', null, $eventId, $patientId, $clinicId, $rootinsOrderId);
-        $this->linkImportedLines($importId, $rootinsOrderId);
+        try {
+            $this->linkImportedLines($importId, $rootinsOrderId);
+            $this->stage($event, $orderId, 'line_item_status_update');
+        } catch (\Throwable $exception) {
+            $this->stage($event, $orderId, 'line_item_status_update', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ORDER_LINK_FAILURE, 'Shopify order lines could not be linked safely.');
+        }
         $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId, (string) ($event['topic'] ?? ''));
         $events->markProcessed($eventId);
         service('audit')->record('shopify.order_imported', ['event_id' => $eventId, 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId, 'clinic_id' => $clinicId]);
@@ -421,17 +440,32 @@ final class ShopifyOrderImportService
     {
         $lineModel = $this->lines ?? new ShopifyOrderImportLineModel();
         $items = is_array($payload['line_items'] ?? null) ? $payload['line_items'] : [];
+        $orderId = $this->shopifyId($payload['id'] ?? '');
+        if ($event !== null) {
+            $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_items_present', $items === [] ? ShopifyOrderImportFailure::SHOPIFY_LINE_ITEMS_MISSING : null);
+            $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_count');
+        }
 
         if ($items === []) {
-            return ['status' => 'invalid', 'reason' => 'No Shopify line items were available.', 'category' => ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE];
+            return ['status' => 'invalid', 'reason' => 'No Shopify line items were available.', 'category' => ShopifyOrderImportFailure::SHOPIFY_LINE_ITEMS_MISSING];
         }
 
         $unresolved = null;
+        $mappingFailure = false;
 
         foreach ($items as $item) {
             $lineId = $this->shopifyId($item['id'] ?? null);
+            if ($event !== null) $this->stage($event, $orderId, 'line_item_identity_resolution', $lineId === '' ? ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ID_INVALID : null);
+            if ($lineId === '') {
+                return ['status' => 'invalid', 'reason' => 'Shopify line-item identity is missing.', 'category' => ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ID_INVALID];
+            }
             $productId = $this->shopifyId($item['product_id'] ?? null);
             $variantId = $this->shopifyId($item['variant_id'] ?? null);
+            if ($event !== null) {
+                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'product_id_extraction');
+                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'variant_id_extraction');
+                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'medicine_mapping_lookup');
+            }
             try {
                 $resolution = $this->resolveMapping($store, $productId, $variantId);
             } catch (\Throwable $exception) {
@@ -443,9 +477,10 @@ final class ShopifyOrderImportService
                     'mapping' => null,
                     'lookup_key' => $store . '|variant:' . $variantId . '|product:' . $productId,
                 ];
+                $mappingFailure = true;
             }
             if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'shopify_product_variant_extraction');
-            if ($event !== null && $resolution['result'] !== 'mapped') $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'medicine_mapping_lookup', ShopifyOrderImportFailure::SHOPIFY_PRODUCT_MAPPING_FAILURE);
+            if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'mapping_resolution', $resolution['result'] === 'mapped' ? null : ($mappingFailure ? ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_MAPPING_FAILURE : null));
             $mapping = $resolution['mapping'];
             $medicineId = $mapping['medicine_id'] ?? null;
             $status = 'pending_mapping';
@@ -457,9 +492,15 @@ final class ShopifyOrderImportService
                 // Keep inactive medicines visibly quarantined at line level: ['status' => 'medicine_inactive'].
             }
 
-            $existing = $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->first();
+            $existing = $lineModel
+                ->where('store_domain', $store)
+                ->where('shopify_order_id', $orderId)
+                ->where('shopify_line_item_id', $lineId)
+                ->first();
             $lineData = [
                 'import_id' => $importId,
+                'store_domain' => $store,
+                'shopify_order_id' => $orderId,
                 'shopify_line_item_id' => $lineId,
                 'shopify_product_id' => $productId !== '' ? $productId : null,
                 'shopify_variant_id' => $variantId !== '' ? $variantId : null,
@@ -477,9 +518,11 @@ final class ShopifyOrderImportService
             try {
                 $this->upsertImportLine($lineModel, $existing, $lineData);
             } catch (\Throwable $exception) {
-                if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line write failed.');
+                if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_database_upsert', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE);
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'Shopify order line write failed.');
             }
+            if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_database_upsert');
+            if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_status_update');
 
             if ($resolution['result'] !== 'mapped' && $unresolved === null) {
                 $unresolved = $resolution;
@@ -491,9 +534,9 @@ final class ShopifyOrderImportService
         }
 
         if ($unresolved !== null) {
-            $category = $unresolved['result'] === 'inactive'
+            $category = $mappingFailure ? ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_MAPPING_FAILURE : ($unresolved['result'] === 'inactive'
                 ? ShopifyOrderImportFailure::MEDICINE_INACTIVE
-                : ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED;
+                : ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
 
             return [
                 'status' => 'pending',
@@ -604,6 +647,29 @@ final class ShopifyOrderImportService
     /** @return array<string, mixed> */
     private function hydrateOrderLineItems(array $event, array $payload): array
     {
+        $store = strtolower(trim((string) ($event['store_domain'] ?? '')));
+        $orderId = $this->shopifyId($payload['id'] ?? '');
+        $existingImport = $store !== '' && $orderId !== ''
+            ? ($this->imports ?? new ShopifyOrderImportModel())->where('store_domain', $store)->where('shopify_order_id', $orderId)->first()
+            : null;
+        if ($existingImport !== null) {
+            $existingLines = ($this->lines ?? new ShopifyOrderImportLineModel())->where('import_id', (int) $existingImport['id'])->orderBy('id', 'ASC')->findAll();
+            if ($existingLines !== []) {
+                $payload['line_items'] = array_map(static fn (array $line): array => [
+                    'id' => (string) ($line['shopify_line_item_id'] ?? ''),
+                    'title' => (string) ($line['title_snapshot'] ?? ''),
+                    'quantity' => (int) ($line['quantity'] ?? 0),
+                    'sku' => (string) ($line['shopify_sku'] ?? ''),
+                    'barcode' => (string) ($line['shopify_barcode'] ?? ''),
+                    'variant_id' => (string) ($line['shopify_variant_id'] ?? ''),
+                    'product_id' => (string) ($line['shopify_product_id'] ?? ''),
+                    'price' => (float) ($line['shopify_price_snapshot'] ?? 0),
+                ], $existingLines);
+                $this->stage($event, $orderId, 'line_items_reused');
+                return $payload;
+            }
+        }
+
         try {
             $orderGid = 'gid://shopify/Order/' . $this->shopifyId($payload['id'] ?? '');
             $result = (new ShopifyClient(new ShopifyConfiguration()))->graphql(<<<'GRAPHQL'
@@ -645,13 +711,23 @@ GRAPHQL, ['id' => $orderGid]);
                 $payload['line_items'] = $items;
                 log_message('info', 'Shopify order line repair completed order=' . $this->shopifyId($payload['id'] ?? '') . ' line_count=' . count($items));
             } else {
-                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
+                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEMS_MISSING);
             }
         } catch (\Throwable $exception) {
-            $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
+            $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEMS_MISSING);
             log_message('warning', 'Shopify order line repair unavailable topic=' . (string) ($event['topic'] ?? '') . ' error=' . get_class($exception));
         }
         return $payload;
+    }
+
+    private function lineItemsNeedHydration(mixed $items): bool
+    {
+        if (! is_array($items) || $items === []) return true;
+        foreach ($items as $item) {
+            if (! is_array($item) || $this->shopifyId($item['id'] ?? '') === '') return true;
+            if (! array_key_exists('product_id', $item) || ! array_key_exists('variant_id', $item)) return true;
+        }
+        return false;
     }
 
     private function shopifyId(mixed $value): string
@@ -673,7 +749,11 @@ GRAPHQL, ['id' => $orderGid]);
         try {
             $model->insert($data);
         } catch (\Throwable $exception) {
-            $race = $model->where('import_id', $data['import_id'])->where('shopify_line_item_id', $data['shopify_line_item_id'])->first();
+            $race = $model
+                ->where('store_domain', $data['store_domain'])
+                ->where('shopify_order_id', $data['shopify_order_id'])
+                ->where('shopify_line_item_id', $data['shopify_line_item_id'])
+                ->first();
             if ($race === null) {
                 throw $exception;
             }

@@ -10,6 +10,7 @@ final class ShopifyOrderImportTest extends TestCase
     {
         $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
         $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-06-170000_CreateShopifyOrderImport.php');
+        $lineRepair = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-23-170000_RepairShopifyOrderLineIndexes.php');
         $permissions = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-06-171000_AddShopifyOrderImportPermissions.php');
 
         self::assertStringContainsString("orders/create", file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Config/Routes.php'));
@@ -21,6 +22,10 @@ final class ShopifyOrderImportTest extends TestCase
         foreach (['shopify_order_imports', 'shopify_order_import_lines', 'shopify_medicine_mappings', 'shopify_order_id', 'shopify_line_item_id'] as $field) {
             self::assertStringContainsString($field, $migration);
         }
+        self::assertStringContainsString('shopify_product_id_shopify_variant_id', $lineRepair);
+        self::assertStringContainsString("store_domain, shopify_order_id, shopify_line_item_id", $lineRepair);
+        self::assertStringContainsString('shopify_order_line_identity', $lineRepair);
+        self::assertStringContainsString('ADD INDEX', $lineRepair);
     }
 
     public function testImportUsesIdentityAndControlledMappingBeforeFulfilment(): void
@@ -48,6 +53,30 @@ final class ShopifyOrderImportTest extends TestCase
             self::assertStringContainsString($category, $failure . $service);
         }
         self::assertStringNotContainsString('getFile()', $controller);
+    }
+
+    public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        foreach (['line_items_present', 'line_item_count', 'line_item_identity_resolution', 'product_id_extraction', 'variant_id_extraction', 'mapping_resolution', 'line_item_database_upsert', 'line_item_status_update'] as $stage) {
+            self::assertStringContainsString($stage, $service);
+        }
+        foreach (['lineItemsNeedHydration', 'line_items_reused', 'store_domain', 'shopify_order_id', 'shopify_line_item_id', 'where(\'store_domain\', $store)', 'where(\'shopify_order_id\', $orderId)'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringNotContainsString("where('shopify_line_item_id', \$variantId)", $service);
+    }
+
+    public function testReusableProductVariantValuesAreNotLineIdentity(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-23-170000_RepairShopifyOrderLineIndexes.php');
+
+        self::assertStringContainsString("where('store_domain', \$store)", $service);
+        self::assertStringContainsString("where('shopify_order_id', \$orderId)", $service);
+        self::assertStringContainsString("where('shopify_line_item_id', \$lineId)", $service);
+        self::assertStringNotContainsString("where('shopify_product_id', \$productId)->where('shopify_variant_id', \$variantId)", $service);
+        self::assertStringContainsString('Same product/variant values remain reusable across orders', $migration);
     }
 
     public function testWebhookOrderTopicsUseExistingHmacAndEventIdempotencyPipeline(): void
