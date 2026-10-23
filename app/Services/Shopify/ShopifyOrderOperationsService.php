@@ -389,7 +389,13 @@ GRAPHQL;
             service('audit')->record($event, ['mapping_id' => $targetId, 'store_domain' => $store, 'product_id' => $productId, 'variant_id' => $variantId, 'medicine_id' => $medicineId]);
             if (! $db->transStatus()) throw new \RuntimeException('mapping transaction failed');
             $db->transCommit();
-            return ['mapping_id' => (string) $targetId, 'variant_id' => $variantId, 'medicine_id' => (string) $medicineId, 'mapping_status' => $mappingStatus, 'medicine_status' => (string) ($medicine['status'] ?? ''), 'message' => 'Product mapping saved.'];
+            $recheck = ['processed' => 0];
+            try {
+                $recheck = $this->recheckMappings(['store_domain' => $store, 'shopify_variant_id' => $variantId]);
+            } catch (\Throwable $exception) {
+                log_message('error', 'Shopify mapping save recheck failed: ' . get_class($exception));
+            }
+            return ['mapping_id' => (string) $targetId, 'variant_id' => $variantId, 'medicine_id' => (string) $medicineId, 'mapping_status' => $mappingStatus, 'medicine_status' => (string) ($medicine['status'] ?? ''), 'rechecked_orders' => (int) ($recheck['processed'] ?? 0), 'message' => 'Product mapping saved.'];
         } catch (ShopifyMappingException $exception) {
             $db->transRollback();
             throw $exception;
@@ -504,6 +510,20 @@ GRAPHQL;
         return ['processed' => $processed];
     }
 
+    public function recheckImportMapping(int $importId, ?int $clinicId = null, int $actor = 0): array
+    {
+        $import = (new ShopifyOrderImportModel())->find($importId);
+        if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) {
+            throw new InvalidArgumentException('Shopify order was not found.');
+        }
+
+        $result = (new ShopifyOrderImportService())->importExisting($importId, null);
+        $this->history($importId, 'recheck_mapping', (string) ($import['status'] ?? ''), (string) ((new ShopifyOrderImportModel())->find($importId)['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
+        service('audit')->record('shopify.order_mapping_rechecked', ['import_id' => $importId]);
+
+        return $result;
+    }
+
     public function readiness(array $filters = []): array
     {
         $query = db_connect()->table('shopify_patient_identity_links l')
@@ -532,9 +552,29 @@ GRAPHQL;
             ->orderBy('i.updated_at', 'DESC');
         if ($clinicId !== null) $query->where('i.clinic_id', $clinicId);
         foreach (['store_domain' => 'i.store_domain', 'status' => 'i.status', 'prescription_status' => 'i.prescription_status', 'mapping_status' => 'i.mapping_status', 'financial_status' => 'i.financial_status', 'fulfillment_status' => 'i.fulfillment_status', 'patient_status' => 'i.patient_status'] as $key => $column) if (($filters[$key] ?? '') !== '') $query->where($column, trim((string) $filters[$key]));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) ($filters['date_from'] ?? '')))) $query->where('i.created_at >=', trim((string) $filters['date_from']) . ' 00:00:00');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) ($filters['date_to'] ?? '')))) $query->where('i.created_at <=', trim((string) $filters['date_to']) . ' 23:59:59');
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') $query->groupStart()->like('i.shopify_order_number', $search)->orLike('i.shopify_order_id', $search)->orLike('i.customer_name_snapshot', $search)->orLike('i.customer_email_snapshot', $search)->orLike('p.registration_number', $search)->orLike('i.shopify_customer_id', $search)->groupEnd();
-        return $query->get(500)->getResultArray();
+        $imports = $query->get(500)->getResultArray();
+        $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $imports)));
+        if ($ids === []) return $imports;
+        $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
+        $summaries = [];
+        foreach ($lineRows as $line) {
+            $importId = (int) $line['import_id'];
+            $name = trim((string) ($line['medicine_name'] ?? '')) ?: trim((string) ($line['title_snapshot'] ?? '')) ?: 'Unmapped medicine';
+            $summaries[$importId]['count'] = ($summaries[$importId]['count'] ?? 0) + 1;
+            $summaries[$importId]['names'][] = $name;
+        }
+        foreach ($imports as &$import) {
+            $summary = $summaries[(int) $import['id']] ?? ['count' => 0, 'names' => []];
+            $names = array_values(array_unique($summary['names'] ?? []));
+            $import['medicine_count'] = (int) ($summary['count'] ?? 0);
+            $import['medicine_summary'] = implode(', ', array_slice($names, 0, 2)) . (count($names) > 2 ? ' +' . (count($names) - 2) : '');
+        }
+        unset($import);
+        return $imports;
     }
 
     public function counters(?int $clinicId = null): array
@@ -542,6 +582,15 @@ GRAPHQL;
         $db = db_connect();
         $today = date('Y-m-d');
         $result = [];
+        $total = $db->table('shopify_order_imports');
+        if ($clinicId !== null) $total->where('clinic_id', $clinicId);
+        $result['total_shopify_orders'] = $total->countAllResults();
+        foreach (['awaiting_review' => ['prescription_status' => 'awaiting_review'], 'quarantined' => ['status' => 'quarantined'], 'unmapped' => ['mapping_status' => 'unmapped'], 'prescription_review' => ['prescription_status' => 'awaiting_review'], 'ready_to_process' => ['status' => 'ready_to_import']] as $name => $conditions) {
+            $q = $db->table('shopify_order_imports');
+            if ($clinicId !== null) $q->where('clinic_id', $clinicId);
+            foreach ($conditions as $field => $value) $q->where($field, $value);
+            $result[$name] = $q->countAllResults();
+        }
         foreach (['orders_received_today' => ['created_at >=' => $today], 'orders_awaiting_patient' => ['patient_status' => 'missing'], 'orders_awaiting_prescription_review' => ['prescription_status' => 'awaiting_review'], 'orders_with_unmapped_medicines' => ['mapping_status' => 'unmapped'], 'orders_ready_to_import' => ['status' => 'ready_to_import'], 'failed_imports' => ['status' => 'failed'], 'quarantined_orders' => ['status' => 'quarantined'], 'successfully_imported' => ['status' => 'imported'], 'cancelled_refunded_orders' => ['status' => 'cancelled']] as $name => $conditions) { $q = $db->table('shopify_order_imports'); if ($clinicId !== null) $q->where('clinic_id', $clinicId); foreach ($conditions as $field => $value) $q->where($field, $value); $result[$name] = $q->countAllResults(); }
         return $result;
     }
@@ -571,6 +620,9 @@ GRAPHQL;
             $result = (new ShopifyAppointmentIntentService())->reprocessPaidOrder((string) $import['store_domain'], (string) $import['shopify_order_id']);
             service('audit')->record('shopify.order_operation_reprocess_paid_appointment', ['import_id' => $id, 'shopify_order_id' => (string) $import['shopify_order_id']]);
             return $result;
+        }
+        if ($action === 'recheck_mapping') {
+            return $this->recheckImportMapping($id, $clinicId, $actor);
         }
         if ($action === 'retry_validation' || $action === 'retry_import' || $action === 'reprocess_webhook') {
             $result = (new ShopifyOrderImportService())->importExisting($id, null);

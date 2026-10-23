@@ -13,6 +13,7 @@ $routes->group('pharmacy', ['namespace' => 'Pharmacy\Controllers', 'filter' => '
     $routes->get('orders/detail/(:num)', 'Orders::detail/$1', ['filter' => 'permission:pharmacy.order.view']);
     $routes->get('shopify-orders', 'ShopifyOrders::index', ['filter' => 'permission:pharmacy.shopify_orders.view']);
     $routes->get('shopify-orders/(:num)', 'ShopifyOrders::detail/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
+    $routes->get('shopify-orders/(:num)/json', 'ShopifyOrders::detailJson/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
     $routes->get('shopify-orders/(:num)/prescription', 'ShopifyOrders::viewPrescription/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
     $routes->post('shopify-orders/action/(:num)', 'ShopifyOrders::action/$1', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->post('shopify-orders/prescriptions/review', 'ShopifyOrders::reviewPrescription', ['filter' => 'permission:pharmacy.shopify_orders.manage']);

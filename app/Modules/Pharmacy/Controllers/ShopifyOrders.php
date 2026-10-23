@@ -30,6 +30,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
                 'imports' => $this->operations->queue(is_array($filters) ? $filters : [], $clinicId),
                 'counters' => $this->operations->counters($clinicId),
                 'filters' => is_array($filters) ? $filters : [],
+                'canManage' => $this->scope->can('pharmacy.shopify_orders.manage'),
             ]);
         } catch (\Throwable $exception) {
             log_message('error', 'Pharmacy Shopify order queue failed: ' . $exception->getMessage());
@@ -52,6 +53,21 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         } catch (\Throwable $exception) {
             log_message('error', 'Pharmacy Shopify order detail failed: ' . $exception->getMessage());
             return $this->response->setStatusCode(500)->setBody('Shopify order details could not be loaded safely.');
+        }
+    }
+
+    public function detailJson(int $id): ResponseInterface
+    {
+        $clinicId = $this->clinicId('pharmacy.shopify_orders.view');
+        if ($clinicId === null) return $this->json(false, 'Shopify order access denied.', 403);
+
+        try {
+            $import = $this->operations->detail($id, $clinicId);
+            if ($import === null) return $this->json(false, 'Shopify order was not found.', 404);
+            return $this->json(true, 'Shopify order loaded.', 200, ['import' => $import]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Pharmacy Shopify order JSON detail failed: ' . $exception->getMessage());
+            return $this->json(false, 'Shopify order details could not be loaded safely.', 500);
         }
     }
 
@@ -102,7 +118,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
         if ($clinicId === null) return $this->json(false, 'Shopify order management is not permitted.', 403);
         $action = trim((string) $this->request->getPost('action'));
-        if (!in_array($action, ['retry_validation', 'retry_import', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready', 'reprocess_paid_appointment'], true)) {
+        if (!in_array($action, ['recheck_mapping', 'retry_validation', 'retry_import', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready', 'reprocess_paid_appointment'], true)) {
             return $this->json(false, 'This Shopify order operation is not available in the Pharmacy workspace.', 422);
         }
 

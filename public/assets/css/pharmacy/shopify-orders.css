@@ -1,0 +1,38 @@
+.pharmacy-shopify-orders-page { --shopify-border: #e6eaf0; --shopify-muted: #697586; }
+.pharmacy-shopify-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.pharmacy-shopify-summary-card { display: flex; align-items: center; gap: 11px; min-height: 82px; padding: 15px; background: #fff; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
+.pharmacy-shopify-summary-card .summary-icon { display: grid; place-items: center; width: 34px; height: 34px; color: #2754a5; background: #edf3ff; border-radius: 9px; }
+.pharmacy-shopify-summary-card .summary-copy { display: grid; gap: 3px; min-width: 0; }
+.pharmacy-shopify-summary-card .summary-copy span { color: var(--shopify-muted); font-size: 11px; line-height: 1.2; }
+.pharmacy-shopify-summary-card strong { color: #182230; font-size: 21px; line-height: 1; }
+.pharmacy-shopify-filters { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(5, minmax(125px, 1fr)) repeat(2, minmax(130px, .8fr)) auto; gap: 10px; align-items: end; padding: 15px; margin-bottom: 18px; background: #fff; border: 1px solid var(--shopify-border); border-radius: 10px; }
+.pharmacy-shopify-filters label { display: block; margin-bottom: 5px; color: #5d6878; font-size: 11px; font-weight: 700; }
+.pharmacy-shopify-filter-actions { display: flex; gap: 6px; }
+.pharmacy-shopify-table-card { overflow: visible; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
+.pharmacy-shopify-table-card .card-header { padding: 14px 16px; background: #fff; border-bottom: 1px solid var(--shopify-border); }
+.pharmacy-shopify-table-wrap { overflow-x: auto; }
+.pharmacy-shopify-table { min-width: 1120px; }
+.pharmacy-shopify-table th { padding: 12px 13px; color: #667085; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; border-top: 0; }
+.pharmacy-shopify-table td { padding: 13px; color: #2d3748; font-size: 12px; vertical-align: middle; border-top: 1px solid #eef1f5; }
+.shopify-order-primary { display: grid; gap: 3px; min-width: 125px; }
+.shopify-order-primary a, .shopify-order-primary strong { color: #1e4fa3; font-weight: 750; }
+.shopify-order-primary small, .pharmacy-shopify-table time { color: var(--shopify-muted); font-size: 11px; }
+.medicine-summary { display: block; max-width: 185px; line-height: 1.35; }
+.medicine-summary strong { color: #1f2937; margin-right: 3px; }
+.badge-status { display: inline-block; padding: 5px 8px; color: #4b5563; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.badge-mapped, .badge-accepted, .badge-imported, .badge-paid, .badge-delivered { color: #17603a; background: #effaf3; border-color: #c8ead4; }
+.badge-unmapped, .badge-pending-mapping, .badge-awaiting-review, .badge-quarantined { color: #855b00; background: #fff9e8; border-color: #f1df9c; }
+.badge-failed, .badge-invalid, .badge-cancelled, .badge-voided, .badge-inactive-medicine, .badge-conflict { color: #9b2c2c; background: #fff2f2; border-color: #f1c5c5; }
+.pharmacy-shopify-table .dropdown-menu { z-index: 1060; }
+.pharmacy-shopify-details-modal { z-index: 1070; }
+.pharmacy-shopify-details-modal .modal-dialog { max-height: calc(100vh - 32px); margin: 16px auto; }
+.pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 32px); }
+.pharmacy-shopify-details-modal .modal-body { overflow-y: auto; }
+.shopify-detail-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.shopify-detail-summary > div { display: grid; gap: 4px; padding: 12px; background: #f8fafc; border: 1px solid var(--shopify-border); border-radius: 8px; }
+.shopify-detail-summary small, .shopify-detail-summary span { color: var(--shopify-muted); font-size: 11px; }
+.pharmacy-orders-empty { display: grid; justify-items: center; gap: 5px; padding: 60px 15px; color: var(--shopify-muted); }
+.pharmacy-orders-empty i { font-size: 30px; }
+@media (max-width: 1200px) { .pharmacy-shopify-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pharmacy-shopify-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .filter-search { grid-column: span 3; } }
+@media (max-width: 767.98px) { .pharmacy-shopify-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .pharmacy-shopify-summary-card { min-height: 70px; padding: 11px; } .pharmacy-shopify-filters { grid-template-columns: 1fr 1fr; padding: 12px; } .filter-search { grid-column: span 2; } .pharmacy-shopify-filter-actions { grid-column: span 2; } .pharmacy-shopify-filter-actions .btn { flex: 1; } .pharmacy-shopify-table-card .card-header { align-items: flex-start !important; } .pharmacy-shopify-table { min-width: 0; } .pharmacy-shopify-table thead { display: none; } .pharmacy-shopify-table, .pharmacy-shopify-table tbody, .pharmacy-shopify-table tr, .pharmacy-shopify-table td { display: block; width: 100%; } .pharmacy-shopify-table tr { padding: 8px 0; border-bottom: 1px solid var(--shopify-border); } .pharmacy-shopify-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 9px 13px; border: 0; text-align: right; } .pharmacy-shopify-table td::before { flex: 0 0 38%; color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; } .pharmacy-shopify-table td > * { max-width: 62%; } .pharmacy-shopify-table .dropdown-menu { text-align: left; } .shopify-detail-summary { grid-template-columns: 1fr; } .pharmacy-shopify-details-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 16px); } }
+@media (max-width: 380px) { .pharmacy-shopify-summary-card .summary-icon { display: none; } .pharmacy-shopify-summary-card .summary-copy span { font-size: 10px; } .pharmacy-shopify-filters { grid-template-columns: 1fr; } .filter-search, .pharmacy-shopify-filter-actions { grid-column: auto; } }
