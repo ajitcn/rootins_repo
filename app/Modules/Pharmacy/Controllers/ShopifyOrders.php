@@ -5,6 +5,7 @@ namespace Pharmacy\Controllers;
 use App\Services\Shopify\ShopifyOrderOperationsService;
 use App\Services\Shopify\ShopifyPrescriptionUploadService;
 use CodeIgniter\HTTP\ResponseInterface;
+use Pharmacy\Services\PharmacyScope;
 use InvalidArgumentException;
 
 final class ShopifyOrders extends \App\Controllers\BaseController
