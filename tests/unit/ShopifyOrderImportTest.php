@@ -26,6 +26,13 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("store_domain, shopify_order_id, shopify_line_item_id", $lineRepair);
         self::assertStringContainsString('shopify_order_line_identity', $lineRepair);
         self::assertStringContainsString('ADD INDEX', $lineRepair);
+        self::assertStringContainsString('shopify_order_line_import', $lineRepair);
+        self::assertStringContainsString('hasLeadingNonUniqueIndex', $lineRepair);
+        self::assertStringContainsString('fieldExists', $lineRepair);
+        self::assertStringContainsString('isset($this->indexes()', $lineRepair);
+        self::assertStringContainsString('hasIndex($this->indexes()', $lineRepair);
+        self::assertStringContainsString('public function down', $lineRepair);
+        self::assertStringNotContainsString('FOREIGN_KEY_CHECKS', $lineRepair);
     }
 
     public function testImportUsesIdentityAndControlledMappingBeforeFulfilment(): void

@@ -9,6 +9,7 @@ final class RepairShopifyOrderLineIndexes extends Migration
 {
     private const TABLE = 'shopify_order_import_lines';
     private const IDENTITY_INDEX = 'shopify_order_line_identity';
+    private const IMPORT_FK_INDEX = 'shopify_order_line_import';
     private const LEGACY_UNIQUE_INDEX = 'shopify_product_id_shopify_variant_id';
     private const PRODUCT_INDEX = 'shopify_order_line_product';
     private const PRODUCT_ID_INDEX = 'shopify_order_line_product_id';
@@ -63,13 +64,24 @@ final class RepairShopifyOrderLineIndexes extends Migration
             $this->db->query('ALTER TABLE ' . self::TABLE . ' MODIFY COLUMN shopify_order_id VARCHAR(100) NOT NULL');
         }
 
-        if (isset($this->indexes()[self::IDENTITY_INDEX])) {
+        // MySQL may be using the old identity index to support the import_id
+        // foreign key. Add a dedicated non-unique supporting index first so
+        // the foreign key remains intact while the old index is replaced.
+        if (! $this->hasLeadingNonUniqueIndex($this->indexes(), ['import_id'])) {
+            $this->addIndexIfMissing(self::IMPORT_FK_INDEX, ['import_id']);
+        }
+
+        $indexes = $this->indexes();
+        $targetIdentityExists = $this->hasIndex($indexes, ['store_domain', 'shopify_order_id', 'shopify_line_item_id'], true);
+        if (isset($indexes[self::IDENTITY_INDEX]) && ! $targetIdentityExists) {
             $this->dropIndex(self::IDENTITY_INDEX);
         }
-        $this->db->query(
-            'ALTER TABLE ' . self::TABLE . ' ADD UNIQUE INDEX ' . self::IDENTITY_INDEX
-            . ' (store_domain, shopify_order_id, shopify_line_item_id)'
-        );
+        if (! $targetIdentityExists) {
+            $this->db->query(
+                'ALTER TABLE ' . self::TABLE . ' ADD UNIQUE INDEX ' . self::IDENTITY_INDEX
+                . ' (store_domain, shopify_order_id, shopify_line_item_id)'
+            );
+        }
 
         $this->addIndexIfMissing(self::STORE_INDEX, ['store_domain']);
         $this->addIndexIfMissing(self::ORDER_INDEX, ['shopify_order_id']);
@@ -85,13 +97,24 @@ final class RepairShopifyOrderLineIndexes extends Migration
     {
         if (! $this->db->tableExists(self::TABLE)) return;
 
-        if (isset($this->indexes()[self::IDENTITY_INDEX])) $this->dropIndex(self::IDENTITY_INDEX);
+        // Keep the medicine_id foreign key supported while removing indexes
+        // introduced by this migration. The FK itself is never changed.
+        if (! $this->hasLeadingNonUniqueIndex($this->indexes(), ['medicine_id'])) {
+            $this->addIndexIfMissing(self::MEDICINE_INDEX, ['medicine_id']);
+        }
 
-        foreach ([self::STORE_INDEX, self::ORDER_INDEX, self::PRODUCT_INDEX, self::PRODUCT_ID_INDEX, self::VARIANT_INDEX, self::MEDICINE_INDEX, self::PRODUCT_INDEX . '_variant'] as $index) {
+        $indexes = $this->indexes();
+        if (isset($indexes[self::IDENTITY_INDEX]) && ! $this->hasIndex($indexes, ['import_id', 'shopify_line_item_id'], true)) {
+            $this->dropIndex(self::IDENTITY_INDEX);
+        }
+
+        foreach ([self::STORE_INDEX, self::ORDER_INDEX, self::PRODUCT_ID_INDEX, self::VARIANT_INDEX, self::PRODUCT_INDEX . '_variant'] as $index) {
             if (isset($this->indexes()[$index])) $this->dropIndex($index);
         }
 
-        $this->db->query('ALTER TABLE ' . self::TABLE . ' ADD UNIQUE INDEX ' . self::IDENTITY_INDEX . ' (import_id, shopify_line_item_id)');
+        if (! $this->hasIndex($this->indexes(), ['import_id', 'shopify_line_item_id'], true)) {
+            $this->db->query('ALTER TABLE ' . self::TABLE . ' ADD UNIQUE INDEX ' . self::IDENTITY_INDEX . ' (import_id, shopify_line_item_id)');
+        }
         if (! isset($this->indexes()[self::LEGACY_UNIQUE_INDEX])) {
             $duplicate = $this->db->query(
                 'SELECT shopify_product_id, shopify_variant_id, COUNT(*) AS duplicate_count
@@ -138,6 +161,17 @@ final class RepairShopifyOrderLineIndexes extends Migration
         foreach ($indexes as $parts) {
             if (array_column($parts, 'column') !== $columns) continue;
             if ((! (bool) ($parts[0]['non_unique'] ?? true)) === $unique) return true;
+        }
+        return false;
+    }
+
+    /** @param array<string, list<array{column: string, non_unique: bool}>> $indexes */
+    private function hasLeadingNonUniqueIndex(array $indexes, array $columns): bool
+    {
+        foreach ($indexes as $parts) {
+            $indexedColumns = array_column($parts, 'column');
+            if (array_slice($indexedColumns, 0, count($columns)) !== $columns) continue;
+            if (($parts[0]['non_unique'] ?? false) === true) return true;
         }
         return false;
     }
