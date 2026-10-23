@@ -35,6 +35,21 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('unit_price', $service);
     }
 
+    public function testImportRecordsSafeStagesAndSpecificFailureCategories(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $failure = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        foreach (['payload_parsing', 'order_identity_resolution', 'customer_patient_resolution', 'order_creation_update', 'line_item_import', 'shopify_product_variant_extraction', 'medicine_mapping_lookup', 'prescription_reference_lookup', 'payment_state_mapping', 'order_status_update', 'audit_history_write'] as $stage) {
+            self::assertStringContainsString($stage, $service . $controller);
+        }
+        foreach (['SHOPIFY_ORDER_PAYLOAD_INVALID', 'SHOPIFY_ORDER_IDENTITY_FAILURE', 'SHOPIFY_ORDER_LINE_IMPORT_FAILURE', 'SHOPIFY_PRODUCT_MAPPING_FAILURE', 'SHOPIFY_PATIENT_LINK_FAILURE', 'SHOPIFY_ORDER_DATABASE_FAILURE', 'SHOPIFY_PRESCRIPTION_LINK_FAILURE'] as $category) {
+            self::assertStringContainsString($category, $failure . $service);
+        }
+        self::assertStringNotContainsString('getFile()', $controller);
+    }
+
     public function testWebhookOrderTopicsUseExistingHmacAndEventIdempotencyPipeline(): void
     {
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');

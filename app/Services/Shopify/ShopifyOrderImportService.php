@@ -15,6 +15,9 @@ use RuntimeException;
 
 final class ShopifyOrderImportService
 {
+    private string $diagnosticCorrelationId = '';
+    private string $diagnosticTopic = '';
+
     public function __construct(
         private readonly ?ShopifyOrderImportModel $imports = null,
         private readonly ?ShopifyOrderImportLineModel $lines = null,
@@ -29,7 +32,7 @@ final class ShopifyOrderImportService
      * Only a verified customer link, explicit product mappings, and an
      * approved ROOTINS prescription can enter the existing fulfilment flow.
      */
-    public function processEvent(int $eventId, bool $preserveLineCommercials = false): array
+    public function processEvent(int $eventId, bool $preserveLineCommercials = false, ?string $correlationId = null): array
     {
         $events = $this->events ?? new ShopifyWebhookEventService();
         $event = $events->find($eventId);
@@ -38,24 +41,83 @@ final class ShopifyOrderImportService
             throw new RuntimeException('Shopify webhook event was not found.');
         }
 
+        $this->diagnosticCorrelationId = $correlationId ?: bin2hex(random_bytes(16));
+        $this->diagnosticTopic = (string) ($event['topic'] ?? '');
+        $this->stage($event, '', 'payload_parsing');
+
         $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
 
         if (!is_array($payload) || trim((string) ($payload['id'] ?? '')) === '') {
-            $events->markFailed($eventId, 'Order payload is unavailable.');
-
-            return ['status' => 'failed', 'import_id' => null];
+            $this->stage($event, '', 'payload_parsing', ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID, 'Shopify order payload is invalid.');
         }
+
+        $orderId = $this->shopifyId($payload['id']);
+        $this->stage($event, $orderId, 'order_identity_resolution');
 
         if (!is_array($payload['line_items'] ?? null) || $payload['line_items'] === []) {
             $payload = $this->hydrateOrderLineItems($event, $payload);
         }
 
         $store = strtolower(trim((string) $event['store_domain']));
-        $import = $this->upsertImport($event, $payload);
+        try {
+            $db = db_connect();
+            $db->transBegin();
+            $import = $this->upsertImport($event, $payload);
+        } catch (ShopifyOrderImportFailure $failure) {
+            if (isset($db) && $db->transStatus() === false) $db->transRollback();
+            throw $failure;
+        } catch (\Throwable $exception) {
+            if (isset($db)) $db->transRollback();
+            $this->stage($event, $orderId, 'order_creation_update', ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order database write failed.');
+        }
         $importId = (int) $import['id'];
+        $this->stage($event, $orderId, 'order_creation_update');
+        if (! $db->transStatus()) {
+            $db->transRollback();
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order database write failed.');
+        }
+        $db->transCommit();
+
+        // Persist lines before patient/prescription gating. This keeps an
+        // order visible for Pharmacy reconciliation even when identity data
+        // is incomplete, and makes mapping independent from patient linkage.
+        $db = db_connect();
+        $db->transBegin();
+        try {
+            $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload, $preserveLineCommercials, $event);
+            if (! $db->transStatus()) throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line write failed.');
+            $db->transCommit();
+        } catch (ShopifyOrderImportFailure $failure) {
+            $db->transRollback();
+            throw $failure;
+        } catch (\Throwable $exception) {
+            $db->transRollback();
+            $this->stage($event, $orderId, 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line import failed.');
+        }
+        $this->stage($event, $orderId, 'line_item_import');
 
         $financialStatus = strtolower(trim((string) ($payload['financial_status'] ?? '')));
-        if (trim((string) ($payload['cancelled_at'] ?? '')) !== '' || in_array($financialStatus, ['refunded', 'voided'], true)) {
+        $isCancelled = trim((string) ($payload['cancelled_at'] ?? '')) !== '' || in_array($financialStatus, ['refunded', 'voided'], true);
+        if ($mappingResult['status'] !== 'ready' && ! $isCancelled) {
+            $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
+            $inactiveMedicine = $category === ShopifyOrderImportFailure::MEDICINE_INACTIVE;
+            $lineImportFailure = $category === ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE;
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
+                'mapping_status' => (string) ($mappingResult['mapping_status'] ?? ($inactiveMedicine ? 'inactive_medicine' : 'unmapped')),
+                'quarantine_reason' => $category,
+                'last_error' => (string) ($mappingResult['reason'] ?? $category),
+            ]);
+            $this->setImportState($importId, ($lineImportFailure || $inactiveMedicine) ? 'quarantined' : 'pending_mapping', $category, $eventId, 0, $clinicId ?? 0);
+            $events->markFailed($eventId, $category);
+            service('audit')->record(($lineImportFailure || $inactiveMedicine) ? 'shopify.order_quarantined' : 'shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
+
+            return ['status' => $lineImportFailure || $inactiveMedicine ? 'quarantined' : 'pending_mapping', 'import_id' => $importId];
+        }
+
+        if ($isCancelled) {
             $this->setImportState($importId, 'cancelled', ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED, $eventId);
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['quarantine_reason' => ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED, 'last_error' => 'Shopify order is cancelled or refunded.']);
             $events->markProcessed($eventId, ShopifyOrderImportFailure::ORDER_ALREADY_CANCELLED);
@@ -63,25 +125,33 @@ final class ShopifyOrderImportService
             return ['status' => 'cancelled', 'import_id' => $importId];
         }
         if ($financialStatus !== '' && ! in_array($financialStatus, ['paid', 'authorized', 'partially_paid'], true)) {
+            $this->stage($event, $orderId, 'payment_state_mapping', ShopifyOrderImportFailure::PAYMENT_STATE_INVALID);
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, $eventId);
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['quarantine_reason' => ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, 'last_error' => 'Shopify payment is not in an importable state.']);
-            $events->markProcessed($eventId, ShopifyOrderImportFailure::PAYMENT_STATE_INVALID);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::PAYMENT_STATE_INVALID);
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
 
         if (in_array((string) ($import['status'] ?? ''), ['imported', 'reconciled'], true) && (int) ($import['rootins_order_id'] ?? 0) > 0) {
             $this->applyExternalStatuses((int) $import['rootins_order_id'], $payload, $store, $eventId, (int) ($import['clinic_id'] ?? 0), (string) ($event['topic'] ?? ''));
-            $events->markProcessed($eventId, ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED);
+            $events->markProcessed($eventId);
 
             return ['status' => (string) $import['status'], 'import_id' => $importId];
         }
 
-        $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
+        try {
+            $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
+        } catch (\Throwable $exception) {
+            if (isset($db)) $db->transRollback();
+            $this->stage($event, $orderId, 'customer_patient_resolution', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'Shopify customer identity could not be resolved.');
+        }
+        $this->stage($event, $orderId, 'customer_patient_resolution', $identity === null ? ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE : null);
 
         if ($identity === null) {
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, 'last_attempted_at' => date('Y-m-d H:i:s')]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
-            $events->markProcessed($eventId, ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, $eventId);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'customer_not_linked']);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
@@ -91,9 +161,9 @@ final class ShopifyOrderImportService
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
         if ($patientId <= 0) {
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, 'last_attempted_at' => date('Y-m-d H:i:s')]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::CUSTOMER_NOT_LINKED, $eventId);
-            $events->markProcessed($eventId);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, $eventId);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
@@ -104,7 +174,7 @@ final class ShopifyOrderImportService
         // prescription and its patient identity must not depend on a clinic.
         if ($clinicId === null) {
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::BILLING_CLINIC_UNAVAILABLE, $eventId, $patientId);
-            $events->markProcessed($eventId, ShopifyOrderImportFailure::BILLING_CLINIC_UNAVAILABLE);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::BILLING_CLINIC_UNAVAILABLE);
             service('audit')->record('shopify.order_quarantined', [
                 'event_id' => $eventId,
                 'import_id' => $importId,
@@ -116,16 +186,19 @@ final class ShopifyOrderImportService
         }
 
         $prescriptionReference = trim((string) ($payload['prescription_reference'] ?? ''));
+        $this->stage($event, $orderId, 'prescription_reference_lookup');
         if ($prescriptionReference !== '') {
-            $document = db_connect()->table('patient_documents')
-                ->where('source_type', 'shopify')->where('external_upload_reference', $prescriptionReference)
-                ->where('shopify_store_domain', $store)->where('shopify_customer_id', (string) ($payload['customer_id'] ?? ''))
-                ->where('patient_id', $patientId)->get(1)->getRowArray();
+            try {
+                $document = $this->findPrescriptionDocument($prescriptionReference, $store, (string) ($payload['customer_id'] ?? ''), $patientId);
+            } catch (\Throwable $exception) {
+                $this->stage($event, $orderId, 'prescription_reference_lookup', ShopifyOrderImportFailure::SHOPIFY_PRESCRIPTION_LINK_FAILURE);
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_PRESCRIPTION_LINK_FAILURE, 'Shopify prescription reference could not be linked.');
+            }
             $expired = $document !== null && ! empty($document['retention_expires_at']) && (string) $document['retention_expires_at'] < date('Y-m-d H:i:s');
             if ($document === null || $expired) {
                 $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
                 ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'invalid']);
-                $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+                $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
                 service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'invalid_prescription_reference']);
                 return ['status' => 'quarantined', 'import_id' => $importId];
             }
@@ -133,23 +206,10 @@ final class ShopifyOrderImportService
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review']);
             if (($document['upload_status'] ?? '') !== 'accepted') {
                 $this->setImportState($importId, 'quarantined', 'awaiting_review', $eventId, $patientId, $clinicId);
-                $events->markProcessed($eventId, 'awaiting_review');
+                $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
                 service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'prescription_awaiting_review']);
                 return ['status' => 'quarantined', 'import_id' => $importId];
             }
-        }
-
-        $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload, $preserveLineCommercials);
-
-        if ($mappingResult['status'] !== 'ready') {
-            $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
-            $inactiveMedicine = $category === ShopifyOrderImportFailure::MEDICINE_INACTIVE;
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => (string) ($mappingResult['mapping_status'] ?? ($inactiveMedicine ? 'inactive_medicine' : 'unmapped')), 'quarantine_reason' => $category, 'last_error' => (string) ($mappingResult['reason'] ?? $category)]);
-            $this->setImportState($importId, $inactiveMedicine ? 'quarantined' : 'pending_mapping', $category, $eventId, $patientId, $clinicId);
-            $events->markProcessed($eventId, $category);
-            service('audit')->record($inactiveMedicine ? 'shopify.order_quarantined' : 'shopify.order_pending_mapping', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $mappingResult['reason']]);
-
-            return ['status' => $inactiveMedicine ? 'quarantined' : 'pending_mapping', 'import_id' => $importId];
         }
 
         // A successful reconciliation clears only stale mapping/quarantine
@@ -169,7 +229,7 @@ final class ShopifyOrderImportService
 
         if ($prescriptionRequired && ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
-            $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'missing_prescription']);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
@@ -190,11 +250,13 @@ final class ShopifyOrderImportService
         }
 
         $rootinsOrderId = (int) ($result['body']['data']['order_id'] ?? 0);
+        $this->stage($event, $orderId, 'order_status_update');
         $this->setImportState($importId, 'imported', null, $eventId, $patientId, $clinicId, $rootinsOrderId);
         $this->linkImportedLines($importId, $rootinsOrderId);
         $this->applyExternalStatuses($rootinsOrderId, $payload, $store, $eventId, $clinicId, (string) ($event['topic'] ?? ''));
         $events->markProcessed($eventId);
         service('audit')->record('shopify.order_imported', ['event_id' => $eventId, 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId, 'clinic_id' => $clinicId]);
+        $this->stage($event, $orderId, 'audit_history_write');
 
         return ['status' => 'imported', 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId];
     }
@@ -355,13 +417,13 @@ final class ShopifyOrderImportService
     }
 
     /** @return array{status: string, reason: string} */
-    private function storeLinesAndResolveMappings(int $importId, string $store, array $payload, bool $preserveLineCommercials = false): array
+    private function storeLinesAndResolveMappings(int $importId, string $store, array $payload, bool $preserveLineCommercials = false, ?array $event = null): array
     {
         $lineModel = $this->lines ?? new ShopifyOrderImportLineModel();
         $items = is_array($payload['line_items'] ?? null) ? $payload['line_items'] : [];
 
         if ($items === []) {
-            return ['status' => 'invalid', 'reason' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED, 'category' => ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED];
+            return ['status' => 'invalid', 'reason' => 'No Shopify line items were available.', 'category' => ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE];
         }
 
         $unresolved = null;
@@ -370,7 +432,20 @@ final class ShopifyOrderImportService
             $lineId = $this->shopifyId($item['id'] ?? null);
             $productId = $this->shopifyId($item['product_id'] ?? null);
             $variantId = $this->shopifyId($item['variant_id'] ?? null);
-            $resolution = $this->resolveMapping($store, $productId, $variantId);
+            try {
+                $resolution = $this->resolveMapping($store, $productId, $variantId);
+            } catch (\Throwable $exception) {
+                // Mapping is intentionally non-blocking. The order and line
+                // remain visible to Pharmacy for reconciliation.
+                $resolution = [
+                    'result' => 'unmapped',
+                    'reason' => 'Mapping lookup unavailable',
+                    'mapping' => null,
+                    'lookup_key' => $store . '|variant:' . $variantId . '|product:' . $productId,
+                ];
+            }
+            if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'shopify_product_variant_extraction');
+            if ($event !== null && $resolution['result'] !== 'mapped') $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'medicine_mapping_lookup', ShopifyOrderImportFailure::SHOPIFY_PRODUCT_MAPPING_FAILURE);
             $mapping = $resolution['mapping'];
             $medicineId = $mapping['medicine_id'] ?? null;
             $status = 'pending_mapping';
@@ -399,7 +474,12 @@ final class ShopifyOrderImportService
                 'mapping_reason' => $resolution['reason'],
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
-            $this->upsertImportLine($lineModel, $existing, $lineData);
+            try {
+                $this->upsertImportLine($lineModel, $existing, $lineData);
+            } catch (\Throwable $exception) {
+                if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, 'Shopify order line write failed.');
+            }
 
             if ($resolution['result'] !== 'mapped' && $unresolved === null) {
                 $unresolved = $resolution;
@@ -429,19 +509,24 @@ final class ShopifyOrderImportService
     private function prescriptionRequiredForOrder(string $store, array $payload): bool
     {
         $db = db_connect();
-        foreach ((array) ($payload['line_items'] ?? []) as $item) {
-            $variantId = $this->shopifyId($item['variant_id'] ?? null);
-            $productId = $this->shopifyId($item['product_id'] ?? null);
-            $required = null;
-            if ($variantId !== '' && $db->tableExists('shopify_variant_catalogue')) {
-                $variant = $db->table('shopify_variant_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_variant_id', $this->shopifyIdAliases($variantId, 'ProductVariant'))->get(1)->getRowArray();
-                $required = $variant['prescription_required'] ?? null;
+        try {
+            foreach ((array) ($payload['line_items'] ?? []) as $item) {
+                $variantId = $this->shopifyId($item['variant_id'] ?? null);
+                $productId = $this->shopifyId($item['product_id'] ?? null);
+                $required = null;
+                if ($variantId !== '' && $db->tableExists('shopify_variant_catalogue')) {
+                    $variant = $db->table('shopify_variant_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_variant_id', $this->shopifyIdAliases($variantId, 'ProductVariant'))->get(1)->getRowArray();
+                    $required = $variant['prescription_required'] ?? null;
+                }
+                if ($required === null && $productId !== '' && $db->tableExists('shopify_product_catalogue')) {
+                    $product = $db->table('shopify_product_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))->get(1)->getRowArray();
+                    $required = $product['prescription_required'] ?? null;
+                }
+                if ((int) $required === 1) return true;
             }
-            if ($required === null && $productId !== '' && $db->tableExists('shopify_product_catalogue')) {
-                $product = $db->table('shopify_product_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))->get(1)->getRowArray();
-                $required = $product['prescription_required'] ?? null;
-            }
-            if ((int) $required === 1) return true;
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Shopify prescription-required metadata lookup failed safely.');
+            return true;
         }
 
         return false;
@@ -559,8 +644,11 @@ GRAPHQL, ['id' => $orderGid]);
             if ($items !== []) {
                 $payload['line_items'] = $items;
                 log_message('info', 'Shopify order line repair completed order=' . $this->shopifyId($payload['id'] ?? '') . ' line_count=' . count($items));
+            } else {
+                $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
             }
         } catch (\Throwable $exception) {
+            $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_import', ShopifyOrderImportFailure::SHOPIFY_ORDER_LINE_IMPORT_FAILURE);
             log_message('warning', 'Shopify order line repair unavailable topic=' . (string) ($event['topic'] ?? '') . ' error=' . get_class($exception));
         }
         return $payload;
@@ -611,6 +699,14 @@ GRAPHQL, ['id' => $orderGid]);
         $value = (int) ($payload['rootins_prescription_id'] ?? 0);
 
         return $value > 0 ? $value : null;
+    }
+
+    private function findPrescriptionDocument(string $reference, string $store, string $customerId, int $patientId): ?array
+    {
+        return db_connect()->table('patient_documents')
+            ->where('source_type', 'shopify')->where('external_upload_reference', $reference)
+            ->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)
+            ->where('patient_id', $patientId)->get(1)->getRowArray();
     }
 
     private function approvedPrescriptionMatches(int $prescriptionId, int $patientId, int $clinicId): bool
@@ -763,7 +859,7 @@ GRAPHQL, ['id' => $orderGid]);
         if (!$db->transStatus()) {
             $db->transRollback();
 
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::UNKNOWN_IMPORT_FAILURE, 'Shopify order status update failed.');
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
         service('audit')->record('shopify.order_status_synchronized', [
@@ -804,5 +900,18 @@ GRAPHQL, ['id' => $orderGid]);
             'failed' => 'failed',
             default => null,
         };
+    }
+
+    private function stage(array $event, string $orderId, string $stage, ?string $category = null): void
+    {
+        log_message('info', 'Shopify medicine-order import stage ' . json_encode([
+            'correlation_id' => $this->diagnosticCorrelationId,
+            'topic' => $this->diagnosticTopic !== '' ? $this->diagnosticTopic : (string) ($event['topic'] ?? ''),
+            'shopify_order_id' => $orderId,
+            'webhook_id_hash' => hash('sha256', (string) ($event['external_event_id'] ?? $event['id'] ?? '')),
+            'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+            'processing_stage' => $stage,
+            'failure_category' => $category ?? 'none',
+        ], JSON_UNESCAPED_SLASHES));
     }
 }

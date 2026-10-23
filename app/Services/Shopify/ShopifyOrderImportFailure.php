@@ -20,6 +20,14 @@ final class ShopifyOrderImportFailure extends RuntimeException
     public const PAYMENT_STATE_INVALID = 'PAYMENT_STATE_INVALID';
     public const DELIVERY_STATE_INVALID = 'DELIVERY_STATE_INVALID';
     public const BILLING_CLINIC_UNAVAILABLE = 'BILLING_CLINIC_UNAVAILABLE';
+    public const SHOPIFY_ORDER_PAYLOAD_INVALID = 'SHOPIFY_ORDER_PAYLOAD_INVALID';
+    public const SHOPIFY_ORDER_IDENTITY_FAILURE = 'SHOPIFY_ORDER_IDENTITY_FAILURE';
+    public const SHOPIFY_ORDER_LINE_IMPORT_FAILURE = 'SHOPIFY_ORDER_LINE_IMPORT_FAILURE';
+    public const SHOPIFY_PRODUCT_MAPPING_FAILURE = 'SHOPIFY_PRODUCT_MAPPING_FAILURE';
+    public const SHOPIFY_PATIENT_LINK_FAILURE = 'SHOPIFY_PATIENT_LINK_FAILURE';
+    public const SHOPIFY_PAYMENT_STATE_INVALID = 'SHOPIFY_PAYMENT_STATE_INVALID';
+    public const SHOPIFY_ORDER_DATABASE_FAILURE = 'SHOPIFY_ORDER_DATABASE_FAILURE';
+    public const SHOPIFY_PRESCRIPTION_LINK_FAILURE = 'SHOPIFY_PRESCRIPTION_LINK_FAILURE';
     public const UNKNOWN_IMPORT_FAILURE = 'UNKNOWN_IMPORT_FAILURE';
 
     /** @var list<string> */
@@ -28,6 +36,10 @@ final class ShopifyOrderImportFailure extends RuntimeException
         self::ORDER_NOT_FOUND, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
         self::INVALID_FULFILLMENT_STATE, self::REFUND_ORDER_NOT_FOUND, self::STOCK_UNAVAILABLE,
         self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::BILLING_CLINIC_UNAVAILABLE,
+        self::SHOPIFY_ORDER_PAYLOAD_INVALID, self::SHOPIFY_ORDER_IDENTITY_FAILURE,
+        self::SHOPIFY_ORDER_LINE_IMPORT_FAILURE, self::SHOPIFY_PRODUCT_MAPPING_FAILURE,
+        self::SHOPIFY_PATIENT_LINK_FAILURE, self::SHOPIFY_PAYMENT_STATE_INVALID,
+        self::SHOPIFY_ORDER_DATABASE_FAILURE, self::SHOPIFY_PRESCRIPTION_LINK_FAILURE,
         self::UNKNOWN_IMPORT_FAILURE,
     ];
 
@@ -52,6 +64,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
         if (str_contains($message, 'payment')) return self::PAYMENT_STATE_INVALID;
         if (str_contains($message, 'delivery')) return self::DELIVERY_STATE_INVALID;
 
+        if (str_contains($message, 'database') || str_contains($message, 'sqlstate') || str_contains($message, 'query')) return self::SHOPIFY_ORDER_DATABASE_FAILURE;
         return self::UNKNOWN_IMPORT_FAILURE;
     }
 
@@ -61,6 +74,11 @@ final class ShopifyOrderImportFailure extends RuntimeException
 
         $message = strtolower($exception->getMessage());
         $category = self::UNKNOWN_IMPORT_FAILURE;
+        if (str_contains($message, 'payload') || str_contains($message, 'json')) $category = self::SHOPIFY_ORDER_PAYLOAD_INVALID;
+        elseif (str_contains($message, 'identity') || str_contains($message, 'customer')) $category = self::SHOPIFY_PATIENT_LINK_FAILURE;
+        elseif (str_contains($message, 'line')) $category = self::SHOPIFY_ORDER_LINE_IMPORT_FAILURE;
+        elseif (str_contains($message, 'mapping') || str_contains($message, 'product') || str_contains($message, 'variant')) $category = self::SHOPIFY_PRODUCT_MAPPING_FAILURE;
+        elseif (str_contains($message, 'database') || str_contains($message, 'sqlstate') || str_contains($message, 'query')) $category = self::SHOPIFY_ORDER_DATABASE_FAILURE;
         if (str_contains($message, 'prescription')) $category = self::PRESCRIPTION_MISSING;
         elseif (str_contains($message, 'payment')) $category = self::PAYMENT_STATE_INVALID;
         elseif (str_contains($message, 'delivery')) $category = self::DELIVERY_STATE_INVALID;

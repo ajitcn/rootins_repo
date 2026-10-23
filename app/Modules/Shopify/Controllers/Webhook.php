@@ -169,7 +169,7 @@ final class Webhook extends BaseController
 
         if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
             try {
-                (new ShopifyOrderImportService())->processEvent((int) $result['id']);
+                (new ShopifyOrderImportService())->processEvent((int) $result['id'], false, $this->requestCorrelationId);
                 $payloadForDiagnostic = json_decode($rawBody, true);
                 $orderIdForDiagnostic = is_array($payloadForDiagnostic)
                     ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
@@ -185,7 +185,7 @@ final class Webhook extends BaseController
                     ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
                     : '';
                 $this->medicineOrderDiagnostic($topic, $orderIdForDiagnostic, $eventId, $shopDomain, 'order_import_failed', $failure->category);
-                log_message('error', 'Shopify order import failed category=' . $failure->category . ' topic=' . $topic . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
+                log_message('error', 'Shopify order import failed category=' . $failure->category . ' topic=' . $topic . ' exception=' . get_class($exception) . ' correlation_id=' . $this->requestCorrelationId);
 
                 return $this->error(500, 'SHOPIFY_ORDER_IMPORT_FAILED', 'Shopify order could not be imported safely.');
             }
