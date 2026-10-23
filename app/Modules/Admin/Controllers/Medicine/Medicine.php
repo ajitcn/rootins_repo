@@ -89,8 +89,8 @@ class Medicine extends BaseAdminController
         $errors = array_merge($errors, $prescriptionResult['errors']);
         $medicineData = $this->medicineData($lookupResult['records'], $prescriptionResult['records'], true);
 
-        if ($errors === [] && $this->medicineNameExists((string) ($medicineData['medicine_name'] ?? ''))) {
-            $errors['medicine_name'] = 'A medicine with this name already exists.';
+        if ($errors === [] && $this->medicine->findExactDuplicate($medicineData) !== null) {
+            $errors['medicine_name'] = 'An exact medicine combination with this name, form, strength, unit, and manufacturer already exists.';
         }
 
         if ($errors !== []) {
@@ -151,8 +151,8 @@ class Medicine extends BaseAdminController
         }
         $medicineData = $this->medicineData($lookupResult['records'], $prescriptionResult['records']);
 
-        if ($this->medicineNameExists((string) ($medicineData['medicine_name'] ?? ''), $id)) {
-            return $this->validationFailure(['medicine_name' => 'A medicine with this name already exists.']);
+        if ($this->medicine->findExactDuplicate($medicineData, $id) !== null) {
+            return $this->validationFailure(['medicine_name' => 'An exact medicine combination with this name, form, strength, unit, and manufacturer already exists.']);
         }
 
         try {
@@ -322,28 +322,6 @@ class Medicine extends BaseAdminController
             'dose' => $this->prescriptionOptions->activeOptions(PrescriptionOptionModel::TYPES['dose'], $this->currentClinic()),
             'intake' => $this->prescriptionOptions->activeOptions(PrescriptionOptionModel::TYPES['intake'], $this->currentClinic()),
         ];
-    }
-
-    private function medicineNameExists(string $name, ?int $excludeId = null): bool
-    {
-        $name = trim($name);
-
-        if ($name === '') {
-            return false;
-        }
-        $db = db_connect();
-        $normalizedName = mb_strtolower($name, 'UTF-8');
-        $query = $db->table('medicines')->where(
-            'LOWER(TRIM(medicine_name)) = ' . $db->escape($normalizedName),
-            null,
-            false,
-        );
-
-        if ($excludeId !== null) {
-            $query->where('id !=', $excludeId);
-        }
-
-        return $query->countAllResults() > 0;
     }
 
     private function isAjaxMethod(string $method): bool

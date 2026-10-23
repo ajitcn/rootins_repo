@@ -2112,6 +2112,61 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription table.prescri
 #medicineLookupEditModal.ri-scroll-modal .modal-content { position: relative; display: flex; flex-direction: column; width: 100%; pointer-events: auto; background: #fff; border: 1px solid rgba(0,0,0,.2); border-radius: .3rem; outline: 0; }
 .medicine-lookup-backdrop { position: fixed; inset: 0; z-index: 1040; background: #000; opacity: .5; }
 body.modal-open { overflow: hidden; }
+
+#medicineEditModal {
+    z-index: 1050 !important;
+}
+
+#medicineEditModal .modal-dialog {
+    width: min(960px, calc(100% - 2rem));
+    max-width: 960px;
+    max-height: calc(100vh - 2rem);
+    margin: 1rem auto;
+    transform: none !important;
+}
+
+#medicineEditModal .modal-content {
+    display: flex;
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    flex-direction: column;
+}
+
+#medicineEditModal form {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+#medicineEditModal .modal-header,
+#medicineEditModal .modal-footer {
+    flex: 0 0 auto;
+    background: #fff;
+}
+
+#medicineEditModal .modal-body {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#medicineEditModal .bootstrap-select .dropdown-menu,
+#medicineEditModal .bs-container .dropdown-menu {
+    z-index: 1100 !important;
+}
+
+@media (max-width: 575.98px) {
+    #medicineEditModal .modal-dialog {
+        width: calc(100% - 1rem);
+        max-width: none;
+        margin: .5rem auto;
+    }
+
+    #medicineEditModal .modal-content {
+        max-height: calc(100vh - 1rem);
+    }
+}
 @media (max-width: 575.98px) {
     #medicineLookupEditModal.ri-scroll-modal .modal-dialog { width: calc(100% - 1rem); max-width: none; margin: .5rem auto; }
 }
