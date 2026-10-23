@@ -11,6 +11,11 @@ $routes->group('pharmacy', ['namespace' => 'Pharmacy\Controllers', 'filter' => '
     $routes->post('inventory/create', 'Inventory::create', ['filter' => 'permission:pharmacy.inventory.batch.create']);
     $routes->get('orders', 'Orders::index', ['filter' => 'permission:pharmacy.order.view']);
     $routes->get('orders/detail/(:num)', 'Orders::detail/$1', ['filter' => 'permission:pharmacy.order.view']);
+    $routes->get('shopify-orders', 'ShopifyOrders::index', ['filter' => 'permission:pharmacy.shopify_orders.view']);
+    $routes->get('shopify-orders/(:num)', 'ShopifyOrders::detail/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
+    $routes->get('shopify-orders/(:num)/prescription', 'ShopifyOrders::viewPrescription/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
+    $routes->post('shopify-orders/action/(:num)', 'ShopifyOrders::action/$1', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
+    $routes->post('shopify-orders/prescriptions/review', 'ShopifyOrders::reviewPrescription', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->get('orders/labels/(:num)', 'Orders::labels/$1', ['filter' => 'permission:pharmacy.order.label.view']);
     $routes->get('audit', 'Audit::index', ['filter' => 'permission:pharmacy.audit.view']);
     $routes->get('billing', 'Billing::index', ['filter' => 'permission:pharmacy.billing.view']);

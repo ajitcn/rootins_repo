@@ -11,7 +11,7 @@ use App\Modules\Shopify\Models\ShopifyOrderImportModel;
 use App\Modules\Shopify\Models\ShopifyPatientIdentityLinkModel;
 use InvalidArgumentException;
 
-/** Admin-only operations surface for Shopify order reconciliation. */
+/** Shared Shopify order reconciliation workflow for Admin and Pharmacy surfaces. */
 final class ShopifyOrderOperationsService
 {
     public function __construct(
@@ -523,32 +523,33 @@ GRAPHQL;
         return $rows;
     }
 
-    public function queue(array $filters = []): array
+    public function queue(array $filters = [], ?int $clinicId = null): array
     {
         $query = db_connect()->table('shopify_order_imports i')
             ->select('i.*, p.registration_number, p.first_name, p.last_name, p.status AS rootins_patient_status, l.link_status')
             ->join('patients p', 'p.id = i.patient_id', 'left')
             ->join('shopify_patient_identity_links l', 'l.shopify_store_domain = i.store_domain AND l.shopify_customer_id = i.shopify_customer_id', 'left')
             ->orderBy('i.updated_at', 'DESC');
+        if ($clinicId !== null) $query->where('i.clinic_id', $clinicId);
         foreach (['store_domain' => 'i.store_domain', 'status' => 'i.status', 'prescription_status' => 'i.prescription_status', 'mapping_status' => 'i.mapping_status', 'financial_status' => 'i.financial_status', 'fulfillment_status' => 'i.fulfillment_status', 'patient_status' => 'i.patient_status'] as $key => $column) if (($filters[$key] ?? '') !== '') $query->where($column, trim((string) $filters[$key]));
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') $query->groupStart()->like('i.shopify_order_number', $search)->orLike('i.shopify_order_id', $search)->orLike('i.customer_name_snapshot', $search)->orLike('i.customer_email_snapshot', $search)->orLike('p.registration_number', $search)->orLike('i.shopify_customer_id', $search)->groupEnd();
         return $query->get(500)->getResultArray();
     }
 
-    public function counters(): array
+    public function counters(?int $clinicId = null): array
     {
         $db = db_connect();
         $today = date('Y-m-d');
         $result = [];
-        foreach (['orders_received_today' => ['created_at >=' => $today], 'orders_awaiting_patient' => ['patient_status' => 'missing'], 'orders_awaiting_prescription_review' => ['prescription_status' => 'awaiting_review'], 'orders_with_unmapped_medicines' => ['mapping_status' => 'unmapped'], 'orders_ready_to_import' => ['status' => 'ready_to_import'], 'failed_imports' => ['status' => 'failed'], 'quarantined_orders' => ['status' => 'quarantined'], 'successfully_imported' => ['status' => 'imported'], 'cancelled_refunded_orders' => ['status' => 'cancelled']] as $name => $conditions) { $q = $db->table('shopify_order_imports'); foreach ($conditions as $field => $value) $q->where($field, $value); $result[$name] = $q->countAllResults(); }
+        foreach (['orders_received_today' => ['created_at >=' => $today], 'orders_awaiting_patient' => ['patient_status' => 'missing'], 'orders_awaiting_prescription_review' => ['prescription_status' => 'awaiting_review'], 'orders_with_unmapped_medicines' => ['mapping_status' => 'unmapped'], 'orders_ready_to_import' => ['status' => 'ready_to_import'], 'failed_imports' => ['status' => 'failed'], 'quarantined_orders' => ['status' => 'quarantined'], 'successfully_imported' => ['status' => 'imported'], 'cancelled_refunded_orders' => ['status' => 'cancelled']] as $name => $conditions) { $q = $db->table('shopify_order_imports'); if ($clinicId !== null) $q->where('clinic_id', $clinicId); foreach ($conditions as $field => $value) $q->where($field, $value); $result[$name] = $q->countAllResults(); }
         return $result;
     }
 
-    public function detail(int $id): ?array
+    public function detail(int $id, ?int $clinicId = null): ?array
     {
         $import = db_connect()->table('shopify_order_imports i')->select('i.*, p.registration_number, p.first_name, p.last_name, p.email, p.mobile_number, p.status AS rootins_patient_status, l.link_status')->join('patients p', 'p.id = i.patient_id', 'left')->join('shopify_patient_identity_links l', 'l.shopify_store_domain = i.store_domain AND l.shopify_customer_id = i.shopify_customer_id', 'left')->where('i.id', $id)->get(1)->getRowArray();
-        if ($import === null) return null;
+        if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) return null;
         $lines = db_connect()->table('shopify_order_import_lines l')->select('l.*, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->where('l.import_id', $id)->orderBy('l.id', 'ASC')->get()->getResultArray();
         $history = db_connect()->table('shopify_order_import_history')->where('import_id', $id)->orderBy('created_at', 'DESC')->get()->getResultArray();
         $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
@@ -560,10 +561,10 @@ GRAPHQL;
         return $import;
     }
 
-    public function action(int $id, string $action, array $input = [], int $actor = 0): array
+    public function action(int $id, string $action, array $input = [], int $actor = 0, ?int $clinicId = null): array
     {
         $import = (new ShopifyOrderImportModel())->find($id);
-        if ($import === null) throw new InvalidArgumentException('Shopify order was not found.');
+        if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) throw new InvalidArgumentException('Shopify order was not found.');
         $old = (string) ($import['status'] ?? '');
         $model = new ShopifyOrderImportModel();
         if ($action === 'reprocess_paid_appointment') {

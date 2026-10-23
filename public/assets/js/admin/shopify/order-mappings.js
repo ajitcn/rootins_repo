@@ -159,6 +159,42 @@
         box.classList.remove('d-none');
     }
 
+    function destroyMedicineSelector(modal) {
+        var select = modal && modal.querySelector('#mappingMedicineSelect');
+        if (!select || !window.jQuery || !window.jQuery.fn) return;
+        var $ = window.jQuery;
+        var $select = $(select);
+        try {
+            if (typeof $.fn.selectpicker === 'function' && ($select.hasClass('selectpicker') || $select.data('selectpicker') || $select.parent('.bootstrap-select').length)) {
+                $select.selectpicker('destroy');
+            } else if (typeof $.fn.btSelect === 'function' && select.getAttribute('data-btselect-initialized') === 'true') {
+                $select.btSelect('destroy');
+            }
+        } catch (error) {
+            console.warn('Could not destroy the ROOTINS medicine selector cleanly.', error);
+        }
+        select.removeAttribute('data-btselect-initialized');
+    }
+
+    function repositionMedicineSelector(modal) {
+        var select = modal && modal.querySelector('#mappingMedicineSelect');
+        if (!select || !window.jQuery || !window.jQuery.fn) return;
+        var $ = window.jQuery;
+        var picker = $(select).data('selectpicker');
+        if (picker && typeof picker.setPosition === 'function') picker.setPosition();
+    }
+
+    function bindMedicineSelectorPositioning(modal) {
+        if (!modal || modal.getAttribute('data-medicine-position-bound') === 'true') return;
+        var modalBody = modal.querySelector('.modal-body');
+        var reposition = function () { repositionMedicineSelector(modal); };
+        modal.setAttribute('data-medicine-position-bound', 'true');
+        modal._rootinsMedicineReposition = reposition;
+        if (modalBody) modalBody.addEventListener('scroll', reposition, { passive: true });
+        modal.addEventListener('scroll', reposition, { passive: true });
+        window.addEventListener('resize', reposition);
+    }
+
     function initializeMedicineSelector(modal, medicines) {
         var form = modal && modal.querySelector('#shopify-mapping-form');
         var select = modal && modal.querySelector('#mappingMedicineSelect');
@@ -167,15 +203,7 @@
         var selectedValue = select && select.value ? select.value : (form.getAttribute('data-selected-medicine-id') || '');
         if (!Array.isArray(medicines)) medicines = [];
         medicines = medicines.filter(function (medicine) { return String(medicine.status || 'active').toLowerCase() === 'active'; });
-        if (window.jQuery && window.jQuery.fn) {
-            var $ = window.jQuery;
-            if (typeof $.fn.btSelect === 'function' && select.getAttribute('data-btselect-initialized') === 'true') {
-                $('#mappingMedicineSelect').btSelect('destroy');
-            } else if (typeof $.fn.selectpicker === 'function' && select.parentElement.classList.contains('bootstrap-select')) {
-                $('#mappingMedicineSelect').selectpicker('destroy');
-            }
-            select.removeAttribute('data-btselect-initialized');
-        }
+        destroyMedicineSelector(modal);
         select.innerHTML = '<option value="">Select ROOTINS medicine</option>';
         medicines.forEach(function (medicine) {
             var option = document.createElement('option');
@@ -194,25 +222,30 @@
         }
         if (selectedValue && select.querySelector('option[value="' + CSS.escape(String(selectedValue)) + '"]')) select.value = String(selectedValue);
 
-        if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.btSelect === 'function') {
+        if (!modal.classList.contains('show')) return select;
+
+        if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function') {
             var $ = window.jQuery;
-            $('#mappingMedicineSelect').btSelect({
+            $('#mappingMedicineSelect').selectpicker({
                 liveSearch: true,
                 liveSearchPlaceholder: 'Search medicine...',
                 dropupAuto: false,
-                container: '#shopifyMappingModal'
-            });
-            select.setAttribute('data-btselect-initialized', 'true');
-        } else if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function') {
-            window.jQuery('#mappingMedicineSelect').selectpicker({
-                liveSearch: true,
-                liveSearchPlaceholder: 'Search medicine...',
-                dropupAuto: false,
-                container: '#shopifyMappingModal',
+                container: 'body',
                 width: '100%'
             });
+        } else if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.btSelect === 'function') {
+            window.jQuery('#mappingMedicineSelect').btSelect({
+                liveSearch: true,
+                liveSearchPlaceholder: 'Search medicine...',
+                dropupAuto: false,
+                container: 'body',
+                width: '100%'
+            });
+            select.setAttribute('data-btselect-initialized', 'true');
         }
 
+        bindMedicineSelectorPositioning(modal);
+        window.requestAnimationFrame(function () { repositionMedicineSelector(modal); });
         if (selectedValue && select.value === String(selectedValue)) setMedicineValue(form, selectedValue);
         return select;
     }
@@ -375,7 +408,6 @@
                 current.innerHTML = fresh.innerHTML;
                 if (token) document.querySelectorAll('input[type="hidden"][name="' + token.name + '"]').forEach(function (input) { input.value = token.value; });
                 wireModalTargets(current);
-                initializeMedicineSelector(document.getElementById('shopifyMappingModal'));
                 bindSubmitHandler(document.getElementById('mapping-bulk-form'));
                 applyCanonicalTab();
                 toast(message || 'Shopify mapping updated.');
@@ -495,6 +527,7 @@
         };
         var onHide = function () { modal.setAttribute('aria-hidden', 'true'); modal.removeAttribute('aria-modal'); };
         var onHidden = function () {
+            if (modal.id === 'shopifyMappingModal') destroyMedicineSelector(modal);
             var box = modal.querySelector('[data-mapping-errors]');
             if (box) { box.textContent = ''; box.classList.add('d-none'); }
             modal.querySelectorAll('[aria-invalid="true"]').forEach(function (field) { field.removeAttribute('aria-invalid'); });

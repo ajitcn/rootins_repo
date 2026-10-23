@@ -41,8 +41,12 @@ if ($activeMappingStatus === 'needs') {
 <meta name="csrf-token-name" content="<?= esc(csrf_token(), 'attr') ?>">
 <meta name="csrf-token-hash" content="<?= esc(csrf_hash(), 'attr') ?>">
 <style>
-    #shopifyMappingModal, #shopifyIgnoreModal, #shopifyMappingDetailsModal, #shopifySyncDetailsModal { display: none !important; position: fixed; z-index: 1070 !important; }
-    #shopifyMappingModal.show, #shopifyIgnoreModal.show, #shopifyMappingDetailsModal.show, #shopifySyncDetailsModal.show { display: block !important; }
+    .modal-backdrop { z-index: 1040 !important; }
+    .modal { z-index: 1050 !important; }
+    .bootstrap-select .dropdown-menu { z-index: 1100 !important; }
+    #shopifyMappingModal, #shopifyIgnoreModal, #shopifyMappingDetailsModal, #shopifySyncDetailsModal { display: none !important; position: fixed; z-index: 1050 !important; }
+    #shopifyMappingModal.show { display: flex !important; }
+    #shopifyIgnoreModal.show, #shopifyMappingDetailsModal.show, #shopifySyncDetailsModal.show { display: block !important; }
     body > .modal-backdrop { z-index: 1040 !important; }
 </style>
 <main class="container-fluid py-4 shopify-mapping-page<?= ! $hasCompletedSync ? ' mapping-no-sync' : '' ?>" id="shopify-order-mappings"
@@ -97,7 +101,7 @@ if ($activeMappingStatus === 'needs') {
     </tbody></table></div></div>
 </main>
 <div class="modal fade mapping-modal" id="shopifyMappingModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document"><div class="modal-content"><form id="shopify-mapping-form" data-url="<?= base_url('admin/integrations/shopify/order-mappings/save') ?>">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document"><div class="modal-content"><form id="shopify-mapping-form" data-url="<?= base_url('admin/integrations/shopify/order-mappings/save') ?>">
         <?= csrf_field() ?><input type="hidden" name="store_domain" value="<?= esc($store) ?>"><input type="hidden" name="id"><input type="hidden" name="shopify_product_id"><input type="hidden" name="shopify_variant_id"><input type="hidden" name="shopify_product_title"><input type="hidden" name="shopify_variant_title"><input type="hidden" name="shopify_sku"><input type="hidden" name="status" value="active">
         <div class="modal-header"><h2 class="modal-title h5">Map Shopify variant</h2><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
         <div class="modal-body"><div class="alert alert-danger d-none" data-mapping-errors role="alert"></div><div class="row"><div class="col-md-5 mapping-preview-panel"><p class="text-uppercase text-muted small mb-2">Shopify product</p><div class="mapping-preview-image"><i class="bi bi-image"></i></div><h3 class="h5" data-preview="title">Select a product</h3><p class="mb-1" data-preview="variant"></p><p class="small text-muted mb-1" data-preview="ids"></p><p class="small text-muted" data-preview="sku"></p><div class="alert alert-light small mb-0">Product price is not used for ROOTINS medicine pricing.</div></div><div class="col-md-7"><label for="mappingMedicineSelect">ROOTINS medicine</label><select id="mappingMedicineSelect" name="medicine_id" class="form-control btSelect" data-live-search="true" data-live-search-placeholder="Search medicine..." required><option value="">Select ROOTINS medicine</option><?php foreach ($medicines as $medicine): ?><option value="<?= (int) $medicine['id'] ?>"><?= esc(trim(($medicine['medicine_name'] ?? '') . ' ' . ($medicine['strength'] ?? '') . ' ' . ($medicine['unit'] ?? ''))) ?></option><?php endforeach; ?></select><div class="small text-muted py-3<?= $medicines === [] ? '' : ' d-none' ?>" data-medicine-empty>No active ROOTINS medicines are available.</div><div class="alert alert-warning d-none mt-3" data-conflict-warning></div></div></div></div>
@@ -121,5 +125,5 @@ if ($activeMappingStatus === 'needs') {
 <div class="modal fade" id="shopifySyncDetailsModal" tabindex="-1" role="dialog" aria-hidden="true"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5">Shopify product sync details</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button></div><div class="modal-body"><dl class="row mb-0"><dt class="col-7">Status</dt><dd class="col-5"><?= esc(ucfirst((string) ($lastSync['status'] ?? 'Unknown'))) ?></dd><dt class="col-7">Products fetched</dt><dd class="col-5"><?= (int) ($lastSync['products_fetched'] ?? 0) ?></dd><dt class="col-7">Variants fetched</dt><dd class="col-5"><?= (int) ($lastSync['variants_fetched'] ?? 0) ?></dd><dt class="col-7">Created</dt><dd class="col-5"><?= (int) ($lastSync['created_count'] ?? 0) ?></dd><dt class="col-7">Updated</dt><dd class="col-5"><?= (int) ($lastSync['updated_count'] ?? 0) ?></dd><dt class="col-7">Unchanged</dt><dd class="col-5"><?= (int) ($lastSync['unchanged_count'] ?? 0) ?></dd><dt class="col-7">Deactivated</dt><dd class="col-5"><?= (int) ($lastSync['deactivated_count'] ?? 0) ?></dd><dt class="col-7">Failed</dt><dd class="col-5"><?= (int) ($lastSync['failed_count'] ?? 0) ?></dd><?php if (! empty($lastSync['error_category'])): ?><dt class="col-7">Error category</dt><dd class="col-5"><code><?= esc($lastSync['error_category']) ?></code></dd><?php endif; ?></dl></div></div></div></div>
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/admin/shopify/order-mappings.js?v=20261022-ui19') ?>"></script>
+<script src="<?= base_url('assets/js/admin/shopify/order-mappings.js?v=20261023-ui20') ?>"></script>
 <?= $this->endSection() ?>

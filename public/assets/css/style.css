@@ -535,31 +535,31 @@
 }
 /* Mapping modals are body-level layers: page content < dropdowns < backdrop < modal. */
 body > .modal-backdrop,
-.modal-backdrop { z-index: 1060 !important; }
+.modal-backdrop { z-index: 1040 !important; }
 body > .modal,
-.modal { z-index: 1070 !important; }
+.modal { z-index: 1050 !important; }
 body > .modal.show,
-.modal.show { z-index: 1070 !important; }
+.modal.show { z-index: 1050 !important; }
 body > .modal .modal-dialog,
-.modal .modal-dialog { position: relative; z-index: 1071 !important; }
+.modal .modal-dialog { position: relative; z-index: 1051 !important; }
 #shopifyMappingModal,
 #shopifyMappingDetailsModal,
 #shopifyIgnoreModal,
 #shopifySyncDetailsModal {
-    z-index: 1070 !important;
+    z-index: 1050 !important;
 }
 #shopifyMappingModal.show,
 #shopifyMappingDetailsModal.show,
 #shopifyIgnoreModal.show,
 #shopifySyncDetailsModal.show {
-    z-index: 1070 !important;
+    z-index: 1050 !important;
 }
 #shopifyMappingModal .modal-dialog,
 #shopifyMappingDetailsModal .modal-dialog,
 #shopifyIgnoreModal .modal-dialog,
 #shopifySyncDetailsModal .modal-dialog {
     position: relative;
-    z-index: 1071 !important;
+    z-index: 1051 !important;
 }
 #mappingResults .dropdown-menu,
 #mappingResults .more-actions-menu {
@@ -1765,11 +1765,11 @@ body > .modal .modal-dialog,
 .mapping-workspace-table .dropdown-menu, .mapping-product-card .dropdown-menu { z-index: 1060; }
 .mapping-workspace-table .dropdown-item { font-size: 12px; padding: .55rem .8rem; }
 .mapping-tabs .nav-link:focus, .mapping-workspace-table button:focus, .mapping-filter-card input:focus, .mapping-filter-card select:focus { box-shadow: 0 0 0 3px rgba(32, 37, 43, .18); outline: 0; }
-.mapping-modal, #shopifyMappingModal, #shopifyIgnoreModal { position: fixed; z-index: 1060 !important; }
+.mapping-modal, #shopifyMappingModal, #shopifyIgnoreModal { position: fixed; z-index: 1050 !important; }
 .mapping-modal + .modal-backdrop, body > .modal-backdrop { z-index: 1040 !important; }
-.mapping-modal .modal-dialog, .mapping-modal .modal-content, .mapping-modal .modal-body { overflow: visible !important; }
-.mapping-modal .modal-dialog, .mapping-modal .modal-content, .mapping-modal .modal-body { transform: none !important; }
-.mapping-modal .bootstrap-select .dropdown-menu, #shopifyMappingModal .dropdown-menu { z-index: 1065 !important; }
+.mapping-modal .modal-dialog, .mapping-modal .modal-content, .mapping-modal form { overflow: visible !important; transform: none !important; filter: none !important; }
+.mapping-modal .modal-body { overflow-x: visible !important; overflow-y: auto !important; transform: none !important; filter: none !important; }
+.mapping-modal .bootstrap-select .dropdown-menu, .bootstrap-select .dropdown-menu, .bs-container .dropdown-menu, #shopifyMappingModal .dropdown-menu { z-index: 1100 !important; }
 .mapping-modal .bs-container .dropdown-menu { min-height: 0 !important; max-height: 50vh; overflow-y: auto !important; }
 #shopifyMappingModal, #shopifyIgnoreModal { display: none !important; }
 #shopifyMappingModal.show, #shopifyIgnoreModal.show { display: block !important; }
@@ -1867,7 +1867,7 @@ body > .modal .modal-dialog,
     display: flex;
     min-height: 0;
     max-height: calc(100vh - 140px);
-    overflow: hidden;
+    overflow: visible;
     flex-direction: column;
 }
 #shopifyMappingModal .modal-header,
@@ -1884,7 +1884,7 @@ body > .modal .modal-dialog,
 #shopifySyncDetailsModal .modal-body {
     min-height: 0;
     max-height: calc(100vh - 140px);
-    overflow-x: hidden !important;
+    overflow-x: visible !important;
     overflow-y: auto !important;
     flex: 1 1 auto;
 }
@@ -1908,6 +1908,46 @@ body > .modal .modal-dialog,
     #shopifyMappingDetailsModal .modal-body,
     #shopifyIgnoreModal .modal-body,
     #shopifySyncDetailsModal .modal-body { max-height: none; }
+}
+/* Shopify Product Mapping is top-aligned; only its body owns the scroll area. */
+#shopifyMappingModal.show {
+    display: flex !important;
+    align-items: flex-start !important;
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+}
+#shopifyMappingModal .modal-dialog-scrollable {
+    width: min(960px, calc(100% - 32px));
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    margin: 0 auto !important;
+    transform: none !important;
+    transition: none !important;
+}
+#shopifyMappingModal.modal.fade .modal-dialog,
+#shopifyMappingModal.modal.show .modal-dialog { transform: none !important; }
+#shopifyMappingModal .modal-dialog-scrollable .modal-content {
+    display: flex;
+    min-height: 0;
+    max-height: calc(100vh - 32px);
+    overflow: visible !important;
+    flex-direction: column;
+}
+#shopifyMappingModal form {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: visible !important;
+}
+#shopifyMappingModal .modal-header,
+#shopifyMappingModal .modal-footer { flex: 0 0 auto; }
+#shopifyMappingModal .modal-dialog-scrollable .modal-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto !important;
+    overflow-x: visible !important;
 }
 .appointment-reschedule-modal,
 #appointmentModal,
