@@ -24,9 +24,15 @@ final class Webhook extends BaseController
         $signature = $this->request->getHeaderLine('X-Shopify-Hmac-Sha256');
         $headerTopic = trim($this->request->getHeaderLine('X-Shopify-Topic'));
         $topic = $headerTopic !== '' ? $headerTopic : trim($topic);
+        $medicineOrderTopic = $this->isMedicineOrderTopic($topic);
         $this->diagnostic($topic, '', '', 'request_received', 'none');
 
         if (! (new ShopifyWebhookVerifier($configuration))->isValid($rawBody, $signature)) {
+            if ($medicineOrderTopic) {
+                $invalidEventId = trim($this->request->getHeaderLine('X-Shopify-Webhook-Id'));
+                $invalidShopDomain = strtolower(trim($this->request->getHeaderLine('X-Shopify-Shop-Domain')));
+                $this->medicineOrderDiagnostic($topic, '', $invalidEventId, $invalidShopDomain, 'verification_failed', 'SHOPIFY_WEBHOOK_HMAC_INVALID');
+            }
             $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_HMAC_INVALID');
 
             return $this->error(401, 'SHOPIFY_WEBHOOK_AUTH_FAILED', 'Webhook authentication failed.');
@@ -44,6 +50,14 @@ final class Webhook extends BaseController
         if ($eventId === '') {
             $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_EVENT_ID_REQUIRED');
             return $this->error(422, 'SHOPIFY_WEBHOOK_EVENT_ID_REQUIRED', 'Webhook delivery identifier is required.');
+        }
+
+        if ($medicineOrderTopic) {
+            $verifiedPayload = json_decode($rawBody, true);
+            $verifiedOrderId = is_array($verifiedPayload)
+                ? (string) ($verifiedPayload['id'] ?? $verifiedPayload['order_id'] ?? '')
+                : '';
+            $this->medicineOrderDiagnostic($topic, $verifiedOrderId, $eventId, $shopDomain, 'hmac_verified', 'none');
         }
 
         $testPayload = json_decode($rawBody, true);
@@ -84,6 +98,14 @@ final class Webhook extends BaseController
 
         if (! $result['accepted']) {
             return $this->error(422, 'SHOPIFY_WEBHOOK_EVENT_INVALID', 'Webhook event could not be accepted safely.');
+        }
+
+        if ($medicineOrderTopic && $result['id'] !== null) {
+            $payloadForDiagnostic = json_decode($rawBody, true);
+            $orderIdForDiagnostic = is_array($payloadForDiagnostic)
+                ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
+                : '';
+            $this->medicineOrderDiagnostic($topic, $orderIdForDiagnostic, $eventId, $shopDomain, 'event_stored', 'none');
         }
 
         if ($result['duplicate']) {
@@ -148,11 +170,21 @@ final class Webhook extends BaseController
         if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyOrderImportService())->processEvent((int) $result['id']);
+                $payloadForDiagnostic = json_decode($rawBody, true);
+                $orderIdForDiagnostic = is_array($payloadForDiagnostic)
+                    ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
+                    : '';
+                $this->medicineOrderDiagnostic($topic, $orderIdForDiagnostic, $eventId, $shopDomain, 'order_import_processed', 'none');
             } catch (\Throwable $exception) {
                 $failure = ShopifyOrderImportFailure::fromException($exception, $topic);
                 $imports = new ShopifyOrderImportService();
                 $imports->markFailureForEvent((int) $result['id'], $failure->category);
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], $failure->category);
+                $payloadForDiagnostic = json_decode($rawBody, true);
+                $orderIdForDiagnostic = is_array($payloadForDiagnostic)
+                    ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
+                    : '';
+                $this->medicineOrderDiagnostic($topic, $orderIdForDiagnostic, $eventId, $shopDomain, 'order_import_failed', $failure->category);
                 log_message('error', 'Shopify order import failed category=' . $failure->category . ' topic=' . $topic . ' exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
                 return $this->error(500, 'SHOPIFY_ORDER_IMPORT_FAILED', 'Shopify order could not be imported safely.');
@@ -206,6 +238,30 @@ final class Webhook extends BaseController
             'shopify_order_id' => $orderId,
             'intent_public_reference' => $reference,
             'topic' => $topic,
+            'processing_stage' => $stage,
+            'failure_category' => $category,
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    /** @return list<string> */
+    private function medicineOrderTopics(): array
+    {
+        return ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'];
+    }
+
+    private function isMedicineOrderTopic(string $topic): bool
+    {
+        return in_array($topic, $this->medicineOrderTopics(), true);
+    }
+
+    private function medicineOrderDiagnostic(string $topic, string $orderId, string $eventId, string $storeDomain, string $stage, string $category): void
+    {
+        log_message('info', 'Shopify medicine-order webhook diagnostic ' . json_encode([
+            'correlation_id' => $this->requestCorrelationId,
+            'topic' => $topic,
+            'shopify_order_id' => $orderId,
+            'webhook_id_hash' => $eventId !== '' ? hash('sha256', $eventId) : '',
+            'store_domain' => strtolower(trim($storeDomain)),
             'processing_stage' => $stage,
             'failure_category' => $category,
         ], JSON_UNESCAPED_SLASHES));
