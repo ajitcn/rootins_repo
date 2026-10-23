@@ -77,6 +77,39 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('finalizePaid($event, $payload)', $medicineBranch);
     }
 
+    public function testMedicinePaymentUsesReturnedImportIdAndStoreScopedFallback(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $failure = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php');
+
+        foreach ([
+            'internal_import_id',
+            'updateImportedPaymentRecord',
+            'where(\'id\', $importId)',
+            'where(\'store_domain\', $store)',
+            'where(\'shopify_order_id\', $shopifyOrderId)',
+            'import_record_updated_no_pharmacy_order',
+            'store_scoped_import_record_recovered',
+        ] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $failure . $service);
+        self::assertStringNotContainsString('where(\'shopify_line_item_id\', $shopifyOrderId)', $service);
+        self::assertStringNotContainsString('where(\'shopify_order_number\', $shopifyOrderId)', $service);
+    }
+
+    public function testMedicinePaymentIsIdempotentAndRemainsAppointmentIndependent(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        self::assertStringContainsString('$paymentTarget !== null', $service);
+        self::assertStringContainsString('financial_status', $service);
+        self::assertStringContainsString('$paymentTarget', $service);
+        self::assertStringContainsString('intent_present', $controller);
+        self::assertStringContainsString('appointment_finalization_skipped', $controller);
+    }
+
     public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');

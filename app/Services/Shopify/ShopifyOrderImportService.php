@@ -178,7 +178,7 @@ final class ShopifyOrderImportService
             $events->markProcessed($eventId);
             $this->paymentStage($event, $orderId, $importId, $existingRootinsOrderId, 'payment_update', 'existing_pharmacy_order_reused');
 
-            return ['status' => 'imported', 'import_id' => $importId, 'rootins_order_id' => $existingRootinsOrderId];
+            return ['status' => 'imported', 'import_id' => $importId, 'internal_import_id' => $importId, 'rootins_order_id' => $existingRootinsOrderId];
         }
 
         try {
@@ -314,7 +314,7 @@ final class ShopifyOrderImportService
         service('audit')->record('shopify.order_imported', ['event_id' => $eventId, 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId, 'clinic_id' => $clinicId]);
         $this->stage($event, $orderId, 'audit_history_write');
 
-        return ['status' => 'imported', 'import_id' => $importId, 'rootins_order_id' => $rootinsOrderId];
+        return ['status' => 'imported', 'import_id' => $importId, 'internal_import_id' => $importId, 'rootins_order_id' => $rootinsOrderId];
     }
 
     /** @return list<array<string, mixed>> */
@@ -1022,7 +1022,10 @@ GRAPHQL, ['id' => $orderGid]);
             'topic' => $topic,
             'store_domain' => $store,
         ];
-        $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'lookup_started');
+        $shopifyOrderId = $this->shopifyId($payload['id'] ?? '');
+        $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'lookup_started');
+        $importId = $this->updateImportedPaymentRecord($event, $importId, $store, $shopifyOrderId, $payload);
+        $paymentTarget = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
 
         if (trim((string) ($payload['cancelled_at'] ?? '')) !== '') {
             $cancel = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->cancel(
@@ -1049,7 +1052,7 @@ GRAPHQL, ['id' => $orderGid]);
         $db->transBegin();
         $order = $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->get(1)->getRowArray();
         if ($order === null) {
-            $externalOrderId = $this->shopifyId($payload['id'] ?? '');
+            $externalOrderId = $shopifyOrderId;
             if ($externalOrderId !== '' && $store !== '') {
                 $order = $db->table('medicine_orders')
                     ->where('external_store_domain', $store)
@@ -1066,12 +1069,15 @@ GRAPHQL, ['id' => $orderGid]);
 
         if ($order === null) {
             $db->transRollback();
-            $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'pharmacy_order_not_found', $topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND);
+            if ($topic === 'orders/paid' && $paymentTarget !== null) {
+                $this->paymentStage($event, $shopifyOrderId, $importId, 0, 'payment_update', 'import_record_updated_no_pharmacy_order');
+                return;
+            }
+            $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'pharmacy_order_not_found', $topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND);
 
             throw new ShopifyOrderImportFailure($topic === 'refunds/create' ? ShopifyOrderImportFailure::REFUND_ORDER_NOT_FOUND : ShopifyOrderImportFailure::ORDER_NOT_FOUND, 'Imported ROOTINS order is outside the configured clinic scope.');
         }
 
-        $paymentTarget = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
         $deliveryTarget = $this->deliveryTarget((string) ($payload['fulfillment_status'] ?? ''), '');
         $rawFulfillment = strtolower(trim((string) ($payload['fulfillment_status'] ?? '')));
         if ($rawFulfillment !== '' && ! in_array($rawFulfillment, ['pending', 'packed', 'fulfilled', 'out_for_delivery', 'delivered', 'failed'], true)) {
@@ -1120,7 +1126,7 @@ GRAPHQL, ['id' => $orderGid]);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
-        $this->paymentStage($event, $this->shopifyId($payload['id'] ?? ''), $importId, $orderId, 'payment_update', 'updated');
+        $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'updated');
         service('audit')->record('shopify.order_status_synchronized', [
             'order_id' => $orderId,
             'event_id' => $eventId,
@@ -1131,6 +1137,49 @@ GRAPHQL, ['id' => $orderGid]);
             'previous_delivery_status' => $order['delivery_status'],
             'new_delivery_status' => $changes['delivery_status'] ?? $order['delivery_status'],
         ]);
+    }
+
+    /**
+     * Update the imported-order record using the ID returned by the importer.
+     * The identity fallback is deliberately store_domain + shopify_order_id.
+     *
+     * @param array<string, mixed> $event
+     * @param array<string, mixed> $payload
+     */
+    private function updateImportedPaymentRecord(array $event, int $importId, string $store, string $shopifyOrderId, array $payload): int
+    {
+        $store = strtolower(trim($store));
+        $shopifyOrderId = (string) $shopifyOrderId;
+        $imports = $this->imports ?? new ShopifyOrderImportModel();
+        $record = $importId > 0
+            ? $imports->where('id', $importId)->where('store_domain', $store)->where('shopify_order_id', $shopifyOrderId)->first()
+            : null;
+        $lookupKey = $record !== null ? 'internal_import_id' : 'store_domain_shopify_order_id';
+
+        if ($record === null) {
+            $record = $imports->where('store_domain', $store)->where('shopify_order_id', $shopifyOrderId)->first();
+        }
+        if ($record === null) {
+            $this->paymentStage($event, $shopifyOrderId, $importId, 0, 'payment_update', $lookupKey . '_not_found', ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND, 'Shopify order import record not found.');
+        }
+
+        $actualImportId = (int) $record['id'];
+        $paymentTarget = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
+        $data = [
+            'last_event_id' => (int) ($event['id'] ?? 0),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($paymentTarget !== null) {
+            $data['financial_status'] = $paymentTarget;
+        }
+        if (! $imports->update($actualImportId, $data)) {
+            $this->paymentStage($event, $shopifyOrderId, $actualImportId, (int) ($record['rootins_order_id'] ?? 0), 'payment_update', 'import_record_update_failed', ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify imported-order payment update failed.');
+        }
+        $this->paymentStage($event, $shopifyOrderId, $actualImportId, (int) ($record['rootins_order_id'] ?? 0), 'payment_update', $lookupKey === 'internal_import_id' ? 'import_record_updated' : 'store_scoped_import_record_recovered');
+
+        return $actualImportId;
     }
 
     /** Safe payment diagnostics; never include SQL, payloads, or credentials. */
