@@ -156,6 +156,27 @@ final class ShopifyCustomerIdentityService
     }
 
     /**
+     * Resolve a customer carried by a medicine-order webhook. This uses the
+     * Webhooks/Order Integration store scope and only creates or updates the
+     * store-scoped identity link; it never invokes appointment workflows.
+     *
+     * @param array<string, mixed> $customer
+     * @return array{status: string, patient_id: int|null, link_id: int|null, matched_by: string|null}
+     */
+    public function resolveOrderCustomer(string $storeDomain, string $customerId, array $customer): array
+    {
+        $customerId = trim((string) $customerId);
+        if ($customerId === '') {
+            return ['status' => 'guest', 'patient_id' => null, 'link_id' => null, 'matched_by' => null];
+        }
+
+        return $this->resolveCustomer(strtolower(trim($storeDomain)), $customerId, [
+            'email' => $customer['email'] ?? '',
+            'phone' => $customer['phone'] ?? ($customer['mobile'] ?? ''),
+        ]);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function reviewQueue(): array

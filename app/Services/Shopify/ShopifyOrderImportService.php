@@ -17,6 +17,7 @@ final class ShopifyOrderImportService
 {
     private string $diagnosticCorrelationId = '';
     private string $diagnosticTopic = '';
+    private ?string $customerLookupFailure = null;
 
     public function __construct(
         private readonly ?ShopifyOrderImportModel $imports = null,
@@ -43,6 +44,7 @@ final class ShopifyOrderImportService
 
         $this->diagnosticCorrelationId = $correlationId ?: bin2hex(random_bytes(16));
         $this->diagnosticTopic = (string) ($event['topic'] ?? '');
+        $this->customerLookupFailure = null;
         $this->stage($event, '', 'payload_parsing');
 
         $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
@@ -54,6 +56,9 @@ final class ShopifyOrderImportService
 
         $orderId = $this->shopifyId($payload['id']);
         $this->stage($event, $orderId, 'order_identity_resolution');
+
+        $payload = $this->hydrateOrderCustomer($event, $payload);
+        $this->resolveOrderCustomerIdentity($event, $payload);
 
         if ($this->lineItemsNeedHydration($payload['line_items'] ?? null)) {
             $payload = $this->hydrateOrderLineItems($event, $payload);
@@ -185,10 +190,18 @@ final class ShopifyOrderImportService
         $this->stage($event, $orderId, 'customer_patient_resolution', $identity === null ? ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE : null);
 
         if ($identity === null) {
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
+            $customerId = $this->shopifyId($payload['customer_id'] ?? '');
+            $patientStatus = $customerId === '' ? 'guest' : 'link_pending';
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
+                'patient_status' => $patientStatus,
+                'customer_name_snapshot' => $this->customerLookupFailure !== null ? 'Customer data unavailable' : null,
+                'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE,
+                'last_error' => $this->customerLookupFailure !== null ? 'Customer data unavailable. Retry customer resolution.' : 'Shopify customer is not linked to a ROOTINS patient.',
+                'last_attempted_at' => date('Y-m-d H:i:s'),
+            ]);
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, $eventId);
             $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
-            service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'customer_not_linked']);
+            service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $patientStatus]);
 
             return ['status' => 'quarantined', 'import_id' => $importId];
         }
@@ -795,6 +808,64 @@ GRAPHQL, ['id' => $orderGid]);
             ->where('shopify_customer_id', $customerId)
             ->where('link_status', 'linked')
             ->first() ?: null;
+    }
+
+    /** @param array<string, mixed> $event @param array<string, mixed> $payload @return array<string, mixed> */
+    private function hydrateOrderCustomer(array $event, array $payload): array
+    {
+        $customerId = $this->shopifyId($payload['customer_id'] ?? ($payload['customer']['id'] ?? ''));
+        if ($customerId === '') return $payload;
+
+        $payload['customer_id'] = $customerId;
+        $customer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
+        $hasDetails = trim((string) ($customer['first_name'] ?? $customer['firstName'] ?? '')) !== ''
+            || trim((string) ($customer['last_name'] ?? $customer['lastName'] ?? '')) !== ''
+            || trim((string) ($customer['email'] ?? '')) !== ''
+            || trim((string) ($customer['phone'] ?? $customer['mobile'] ?? '')) !== '';
+
+        if ($hasDetails) {
+            $payload['customer'] = [
+                'first_name' => (string) ($customer['first_name'] ?? $customer['firstName'] ?? ''),
+                'last_name' => (string) ($customer['last_name'] ?? $customer['lastName'] ?? ''),
+                'email' => (string) ($customer['email'] ?? ''),
+                'phone' => (string) ($customer['phone'] ?? $customer['mobile'] ?? ''),
+            ];
+            return $payload;
+        }
+
+        try {
+            $lookup = (new ShopifyCustomerLookupService())->lookup($customerId);
+            $payload['customer'] = [
+                'first_name' => (string) ($lookup['first_name'] ?? ''),
+                'last_name' => (string) ($lookup['last_name'] ?? ''),
+                'email' => (string) ($lookup['email'] ?? ''),
+                'phone' => (string) ($lookup['mobile'] ?? ''),
+            ];
+            log_message('info', 'Shopify medicine-order customer lookup completed order=' . $this->shopifyId($payload['id'] ?? '') . ' customer=' . $customerId . ' store=' . strtolower(trim((string) ($event['store_domain'] ?? ''))));
+        } catch (\Throwable $exception) {
+            $this->customerLookupFailure = 'SHOPIFY_CUSTOMER_DATA_UNAVAILABLE';
+            log_message('warning', 'Shopify medicine-order customer lookup unavailable category=SHOPIFY_CUSTOMER_DATA_UNAVAILABLE exception=' . get_class($exception));
+        }
+
+        return $payload;
+    }
+
+    /** @param array<string, mixed> $event @param array<string, mixed> $payload */
+    private function resolveOrderCustomerIdentity(array $event, array $payload): void
+    {
+        $customerId = $this->shopifyId($payload['customer_id'] ?? '');
+        $customer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
+        if ($customerId === '' || $customer === []) return;
+
+        try {
+            (new ShopifyCustomerIdentityService())->resolveOrderCustomer(
+                strtolower(trim((string) ($event['store_domain'] ?? ''))),
+                $customerId,
+                $customer,
+            );
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Shopify medicine-order customer identity resolution unavailable exception=' . get_class($exception));
+        }
     }
 
     private function candidatePrescriptionId(array $payload): ?int

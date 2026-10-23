@@ -31,6 +31,23 @@ final class ShopifyCustomerIdentityTest extends TestCase
         self::assertStringContainsString('$status = \'ambiguous\'', $service);
     }
 
+    public function testMedicineOrderCustomerResolutionUsesWebhookConfigurationAndKeepsUnlinkedCustomersRetryable(): void
+    {
+        $lookup = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerLookupService.php');
+        $import = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $configuration = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyConfiguration.php');
+
+        self::assertStringContainsString('new ShopifyClient($configuration)', $lookup);
+        self::assertStringContainsString('read_customers', $lookup);
+        self::assertStringContainsString('hydrateOrderCustomer', $import);
+        self::assertStringContainsString('resolveOrderCustomer', $import . file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyCustomerIdentityService.php'));
+        self::assertStringContainsString("'link_pending'", $import);
+        self::assertStringContainsString("'guest'", $import);
+        self::assertStringContainsString('Customer data unavailable', $import);
+        self::assertStringContainsString('webhook_secret', $configuration);
+        self::assertStringNotContainsString('ShopifyProxyConfigurationService', $lookup);
+    }
+
     public function testWebhookProcessingUsesEventIdempotencyAndDoesNotStoreFullPayload(): void
     {
         $eventService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookEventService.php');

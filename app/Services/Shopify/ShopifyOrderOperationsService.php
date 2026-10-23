@@ -630,6 +630,10 @@ GRAPHQL;
             $summaries[$importId]['mapped'] = ($summaries[$importId]['mapped'] ?? 0) + (in_array((string) ($line['status'] ?? ''), ['mapped', 'imported'], true) && (int) ($line['medicine_id'] ?? 0) > 0 ? 1 : 0);
         }
         foreach ($imports as &$import) {
+            if (($import['link_status'] ?? '') === 'linked'
+                && ((int) ($import['patient_id'] ?? 0) <= 0 || (int) ($import['rootins_patient_status'] ?? 0) !== 1)) {
+                $import['link_status'] = 'link_pending';
+            }
             $summary = $summaries[(int) $import['id']] ?? ['count' => 0, 'names' => []];
             if ((int) ($summary['count'] ?? 0) === 0 && ! empty($import['last_event_id'])) {
                 $event = (new ShopifyWebhookEventService())->find((int) $import['last_event_id']);
@@ -666,7 +670,7 @@ GRAPHQL;
             foreach ($conditions as $field => $value) $q->where($field, $value);
             $result[$name] = $q->countAllResults();
         }
-        foreach (['orders_received_today' => ['created_at >=' => $today], 'orders_awaiting_patient' => ['patient_status' => 'missing'], 'orders_awaiting_prescription_review' => ['prescription_status' => 'awaiting_review'], 'orders_with_unmapped_medicines' => ['mapping_status' => 'unmapped'], 'orders_ready_to_import' => ['status' => 'ready_to_import'], 'failed_imports' => ['status' => 'failed'], 'quarantined_orders' => ['status' => 'quarantined'], 'successfully_imported' => ['status' => 'imported'], 'cancelled_refunded_orders' => ['status' => 'cancelled']] as $name => $conditions) { $q = $db->table('shopify_order_imports'); if ($clinicId !== null) $q->where('clinic_id', $clinicId); foreach ($conditions as $field => $value) $q->where($field, $value); $result[$name] = $q->countAllResults(); }
+        foreach (['orders_received_today' => ['created_at >=' => $today], 'orders_awaiting_patient' => ['patient_status' => 'link_pending'], 'orders_awaiting_prescription_review' => ['prescription_status' => 'awaiting_review'], 'orders_with_unmapped_medicines' => ['mapping_status' => 'unmapped'], 'orders_ready_to_import' => ['status' => 'ready_to_import'], 'failed_imports' => ['status' => 'failed'], 'quarantined_orders' => ['status' => 'quarantined'], 'successfully_imported' => ['status' => 'imported'], 'cancelled_refunded_orders' => ['status' => 'cancelled']] as $name => $conditions) { $q = $db->table('shopify_order_imports'); if ($clinicId !== null) $q->where('clinic_id', $clinicId); foreach ($conditions as $field => $value) $q->where($field, $value); $result[$name] = $q->countAllResults(); }
         return $result;
     }
 
@@ -674,6 +678,10 @@ GRAPHQL;
     {
         $import = db_connect()->table('shopify_order_imports i')->select('i.*, p.registration_number, p.first_name, p.last_name, p.email, p.mobile_number, p.status AS rootins_patient_status, l.link_status')->join('patients p', 'p.id = i.patient_id', 'left')->join('shopify_patient_identity_links l', 'l.shopify_store_domain = i.store_domain AND l.shopify_customer_id = i.shopify_customer_id', 'left')->where('i.id', $id)->get(1)->getRowArray();
         if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) return null;
+        if (($import['link_status'] ?? '') === 'linked'
+            && ((int) ($import['patient_id'] ?? 0) <= 0 || (int) ($import['rootins_patient_status'] ?? 0) !== 1)) {
+            $import['link_status'] = 'link_pending';
+        }
         $lines = db_connect()->table('shopify_order_import_lines l')->select('l.*, m.medicine_name, m.strength, m.unit, v.prescription_required')->join('medicines m', 'm.id = l.medicine_id', 'left')->join('shopify_order_imports oi', 'oi.id = l.import_id', 'inner')->join('shopify_variant_catalogue v', 'v.store_domain = oi.store_domain AND v.shopify_variant_id = l.shopify_variant_id', 'left')->where('l.import_id', $id)->orderBy('l.id', 'ASC')->get()->getResultArray();
         $history = db_connect()->table('shopify_order_import_history')->where('import_id', $id)->orderBy('created_at', 'DESC')->get()->getResultArray();
         $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
