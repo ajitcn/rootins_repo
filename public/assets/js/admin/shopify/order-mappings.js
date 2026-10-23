@@ -166,9 +166,9 @@
         var $select = $(select);
         try {
             if (typeof $.fn.selectpicker === 'function' && ($select.hasClass('selectpicker') || $select.data('selectpicker') || $select.parent('.bootstrap-select').length)) {
-                $select.selectpicker('destroy');
+                $('#mappingMedicineSelect').selectpicker('destroy');
             } else if (typeof $.fn.btSelect === 'function' && select.getAttribute('data-btselect-initialized') === 'true') {
-                $select.btSelect('destroy');
+                $('#mappingMedicineSelect').btSelect('destroy');
             }
         } catch (error) {
             console.warn('Could not destroy the ROOTINS medicine selector cleanly.', error);
@@ -234,7 +234,8 @@
                 width: '100%'
             });
         } else if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.btSelect === 'function') {
-            window.jQuery('#mappingMedicineSelect').btSelect({
+            var $ = window.jQuery;
+            $('#mappingMedicineSelect').btSelect({
                 liveSearch: true,
                 liveSearchPlaceholder: 'Search medicine...',
                 dropupAuto: false,
@@ -327,7 +328,7 @@
             handle: available(item.product_handle || item.shopify_product_handle || item.handle),
             type: available(item.product_type || item.shopify_product_type),
             vendor: available(item.vendor || item.shopify_vendor),
-            prescription: item.prescription_required ? 'Required' : 'Not required'
+            prescription: item.prescription_required ? 'Required' : 'Not Required'
         };
         Object.keys(values).forEach(function (key) {
             var field = modal.querySelector('[data-details="' + key + '"]');
@@ -435,6 +436,7 @@
                     throw new Error('Your session expired. Refresh the page and try again.');
                 }
                 if (!response.ok || !result.status) { var error = new Error(showFormError(form, result)); error.displayed = true; throw error; }
+                if (!result.data || result.data.verified !== true) { throw new Error('The mapping was not verified after saving. Please try again.'); }
                 toast((result.data && result.data.message) || 'Product mapping saved.');
                 closeModal(modal);
                 refreshWorkspace().catch(function () { toast('The mapping was saved, but the list could not be refreshed.', true); });

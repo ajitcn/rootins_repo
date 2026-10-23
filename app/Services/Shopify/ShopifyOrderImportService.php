@@ -150,9 +150,13 @@ final class ShopifyOrderImportService
 
         ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'mapped']);
 
+        $prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);
+        if (trim((string) ($payload['prescription_reference'] ?? '')) === '') {
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_status' => $prescriptionRequired ? 'missing' : 'not_required']);
+        }
         $prescriptionId = $this->candidatePrescriptionId($payload);
 
-        if ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId)) {
+        if ($prescriptionRequired && ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
             $events->markProcessed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'missing_prescription']);
@@ -332,6 +336,7 @@ final class ShopifyOrderImportService
                 $status = 'mapped';
             } elseif ($resolution['result'] === 'inactive') {
                 $status = 'medicine_inactive';
+                // Keep inactive medicines visibly quarantined at line level: ['status' => 'medicine_inactive'].
             }
 
             $existing = $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->first();
@@ -377,11 +382,35 @@ final class ShopifyOrderImportService
         return ['status' => 'ready', 'reason' => ''];
     }
 
+    private function prescriptionRequiredForOrder(string $store, array $payload): bool
+    {
+        $db = db_connect();
+        foreach ((array) ($payload['line_items'] ?? []) as $item) {
+            $variantId = $this->shopifyId($item['variant_id'] ?? null);
+            $productId = $this->shopifyId($item['product_id'] ?? null);
+            $required = null;
+            if ($variantId !== '' && $db->tableExists('shopify_variant_catalogue')) {
+                $variant = $db->table('shopify_variant_catalogue')->select('prescription_required')->where('store_domain', $store)->where('shopify_variant_id', $variantId)->get(1)->getRowArray();
+                $required = $variant['prescription_required'] ?? null;
+            }
+            if ($required === null && $productId !== '' && $db->tableExists('shopify_product_catalogue')) {
+                $product = $db->table('shopify_product_catalogue')->select('prescription_required')->where('store_domain', $store)->where('shopify_product_id', $productId)->get(1)->getRowArray();
+                $required = $product['prescription_required'] ?? null;
+            }
+            if ((int) $required === 1) return true;
+        }
+
+        return false;
+    }
+
     /** @return array{result: string, reason: ?string, mapping: ?array, lookup_key: string} */
     private function resolveMapping(string $store, string $productId, string $variantId): array
     {
         $db = db_connect();
         $lookupKey = $store . '|variant:' . ($variantId !== '' ? $variantId : 'none') . '|product:' . ($productId !== '' ? $productId : 'none');
+        if ($db->tableExists('shopify_mapping_ignores') && $productId !== '' && $variantId !== '' && $db->table('shopify_mapping_ignores')->where('store_domain', $store)->where('shopify_product_id', $productId)->where('shopify_variant_id', $variantId)->countAllResults() > 0) {
+            return ['result' => 'unmapped', 'reason' => 'Product mapping missing', 'mapping' => null, 'lookup_key' => $lookupKey];
+        }
         $mappingRows = [];
 
         if ($variantId !== '') {

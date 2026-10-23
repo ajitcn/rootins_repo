@@ -11,19 +11,32 @@
 .pharmacy-shopify-table-card { overflow: visible; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
 .pharmacy-shopify-table-card .card-header { padding: 14px 16px; background: #fff; border-bottom: 1px solid var(--shopify-border); }
 .pharmacy-shopify-table-wrap { overflow-x: auto; }
-.pharmacy-shopify-table { min-width: 1120px; }
+.pharmacy-shopify-table { table-layout: fixed; min-width: 980px; }
+.pharmacy-shopify-table th:nth-child(1), .pharmacy-shopify-table td:nth-child(1) { width: 16%; }
+.pharmacy-shopify-table th:nth-child(2), .pharmacy-shopify-table td:nth-child(2) { width: 22%; }
+.pharmacy-shopify-table th:nth-child(3), .pharmacy-shopify-table td:nth-child(3) { width: 22%; }
+.pharmacy-shopify-table th:nth-child(4), .pharmacy-shopify-table td:nth-child(4) { width: 16%; }
+.pharmacy-shopify-table th:nth-child(5), .pharmacy-shopify-table td:nth-child(5) { width: 16%; }
+.pharmacy-shopify-table th:nth-child(6), .pharmacy-shopify-table td:nth-child(6) { width: 130px; }
 .pharmacy-shopify-table th { padding: 12px 13px; color: #667085; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; border-top: 0; }
 .pharmacy-shopify-table td { padding: 13px; color: #2d3748; font-size: 12px; vertical-align: middle; border-top: 1px solid #eef1f5; }
 .shopify-order-primary { display: grid; gap: 3px; min-width: 125px; }
 .shopify-order-primary a, .shopify-order-primary strong { color: #1e4fa3; font-weight: 750; }
 .shopify-order-primary small, .pharmacy-shopify-table time { color: var(--shopify-muted); font-size: 11px; }
+.shopify-group-cell { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 5px; line-height: 1.25; }
+.shopify-primary { color: #1e4fa3; font-size: 13px; font-weight: 750; }
+.shopify-primary-text { color: #1f2937; font-size: 13px; font-weight: 750; }
+.shopify-secondary { display: block; max-width: 100%; color: var(--shopify-muted); font-size: 11px; overflow-wrap: anywhere; }
+.shopify-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shopify-attention-text { color: #855b00; font-weight: 700; }
 .medicine-summary { display: block; max-width: 185px; line-height: 1.35; }
 .medicine-summary strong { color: #1f2937; margin-right: 3px; }
 .badge-status { display: inline-block; padding: 5px 8px; color: #4b5563; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 10px; font-weight: 750; white-space: nowrap; }
 .badge-mapped, .badge-accepted, .badge-imported, .badge-paid, .badge-delivered { color: #17603a; background: #effaf3; border-color: #c8ead4; }
 .badge-unmapped, .badge-pending-mapping, .badge-awaiting-review, .badge-quarantined { color: #855b00; background: #fff9e8; border-color: #f1df9c; }
 .badge-failed, .badge-invalid, .badge-cancelled, .badge-voided, .badge-inactive-medicine, .badge-conflict { color: #9b2c2c; background: #fff2f2; border-color: #f1c5c5; }
-.pharmacy-shopify-table .dropdown-menu { z-index: 1060; }
+.pharmacy-shopify-actions { position: relative; z-index: 2; min-width: 118px; }
+.pharmacy-shopify-actions .dropdown-menu { z-index: 1080; min-width: 180px; }
 .pharmacy-shopify-details-modal { z-index: 1070; }
 .pharmacy-shopify-details-modal .modal-dialog { max-height: calc(100vh - 32px); margin: 16px auto; }
 .pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 32px); }
@@ -33,6 +46,35 @@
 .shopify-detail-summary small, .shopify-detail-summary span { color: var(--shopify-muted); font-size: 11px; }
 .pharmacy-orders-empty { display: grid; justify-items: center; gap: 5px; padding: 60px 15px; color: var(--shopify-muted); }
 .pharmacy-orders-empty i { font-size: 30px; }
+.shopify-detail-card { border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
+.shopify-detail-card .card-header { background: #fff; border-bottom: 1px solid var(--shopify-border); }
+.shopify-label-value-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.shopify-label-value-grid > div, .shopify-label-value { display: grid; gap: 4px; }
+.shopify-label-value-grid small, .shopify-label-value small { color: var(--shopify-muted); font-size: 11px; font-weight: 700; }
+.shopify-label-value-grid strong, .shopify-label-value strong { color: #1f2937; font-size: 14px; }
+.shopify-label-value-grid span { color: var(--shopify-muted); font-size: 11px; overflow-wrap: anywhere; }
+.shopify-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shopify-detail-lines th { color: #667085; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.shopify-detail-lines td { font-size: 12px; vertical-align: middle; }
+.shopify-detail-lines small { overflow-wrap: anywhere; }
+.shopify-technical-list { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(0, 1.2fr); gap: 8px 12px; margin-bottom: 0; font-size: 11px; }
+.shopify-technical-list dt { color: var(--shopify-muted); font-weight: 700; }
+.shopify-technical-list dd { margin: 0; overflow-wrap: anywhere; }
+#shopifyOrderActionFeedback { margin-bottom: 16px; font-size: 13px; }
+.shopify-process-modal { z-index: 1070; }
+.shopify-process-modal .modal-dialog { max-height: calc(100vh - 32px); margin: 16px auto; }
+.shopify-process-modal .modal-content { max-height: calc(100vh - 32px); }
+.shopify-process-modal .modal-header, .shopify-process-modal .modal-footer { flex: 0 0 auto; }
+.shopify-process-modal .modal-body { overflow-y: auto; padding: 20px; font-size: 13px; }
+.shopify-process-section { padding: 16px 0; border-top: 1px solid var(--shopify-border); }
+.shopify-process-section:first-of-type { margin-top: 18px; }
+.shopify-process-section h3 { margin: 0 0 5px; color: #1f2937; font-size: 14px; font-weight: 800; }
+.shopify-helper, .shopify-process-modal .form-text { color: var(--shopify-muted); font-size: 12px; }
+.shopify-process-modal label { margin-top: 8px; color: #3f4a5a; font-size: 12px; font-weight: 700; }
+.shopify-process-modal textarea { resize: vertical; }
+.shopify-process-modal .btn { font-size: 12px; font-weight: 700; }
+body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-details-modal { z-index: 1070; }
 @media (max-width: 1200px) { .pharmacy-shopify-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pharmacy-shopify-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .filter-search { grid-column: span 3; } }
-@media (max-width: 767.98px) { .pharmacy-shopify-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .pharmacy-shopify-summary-card { min-height: 70px; padding: 11px; } .pharmacy-shopify-filters { grid-template-columns: 1fr 1fr; padding: 12px; } .filter-search { grid-column: span 2; } .pharmacy-shopify-filter-actions { grid-column: span 2; } .pharmacy-shopify-filter-actions .btn { flex: 1; } .pharmacy-shopify-table-card .card-header { align-items: flex-start !important; } .pharmacy-shopify-table { min-width: 0; } .pharmacy-shopify-table thead { display: none; } .pharmacy-shopify-table, .pharmacy-shopify-table tbody, .pharmacy-shopify-table tr, .pharmacy-shopify-table td { display: block; width: 100%; } .pharmacy-shopify-table tr { padding: 8px 0; border-bottom: 1px solid var(--shopify-border); } .pharmacy-shopify-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 9px 13px; border: 0; text-align: right; } .pharmacy-shopify-table td::before { flex: 0 0 38%; color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; } .pharmacy-shopify-table td > * { max-width: 62%; } .pharmacy-shopify-table .dropdown-menu { text-align: left; } .shopify-detail-summary { grid-template-columns: 1fr; } .pharmacy-shopify-details-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 16px); } }
+@media (max-width: 767.98px) { .pharmacy-shopify-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .pharmacy-shopify-summary-card { min-height: 70px; padding: 11px; } .pharmacy-shopify-filters { grid-template-columns: 1fr 1fr; padding: 12px; } .filter-search { grid-column: span 2; } .pharmacy-shopify-filter-actions { grid-column: span 2; } .pharmacy-shopify-filter-actions .btn { flex: 1; } .pharmacy-shopify-table-card .card-header { align-items: flex-start !important; } .pharmacy-shopify-table { min-width: 0; table-layout: auto; } .pharmacy-shopify-table thead { display: none; } .pharmacy-shopify-table, .pharmacy-shopify-table tbody, .pharmacy-shopify-table tr, .pharmacy-shopify-table td { display: block; width: 100%; } .pharmacy-shopify-table tr { padding: 8px 0; border-bottom: 1px solid var(--shopify-border); } .pharmacy-shopify-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 10px 13px; border: 0; text-align: right; } .pharmacy-shopify-table td::before { flex: 0 0 38%; color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; } .pharmacy-shopify-table td > * { max-width: 62%; } .pharmacy-shopify-table td > .shopify-group-cell { max-width: 62%; align-items: flex-end; text-align: right; } .pharmacy-shopify-table .dropdown-menu { text-align: left; } .pharmacy-shopify-actions { min-width: 0; } .shopify-detail-summary { grid-template-columns: 1fr; } .pharmacy-shopify-details-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 16px); } }
+@media (max-width: 767.98px) { .shopify-label-value-grid { grid-template-columns: 1fr; gap: 12px; } .shopify-detail-lines { min-width: 620px; } .shopify-process-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .shopify-process-modal .modal-content { max-height: calc(100vh - 16px); } .shopify-process-modal .modal-body { padding: 16px; } }
 @media (max-width: 380px) { .pharmacy-shopify-summary-card .summary-icon { display: none; } .pharmacy-shopify-summary-card .summary-copy span { font-size: 10px; } .pharmacy-shopify-filters { grid-template-columns: 1fr; } .filter-search, .pharmacy-shopify-filter-actions { grid-column: auto; } }

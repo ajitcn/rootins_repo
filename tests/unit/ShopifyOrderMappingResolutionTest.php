@@ -15,6 +15,8 @@ final class ShopifyOrderMappingResolutionTest extends TestCase
         self::assertStringContainsString("where('shopify_variant_id', null)", $service);
         self::assertStringNotContainsString("where('shopify_line_item_id', \$variantId)", $service);
         self::assertStringContainsString("'mapping_reason' => \$resolution['reason']", $service);
+        self::assertStringContainsString('prescriptionRequiredForOrder', $service);
+        self::assertStringContainsString('shopify_mapping_ignores', $service);
     }
 
     public function testReconciliationUpdatesExistingLineIdentityAndRechecksAfterMappingSave(): void
@@ -25,8 +27,9 @@ final class ShopifyOrderMappingResolutionTest extends TestCase
         self::assertStringContainsString("where('import_id', \$importId)->where('shopify_line_item_id', \$lineId)->first()", $service);
         self::assertStringContainsString('$model->update((int) $existing[\'id\'], $data)', $service);
         self::assertStringNotContainsString("->where('shopify_line_item_id', \$lineId)->delete()", $service);
-        self::assertStringContainsString("recheckMappings(['store_domain' => \$store, 'shopify_variant_id' => \$variantId])", $operations);
+        self::assertStringContainsString("recheckMappings(['store_domain' => \$store, 'shopify_product_id' => \$productId, 'shopify_variant_id' => \$variantId])", $operations);
         self::assertStringContainsString("'recheck_mapping'", $operations);
+        self::assertStringContainsString("'verified' => true", $operations);
     }
 
     public function testDiagnosticsContainOnlyMappingIdentifiersAndResolution(): void

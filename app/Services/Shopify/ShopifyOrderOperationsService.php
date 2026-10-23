@@ -215,11 +215,18 @@ GRAPHQL;
         foreach ($db->table('shopify_medicine_mappings')->select('store_domain, shopify_variant_id')->groupBy('store_domain, shopify_variant_id')->having('COUNT(*) >', 1)->get()->getResultArray() as $duplicate) {
             $duplicateKeys[(string) $duplicate['store_domain'] . ':' . (string) $duplicate['shopify_variant_id']] = true;
         }
-        $conflictMappings = array_values(array_filter($allMappings, fn (array $row): bool => isset($duplicateKeys[$mappingKey($row)])));
+        $ignoredKeys = [];
+        if ($db->tableExists('shopify_mapping_ignores')) {
+            foreach ($db->table('shopify_mapping_ignores')->select('store_domain, shopify_product_id, shopify_variant_id')->where('store_domain', $store)->get()->getResultArray() as $ignored) {
+                $ignoredKeys[(string) $ignored['store_domain'] . ':' . (string) $ignored['shopify_product_id'] . ':' . (string) $ignored['shopify_variant_id']] = true;
+            }
+        }
+        $isIgnored = static fn (array $row): bool => isset($ignoredKeys[(string) $row['store_domain'] . ':' . (string) $row['shopify_product_id'] . ':' . (string) ($row['shopify_variant_id'] ?? '')]);
+        $conflictMappings = array_values(array_filter($allMappings, fn (array $row): bool => isset($duplicateKeys[$mappingKey($row)]) && ! $isIgnored($row)));
         $inactiveMappings = array_values(array_filter($allMappings, static fn (array $row): bool => ($row['medicine_status'] ?? 'active') !== 'active' || ($row['status'] ?? '') !== 'active'));
-        $mappedRows = array_values(array_filter($allMappings, static fn (array $row): bool => ($row['medicine_status'] ?? 'active') === 'active' && ($row['status'] ?? '') === 'active' && ! isset($duplicateKeys[$mappingKey($row)])));
+        $mappedRows = array_values(array_filter($allMappings, fn (array $row): bool => ($row['medicine_status'] ?? 'active') === 'active' && ($row['status'] ?? '') === 'active' && ! isset($duplicateKeys[$mappingKey($row)]) && ! $isIgnored($row)));
         $mappedKeys = [];
-        foreach ($allMappings as $row) $mappedKeys[$row['shopify_product_id'] . ':' . ($row['shopify_variant_id'] ?? '')] = true;
+        foreach ($mappedRows as $row) $mappedKeys[(string) $row['shopify_product_id'] . ':' . (string) ($row['shopify_variant_id'] ?? '')] = true;
 
         $items = [];
         if ($db->tableExists('shopify_variant_catalogue')) {
@@ -246,7 +253,7 @@ GRAPHQL;
                 $item['shopify_barcode'] = (string) ($item['barcode'] ?? '');
                 $item['title_snapshot'] = (string) ($item['product_title'] ?? '');
                 $item['image_url'] = (string) ($item['product_image_url'] ?? '');
-                $item['prescription_required'] = $item['prescription_required'] === null ? true : (bool) $item['prescription_required'];
+                $item['prescription_required'] = (bool) $item['prescription_required'];
             }
             unset($item);
         } else {
@@ -303,8 +310,10 @@ GRAPHQL;
     public function mappings(array $filters = []): array
     {
         $query = db_connect()->table('shopify_medicine_mappings m')
-            ->select('m.*, med.medicine_name, med.generic_name, med.strength, med.unit, med.status AS medicine_status')
+            ->select('m.*, med.medicine_name, med.generic_name, med.strength, med.unit, med.status AS medicine_status, COALESCE(v.prescription_required, p.prescription_required) AS prescription_required')
             ->join('medicines med', 'med.id = m.medicine_id', 'left')
+            ->join('shopify_variant_catalogue v', 'v.store_domain = m.store_domain AND v.shopify_variant_id = m.shopify_variant_id', 'left')
+            ->join('shopify_product_catalogue p', 'p.store_domain = m.store_domain AND p.shopify_product_id = m.shopify_product_id', 'left')
             ->orderBy('m.updated_at', 'DESC');
         if (($filters['store_domain'] ?? '') !== '') $query->where('m.store_domain', strtolower(trim((string) $filters['store_domain'])));
         $this->like($query, 'm.shopify_product_title', $filters['product'] ?? '');
@@ -389,13 +398,23 @@ GRAPHQL;
             service('audit')->record($event, ['mapping_id' => $targetId, 'store_domain' => $store, 'product_id' => $productId, 'variant_id' => $variantId, 'medicine_id' => $medicineId]);
             if (! $db->transStatus()) throw new \RuntimeException('mapping transaction failed');
             $db->transCommit();
+            $persisted = $mappingTable
+                ->where('id', $targetId)
+                ->where('store_domain', $store)
+                ->where('shopify_product_id', $productId)
+                ->where('shopify_variant_id', $variantId)
+                ->where('medicine_id', $medicineId)
+                ->get(1)->getRowArray();
+            if ($persisted === null || (string) ($persisted['status'] ?? '') !== $mappingStatus) {
+                throw new ShopifyMappingException('SHOPIFY_MAPPING_NOT_PERSISTED', 'The mapping was not verified after saving. Please try again.');
+            }
             $recheck = ['processed' => 0];
             try {
-                $recheck = $this->recheckMappings(['store_domain' => $store, 'shopify_variant_id' => $variantId]);
+                $recheck = $this->recheckMappings(['store_domain' => $store, 'shopify_product_id' => $productId, 'shopify_variant_id' => $variantId]);
             } catch (\Throwable $exception) {
                 log_message('error', 'Shopify mapping save recheck failed: ' . get_class($exception));
             }
-            return ['mapping_id' => (string) $targetId, 'variant_id' => $variantId, 'medicine_id' => (string) $medicineId, 'mapping_status' => $mappingStatus, 'medicine_status' => (string) ($medicine['status'] ?? ''), 'rechecked_orders' => (int) ($recheck['processed'] ?? 0), 'message' => 'Product mapping saved.'];
+            return ['mapping_id' => (string) $targetId, 'variant_id' => $variantId, 'medicine_id' => (string) $medicineId, 'mapping_status' => $mappingStatus, 'medicine_status' => (string) ($medicine['status'] ?? ''), 'verified' => true, 'rechecked_orders' => (int) ($recheck['processed'] ?? 0), 'message' => 'Product mapping saved.'];
         } catch (ShopifyMappingException $exception) {
             $db->transRollback();
             throw $exception;
@@ -499,14 +518,15 @@ GRAPHQL;
     /** @return array<string, int> */
     public function recheckMappings(array $input): array
     {
-        $store = strtolower(trim((string) ($input['store_domain'] ?? ''))); $variant = trim((string) ($input['shopify_variant_id'] ?? ''));
+        $store = strtolower(trim((string) ($input['store_domain'] ?? ''))); $variant = trim((string) ($input['shopify_variant_id'] ?? '')); $product = trim((string) ($input['shopify_product_id'] ?? ''));
         if ($store === '' || $variant === '') throw new InvalidArgumentException('A store and Shopify variant are required.');
         $query = db_connect()->table('shopify_order_import_lines l')->select('l.import_id')->join('shopify_order_imports i', 'i.id = l.import_id')->where('i.store_domain', $store);
-        if ($variant !== 'all') $query->where('l.shopify_variant_id', $variant);
+        if ($variant !== 'all' && $variant !== '') $query->where('l.shopify_variant_id', $variant);
+        elseif ($product !== '') $query->where('l.shopify_product_id', $product);
         $imports = $query->groupBy('l.import_id')->get()->getResultArray();
         $service = new ShopifyOrderImportService(); $processed = 0;
         foreach ($imports as $import) { $service->importExisting((int) $import['import_id'], null); $processed++; }
-        service('audit')->record('shopify.order_mapping_recheck', ['store_domain' => $store, 'variant_id' => $variant, 'count' => $processed]);
+        service('audit')->record('shopify.order_mapping_recheck', ['store_domain' => $store, 'product_id' => $product, 'variant_id' => $variant, 'count' => $processed]);
         return ['processed' => $processed];
     }
 
@@ -599,7 +619,7 @@ GRAPHQL;
     {
         $import = db_connect()->table('shopify_order_imports i')->select('i.*, p.registration_number, p.first_name, p.last_name, p.email, p.mobile_number, p.status AS rootins_patient_status, l.link_status')->join('patients p', 'p.id = i.patient_id', 'left')->join('shopify_patient_identity_links l', 'l.shopify_store_domain = i.store_domain AND l.shopify_customer_id = i.shopify_customer_id', 'left')->where('i.id', $id)->get(1)->getRowArray();
         if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) return null;
-        $lines = db_connect()->table('shopify_order_import_lines l')->select('l.*, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->where('l.import_id', $id)->orderBy('l.id', 'ASC')->get()->getResultArray();
+        $lines = db_connect()->table('shopify_order_import_lines l')->select('l.*, m.medicine_name, m.strength, m.unit, v.prescription_required')->join('medicines m', 'm.id = l.medicine_id', 'left')->join('shopify_order_imports oi', 'oi.id = l.import_id', 'inner')->join('shopify_variant_catalogue v', 'v.store_domain = oi.store_domain AND v.shopify_variant_id = l.shopify_variant_id', 'left')->where('l.import_id', $id)->orderBy('l.id', 'ASC')->get()->getResultArray();
         $history = db_connect()->table('shopify_order_import_history')->where('import_id', $id)->orderBy('created_at', 'DESC')->get()->getResultArray();
         $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
         $webhookHistory = db_connect()->table('shopify_webhook_events')->select('id, external_event_id, topic, status, error_message, retry_count, created_at, updated_at')->where('store_domain', $import['store_domain'])->like('payload_json', (string) $import['shopify_order_id'])->orderBy('created_at', 'DESC')->get(100)->getResultArray();

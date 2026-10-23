@@ -14,14 +14,49 @@
         return String(value || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
     }
 
-    function handle(form) {
-        var $form = $(form), $button = $form.find('[type="submit"]'), original = $button.html();
+    function refreshCsrf(payload) {
+        if (!payload || !payload.csrf || !payload.csrf.hash) return;
+        $('input[name="' + (payload.csrf.name || 'csrf_rtn') + '"]').val(payload.csrf.hash);
+    }
+
+    function clearStaleLoadingState() {
+        if (typeof window.hide_loader === 'function') window.hide_loader();
+        $('.loading, .is-loading').removeClass('loading is-loading').removeAttr('aria-busy');
+        $('[aria-busy="true"]').not(':disabled').removeAttr('aria-busy');
+        if (!$('.modal.show').length) {
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('padding-right', '');
+        }
+    }
+
+    function feedback(message, isError) {
+        var $feedback = $('#shopifyOrderActionFeedback');
+        if ($feedback.length) $feedback.removeClass('d-none alert-success alert-danger').addClass(isError ? 'alert alert-danger' : 'alert alert-success').text(message || (isError ? 'The action could not be completed.' : 'Updated.'));
+        if (typeof window[isError ? 'showError' : 'showSuccess'] === 'function') window[isError ? 'showError' : 'showSuccess'](message || (isError ? 'The action could not be completed.' : 'Updated.'));
+    }
+
+    async function handle(form) {
+        var $form = $(form), $button = $form.find('[type="submit"]'), original = $button.html(), succeeded = false;
         if ($button.prop('disabled')) return;
+        if (form.checkValidity && !form.checkValidity()) { form.reportValidity(); return; }
         $button.prop('disabled', true).attr('aria-busy', 'true');
-        $.ajax({ url: $form.attr('action'), method: 'POST', data: $form.serialize(), dataType: 'json', headers: csrfHeaders() }).done(function (response) {
-            if (response.status) { if (typeof showSuccess === 'function') showSuccess(response.msg || 'Updated.'); window.setTimeout(function () { window.location.reload(); }, 250); return; }
-            if (typeof showError === 'function') showError(response.msg || 'The operation could not be completed.');
-        }).fail(function (xhr) { if (typeof showError === 'function') showError((xhr.responseJSON && xhr.responseJSON.msg) || 'The operation could not be completed safely.'); }).always(function () { $button.prop('disabled', false).removeAttr('aria-busy').html(original); });
+        try {
+            if (typeof window.show_loader === 'function') window.show_loader();
+            var response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': $(form).find('[name="csrf_rtn"]').val() || '', Accept: 'application/json' } });
+            var text = await response.text(), payload;
+            try { payload = JSON.parse(text); } catch (parseError) { throw new Error('The server returned an invalid response. Please try again.'); }
+            refreshCsrf(payload);
+            if (!response.ok || !payload.status) throw new Error(payload.msg || ('The action could not be completed (HTTP ' + response.status + ').'));
+            succeeded = true;
+            feedback(payload.msg || 'Shopify order updated.', false);
+            $('#shopifyProcessOrderModal').one('hidden.bs.modal', function () { clearStaleLoadingState(); }).modal('hide');
+            window.setTimeout(function () { window.location.reload(); }, 350);
+        } catch (error) {
+            feedback(error && error.message ? error.message : 'The action could not be completed safely.', true);
+        } finally {
+            clearStaleLoadingState();
+            $button.prop('disabled', false).removeAttr('aria-busy').html(original);
+        }
     }
 
     function renderDetails(importData) {
