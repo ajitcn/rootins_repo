@@ -99,7 +99,40 @@ final class ShopifyOrderOperations extends BaseAdminController
     }
     public function bulkSaveMappings(): ResponseInterface { return $this->run(fn () => $this->operations->bulkSaveMappings($this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify medicine mappings saved.'); }
     public function ignoreMapping(): ResponseInterface { return $this->run(fn () => $this->operations->ignoreMapping($this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify product ignored for mapping.'); }
-    public function recheckMappings(): ResponseInterface { return $this->run(fn () => $this->operations->recheckMappings($this->request->getPost()), 'Affected orders queued for reconciliation.'); }
+    public function recheckMappings(): ResponseInterface
+    {
+        $correlationId = bin2hex(random_bytes(16));
+        if (! in_array('shopify.order.operations', session('permissions') ?? [], true)) {
+            return $this->mappingError('SHOPIFY_MAPPING_PERMISSION_DENIED', 'You are not authorized to recheck Shopify mappings.', $correlationId, 403);
+        }
+        try {
+            $data = $this->operations->recheckMappings($this->request->getPost());
+            return $this->response->setJSON([
+                'status' => true,
+                'msg' => 'Affected orders rechecked.',
+                'data' => [
+                    'orders_checked' => (int) ($data['orders_checked'] ?? 0),
+                    'orders_updated' => (int) ($data['orders_updated'] ?? 0),
+                    'lines_checked' => (int) ($data['lines_checked'] ?? 0),
+                    'lines_mapped' => (int) ($data['lines_mapped'] ?? 0),
+                    'lines_unmapped' => (int) ($data['lines_unmapped'] ?? 0),
+                    'errors' => array_values(array_map('strval', (array) ($data['errors'] ?? []))),
+                ],
+                'correlation_id' => $correlationId,
+                'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
+            ]);
+        } catch (InvalidArgumentException $exception) {
+            log_message('warning', 'Shopify mapping recheck validation failed. Correlation ID: ' . $correlationId . ' Exception: ' . get_class($exception));
+            return $this->mappingError('SHOPIFY_MAPPING_RECHECK_FAILED', $exception->getMessage(), $correlationId, 422);
+        } catch (\Throwable $exception) {
+            $code = $this->isDatabaseException($exception) ? 'SHOPIFY_MAPPING_DATABASE_FAILURE' : 'SHOPIFY_MAPPING_RECHECK_FAILED';
+            log_message('error', 'Shopify mapping recheck failed. Correlation ID: ' . $correlationId . ' Category: ' . $code . ' Exception: ' . get_class($exception) . ' Code: ' . (string) $exception->getCode());
+            $message = $code === 'SHOPIFY_MAPPING_DATABASE_FAILURE'
+                ? 'The Shopify mapping database could not be read or updated safely.'
+                : 'Affected Shopify orders could not be rechecked safely.';
+            return $this->mappingError($code, $message, $correlationId, 500);
+        }
+    }
     public function toggleMapping(int $id): ResponseInterface { return $this->run(fn () => $this->operations->toggleMapping($id), 'Shopify medicine mapping status updated.'); }
 
     public function action(int $id): ResponseInterface
@@ -123,5 +156,16 @@ final class ShopifyOrderOperations extends BaseAdminController
         try { $data = $callback(); return $this->response->setJSON(['status' => true, 'msg' => $message, 'data' => $data, 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]); }
         catch (InvalidArgumentException $exception) { return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage(), 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]); }
         catch (\Throwable $exception) { log_message('error', 'Shopify order operations action failed safely.'); return $this->response->setStatusCode(500)->setJSON(['status' => false, 'msg' => 'Shopify order operation could not be completed safely.', 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]); }
+    }
+
+    private function isDatabaseException(\Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+        return str_contains($message, 'unknown column')
+            || str_contains($message, 'doesn\'t exist')
+            || str_contains($message, 'base table')
+            || str_contains($message, 'sqlstate')
+            || str_contains($message, 'database')
+            || str_contains($message, 'query');
     }
 }

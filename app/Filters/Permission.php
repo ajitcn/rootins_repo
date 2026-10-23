@@ -24,6 +24,17 @@ class Permission implements FilterInterface
         if (!in_array($requiredPermission, $permissions, true)) {
             // AJAX Request
             if ($request->isAJAX()) {
+                $path = $request->getUri()->getPath();
+                if (str_contains($path, '/admin/integrations/shopify/order-mappings/') || str_contains($path, '/pharmacy/shopify-orders/')) {
+                    $correlationId = bin2hex(random_bytes(16));
+                    log_message('warning', 'Shopify mapping permission denied. Correlation ID: ' . $correlationId);
+                    return service('response')->setStatusCode(403)->setJSON([
+                        'status' => false,
+                        'error' => ['code' => 'SHOPIFY_MAPPING_PERMISSION_DENIED', 'message' => 'You do not have permission to recheck mappings.', 'correlation_id' => $correlationId],
+                        'correlation_id' => $correlationId,
+                        'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
+                    ]);
+                }
                 return service('response')->setStatusCode(403)->setJSON(['status' => false, 'msg' => 'You do not have permission to perform this action.']);
             }
 

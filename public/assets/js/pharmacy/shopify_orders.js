@@ -2,6 +2,7 @@
     'use strict';
 
     function csrfHeaders() {
+        if (window.RootinsCsrf) return window.RootinsCsrf.headers();
         var token = $('input[name="csrf_rtn"]').first().val() || '';
         return { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': token, Accept: 'application/json' };
     }
@@ -15,6 +16,7 @@
     }
 
     function refreshCsrf(payload) {
+        if (window.RootinsCsrf) { window.RootinsCsrf.update(payload); return; }
         if (!payload || !payload.csrf || !payload.csrf.hash) return;
         $('input[name="' + (payload.csrf.name || 'csrf_rtn') + '"]').val(payload.csrf.hash);
     }
@@ -42,7 +44,9 @@
         $button.prop('disabled', true).attr('aria-busy', 'true');
         try {
             if (typeof window.show_loader === 'function') window.show_loader();
-            var response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': $(form).find('[name="csrf_rtn"]').val() || '', Accept: 'application/json' } });
+            var formData = new FormData(form);
+            if (window.RootinsCsrf) window.RootinsCsrf.formData(formData);
+            var response = await fetch(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: csrfHeaders() });
             var text = await response.text(), payload;
             try { payload = JSON.parse(text); } catch (parseError) { throw new Error('The server returned an invalid response. Please try again.'); }
             refreshCsrf(payload);
@@ -86,10 +90,49 @@
         }).fail(function () { $body.html('<div class="alert alert-warning">Order details could not be loaded safely.</div>'); });
     });
 
-    $(document).off('click.shopifyOrders', '.js-shopify-recheck').on('click.shopifyOrders', '.js-shopify-recheck', function () {
-        var $button = $(this), data = { action: 'recheck_mapping', csrf_rtn: $('input[name="csrf_rtn"]').first().val() || '' };
+    $(document).off('click.shopifyOrders', '.js-shopify-recheck').on('click.shopifyOrders', '.js-shopify-recheck', function (event) {
+        event.preventDefault();
+        var $button = $(this);
         if ($button.prop('disabled')) return;
-        $button.prop('disabled', true);
-        $.ajax({ url: $button.data('action-url'), method: 'POST', data: data, dataType: 'json', headers: csrfHeaders() }).done(function (response) { if (response.status) { if (typeof showSuccess === 'function') showSuccess(response.msg || 'Mapping rechecked.'); window.setTimeout(function () { window.location.reload(); }, 250); } else if (typeof showError === 'function') showError(response.msg || 'Mapping could not be rechecked.'); }).fail(function (xhr) { if (typeof showError === 'function') showError((xhr.responseJSON && xhr.responseJSON.msg) || 'Mapping could not be rechecked safely.'); }).always(function () { $button.prop('disabled', false); });
+        $button.prop('disabled', true).attr('aria-busy', 'true');
+        if (typeof window.show_loader === 'function') window.show_loader();
+        var data = new FormData();
+        data.append('action', 'recheck_mapping');
+        if (window.RootinsCsrf) window.RootinsCsrf.formData(data);
+        fetch($button.data('action-url'), { method: 'POST', credentials: 'same-origin', headers: csrfHeaders(), body: data })
+            .then(function (response) {
+                return response.text().then(function (text) {
+                    var payload = {};
+                    try { payload = JSON.parse(text); } catch (error) { throw new Error('The server returned an invalid response.'); }
+                    refreshCsrf(payload);
+                    if (!response.ok || !payload.status) {
+                        var serverError = new Error((payload.error && payload.error.message) || payload.msg || 'Mapping could not be rechecked safely.');
+                        serverError.status = response.status;
+                        serverError.payload = payload;
+                        throw serverError;
+                    }
+                    return payload;
+                });
+            })
+            .then(function (response) {
+                if (typeof showSuccess === 'function') showSuccess(response.msg || 'Mapping rechecked.');
+                window.setTimeout(function () { window.location.reload(); }, 250);
+            })
+            .catch(function (error) {
+                var payload = error && error.payload ? error.payload : {};
+                refreshCsrf(payload);
+                var code = payload.error && payload.error.code;
+                var message = code === 'SHOPIFY_MAPPING_CSRF_INVALID' ? 'Your session expired. Refresh the page and try again.'
+                    : code === 'SHOPIFY_MAPPING_PERMISSION_DENIED' ? 'You do not have permission to recheck mappings.'
+                    : code === 'SHOPIFY_MAPPING_DATABASE_FAILURE' ? 'Mapping recheck could not be completed.'
+                    : error && error.message === 'Failed to fetch' ? 'Unable to contact the server.'
+                    : error && error.message ? error.message : 'Mapping could not be rechecked safely.';
+                if (typeof showError === 'function') showError(message);
+            })
+            .finally(function () {
+                $button.prop('disabled', false).removeAttr('aria-busy');
+                if (typeof window.hide_loader === 'function') window.hide_loader();
+                $('.loading, .is-loading').removeClass('loading is-loading').removeAttr('aria-busy');
+            });
     });
 }(window.jQuery));

@@ -18,6 +18,7 @@ $badge = static fn (string $value): string => 'badge badge-status badge-' . preg
         <?php endforeach; ?>
     </section>
     <form class="pharmacy-shopify-filters" method="get" action="<?= base_url('pharmacy/shopify-orders') ?>">
+        <?= csrf_field() ?>
         <div class="filter-field filter-search"><label for="shopifyOrderSearch">Search</label><input class="form-control form-control-sm" id="shopifyOrderSearch" name="search" value="<?= esc($filters['search'] ?? '') ?>" placeholder="Order number, customer, patient, or Shopify ID"></div>
         <?php foreach ([['status', 'Order status', $statusOptions], ['financial_status', 'Payment status', $paymentOptions], ['prescription_status', 'Prescription status', $prescriptionOptions], ['mapping_status', 'Mapping status', $mappingOptions], ['fulfillment_status', 'Delivery status', $deliveryOptions]] as [$field, $label, $options]): ?>
             <div class="filter-field"><label for="shopify-<?= esc($field) ?>"><?= esc($label) ?></label><select class="form-control form-control-sm" id="shopify-<?= esc($field) ?>" name="<?= esc($field) ?>"><option value="">All</option><?php foreach ($options as $value => $optionLabel): ?><option value="<?= esc($value) ?>" <?= ($filters[$field] ?? '') === $value ? 'selected' : '' ?>><?= esc($optionLabel) ?></option><?php endforeach; ?></select></div>

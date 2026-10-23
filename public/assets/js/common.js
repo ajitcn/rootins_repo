@@ -8,6 +8,52 @@ function showError(message)
     Swal.fire({icon: 'error', title: message, toast: true, position: 'top-end', showConfirmButton: false, timer: 4200, timerProgressBar: true});
 }
 
+/* Shared CSRF support for browser AJAX requests. Keep the token in both the
+ * FormData field and the application-configured request header. */
+window.RootinsCsrf = window.RootinsCsrf || (function (document) {
+    function read() {
+        var input = document.querySelector('input[type="hidden"][name="csrf_rtn"]');
+        var nameMeta = document.querySelector('meta[name="csrf-token-name"]');
+        var hashMeta = document.querySelector('meta[name="csrf-token-hash"], meta[name="X-CSRF-TOKEN"]');
+        return {
+            name: (input && input.name) || (nameMeta && nameMeta.getAttribute('content')) || 'csrf_rtn',
+            hash: (input && input.value) || (hashMeta && hashMeta.getAttribute('content')) || ''
+        };
+    }
+
+    function update(payload) {
+        var csrf = payload && payload.csrf;
+        if (!csrf || !csrf.name || !csrf.hash) return read();
+        document.querySelectorAll('input[type="hidden"]').forEach(function (field) {
+            if (field.name === csrf.name) field.value = csrf.hash;
+        });
+        document.querySelectorAll('meta[name="csrf-token-name"]').forEach(function (meta) { meta.setAttribute('content', csrf.name); });
+        document.querySelectorAll('meta[name="csrf-token-hash"], meta[name="X-CSRF-TOKEN"]').forEach(function (meta) { meta.setAttribute('content', csrf.hash); });
+        return {name: csrf.name, hash: csrf.hash};
+    }
+
+    function updateFromDocument(source) {
+        var input = (source || document).querySelector('input[type="hidden"][name="csrf_rtn"]');
+        if (input) update({csrf: {name: input.name, hash: input.value}});
+        return read();
+    }
+
+    return {
+        read: read,
+        update: update,
+        updateFromDocument: updateFromDocument,
+        headers: function () {
+            var token = read();
+            return {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'X-CSRF-TOKEN': token.hash};
+        },
+        formData: function (data) {
+            var token = read();
+            data.set(token.name, token.hash);
+            return data;
+        }
+    };
+}(document));
+
 function resetForm(form)
 {
     $(form)[0].reset();

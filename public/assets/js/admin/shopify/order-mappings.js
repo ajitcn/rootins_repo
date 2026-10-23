@@ -17,6 +17,7 @@
     }
 
     function csrfInput() {
+        if (window.RootinsCsrf) return document.querySelector('input[type="hidden"][name="' + window.RootinsCsrf.read().name + '"]');
         var inputs = document.querySelectorAll('input[type="hidden"][name="csrf_rtn"]');
         for (var i = 0; i < inputs.length; i++) if (inputs[i].value) return inputs[i];
         return inputs[0] || null;
@@ -34,11 +35,13 @@
     }
 
     function csrfHeaders() {
+        if (window.RootinsCsrf) return window.RootinsCsrf.headers();
         var input = csrfInput(), token = input ? input.value : ensureCsrfFields().hash;
         return { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-CSRF-TOKEN': token || '' };
     }
 
     function csrfData(data) {
+        if (window.RootinsCsrf) return window.RootinsCsrf.formData(data);
         var input = csrfInput();
         if (!input || !input.value) ensureCsrfFields();
         input = csrfInput();
@@ -47,6 +50,7 @@
     }
 
     function updateCsrf(result) {
+        if (window.RootinsCsrf) { window.RootinsCsrf.update(result); return; }
         var csrf = result && result.csrf;
         if (!csrf || !csrf.name || !csrf.hash) return;
         document.querySelectorAll('input[type="hidden"][name="' + csrf.name + '"]').forEach(function (input) {
@@ -397,6 +401,16 @@
         });
     }
 
+    function safeServerError(result, fallback) {
+        var error = result && result.error ? result.error : {};
+        if (error.code === 'SHOPIFY_MAPPING_CSRF_INVALID') return 'Your session expired. Refresh the page and try again.';
+        if (error.code === 'SHOPIFY_MAPPING_PERMISSION_DENIED') return 'You do not have permission to recheck mappings.';
+        if (error.code === 'SHOPIFY_MAPPING_DATABASE_FAILURE') return 'Mapping recheck could not be completed.';
+        var message = error.message || (result && result.msg) || (result && result.error_category) || fallback;
+        var correlationId = error.correlation_id || (result && result.correlation_id);
+        return correlationId ? message + ' (Reference: ' + correlationId + ')' : message;
+    }
+
     function refreshWorkspace(message) {
         return fetch(window.location.href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'text/html' } })
             .then(function (response) { return response.text(); })
@@ -407,7 +421,10 @@
                 var current = document.querySelector('#shopify-order-mappings');
                 if (!fresh || !current) throw new Error('The mapping list could not be refreshed safely.');
                 current.innerHTML = fresh.innerHTML;
-                if (token) document.querySelectorAll('input[type="hidden"][name="' + token.name + '"]').forEach(function (input) { input.value = token.value; });
+                if (token) {
+                    if (window.RootinsCsrf) window.RootinsCsrf.updateFromDocument(parsed);
+                    else document.querySelectorAll('input[type="hidden"][name="' + token.name + '"]').forEach(function (input) { input.value = token.value; });
+                }
                 wireModalTargets(current);
                 bindSubmitHandler(document.getElementById('mapping-bulk-form'));
                 applyCanonicalTab();
@@ -469,7 +486,7 @@
 
     function postForm(url, data, onCsrfFailure) {
         return fetchWithTimeout(url, { method: 'POST', body: csrfData(data), credentials: 'same-origin', headers: csrfHeaders() }, 30000)
-            .then(function (response) { return jsonResponse(response).then(function (result) { updateCsrf(result); if (isCsrfFailure(response, result)) { return refreshCsrfToken().catch(function () {}).then(function () { onCsrfFailure(); throw new Error('Your session expired. Refresh the page and try again.'); }); } if (!response.ok || !result.status) throw new Error(result.error_category || (result.error && result.error.code) || result.msg || 'The Shopify operation could not be completed safely.'); return result; }); });
+            .then(function (response) { return jsonResponse(response).then(function (result) { updateCsrf(result); if (isCsrfFailure(response, result)) { return refreshCsrfToken().catch(function () {}).then(function () { onCsrfFailure(); throw new Error(safeServerError(result, 'Your session expired. Refresh the page and try again.')); }); } if (!response.ok || !result.status) throw new Error(safeServerError(result, 'The Shopify operation could not be completed safely.')); return result; }); });
     }
 
     function applyCanonicalTab() {
@@ -613,7 +630,7 @@
             if (ignoreButton && ignoreModal) { event.preventDefault(); event.stopImmediatePropagation(); var ignored = parse(ignoreButton.getAttribute('data-item')), ignoreForm = ignoreModal.querySelector('form'); ignoreForm.reset(); setField(ignoreForm, 'shopify_product_id', ignored.shopify_product_id); setField(ignoreForm, 'shopify_variant_id', ignored.shopify_variant_id); openModal(ignoreModal); }
             if (detailsButton && detailsModal) { event.preventDefault(); event.stopImmediatePropagation(); showMappingDetails(detailsModal, parse(detailsButton.getAttribute('data-item'))); openModal(detailsModal); }
             var syncButton = event.target.closest('.js-sync-products'); if (syncButton) { event.preventDefault(); event.stopImmediatePropagation(); var syncLabel = syncButton.innerHTML; syncButton.disabled = true; postForm(pageValue('data-sync-url'), new FormData(), function () { toast('Your session expired. Refresh the page and try again.', true); }).then(function () { return refreshWorkspace('Shopify products synchronized.'); }).catch(function (error) { toast(error.message, true); }).finally(function () { syncButton.disabled = false; syncButton.innerHTML = syncLabel; }); }
-            var recheck = event.target.closest('.js-recheck-all, .js-recheck-item'); if (recheck) { event.preventDefault(); recheck.disabled = true; var data = new FormData(); data.append('store_domain', recheck.getAttribute('data-store') || pageValue('data-store-domain')); data.append('shopify_variant_id', recheck.getAttribute('data-variant') || 'all'); postForm(pageValue('data-recheck-url'), data, function () { toast('Your session expired. Refresh the page and try again.', true); }).then(function (result) { toast(result.msg || 'Affected orders rechecked.'); }).catch(function (error) { toast(error.message, true); }).finally(function () { recheck.disabled = false; }); }
+            var recheck = event.target.closest('.js-recheck-all, .js-recheck-item'); if (recheck) { event.preventDefault(); if (recheck.disabled) return; recheck.disabled = true; if (typeof window.show_loader === 'function') window.show_loader(); var data = new FormData(); data.append('store_domain', recheck.getAttribute('data-store') || pageValue('data-store-domain')); data.append('shopify_variant_id', recheck.getAttribute('data-variant') || 'all'); data.append('shopify_product_id', recheck.getAttribute('data-product') || ''); postForm(pageValue('data-recheck-url'), data, function () { toast('Your session expired. Refresh the page and try again.', true); }).then(function (result) { var counts = result.data || {}; toast((result.msg || 'Affected orders rechecked.') + ' ' + (counts.lines_mapped || 0) + '/' + (counts.lines_checked || 0) + ' lines mapped.'); return refreshWorkspace(); }).catch(function (error) { toast(error.message || 'Affected orders could not be rechecked safely.', true); }).finally(function () { recheck.disabled = false; if (typeof window.hide_loader === 'function') window.hide_loader(); }); }
         }, true);
         document.addEventListener('keydown', function (event) { if (event.key === 'Escape') { closeAllDropdowns(); document.querySelectorAll('.modal.show').forEach(closeModal); } }, true);
         document.addEventListener('change', function (event) { if (event.target.id === 'mappingMedicineSelect') { setMedicineValue(document.getElementById('shopify-mapping-form'), event.target.value); console.debug('[Shopify mapping medicine]', { selected_medicine_id: event.target.value }); } });

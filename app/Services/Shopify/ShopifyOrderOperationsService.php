@@ -524,13 +524,13 @@ GRAPHQL;
         $productId = preg_match('#^gid://shopify/[A-Za-z]+/([0-9]+)$#i', $product, $productMatch) === 1 ? $productMatch[1] : $product;
         $variantAliases = $variantId !== '' ? array_values(array_unique([$variant, $variantId, 'gid://shopify/ProductVariant/' . $variantId])) : [];
         $productAliases = $productId !== '' ? array_values(array_unique([$product, $productId, 'gid://shopify/Product/' . $productId])) : [];
-        $query = db_connect()->table('shopify_order_imports i')->select('i.id')->where('i.store_domain', $store);
+        $query = db_connect()->table('shopify_order_imports i')->select('i.id')->join('shopify_webhook_events e', 'e.id = i.last_event_id', 'left')->where('i.store_domain', $store);
         if ($variant !== 'all' && $variant !== '') {
             $query->join('shopify_order_import_lines l', 'l.import_id = i.id', 'left')
-                ->groupStart()->whereIn('l.shopify_variant_id', $variantAliases)->orLike('i.payload_json', $variantId)->groupEnd();
+                ->groupStart()->whereIn('l.shopify_variant_id', $variantAliases)->orLike('e.payload_json', $variantId)->groupEnd();
         } elseif ($product !== '') {
             $query->join('shopify_order_import_lines l', 'l.import_id = i.id', 'left')
-                ->groupStart()->whereIn('l.shopify_product_id', $productAliases)->orLike('i.payload_json', $productId)->groupEnd();
+                ->groupStart()->whereIn('l.shopify_product_id', $productAliases)->orLike('e.payload_json', $productId)->groupEnd();
         }
         $imports = $query->groupBy('i.id')->get()->getResultArray();
         $totals = ['orders_checked' => 0, 'lines_checked' => 0, 'lines_mapped' => 0, 'lines_unmapped' => 0, 'orders_updated' => 0, 'errors' => []];

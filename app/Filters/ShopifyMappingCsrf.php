@@ -16,7 +16,11 @@ final class ShopifyMappingCsrf extends CSRF
             return parent::before($request, $arguments);
         } catch (SecurityException $exception) {
             $path = $request->getUri()->getPath();
-            if ($path !== '' && str_contains($path, '/admin/integrations/shopify/order-mappings/')) {
+            $isShopifyMappingAction = $path !== '' && (
+                str_contains($path, '/admin/integrations/shopify/order-mappings/')
+                || str_contains($path, '/pharmacy/shopify-orders/')
+            );
+            if ($isShopifyMappingAction) {
                 $correlationId = bin2hex(random_bytes(16));
                 log_message('warning', 'Shopify mapping CSRF validation failed. Correlation ID: ' . $correlationId);
 

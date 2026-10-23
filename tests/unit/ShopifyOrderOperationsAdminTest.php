@@ -130,6 +130,44 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringNotContainsString('csrf exclusion', strtolower($filters));
     }
 
+    public function testPharmacyRecheckUsesSharedCsrfAndReturnsJsonForFilterFailures(): void
+    {
+        $filters = $this->source('app/Filters/ShopifyMappingCsrf.php');
+        $permissions = $this->source('app/Filters/Permission.php');
+        $common = $this->source('public/assets/js/common.js');
+        $script = $this->source('public/assets/js/pharmacy/shopify_orders.js');
+        $view = $this->source('app/Modules/Pharmacy/Views/pages/shopify_orders/index.php');
+
+        foreach (['/pharmacy/shopify-orders/', 'SHOPIFY_MAPPING_CSRF_INVALID', 'csrf_hash()'] as $marker) {
+            self::assertStringContainsString($marker, $filters);
+        }
+        foreach (['SHOPIFY_MAPPING_PERMISSION_DENIED', 'You do not have permission to recheck mappings.'] as $marker) {
+            self::assertStringContainsString($marker, $permissions);
+        }
+        foreach (['window.RootinsCsrf', 'formData', 'X-CSRF-TOKEN', 'csrf_rtn'] as $marker) {
+            self::assertStringContainsString($marker, $common . $script . $view);
+        }
+        foreach (['credentials: \'same-origin\'', 'body: data', '.finally', 'Your session expired. Refresh the page and try again.'] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
+        self::assertStringNotContainsString("'shopify-orders' => ['csrf']", strtolower($this->source('app/Config/Filters.php')));
+    }
+
+    public function testAffectedOrderRecheckReturnsSafeCorrelatedErrorsAndCounts(): void
+    {
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $script = $this->source('public/assets/js/admin/shopify/order-mappings.js');
+        foreach (['SHOPIFY_MAPPING_PERMISSION_DENIED', 'SHOPIFY_MAPPING_DATABASE_FAILURE', 'SHOPIFY_MAPPING_RECHECK_FAILED', 'correlation_id', 'orders_checked', 'orders_updated', 'lines_checked', 'lines_mapped', 'lines_unmapped', 'isDatabaseException'] as $marker) {
+            self::assertStringContainsString($marker, $controller . $service);
+        }
+        foreach (['show_loader', 'hide_loader', 'safeServerError', 'data.append(\'shopify_product_id\'', 'event.preventDefault'] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
+        self::assertStringNotContainsString('i.payload_json', $service);
+        self::assertStringContainsString('e.payload_json', $service);
+    }
+
     public function testManualMappingUsesOnlyStoreAndVariantIdentityAndQuarantinesInactiveMedicines(): void
     {
         $operations = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
