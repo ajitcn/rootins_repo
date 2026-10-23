@@ -515,19 +515,38 @@ GRAPHQL;
         return true;
     }
 
-    /** @return array<string, int> */
+    /** @return array<string, int|array<int, string>> */
     public function recheckMappings(array $input): array
     {
         $store = strtolower(trim((string) ($input['store_domain'] ?? ''))); $variant = trim((string) ($input['shopify_variant_id'] ?? '')); $product = trim((string) ($input['shopify_product_id'] ?? ''));
         if ($store === '' || $variant === '') throw new InvalidArgumentException('A store and Shopify variant are required.');
-        $query = db_connect()->table('shopify_order_import_lines l')->select('l.import_id')->join('shopify_order_imports i', 'i.id = l.import_id')->where('i.store_domain', $store);
-        if ($variant !== 'all' && $variant !== '') $query->where('l.shopify_variant_id', $variant);
-        elseif ($product !== '') $query->where('l.shopify_product_id', $product);
-        $imports = $query->groupBy('l.import_id')->get()->getResultArray();
-        $service = new ShopifyOrderImportService(); $processed = 0;
-        foreach ($imports as $import) { $service->importExisting((int) $import['import_id'], null); $processed++; }
-        service('audit')->record('shopify.order_mapping_recheck', ['store_domain' => $store, 'product_id' => $product, 'variant_id' => $variant, 'count' => $processed]);
-        return ['processed' => $processed];
+        $variantId = preg_match('#^gid://shopify/[A-Za-z]+/([0-9]+)$#i', $variant, $variantMatch) === 1 ? $variantMatch[1] : $variant;
+        $productId = preg_match('#^gid://shopify/[A-Za-z]+/([0-9]+)$#i', $product, $productMatch) === 1 ? $productMatch[1] : $product;
+        $variantAliases = $variantId !== '' ? array_values(array_unique([$variant, $variantId, 'gid://shopify/ProductVariant/' . $variantId])) : [];
+        $productAliases = $productId !== '' ? array_values(array_unique([$product, $productId, 'gid://shopify/Product/' . $productId])) : [];
+        $query = db_connect()->table('shopify_order_imports i')->select('i.id')->where('i.store_domain', $store);
+        if ($variant !== 'all' && $variant !== '') {
+            $query->join('shopify_order_import_lines l', 'l.import_id = i.id', 'left')
+                ->groupStart()->whereIn('l.shopify_variant_id', $variantAliases)->orLike('i.payload_json', $variantId)->groupEnd();
+        } elseif ($product !== '') {
+            $query->join('shopify_order_import_lines l', 'l.import_id = i.id', 'left')
+                ->groupStart()->whereIn('l.shopify_product_id', $productAliases)->orLike('i.payload_json', $productId)->groupEnd();
+        }
+        $imports = $query->groupBy('i.id')->get()->getResultArray();
+        $totals = ['orders_checked' => 0, 'lines_checked' => 0, 'lines_mapped' => 0, 'lines_unmapped' => 0, 'orders_updated' => 0, 'errors' => []];
+        foreach ($imports as $import) {
+            $before = (new ShopifyOrderImportModel())->find((int) $import['id']);
+            $result = $this->recheckImportMapping((int) $import['id'], null, 0);
+            $counts = (array) ($result['data']['mapping_recheck'] ?? []);
+            $totals['orders_checked']++;
+            $totals['lines_checked'] += (int) ($counts['lines_checked'] ?? 0);
+            $totals['lines_mapped'] += (int) ($counts['lines_mapped'] ?? 0);
+            $totals['lines_unmapped'] += (int) ($counts['lines_unmapped'] ?? 0);
+            if (($before['mapping_status'] ?? '') !== (($result['data']['mapping_status'] ?? $before['mapping_status'] ?? ''))) $totals['orders_updated']++;
+            if (($result['status'] ?? false) !== true) $totals['errors'][] = 'Import ' . (int) $import['id'] . ' could not be reconciled.';
+        }
+        service('audit')->record('shopify.order_mapping_recheck', ['store_domain' => $store, 'product_id' => $product, 'variant_id' => $variant, 'orders_checked' => $totals['orders_checked'], 'lines_checked' => $totals['lines_checked']]);
+        return $totals;
     }
 
     public function recheckImportMapping(int $importId, ?int $clinicId = null, int $actor = 0): array
@@ -537,11 +556,33 @@ GRAPHQL;
             throw new InvalidArgumentException('Shopify order was not found.');
         }
 
-        $result = (new ShopifyOrderImportService())->importExisting($importId, null);
-        $this->history($importId, 'recheck_mapping', (string) ($import['status'] ?? ''), (string) ((new ShopifyOrderImportModel())->find($importId)['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
+        $result = (new ShopifyOrderImportService())->recheckMapping($importId);
+        $updated = (new ShopifyOrderImportModel())->find($importId) ?? $import;
+        $counts = $this->mappingCounts($importId);
+        $this->history($importId, 'recheck_mapping', (string) ($import['status'] ?? ''), (string) ($updated['status'] ?? ''), null, (string) ($result['body']['msg'] ?? ''), $actor);
         service('audit')->record('shopify.order_mapping_rechecked', ['import_id' => $importId]);
 
-        return $result;
+        return [
+            'status' => (bool) ($result['body']['status'] ?? false),
+            'msg' => (string) ($result['body']['msg'] ?? 'Shopify order mapping recheck completed.'),
+            'data' => [
+                'import_id' => $importId,
+                'mapping_status' => (string) ($updated['mapping_status'] ?? ''),
+                'mapping_recheck' => $counts,
+            ],
+        ];
+    }
+
+    /** @return array{lines_checked:int, lines_mapped:int, lines_unmapped:int, errors:int} */
+    private function mappingCounts(int $importId): array
+    {
+        $lines = db_connect()->table('shopify_order_import_lines')->select('status, medicine_id, mapping_reason')->where('import_id', $importId)->get()->getResultArray();
+        $mapped = 0; $errors = 0;
+        foreach ($lines as $line) {
+            if ((int) ($line['medicine_id'] ?? 0) > 0 && in_array((string) ($line['status'] ?? ''), ['mapped', 'imported'], true)) $mapped++;
+            if (in_array((string) ($line['status'] ?? ''), ['conflict', 'medicine_inactive'], true)) $errors++;
+        }
+        return ['lines_checked' => count($lines), 'lines_mapped' => $mapped, 'lines_unmapped' => max(0, count($lines) - $mapped), 'errors' => $errors];
     }
 
     public function readiness(array $filters = []): array
@@ -579,19 +620,33 @@ GRAPHQL;
         $imports = $query->get(500)->getResultArray();
         $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $imports)));
         if ($ids === []) return $imports;
-        $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
+        $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, l.status, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
         $summaries = [];
         foreach ($lineRows as $line) {
             $importId = (int) $line['import_id'];
             $name = trim((string) ($line['medicine_name'] ?? '')) ?: trim((string) ($line['title_snapshot'] ?? '')) ?: 'Unmapped medicine';
             $summaries[$importId]['count'] = ($summaries[$importId]['count'] ?? 0) + 1;
             $summaries[$importId]['names'][] = $name;
+            $summaries[$importId]['mapped'] = ($summaries[$importId]['mapped'] ?? 0) + (in_array((string) ($line['status'] ?? ''), ['mapped', 'imported'], true) && (int) ($line['medicine_id'] ?? 0) > 0 ? 1 : 0);
         }
         foreach ($imports as &$import) {
             $summary = $summaries[(int) $import['id']] ?? ['count' => 0, 'names' => []];
+            if ((int) ($summary['count'] ?? 0) === 0 && ! empty($import['last_event_id'])) {
+                $event = (new ShopifyWebhookEventService())->find((int) $import['last_event_id']);
+                $payload = is_array($event) ? json_decode((string) ($event['payload_json'] ?? ''), true) : null;
+                foreach ((array) ($payload['line_items'] ?? []) as $item) {
+                    if (! is_array($item)) continue;
+                    $summary['count'] = ($summary['count'] ?? 0) + 1;
+                    $summary['names'][] = trim((string) ($item['title'] ?? '')) ?: 'Unmapped medicine';
+                }
+            }
             $names = array_values(array_unique($summary['names'] ?? []));
             $import['medicine_count'] = (int) ($summary['count'] ?? 0);
             $import['medicine_summary'] = implode(', ', array_slice($names, 0, 2)) . (count($names) > 2 ? ' +' . (count($names) - 2) : '');
+            if ((int) ($summary['count'] ?? 0) > 0 && (int) ($summary['mapped'] ?? 0) === (int) ($summary['count'] ?? 0)) {
+                $import['mapping_status'] = 'mapped';
+                if (($import['status'] ?? '') === 'pending_mapping') $import['status'] = 'ready_to_import';
+            }
         }
         unset($import);
         return $imports;

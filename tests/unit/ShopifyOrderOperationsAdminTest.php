@@ -142,7 +142,7 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringNotContainsString("\$fields['medicine_id'] = 'Select an active", $operations);
         self::assertStringContainsString("'status' => 'medicine_inactive'", $import);
         self::assertStringContainsString('MEDICINE_INACTIVE', $import);
-        self::assertStringContainsString("where('shopify_variant_id', \$variantId)", $import);
+        self::assertStringContainsString("whereIn('shopify_variant_id', \$this->shopifyIdAliases(\$variantId, 'ProductVariant'))", $import);
         self::assertStringContainsString('Save this Shopify variant to the selected ROOTINS medicine?', $script);
         self::assertStringNotContainsString("where('status', 'active')->first() === null) throw new InvalidArgumentException('Select an active ROOTINS medicine.')", $operations);
     }

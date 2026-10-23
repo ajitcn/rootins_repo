@@ -10,13 +10,17 @@ final class ShopifyOrderMappingResolutionTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
 
-        self::assertStringContainsString("where('shopify_variant_id', \$variantId)", $service);
-        self::assertStringContainsString("where('shopify_product_id', \$productId)", $service);
+        self::assertStringContainsString("whereIn('shopify_variant_id', \$this->shopifyIdAliases(\$variantId, 'ProductVariant'))", $service);
+        self::assertStringContainsString("whereIn('shopify_product_id', \$this->shopifyIdAliases(\$productId, 'Product'))", $service);
         self::assertStringContainsString("where('shopify_variant_id', null)", $service);
         self::assertStringNotContainsString("where('shopify_line_item_id', \$variantId)", $service);
         self::assertStringContainsString("'mapping_reason' => \$resolution['reason']", $service);
         self::assertStringContainsString('prescriptionRequiredForOrder', $service);
         self::assertStringContainsString('shopify_mapping_ignores', $service);
+        self::assertStringContainsString('hydrateOrderLineItems', $service);
+        self::assertStringContainsString('shopifyIdAliases', $service);
+        self::assertStringContainsString("'mapping_status' => 'mapped'", $service);
+        self::assertStringContainsString('payload[\'line_items\']', $service);
     }
 
     public function testReconciliationUpdatesExistingLineIdentityAndRechecksAfterMappingSave(): void
@@ -30,6 +34,8 @@ final class ShopifyOrderMappingResolutionTest extends TestCase
         self::assertStringContainsString("recheckMappings(['store_domain' => \$store, 'shopify_product_id' => \$productId, 'shopify_variant_id' => \$variantId])", $operations);
         self::assertStringContainsString("'recheck_mapping'", $operations);
         self::assertStringContainsString("'verified' => true", $operations);
+        self::assertStringContainsString("'lines_checked'", $operations);
+        self::assertStringContainsString('preserveLineCommercials', $service);
     }
 
     public function testDiagnosticsContainOnlyMappingIdentifiersAndResolution(): void

@@ -29,7 +29,7 @@ final class ShopifyOrderImportService
      * Only a verified customer link, explicit product mappings, and an
      * approved ROOTINS prescription can enter the existing fulfilment flow.
      */
-    public function processEvent(int $eventId): array
+    public function processEvent(int $eventId, bool $preserveLineCommercials = false): array
     {
         $events = $this->events ?? new ShopifyWebhookEventService();
         $event = $events->find($eventId);
@@ -44,6 +44,10 @@ final class ShopifyOrderImportService
             $events->markFailed($eventId, 'Order payload is unavailable.');
 
             return ['status' => 'failed', 'import_id' => null];
+        }
+
+        if (!is_array($payload['line_items'] ?? null) || $payload['line_items'] === []) {
+            $payload = $this->hydrateOrderLineItems($event, $payload);
         }
 
         $store = strtolower(trim((string) $event['store_domain']));
@@ -135,7 +139,7 @@ final class ShopifyOrderImportService
             }
         }
 
-        $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload);
+        $mappingResult = $this->storeLinesAndResolveMappings($importId, $store, $payload, $preserveLineCommercials);
 
         if ($mappingResult['status'] !== 'ready') {
             $category = (string) ($mappingResult['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
@@ -148,7 +152,14 @@ final class ShopifyOrderImportService
             return ['status' => $inactiveMedicine ? 'quarantined' : 'pending_mapping', 'import_id' => $importId];
         }
 
-        ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['mapping_status' => 'mapped']);
+        // A successful reconciliation clears only stale mapping/quarantine
+        // diagnostics; prescription, payment, and delivery state remain independent.
+        ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
+            'mapping_status' => 'mapped',
+            'quarantine_reason' => null,
+            'last_error' => null,
+            'failure_reason' => null,
+        ]);
 
         $prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);
         if (trim((string) ($payload['prescription_reference'] ?? '')) === '') {
@@ -196,6 +207,38 @@ final class ShopifyOrderImportService
             ->findAll(200);
     }
 
+    /** @return array<string, mixed> */
+    public function recheckMapping(int $importId): array
+    {
+        $imports = $this->imports ?? new ShopifyOrderImportModel();
+        $import = $imports->find($importId);
+        if ($import === null) return ['status' => false, 'msg' => 'Shopify order import was not found.', 'data' => ['error' => 'not_found']];
+        $event = ($this->events ?? new ShopifyWebhookEventService())->find((int) ($import['last_event_id'] ?? 0));
+        if ($event === null) return ['status' => false, 'msg' => 'The original Shopify event is unavailable.', 'data' => ['error' => 'event_missing']];
+        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+        if (!is_array($payload) || trim((string) ($payload['id'] ?? '')) === '') return ['status' => false, 'msg' => 'The Shopify order data is unavailable.', 'data' => ['error' => 'payload_missing']];
+        $payload = $this->hydrateOrderLineItems($event, $payload);
+        $mapping = $this->storeLinesAndResolveMappings((int) $import['id'], strtolower(trim((string) $import['store_domain'])), $payload, true);
+        $now = date('Y-m-d H:i:s');
+        $updates = ['updated_at' => $now];
+        if ($mapping['status'] === 'ready') {
+            $updates['mapping_status'] = 'mapped';
+            $updates['quarantine_reason'] = null;
+            $updates['last_error'] = null;
+            $updates['failure_reason'] = null;
+            if (($import['status'] ?? '') === 'pending_mapping' || in_array((string) ($import['quarantine_reason'] ?? ''), [ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED, ShopifyOrderImportFailure::MEDICINE_INACTIVE], true)) {
+                $updates['status'] = 'ready_to_import';
+            }
+        } else {
+            $updates['mapping_status'] = (string) ($mapping['mapping_status'] ?? 'unmapped');
+            $updates['quarantine_reason'] = (string) ($mapping['category'] ?? ShopifyOrderImportFailure::MEDICINE_NOT_MAPPED);
+            $updates['last_error'] = (string) ($mapping['reason'] ?? 'Mapping could not be resolved.');
+            if (($import['status'] ?? '') !== 'imported' && ($import['status'] ?? '') !== 'cancelled') $updates['status'] = $updates['mapping_status'] === 'inactive_medicine' ? 'quarantined' : 'pending_mapping';
+        }
+        $imports->update($importId, $updates);
+        return ['status' => true, 'msg' => 'Shopify order mapping rechecked.', 'data' => ['import_id' => $importId, 'mapping_status' => $updates['mapping_status'], 'line_items_present' => count((array) ($payload['line_items'] ?? []))]];
+    }
+
     public function markFailureForEvent(int $eventId, string $category): bool
     {
         return (bool) ($this->imports ?? new ShopifyOrderImportModel())->where('last_event_id', $eventId)->set([
@@ -237,7 +280,7 @@ final class ShopifyOrderImportService
         }
 
         try {
-            $result = $this->processEvent($eventId);
+            $result = $this->processEvent($eventId, true);
 
             return ['http' => 200, 'body' => ['status' => $result['status'] === 'imported', 'msg' => 'Shopify order reconciliation completed.', 'data' => $result]];
         } catch (\Throwable $exception) {
@@ -312,7 +355,7 @@ final class ShopifyOrderImportService
     }
 
     /** @return array{status: string, reason: string} */
-    private function storeLinesAndResolveMappings(int $importId, string $store, array $payload): array
+    private function storeLinesAndResolveMappings(int $importId, string $store, array $payload, bool $preserveLineCommercials = false): array
     {
         $lineModel = $this->lines ?? new ShopifyOrderImportLineModel();
         $items = is_array($payload['line_items'] ?? null) ? $payload['line_items'] : [];
@@ -340,7 +383,7 @@ final class ShopifyOrderImportService
             }
 
             $existing = $lineModel->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->first();
-            $this->upsertImportLine($lineModel, $existing, [
+            $lineData = [
                 'import_id' => $importId,
                 'shopify_line_item_id' => $lineId,
                 'shopify_product_id' => $productId !== '' ? $productId : null,
@@ -350,12 +393,13 @@ final class ShopifyOrderImportService
                 'shopify_sku' => (string) ($item['sku'] ?? ''),
                 'shopify_barcode' => (string) ($item['barcode'] ?? ''),
                 'product_image_url' => filter_var((string) ($item['image_url'] ?? ''), FILTER_VALIDATE_URL) ? (string) $item['image_url'] : null,
-                'quantity' => max(0, (int) ($item['quantity'] ?? 0)),
-                'shopify_price_snapshot' => (float) ($item['price'] ?? 0),
+                'quantity' => $preserveLineCommercials && $existing !== null ? (int) ($existing['quantity'] ?? 0) : max(0, (int) ($item['quantity'] ?? 0)),
+                'shopify_price_snapshot' => $preserveLineCommercials && $existing !== null ? (float) ($existing['shopify_price_snapshot'] ?? 0) : (float) ($item['price'] ?? 0),
                 'status' => $existing !== null && (int) ($existing['rootins_order_item_id'] ?? 0) > 0 && $status === 'mapped' ? 'imported' : $status,
                 'mapping_reason' => $resolution['reason'],
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ];
+            $this->upsertImportLine($lineModel, $existing, $lineData);
 
             if ($resolution['result'] !== 'mapped' && $unresolved === null) {
                 $unresolved = $resolution;
@@ -390,11 +434,11 @@ final class ShopifyOrderImportService
             $productId = $this->shopifyId($item['product_id'] ?? null);
             $required = null;
             if ($variantId !== '' && $db->tableExists('shopify_variant_catalogue')) {
-                $variant = $db->table('shopify_variant_catalogue')->select('prescription_required')->where('store_domain', $store)->where('shopify_variant_id', $variantId)->get(1)->getRowArray();
+                $variant = $db->table('shopify_variant_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_variant_id', $this->shopifyIdAliases($variantId, 'ProductVariant'))->get(1)->getRowArray();
                 $required = $variant['prescription_required'] ?? null;
             }
             if ($required === null && $productId !== '' && $db->tableExists('shopify_product_catalogue')) {
-                $product = $db->table('shopify_product_catalogue')->select('prescription_required')->where('store_domain', $store)->where('shopify_product_id', $productId)->get(1)->getRowArray();
+                $product = $db->table('shopify_product_catalogue')->select('prescription_required')->where('store_domain', $store)->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))->get(1)->getRowArray();
                 $required = $product['prescription_required'] ?? null;
             }
             if ((int) $required === 1) return true;
@@ -408,7 +452,7 @@ final class ShopifyOrderImportService
     {
         $db = db_connect();
         $lookupKey = $store . '|variant:' . ($variantId !== '' ? $variantId : 'none') . '|product:' . ($productId !== '' ? $productId : 'none');
-        if ($db->tableExists('shopify_mapping_ignores') && $productId !== '' && $variantId !== '' && $db->table('shopify_mapping_ignores')->where('store_domain', $store)->where('shopify_product_id', $productId)->where('shopify_variant_id', $variantId)->countAllResults() > 0) {
+        if ($db->tableExists('shopify_mapping_ignores') && $productId !== '' && $variantId !== '' && $db->table('shopify_mapping_ignores')->where('store_domain', $store)->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))->whereIn('shopify_variant_id', $this->shopifyIdAliases($variantId, 'ProductVariant'))->countAllResults() > 0) {
             return ['result' => 'unmapped', 'reason' => 'Product mapping missing', 'mapping' => null, 'lookup_key' => $lookupKey];
         }
         $mappingRows = [];
@@ -416,14 +460,14 @@ final class ShopifyOrderImportService
         if ($variantId !== '') {
             $mappingRows = $db->table('shopify_medicine_mappings')
                 ->where('store_domain', $store)
-                ->where('shopify_variant_id', $variantId)
+                ->whereIn('shopify_variant_id', $this->shopifyIdAliases($variantId, 'ProductVariant'))
                 ->get()->getResultArray();
         }
 
         if ($mappingRows === [] && $productId !== '') {
             $mappingRows = $db->table('shopify_medicine_mappings')
                 ->where('store_domain', $store)
-                ->where('shopify_product_id', $productId)
+                ->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))
                 ->groupStart()
                     ->where('shopify_variant_id', null)
                     ->orWhere('shopify_variant_id', '')
@@ -448,7 +492,7 @@ final class ShopifyOrderImportService
         $productExists = false;
         if ($productId !== '' && $db->tableExists('shopify_product_catalogue')) {
             $productExists = $db->table('shopify_product_catalogue')
-                ->where('store_domain', $store)->where('shopify_product_id', $productId)->countAllResults() > 0;
+                ->where('store_domain', $store)->whereIn('shopify_product_id', $this->shopifyIdAliases($productId, 'Product'))->countAllResults() > 0;
         }
 
         $reason = $productId === '' || (! $productExists && $variantId === '')
@@ -458,9 +502,75 @@ final class ShopifyOrderImportService
         return ['result' => 'unmapped', 'reason' => $reason, 'mapping' => null, 'lookup_key' => $lookupKey];
     }
 
+    /** @return list<string> */
+    private function shopifyIdAliases(string $value, string $resource): array
+    {
+        $value = $this->shopifyId($value);
+        if ($value === '') return [];
+        $aliases = [$value];
+        if (preg_match('#^gid://shopify/' . preg_quote($resource, '#') . '/([0-9]+)$#i', $value, $matches) === 1) {
+            $aliases[] = $matches[1];
+        } elseif (ctype_digit($value)) {
+            $aliases[] = 'gid://shopify/' . $resource . '/' . $value;
+        }
+        return array_values(array_unique($aliases));
+    }
+
+    /** @return array<string, mixed> */
+    private function hydrateOrderLineItems(array $event, array $payload): array
+    {
+        try {
+            $orderGid = 'gid://shopify/Order/' . $this->shopifyId($payload['id'] ?? '');
+            $result = (new ShopifyClient(new ShopifyConfiguration()))->graphql(<<<'GRAPHQL'
+query OrderLineRepair($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    lineItems(first: 250) {
+      nodes {
+        id
+        title
+        quantity
+        sku
+        variant {
+          id
+          product { id }
+        }
+        originalUnitPriceSet { shopMoney { amount } }
+      }
+    }
+  }
+}
+GRAPHQL, ['id' => $orderGid]);
+            $order = is_array($result['order'] ?? null) ? $result['order'] : [];
+            $items = [];
+            foreach ((array) ($order['lineItems']['nodes'] ?? []) as $line) {
+                if (!is_array($line) || $this->shopifyId($line['id'] ?? '') === '') continue;
+                $items[] = [
+                    'id' => $this->shopifyId($line['id'] ?? ''),
+                    'title' => (string) ($line['title'] ?? ''),
+                    'quantity' => (int) ($line['quantity'] ?? 0),
+                    'sku' => (string) ($line['sku'] ?? ''),
+                    'variant_id' => (string) ($line['variant']['id'] ?? ''),
+                    'product_id' => (string) ($line['variant']['product']['id'] ?? ''),
+                    'price' => (float) ($line['originalUnitPriceSet']['shopMoney']['amount'] ?? 0),
+                ];
+            }
+            if ($items !== []) {
+                $payload['line_items'] = $items;
+                log_message('info', 'Shopify order line repair completed order=' . $this->shopifyId($payload['id'] ?? '') . ' line_count=' . count($items));
+            }
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Shopify order line repair unavailable topic=' . (string) ($event['topic'] ?? '') . ' error=' . get_class($exception));
+        }
+        return $payload;
+    }
+
     private function shopifyId(mixed $value): string
     {
-        return trim((string) ($value ?? ''));
+        $value = trim((string) ($value ?? ''));
+        if (preg_match('#^gid://shopify/[A-Za-z]+/([0-9]+)$#i', $value, $matches) === 1) return $matches[1];
+        return $value;
     }
 
     /** @param array<string, mixed> $data */
