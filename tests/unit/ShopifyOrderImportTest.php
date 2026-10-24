@@ -164,7 +164,7 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("->where('store_domain', \$store)->where('shopify_order_id', \$orderId)", $service);
         self::assertStringContainsString('WHERE id = ? LIMIT 1', $service);
         self::assertStringContainsString("if (\$topic === 'orders/paid' && \$result['id'] !== null)", $controller);
-        self::assertStringContainsString("if (\$result['duplicate'])", $controller);
+        self::assertStringContainsString("if (\$result['duplicate'] && ! \$result['process'])", $controller);
     }
 
     public function testExistingImport53StylePaidOrderFinishesProcessedWithoutOrderNotFound(): void
@@ -284,7 +284,7 @@ final class ShopifyOrderImportTest extends TestCase
         foreach (['request_received', 'hmac_verified', 'payload_parsed', 'order_identity_resolved', 'import_row_before_upsert', 'import_row_upserted', 'internal_import_id_resolved', 'line_items_started', 'line_items_completed', 'customer_resolved', 'patient_resolved', 'mapping_resolved', 'prescription_resolved', 'payment_update_started', 'payment_row_lookup_started', 'payment_row_lookup_completed', 'payment_row_update_started', 'payment_row_update_completed', 'pharmacy_order_lookup_started', 'pharmacy_order_created_or_updated', 'import_status_update_started', 'import_status_update_completed', 'import_completed', 'import_failed'] as $stage) {
             self::assertStringContainsString($stage, $source);
         }
-        foreach (['correlation_id', 'internal_import_id', 'processing_stage', 'current_import_status', 'payment_status', 'target_table', 'lookup_type', 'row_found', 'affected_row_count', 'failure_category', 'exception_class'] as $field) {
+        foreach (['correlation_id', 'webhook_id_hash', 'internal_import_id', 'processing_stage', 'current_import_status', 'payment_status', 'target_table', 'lookup_type', 'row_found', 'affected_row_count', 'failure_category', 'exception_class'] as $field) {
             self::assertStringContainsString($field, $source);
         }
         foreach (['rawBody', 'webhook_secret', 'X-Shopify-Hmac-Sha256', 'password', 'access_token'] as $secret) {

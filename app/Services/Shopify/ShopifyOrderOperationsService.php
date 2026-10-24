@@ -691,6 +691,9 @@ GRAPHQL;
         $import['prescription_document_id'] = $prescription['id'] ?? null;
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
         $import['intent_present'] = $this->appointmentIntentPresent($event);
+        $latestHistory = $history[0] ?? [];
+        $import['last_processing_stage'] = (string) ($latestHistory['action'] ?? '');
+        $import['last_failure_category'] = (string) ($import['failure_reason'] ?? $import['error_message'] ?? $latestHistory['reason'] ?? '');
         return $import;
     }
 

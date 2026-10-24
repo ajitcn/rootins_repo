@@ -16,6 +16,10 @@ final class ShopifyOrderImportFailure extends RuntimeException
     public const IMPORT_ROW_NOT_FOUND = 'IMPORT_ROW_NOT_FOUND';
     public const PAYMENT_ROW_NOT_FOUND = 'PAYMENT_ROW_NOT_FOUND';
     public const PHARMACY_ORDER_NOT_FOUND = 'PHARMACY_ORDER_NOT_FOUND';
+    public const PHARMACY_ORDER_RECORD_NOT_FOUND = 'PHARMACY_ORDER_RECORD_NOT_FOUND';
+    public const SHOPIFY_ORDER_IDENTITY_NOT_FOUND = 'SHOPIFY_ORDER_IDENTITY_NOT_FOUND';
+    public const PATIENT_RESOLUTION_FAILURE = 'PATIENT_RESOLUTION_FAILURE';
+    public const PRESCRIPTION_REFERENCE_FAILURE = 'PRESCRIPTION_REFERENCE_FAILURE';
     public const PAYMENT_UPDATE_FAILED = 'PAYMENT_UPDATE_FAILED';
     public const SHOPIFY_ORDER_IMPORT_STATUS_INVALID = 'SHOPIFY_ORDER_IMPORT_STATUS_INVALID';
     public const PHARMACY_ORDER_CREATION_FAILED = 'PHARMACY_ORDER_CREATION_FAILED';
@@ -45,7 +49,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
     /** @var list<string> */
     private const CATEGORIES = [
         self::CUSTOMER_NOT_LINKED, self::PRESCRIPTION_MISSING, self::MEDICINE_NOT_MAPPED, self::MEDICINE_INACTIVE,
-        self::ORDER_NOT_FOUND, self::ORDER_IMPORT_RECORD_NOT_FOUND, self::IMPORT_ROW_NOT_FOUND, self::PAYMENT_ROW_NOT_FOUND, self::PHARMACY_ORDER_NOT_FOUND, self::PAYMENT_UPDATE_FAILED, self::SHOPIFY_ORDER_IMPORT_STATUS_INVALID, self::PHARMACY_ORDER_CREATION_FAILED, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
+        self::ORDER_NOT_FOUND, self::ORDER_IMPORT_RECORD_NOT_FOUND, self::IMPORT_ROW_NOT_FOUND, self::PAYMENT_ROW_NOT_FOUND, self::PHARMACY_ORDER_NOT_FOUND, self::PHARMACY_ORDER_RECORD_NOT_FOUND, self::SHOPIFY_ORDER_IDENTITY_NOT_FOUND, self::PATIENT_RESOLUTION_FAILURE, self::PRESCRIPTION_REFERENCE_FAILURE, self::PAYMENT_UPDATE_FAILED, self::SHOPIFY_ORDER_IMPORT_STATUS_INVALID, self::PHARMACY_ORDER_CREATION_FAILED, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
         self::INVALID_FULFILLMENT_STATE, self::REFUND_ORDER_NOT_FOUND, self::STOCK_UNAVAILABLE,
         self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::BILLING_CLINIC_UNAVAILABLE,
         self::SHOPIFY_ORDER_PAYLOAD_INVALID, self::SHOPIFY_ORDER_IDENTITY_FAILURE,
@@ -90,11 +94,12 @@ final class ShopifyOrderImportFailure extends RuntimeException
         $message = strtolower($exception->getMessage());
         $category = self::UNKNOWN_IMPORT_FAILURE;
         if (str_contains($message, 'payload') || str_contains($message, 'json')) $category = self::SHOPIFY_ORDER_PAYLOAD_INVALID;
-        elseif (str_contains($message, 'identity') || str_contains($message, 'customer')) $category = self::SHOPIFY_PATIENT_LINK_FAILURE;
+        elseif (str_contains($message, 'identity') || str_contains($message, 'customer')) $category = self::PATIENT_RESOLUTION_FAILURE;
         elseif (str_contains($message, 'line')) $category = self::SHOPIFY_ORDER_LINE_IMPORT_FAILURE;
         elseif (str_contains($message, 'mapping') || str_contains($message, 'product') || str_contains($message, 'variant')) $category = self::SHOPIFY_PRODUCT_MAPPING_FAILURE;
         elseif (str_contains($message, 'database') || str_contains($message, 'sqlstate') || str_contains($message, 'query')) $category = self::SHOPIFY_ORDER_DATABASE_FAILURE;
-        if (str_contains($message, 'prescription')) $category = self::PRESCRIPTION_MISSING;
+        if (str_contains($message, 'prescription reference')) $category = self::PRESCRIPTION_REFERENCE_FAILURE;
+        elseif (str_contains($message, 'prescription')) $category = self::PRESCRIPTION_MISSING;
         elseif (str_contains($message, 'payment')) $category = self::PAYMENT_STATE_INVALID;
         elseif (str_contains($message, 'delivery')) $category = self::DELIVERY_STATE_INVALID;
         elseif (str_contains($message, 'fulfillment') || str_contains($message, 'transition')) $category = self::INVALID_FULFILLMENT_STATE;
@@ -103,7 +108,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
         elseif (str_contains($message, 'order') && str_contains($message, 'not found')) {
             $category = $topic === 'refunds/create'
                 ? self::REFUND_ORDER_NOT_FOUND
-                : ($topic === 'orders/paid' ? self::PHARMACY_ORDER_NOT_FOUND : self::IMPORT_ROW_NOT_FOUND);
+                : ($topic === 'orders/paid' ? self::PHARMACY_ORDER_RECORD_NOT_FOUND : self::SHOPIFY_ORDER_IDENTITY_NOT_FOUND);
         }
 
         return new self($category, $exception->getMessage());

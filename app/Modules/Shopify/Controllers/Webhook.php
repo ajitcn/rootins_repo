@@ -113,15 +113,21 @@ final class Webhook extends BaseController
             $this->medicineOrderDiagnostic($topic, $orderIdForDiagnostic, $eventId, $shopDomain, 'event_stored', 'none');
         }
 
-        if ($result['duplicate']) {
-            if ($topic === 'orders/paid' && $result['id'] !== null) {
-                $failureResponse = $this->processPaidEvent((int) $result['id'], $eventId, $shopDomain);
-                if ($failureResponse !== null) return $failureResponse;
+        if ($result['duplicate'] && ! $result['process']) {
+            if ($result['status'] === 'processed') {
+                service('audit')->record('shopify.webhook_duplicate', [
+                    'topic' => $topic,
+                    'event_id_hash' => hash('sha256', $eventId),
+                    'store_domain' => $configuration->storeDomain(),
+                    'status' => 'processed',
+                ]);
+                return $this->response->setStatusCode(202)->setJSON(['status' => true, 'msg' => 'Webhook event was already processed.']);
             }
             service('audit')->record('shopify.webhook_duplicate', [
                 'topic' => $topic,
                 'event_id_hash' => hash('sha256', $eventId),
                 'store_domain' => $configuration->storeDomain(),
+                'status' => $result['status'],
             ]);
 
             return $this->response->setStatusCode(202)->setJSON([

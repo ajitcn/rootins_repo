@@ -13,7 +13,7 @@ final class ShopifyWebhookEventService
     /**
      * Store a verified webhook event exactly once.
      *
-     * @return array{accepted: bool, duplicate: bool, id: int|null}
+     * @return array{accepted: bool, duplicate: bool, retry: bool, process: bool, id: int|null, status: string, retry_count: int}
      */
     public function ingest(string $storeDomain, string $eventId, string $topic, string $rawBody): array
     {
@@ -22,7 +22,7 @@ final class ShopifyWebhookEventService
         $storeDomain = strtolower(trim($storeDomain));
 
         if ($eventId === '' || $topic === '' || $storeDomain === '') {
-            return ['accepted' => false, 'duplicate' => false, 'id' => null];
+            return ['accepted' => false, 'duplicate' => false, 'retry' => false, 'process' => false, 'id' => null, 'status' => '', 'retry_count' => 0];
         }
 
         $model = $this->model ?? new ShopifyWebhookEventModel();
@@ -32,10 +32,29 @@ final class ShopifyWebhookEventService
             ->first();
 
         if ($existing !== null) {
+            $status = strtolower(trim((string) ($existing['status'] ?? '')));
+            if ($status === 'failed') {
+                $db = db_connect();
+                $retryCount = (int) ($existing['retry_count'] ?? 0) + 1;
+                $claimed = $db->table('shopify_webhook_events')
+                    ->where('id', (int) $existing['id'])
+                    ->where('status', 'failed')
+                    ->update(['status' => 'processing', 'retry_count' => $retryCount, 'error_message' => null, 'processed_at' => null, 'updated_at' => date('Y-m-d H:i:s')]);
+                $claimedRow = $model->find((int) $existing['id']);
+                if ($claimed && $claimedRow !== null) {
+                    return ['accepted' => true, 'duplicate' => true, 'retry' => true, 'process' => true, 'id' => (int) $claimedRow['id'], 'status' => 'processing', 'retry_count' => $retryCount];
+                }
+                $existing = $claimedRow ?? $existing;
+                $status = strtolower(trim((string) ($existing['status'] ?? '')));
+            }
             return [
                 'accepted' => true,
                 'duplicate' => true,
+                'retry' => false,
+                'process' => false,
                 'id' => (int) ($existing['id'] ?? 0),
+                'status' => $status,
+                'retry_count' => (int) ($existing['retry_count'] ?? 0),
             ];
         }
 
@@ -46,13 +65,13 @@ final class ShopifyWebhookEventService
                 'topic' => $topic,
                 'payload_hash' => hash('sha256', $rawBody),
                 'payload_json' => $this->safePayload($rawBody),
-                'status' => 'received',
+                'status' => 'processing',
                 'retry_count' => 0,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ], true);
 
-            return ['accepted' => true, 'duplicate' => false, 'id' => (int) $id];
+            return ['accepted' => true, 'duplicate' => false, 'retry' => false, 'process' => true, 'id' => (int) $id, 'status' => 'processing', 'retry_count' => 0];
         } catch (\Throwable $exception) {
             $existing = $model
                 ->where('store_domain', $storeDomain)
@@ -63,13 +82,17 @@ final class ShopifyWebhookEventService
                 return [
                     'accepted' => true,
                     'duplicate' => true,
+                    'retry' => false,
+                    'process' => false,
                     'id' => (int) ($existing['id'] ?? 0),
+                    'status' => strtolower(trim((string) ($existing['status'] ?? ''))),
+                    'retry_count' => (int) ($existing['retry_count'] ?? 0),
                 ];
             }
 
             log_message('error', 'Shopify webhook event storage failed safely.');
 
-            return ['accepted' => false, 'duplicate' => false, 'id' => null];
+            return ['accepted' => false, 'duplicate' => false, 'retry' => false, 'process' => false, 'id' => null, 'status' => '', 'retry_count' => 0];
         }
     }
 
@@ -302,7 +325,8 @@ final class ShopifyWebhookEventService
         return $this->update($eventId, [
             'status' => 'failed',
             'error_message' => ShopifyOrderImportFailure::normalize($error),
-            'retry_count' => 1,
+            'retry_count' => max(1, (int) (($this->find($eventId)['retry_count'] ?? 0))),
+            'processed_at' => null,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
     }

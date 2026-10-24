@@ -197,25 +197,25 @@ final class ShopifyOrderImportService
             $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
         } catch (\Throwable $exception) {
             if (isset($db)) $db->transRollback();
-            $this->stage($event, $orderId, 'customer_patient_resolution', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'Shopify customer identity could not be resolved.');
+            $this->stage($event, $orderId, 'customer_patient_resolution', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'Shopify customer identity could not be resolved.');
         }
-        $this->stage($event, $orderId, 'customer_patient_resolution', $identity === null ? ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE : null);
-        $this->stage($event, $orderId, 'customer_resolved', $identity === null ? ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE : null, 'shopify_patient_identity_links', 'store_domain_customer_id', $identity !== null);
+        $this->stage($event, $orderId, 'customer_patient_resolution', $identity === null ? ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE : null);
+        $this->stage($event, $orderId, 'customer_resolved', $identity === null ? ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE : null, 'shopify_patient_identity_links', 'store_domain_customer_id', $identity !== null);
 
         if ($identity === null) {
-            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'patients', 'patient_id', false);
+            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'patients', 'patient_id', false);
             $customerId = $this->shopifyId($payload['customer_id'] ?? '');
             $patientStatus = $customerId === '' ? 'guest' : 'link_pending';
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
                 'patient_status' => $patientStatus,
                 'customer_name_snapshot' => $this->customerLookupFailure !== null ? 'Customer data unavailable' : null,
-                'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE,
+                'quarantine_reason' => ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE,
                 'last_error' => $this->customerLookupFailure !== null ? 'Customer data unavailable. Retry customer resolution.' : 'Shopify customer is not linked to a ROOTINS patient.',
                 'last_attempted_at' => date('Y-m-d H:i:s'),
             ]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, $eventId);
-            $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, $eventId);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $patientStatus]);
 
             return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
@@ -225,10 +225,10 @@ final class ShopifyOrderImportService
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
         if ($patientId <= 0) {
-            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'patients', 'patient_id', false);
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE, $eventId);
-            $events->markFailed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_FAILURE);
+            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'patients', 'patient_id', false);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, $eventId);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
 
             return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
         }
@@ -258,8 +258,8 @@ final class ShopifyOrderImportService
             try {
                 $document = $this->findPrescriptionDocument($prescriptionReference, $store, (string) ($payload['customer_id'] ?? ''), $patientId);
             } catch (\Throwable $exception) {
-                $this->stage($event, $orderId, 'prescription_reference_lookup', ShopifyOrderImportFailure::SHOPIFY_PRESCRIPTION_LINK_FAILURE);
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_PRESCRIPTION_LINK_FAILURE, 'Shopify prescription reference could not be linked.');
+                $this->stage($event, $orderId, 'prescription_reference_lookup', ShopifyOrderImportFailure::PRESCRIPTION_REFERENCE_FAILURE);
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PRESCRIPTION_REFERENCE_FAILURE, 'Shopify prescription reference could not be linked.');
             }
             $expired = $document !== null && ! empty($document['retention_expires_at']) && (string) $document['retention_expires_at'] < date('Y-m-d H:i:s');
             if ($document === null || $expired) {
@@ -1157,9 +1157,9 @@ GRAPHQL, ['id' => $orderGid]);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
-        $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', $orderId > 0 ? null : ShopifyOrderImportFailure::PHARMACY_ORDER_NOT_FOUND, 'medicine_orders', 'internal_import_id', $orderId > 0);
+        $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', $orderId > 0 ? null : ShopifyOrderImportFailure::PHARMACY_ORDER_RECORD_NOT_FOUND, 'medicine_orders', 'internal_import_id', $orderId > 0);
         if ($orderId <= 0 && $paymentTarget !== 'paid') {
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_NOT_FOUND, 'Pharmacy order was not available for the non-paid import operation.');
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_RECORD_NOT_FOUND, 'Pharmacy order was not available for the non-paid import operation.');
         }
         $this->stage($event, $shopifyOrderId, 'import_status_update_started', null, 'shopify_order_imports', 'internal_import_id', true);
         if ($paymentTarget === 'paid') {
@@ -1267,7 +1267,7 @@ GRAPHQL, ['id' => $orderGid]);
         if ($importId <= 0 || $paymentTarget !== 'paid') return;
         $db = db_connect();
         $db->transBegin();
-        $record = $db->table('shopify_order_imports')->where('id', $importId)->get(1)->getRowArray();
+        $record = $db->query('SELECT * FROM shopify_order_imports WHERE id = ? LIMIT 1 FOR UPDATE', [$importId])->getRowArray() ?: null;
         if ($record === null) {
             $db->transRollback();
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PAYMENT_ROW_NOT_FOUND, 'Shopify payment import row disappeared before processing completed.');
@@ -1307,6 +1307,10 @@ GRAPHQL, ['id' => $orderGid]);
     private function paymentUpdateDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, bool $rowFound, string $phase, ?string $paymentUpdateResult = null, ?string $finalImportStatus = null, ?string $databaseColumnType = null, string $targetTable = 'shopify_order_imports'): void
     {
         log_message('info', 'Shopify medicine-order payment update diagnostic ' . json_encode([
+            'correlation_id' => $this->diagnosticCorrelationId,
+            'topic' => (string) ($event['topic'] ?? $this->diagnosticTopic),
+            'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+            'webhook_id_hash' => ! empty($event['external_event_id']) ? hash('sha256', (string) $event['external_event_id']) : null,
             'internal_import_id' => $internalImportId,
             'shopify_order_id' => $shopifyOrderId,
             'row_found' => $rowFound,
@@ -1314,7 +1318,7 @@ GRAPHQL, ['id' => $orderGid]);
             'final_import_status' => $finalImportStatus,
             'target_table' => $targetTable,
             'current_import_status' => $finalImportStatus,
-            'payment_status_before' => $phase === 'before_import_payment_update' ? $paymentUpdateResult : null,
+            'payment_status_before' => in_array($phase, ['before', 'before_import_payment_update'], true) ? ($paymentUpdateResult ?? $this->diagnosticPaymentStatus) : null,
             'payment_status_after' => $phase === 'after' || str_contains($phase, 'completed') ? $paymentUpdateResult : null,
             'lookup_type' => 'internal_import_id',
             'affected_row_count' => $this->diagnosticAffectedRows,
@@ -1380,6 +1384,7 @@ GRAPHQL, ['id' => $orderGid]);
             'topic' => $this->diagnosticTopic !== '' ? $this->diagnosticTopic : (string) ($event['topic'] ?? ''),
             'shopify_order_id' => $orderId,
             'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+            'webhook_id_hash' => ! empty($event['external_event_id']) ? hash('sha256', (string) $event['external_event_id']) : null,
             'internal_import_id' => $this->diagnosticImportId > 0 ? $this->diagnosticImportId : null,
             'processing_stage' => $stage,
             'current_import_status' => $this->diagnosticImportStatus,
