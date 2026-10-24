@@ -415,8 +415,9 @@ final class ShopifyOrderImportService
     {
         $model = $this->imports ?? new ShopifyOrderImportModel();
         $store = strtolower(trim((string) $event['store_domain']));
-        $orderId = trim((string) $payload['id']);
+        $orderId = $this->shopifyId($payload['id'] ?? '');
         $existing = $model->where('store_domain', $store)->where('shopify_order_id', $orderId)->first();
+        $existedBeforeUpsert = $existing !== null;
         $data = [
             'store_domain' => $store,
             'shopify_order_id' => $orderId,
@@ -458,17 +459,35 @@ final class ShopifyOrderImportService
                     throw $exception;
                 }
 
+                // The competing insert won the identity race. Preserve its
+                // current status and retry metadata; never reset a failed row
+                // back to received while reconciling the same order.
+                unset($data['status'], $data['retry_count'], $data['created_at']);
                 $model->update((int) $existing['id'], $data);
 
-                return $model->find((int) $existing['id']) ?? $existing;
             }
-
-            return $model->where('id', (int) $model->getInsertID())->first() ?? $data + ['id' => (int) $model->getInsertID()];
+        } else {
+            $data['retry_count'] = (int) ($existing['retry_count'] ?? 0) + 1;
+            $model->update((int) $existing['id'], $data);
         }
 
-        $model->update((int) $existing['id'], $data);
+        $actualId = $existing !== null ? (int) $existing['id'] : (int) $model->getInsertID();
+        $record = $model->find($actualId) ?? $data + ['id' => $actualId];
+        $this->importIdentityDiagnostic($event, $orderId, $actualId, $existedBeforeUpsert, 'store_domain_shopify_order_id', 'order_creation_update');
 
-        return $model->find((int) $existing['id']) ?? $existing;
+        return $record;
+    }
+
+    private function importIdentityDiagnostic(array $event, string $shopifyOrderId, int $importId, bool $existedBeforeUpsert, string $lookupType, string $stage): void
+    {
+        log_message('info', 'Shopify medicine-order import identity diagnostic ' . json_encode([
+            'shopify_order_id' => $shopifyOrderId,
+            'internal_import_id' => $importId > 0 ? $importId : null,
+            'import_row_existed_before_upsert' => $existedBeforeUpsert,
+            'lookup_type' => $lookupType,
+            'processing_stage' => $stage,
+            'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     /** @return array{status: string, reason: string} */

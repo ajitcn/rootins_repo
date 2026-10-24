@@ -111,8 +111,8 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("'internal_import_id' => \$importId", $service);
         self::assertStringContainsString('processEvent($eventId, false', $controller);
         self::assertStringContainsString("\$paymentTarget !== null && \$paymentTarget !== (string) \$order['payment_status']", $service);
-        self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $controller);
-        self::assertStringContainsString('SHOPIFY_ORDER_IMPORT_STATUS_INVALID', $controller);
+        self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $service);
+        self::assertStringContainsString('SHOPIFY_ORDER_IMPORT_STATUS_INVALID', $service);
 
         // orders/paid before orders/create must still enter the same importer,
         // which creates the import row before payment update.
@@ -132,6 +132,36 @@ final class ShopifyOrderImportTest extends TestCase
         }
         self::assertStringContainsString("'status' => 'processed'", $service);
         self::assertStringContainsString('Shopify import cannot be paid from status:', $service);
+    }
+
+    public function testAllOrderTopicsReuseStringIdentityAndReturnActualFailureCategory(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        foreach (["\$orderId = \$this->shopifyId(\$payload['id'] ?? '');", 'importIdentityDiagnostic', 'import_row_existed_before_upsert', 'internal_import_id', 'processing_stage'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('return $this->error(500, $failure->category', $controller);
+        self::assertStringContainsString("\$data['retry_count'] = (int) (\$existing['retry_count'] ?? 0) + 1", $service);
+    }
+
+    public function testOrdersCreateWithoutImportUsesTheInsertId(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        self::assertStringContainsString("if (\$existing === null)", $service);
+        self::assertStringContainsString("\$data['status'] = 'received'", $service);
+        self::assertStringContainsString("\$actualId = \$existing !== null ? (int) \$existing['id'] : (int) \$model->getInsertID()", $service);
+    }
+
+    public function testPaidRetryAndDuplicateCreateDoNotUseStatusAsIdentity(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
+        self::assertStringNotContainsString('WHERE store_domain = ? AND shopify_order_id = ? AND status', $service);
+        self::assertStringContainsString("if (\$topic === 'orders/paid' && \$result['id'] !== null)", $controller);
+        self::assertStringContainsString("if (\$result['duplicate'])", $controller);
     }
 
     public function testMedicinePaymentIsIdempotentAndRemainsAppointmentIndependent(): void
