@@ -26,6 +26,9 @@ final class ShopifyMappingCsrf extends CSRF
 
                 return service('response')->setStatusCode(403)->setJSON([
                     'status' => false,
+                    'message' => 'Your session expired. Refresh the page and try again.',
+                    'msg' => 'Your session expired. Refresh the page and try again.',
+                    'data' => [],
                     'error' => [
                         'code' => 'SHOPIFY_MAPPING_CSRF_INVALID',
                         'message' => 'Your session expired. Refresh the page and try again.',

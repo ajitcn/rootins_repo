@@ -245,6 +245,47 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('PHARMACY_ORDER_RECORD_NOT_FOUND', substr($service, strpos($service, 'private function applyExternalStatuses')));
     }
 
+    public function testPharmacyCreationUsesTheLiveMedicineOrderContractAndSanitizedDiagnostics(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $fulfilment = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Services/OrderFulfilmentService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-08-29-100000_CreateMedicineOrdersAndInventory.php');
+
+        foreach (['patient_id', 'clinic_id', 'payment_status', 'status', 'created_at', 'updated_at', 'external_store_domain', 'external_order_id', 'idempotency_key'] as $field) {
+            self::assertStringContainsString($field, $migration . $fulfilment);
+        }
+        self::assertStringContainsString("'currency' =>", $service);
+        self::assertStringContainsString("invoiceChanges['total']", $service);
+        foreach (['database_error_code', 'sanitized_database_message', 'missing_or_invalid_field', 'affected_rows', 'target_table', 'operation'] as $field) {
+            self::assertStringContainsString($field, $fulfilment);
+        }
+        $orderInsertStart = strpos($fulfilment, 'new MedicineOrderModel())->insert');
+        $orderInsertEnd = strpos($fulfilment, 'if (!$orderId)', $orderInsertStart);
+        self::assertNotFalse($orderInsertStart);
+        self::assertNotFalse($orderInsertEnd);
+        self::assertStringNotContainsString("'currency' =>", substr($fulfilment, $orderInsertStart, $orderInsertEnd - $orderInsertStart));
+        self::assertStringNotContainsString('getFile()', $fulfilment);
+    }
+
+    public function testPrescriptionOptionalPharmacyUpsertUsesNullableSchemaAndSpecificFailures(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $failure = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-24-120000_MakeMedicineOrderPrescriptionNullable.php');
+
+        foreach (['upsertPrescriptionlessPharmacyOrder', "'prescription_id' => null", 'invoices', 'currency', 'total', 'payment_status', 'shopify-import:', 'FOR UPDATE', 'transCommit', 'PHARMACY_ORDER_DATABASE_FAILURE'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        foreach (['PHARMACY_ORDER_PRESCRIPTION_REQUIRED', 'PHARMACY_ORDER_CLINIC_SCOPE_INVALID', 'PHARMACY_ORDER_PATIENT_INVALID', 'PHARMACY_ORDER_DATABASE_FAILURE'] as $category) {
+            self::assertStringContainsString($category, $failure . $service);
+        }
+        self::assertStringContainsString("'null' => true", $migration);
+        self::assertStringContainsString('modifyColumn', $migration);
+        foreach (['database_error_code', 'sanitized_database_message', 'failed_field_or_constraint', 'prescription_status', 'prescription_id', 'patient_id', 'clinic_id', 'affected_row_count'] as $field) {
+            self::assertStringContainsString($field, $service);
+        }
+    }
+
     public function testExistingFailedImportCanBePaidRepeatedlyWithoutDuplicatePharmacyOrders(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');

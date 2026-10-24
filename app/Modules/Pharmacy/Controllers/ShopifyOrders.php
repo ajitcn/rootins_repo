@@ -115,25 +115,31 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
     public function action(int $id): ResponseInterface
     {
+        $correlationId = bin2hex(random_bytes(16));
         $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
-        if ($clinicId === null) return $this->shopifyActionError('SHOPIFY_MAPPING_PERMISSION_DENIED', 'You do not have permission to recheck mappings.', 403);
+        if ($clinicId === null) return $this->shopifyActionError('SHOPIFY_MAPPING_PERMISSION_DENIED', 'You do not have permission to manage Shopify orders.', 403, $correlationId, $id, 'unknown');
+        if ($id <= 0) return $this->shopifyActionError('SHOPIFY_ORDER_IMPORT_ID_INVALID', 'The Shopify import ID is invalid.', 422, $correlationId, $id, 'unknown');
         $action = trim((string) $this->request->getPost('action'));
         if (!in_array($action, ['recheck_mapping', 'retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready', 'reprocess_paid_appointment'], true)) {
-            return $this->json(false, 'This Shopify order operation is not available in the Pharmacy workspace.', 422);
+            return $this->shopifyActionError('SHOPIFY_ORDER_ACTION_INVALID', 'This Shopify order operation is not available in the Pharmacy workspace.', 422, $correlationId, $id, $action);
         }
 
         try {
             $data = $this->operations->action($id, $action, $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
             $this->scope->audit('pharmacy.shopify_order_action', ['import_id' => $id, 'action' => $action]);
             if (in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true) && array_key_exists('status', $data) && is_bool($data['status'])) {
-                return $this->response->setStatusCode(!empty($data['status']) ? 200 : 422)->setJSON($data + ['csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
+                $http = !empty($data['status']) ? 200 : 422;
+                $message = (string) ($data['message'] ?? $data['msg'] ?? ($data['status'] ? 'Shopify order action completed.' : 'Shopify order action failed.'));
+                $code = $data['status'] ? null : (string) ($data['code'] ?? 'SHOPIFY_ORDER_ACTION_FAILED');
+                return $this->actionJson((bool) $data['status'], $message, $http, $data, $correlationId, $id, $action, $code);
             }
-            return $this->json(true, 'Shopify order operation completed.', 200, $data);
+            return $this->actionJson(true, 'Shopify order operation completed.', 200, $data, $correlationId, $id, $action);
         } catch (InvalidArgumentException $exception) {
-            return $this->shopifyActionError('SHOPIFY_MAPPING_RECHECK_FAILED', $exception->getMessage(), 422);
+            return $this->shopifyActionError('SHOPIFY_ORDER_ACTION_INVALID', $exception->getMessage(), 422, $correlationId, $id, $action);
         } catch (\Throwable $exception) {
-            log_message('error', 'Pharmacy Shopify order action failed: ' . $exception->getMessage());
-            return $this->shopifyActionError('SHOPIFY_MAPPING_DATABASE_FAILURE', 'Mapping recheck could not be completed.', 500);
+            $affectedRows = (int) db_connect()->affectedRows();
+            log_message('error', 'Pharmacy Shopify order action failed ' . json_encode(['correlation_id' => $correlationId, 'import_id' => $id, 'action' => $action, 'authenticated_user' => (int) (session('user')['id'] ?? 0), 'http_status' => 500, 'database_affected_rows' => $affectedRows, 'failure_category' => 'SHOPIFY_ORDER_ACTION_DATABASE_FAILURE', 'exception_class' => get_class($exception)], JSON_UNESCAPED_SLASHES));
+            return $this->shopifyActionError('SHOPIFY_ORDER_ACTION_DATABASE_FAILURE', 'Shopify order action could not be completed safely.', 500, $correlationId, $id, $action);
         }
     }
 
@@ -146,21 +152,23 @@ final class ShopifyOrders extends \App\Controllers\BaseController
     /** @param array<string, mixed> $data */
     private function json(bool $status, string $message, int $code, array $data = []): ResponseInterface
     {
-        $body = ['status' => $status, 'msg' => $message, 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]];
-        if ($data !== []) $body['data'] = $data;
+        $body = ['status' => $status, 'message' => $message, 'msg' => $message, 'data' => $data, 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]];
         return $this->response->setStatusCode($code)->setJSON($body);
     }
 
-    private function shopifyActionError(string $errorCode, string $message, int $status): ResponseInterface
+    private function actionJson(bool $success, string $message, int $status, array $data, string $correlationId, int $id, string $action, ?string $errorCode = null): ResponseInterface
     {
-        $correlationId = bin2hex(random_bytes(16));
-        log_message('warning', 'Pharmacy Shopify mapping action failed. Code: ' . $errorCode . '. Correlation ID: ' . $correlationId);
-        return $this->response->setStatusCode($status)->setJSON([
-            'status' => false,
-            'msg' => $message,
-            'error' => ['code' => $errorCode, 'message' => $message, 'correlation_id' => $correlationId],
-            'correlation_id' => $correlationId,
-            'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
-        ]);
+        $affectedRows = (int) db_connect()->affectedRows();
+        log_message($success ? 'info' : 'warning', 'Pharmacy Shopify order action ' . json_encode(['correlation_id' => $correlationId, 'import_id' => $id, 'action' => $action, 'authenticated_user' => (int) (session('user')['id'] ?? 0), 'http_status' => $status, 'database_affected_rows' => $affectedRows, 'failure_category' => $errorCode ?? 'none'], JSON_UNESCAPED_SLASHES));
+        $body = ['status' => $success, 'message' => $message, 'msg' => $message, 'data' => $data, 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]];
+        if (!$success) $body['error'] = ['code' => $errorCode ?? 'SHOPIFY_ORDER_ACTION_FAILED', 'message' => $message, 'correlation_id' => $correlationId];
+        $body['correlation_id'] = $correlationId;
+        return $this->response->setStatusCode($status)->setJSON($body);
+    }
+
+    private function shopifyActionError(string $errorCode, string $message, int $status, ?string $correlationId = null, int $id = 0, string $action = 'unknown'): ResponseInterface
+    {
+        $correlationId ??= bin2hex(random_bytes(16));
+        return $this->actionJson(false, $message, $status, [], $correlationId, $id, $action, $errorCode);
     }
 }

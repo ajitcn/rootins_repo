@@ -88,11 +88,14 @@ final class Dashboard extends BaseController
                 . 'prescriptions.prescription_number, prescriptions.prescription_date, '
                 . '(SELECT COUNT(*) FROM medicine_order_items WHERE medicine_order_items.order_id = orders.id) AS medicine_count',
             )
-            ->join('prescriptions', 'prescriptions.id = orders.prescription_id')
+            ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->where('orders.patient_id', $patientId)
             ->where('orders.clinic_id', $clinicId)
-            ->where('prescriptions.patient_id', $patientId)
-            ->where('prescriptions.clinic_id', $clinicId);
+            ->groupStart()
+                ->where('prescriptions.patient_id', $patientId)
+                ->where('prescriptions.clinic_id', $clinicId)
+                ->orWhere('prescriptions.id', null)
+            ->groupEnd();
 
         $activeOrdersCount = (clone $orderQuery)
             ->where('orders.status !=', 'cancelled')

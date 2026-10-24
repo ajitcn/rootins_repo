@@ -410,13 +410,16 @@ final class Pages extends BaseController
                 . '(SELECT COALESCE(SUM(total_items.line_total), 0) FROM medicine_order_items total_items '
                 . 'WHERE total_items.order_id = orders.id) AS order_total',
             )
-            ->join('prescriptions', 'prescriptions.id = orders.prescription_id')
+            ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->join('patients', 'patients.id = orders.patient_id')
             ->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')
             ->where('orders.patient_id', $context['patient_id'])
             ->where('orders.clinic_id', $context['clinic_id'])
-            ->where('prescriptions.patient_id', $context['patient_id'])
-            ->where('prescriptions.clinic_id', $context['clinic_id'])
+            ->groupStart()
+                ->where('prescriptions.patient_id', $context['patient_id'])
+                ->where('prescriptions.clinic_id', $context['clinic_id'])
+                ->orWhere('prescriptions.id', null)
+            ->groupEnd()
             ->where('patients.clinic_id', $context['clinic_id']);
 
         if ($search !== '') {
@@ -858,9 +861,12 @@ final class Pages extends BaseController
 
         if ($table === 'medicine_orders') {
             $builder->select('medicine_orders.*, prescriptions.prescription_number, prescriptions.prescription_date')
-                ->join('prescriptions', 'prescriptions.id = medicine_orders.prescription_id')
-                ->where('prescriptions.patient_id', $context['patient_id'])
-                ->where('prescriptions.clinic_id', $context['clinic_id']);
+                ->join('prescriptions', 'prescriptions.id = medicine_orders.prescription_id', 'left')
+                ->groupStart()
+                    ->where('prescriptions.patient_id', $context['patient_id'])
+                    ->where('prescriptions.clinic_id', $context['clinic_id'])
+                    ->orWhere('prescriptions.id', null)
+                ->groupEnd();
         }
 
         if ($table === 'consultations') {

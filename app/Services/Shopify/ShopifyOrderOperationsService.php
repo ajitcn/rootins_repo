@@ -768,10 +768,17 @@ GRAPHQL;
         if (in_array($action, ['quarantine', 'release_quarantine', 'mark_ready'], true)) {
             $status = $action === 'quarantine' ? 'quarantined' : ($action === 'mark_ready' ? 'ready_to_import' : 'received');
             $reason = trim((string) ($input['reason'] ?? '')) ?: null;
-            $model->update($id, ['status' => $status, 'quarantine_reason' => $reason, 'failure_reason' => $reason, 'updated_at' => date('Y-m-d H:i:s')]);
+            $updated = $model->update($id, ['status' => $status, 'quarantine_reason' => $reason, 'failure_reason' => $reason, 'updated_at' => date('Y-m-d H:i:s')]);
+            $afterRow = $model->find($id);
+            if (! $updated && (($afterRow['status'] ?? null) !== $status)) {
+                throw new \RuntimeException('The Shopify order state could not be saved.');
+            }
+            if ($afterRow === null || (string) ($afterRow['status'] ?? '') !== $status) {
+                throw new \RuntimeException('The Shopify order state could not be verified after saving.');
+            }
             $this->history($id, $action, $old, $status, $reason, null, $actor);
             service('audit')->record('shopify.order_operation_' . $action, ['import_id' => $id, 'reason' => $reason]);
-            return ['status' => $status, 'import_id' => $id];
+            return ['status' => $status, 'import_id' => $id, 'affected_rows' => $updated ? 1 : 0];
         }
         if ($action === 'select_patient') {
             $linkId = (int) ($input['link_id'] ?? 0); $patientId = (int) ($input['patient_id'] ?? 0);

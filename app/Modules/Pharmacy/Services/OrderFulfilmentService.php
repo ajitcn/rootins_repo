@@ -45,10 +45,13 @@ final class OrderFulfilmentService
             ->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')
             ->join('payment_providers', 'payment_providers.provider_code = orders.payment_provider', 'left')
             ->join('patients', 'patients.id = orders.patient_id')
-            ->join('prescriptions', 'prescriptions.id = orders.prescription_id')
+            ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->where('orders.clinic_id', $clinicId)
             ->where('patients.clinic_id', $clinicId)
-            ->where('prescriptions.clinic_id', $clinicId);
+            ->groupStart()
+                ->where('prescriptions.clinic_id', $clinicId)
+                ->orWhere('prescriptions.id', null)
+            ->groupEnd();
 
         if ($filters['status'] !== '' && in_array($filters['status'], ['pending', 'fulfilled', 'cancelled'], true)) {
             $query->where('orders.status', $filters['status']);
@@ -92,7 +95,7 @@ final class OrderFulfilmentService
         if ($clinicId === null || $orderId <= 0) {
             return null;
         }
-        $order = db_connect()->table('medicine_orders AS orders')->select('orders.*, payment_providers.provider_name AS payment_provider_name, providers.provider_name, providers.tracking_url_template, clinics.clinic_name, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.mobile_number, patients.country_code, (SELECT invoice_number FROM invoices WHERE invoices.order_id = orders.id AND invoices.clinic_id = orders.clinic_id ORDER BY invoices.id DESC LIMIT 1) AS invoice_number')->join('clinics', 'clinics.id = orders.clinic_id')->join('patients', 'patients.id = orders.patient_id')->join('prescriptions', 'prescriptions.id = orders.prescription_id')->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')->join('payment_providers', 'payment_providers.provider_code = orders.payment_provider', 'left')->where('orders.id', $orderId)->where('orders.clinic_id', $clinicId)->where('clinics.id', $clinicId)->where('patients.clinic_id', $clinicId)->where('prescriptions.clinic_id', $clinicId)->get()->getRowArray();
+        $order = db_connect()->table('medicine_orders AS orders')->select('orders.*, payment_providers.provider_name AS payment_provider_name, providers.provider_name, providers.tracking_url_template, clinics.clinic_name, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.mobile_number, patients.country_code, (SELECT invoice_number FROM invoices WHERE invoices.order_id = orders.id AND invoices.clinic_id = orders.clinic_id ORDER BY invoices.id DESC LIMIT 1) AS invoice_number')->join('clinics', 'clinics.id = orders.clinic_id')->join('patients', 'patients.id = orders.patient_id')->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')->join('payment_providers', 'payment_providers.provider_code = orders.payment_provider', 'left')->where('orders.id', $orderId)->where('orders.clinic_id', $clinicId)->where('clinics.id', $clinicId)->where('patients.clinic_id', $clinicId)->groupStart()->where('prescriptions.clinic_id', $clinicId)->orWhere('prescriptions.id', null)->groupEnd()->get()->getRowArray();
 
         if ($order === null) {
             return null;
@@ -319,7 +322,19 @@ final class OrderFulfilmentService
             return ['http' => 200, 'body' => ['status' => true, 'msg' => 'Medicine order created.', 'data' => ['order_id' => (int) $orderId, 'order_number' => $orderNumber]]];
         } catch (\Throwable $exception) {
             $db->transRollback();
-            log_message('error', 'Pharmacy order creation failed route=' . uri_string() . ' controller=Orders::create prescription_id=' . $prescriptionId . ' clinic_id=' . (string) ($clinicId ?? 0) . ' file=' . $exception->getFile() . ' line=' . $exception->getLine() . ' error=' . $exception->getMessage());
+            $dbError = $db->error();
+            $context = is_array($external['diagnostic_context'] ?? null) ? $external['diagnostic_context'] : [];
+            log_message('error', 'Pharmacy order creation database failure ' . json_encode([
+                'correlation_id' => (string) ($context['correlation_id'] ?? ''),
+                'shopify_order_id' => (string) ($context['shopify_order_id'] ?? ''),
+                'internal_import_id' => (int) ($context['internal_import_id'] ?? 0),
+                'target_table' => 'medicine_orders',
+                'operation' => 'insert_or_upsert',
+                'database_error_code' => (string) ($dbError['code'] ?? ''),
+                'sanitized_database_message' => $this->sanitizeDatabaseMessage((string) ($dbError['message'] ?? $exception->getMessage())),
+                'missing_or_invalid_field' => $this->databaseFieldHint((string) ($dbError['message'] ?? $exception->getMessage())),
+                'affected_rows' => (int) $db->affectedRows(),
+            ], JSON_UNESCAPED_SLASHES));
 
             return $this->result(500, 'Medicine order could not be created safely.');
         }
@@ -492,6 +507,23 @@ final class OrderFulfilmentService
         }
 
         return $duration * $dosesPerDay * $dose;
+    }
+
+    private function sanitizeDatabaseMessage(string $message): string
+    {
+        $message = preg_replace('/\s+/', ' ', trim($message)) ?? '';
+        $message = preg_replace('/(password|secret|token|access[_ -]?key)\s*[=:]\s*[^ ]+/i', '$1=[redacted]', $message) ?? $message;
+        $message = preg_replace('/\b(select|insert|update|delete|alter|create|drop)\b.*$/i', '[database operation failed]', $message) ?? $message;
+
+        return mb_substr($message, 0, 240);
+    }
+
+    private function databaseFieldHint(string $message): ?string
+    {
+        if (preg_match('/(?:unknown column|column) [`\']?([a-zA-Z0-9_]+)[`\']?/i', $message, $matches) === 1) return $matches[1];
+        if (preg_match('/foreign key.*?foreign key\s*\(`?([a-zA-Z0-9_]+)`?\)/i', $message, $matches) === 1) return $matches[1];
+
+        return null;
     }
 
     private function toIsoDate(string $value): ?string

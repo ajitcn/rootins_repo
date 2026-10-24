@@ -21,6 +21,41 @@
         $('input[name="' + (payload.csrf.name || 'csrf_rtn') + '"]').val(payload.csrf.hash);
     }
 
+    function fetchWithTimeout(url, options, timeoutMs) {
+        var controller = window.AbortController ? new AbortController() : null;
+        var timer = window.setTimeout(function () { if (controller) controller.abort(); }, timeoutMs);
+        if (controller) options.signal = controller.signal;
+        return fetch(url, options).finally(function () { window.clearTimeout(timer); });
+    }
+
+    function responseError(response, payload) {
+        var error = payload && payload.error ? payload.error : {};
+        var code = error.code || payload.error_code || 'SHOPIFY_ORDER_ACTION_FAILED';
+        var message = error.message || payload.message || payload.msg || ('The action failed (HTTP ' + response.status + ').');
+        var failure = new Error(code + ': ' + message);
+        failure.payload = payload;
+        failure.code = code;
+        failure.httpStatus = response.status;
+        return failure;
+    }
+
+    async function parseJsonResponse(response) {
+        var text = await response.text(), payload;
+        try { payload = JSON.parse(text); } catch (error) {
+            var malformed = new Error('The server returned an unexpected response.');
+            malformed.httpStatus = response.status;
+            throw malformed;
+        }
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            var invalidShape = new Error('The server returned an unexpected response.');
+            invalidShape.httpStatus = response.status;
+            throw invalidShape;
+        }
+        refreshCsrf(payload);
+        if (!response.ok || !payload.status) throw responseError(response, payload);
+        return payload;
+    }
+
     function clearStaleLoadingState() {
         if (typeof window.hide_loader === 'function') window.hide_loader();
         $('.loading, .is-loading').removeClass('loading is-loading').removeAttr('aria-busy');
@@ -38,7 +73,7 @@
     }
 
     async function handle(form) {
-        var $form = $(form), $button = $form.find('[type="submit"]'), original = $button.html(), succeeded = false;
+        var $form = $(form), $button = $form.find('[type="submit"]'), original = $button.html();
         if ($button.prop('disabled')) return;
         if (form.checkValidity && !form.checkValidity()) { form.reportValidity(); return; }
         $button.prop('disabled', true).attr('aria-busy', 'true');
@@ -46,21 +81,33 @@
             if (typeof window.show_loader === 'function') window.show_loader();
             var formData = new FormData(form);
             if (window.RootinsCsrf) window.RootinsCsrf.formData(formData);
-            var response = await fetch(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: csrfHeaders() });
-            var text = await response.text(), payload;
-            try { payload = JSON.parse(text); } catch (parseError) { throw new Error('The server returned an invalid response. Please try again.'); }
-            refreshCsrf(payload);
-            if (!response.ok || !payload.status) throw new Error(payload.message || payload.msg || ('The action could not be completed (HTTP ' + response.status + ').'));
-            succeeded = true;
+            var response = await fetchWithTimeout(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
+            var payload = await parseJsonResponse(response);
             feedback(payload.message || payload.msg || 'Shopify order updated.', false);
-            $('#shopifyProcessOrderModal').one('hidden.bs.modal', function () { clearStaleLoadingState(); }).modal('hide');
-            window.setTimeout(function () { window.location.reload(); }, 350);
+            if ($('#shopifyProcessOrderModal').hasClass('show')) $('#shopifyProcessOrderModal').modal('hide');
+            try {
+                await refreshDetailStatus();
+            } catch (refreshError) {
+                feedback('The action completed, but the order status could not be refreshed.', true);
+            }
         } catch (error) {
-            feedback(error && error.message ? error.message : 'The action could not be completed safely.', true);
+            var message = error && error.name === 'AbortError' ? 'The request timed out. Please retry.' : (error && error.message ? error.message : 'The action could not be completed safely.');
+            feedback(message, true);
         } finally {
             clearStaleLoadingState();
             $button.prop('disabled', false).removeAttr('aria-busy').html(original);
         }
+    }
+
+    async function refreshDetailStatus() {
+        var $page = $('#shopifyOrderDetailPage'), url = $page.data('details-url');
+        if (!$page.length || !url) return;
+        var response = await fetchWithTimeout(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }, 15000);
+        var payload = await parseJsonResponse(response), data = payload.data && payload.data.import ? payload.data.import : null;
+        if (!data) return;
+        var status = label(data.status), error = data.error_message || data.last_error || data.failure_reason || data.quarantine_reason || 'No active error.';
+        var $status = $('#shopifyOrderDetailStatus');
+        if ($status.length) $status.find('[data-import-status]').text(status).end().find('[data-import-error]').text(error);
     }
 
     function renderDetails(importData) {
@@ -99,35 +146,16 @@
         var data = new FormData();
         data.append('action', 'recheck_mapping');
         if (window.RootinsCsrf) window.RootinsCsrf.formData(data);
-        fetch($button.data('action-url'), { method: 'POST', credentials: 'same-origin', headers: csrfHeaders(), body: data })
+        fetchWithTimeout($button.data('action-url'), { method: 'POST', credentials: 'same-origin', headers: csrfHeaders(), body: data }, 30000)
+            .then(parseJsonResponse)
             .then(function (response) {
-                return response.text().then(function (text) {
-                    var payload = {};
-                    try { payload = JSON.parse(text); } catch (error) { throw new Error('The server returned an invalid response.'); }
-                    refreshCsrf(payload);
-                    if (!response.ok || !payload.status) {
-                        var serverError = new Error((payload.error && payload.error.message) || payload.msg || 'Mapping could not be rechecked safely.');
-                        serverError.status = response.status;
-                        serverError.payload = payload;
-                        throw serverError;
-                    }
-                    return payload;
-                });
-            })
-            .then(function (response) {
-                if (typeof showSuccess === 'function') showSuccess(response.msg || 'Mapping rechecked.');
-                window.setTimeout(function () { window.location.reload(); }, 250);
+                feedback(response.message || response.msg || 'Mapping rechecked.', false);
             })
             .catch(function (error) {
-                var payload = error && error.payload ? error.payload : {};
-                refreshCsrf(payload);
-                var code = payload.error && payload.error.code;
-                var message = code === 'SHOPIFY_MAPPING_CSRF_INVALID' ? 'Your session expired. Refresh the page and try again.'
-                    : code === 'SHOPIFY_MAPPING_PERMISSION_DENIED' ? 'You do not have permission to recheck mappings.'
-                    : code === 'SHOPIFY_MAPPING_DATABASE_FAILURE' ? 'Mapping recheck could not be completed.'
-                    : error && error.message === 'Failed to fetch' ? 'Unable to contact the server.'
-                    : error && error.message ? error.message : 'Mapping could not be rechecked safely.';
-                if (typeof showError === 'function') showError(message);
+                var message = error && error.name === 'AbortError' ? 'The request timed out. Please retry.'
+                    : error && error.code === 'SHOPIFY_MAPPING_CSRF_INVALID' ? 'SHOPIFY_MAPPING_CSRF_INVALID: Your session expired. Refresh the page and try again.'
+                    : (error && error.message ? error.message : 'Mapping could not be rechecked safely.');
+                feedback(message, true);
             })
             .finally(function () {
                 $button.prop('disabled', false).removeAttr('aria-busy');

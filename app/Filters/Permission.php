@@ -25,17 +25,23 @@ class Permission implements FilterInterface
             // AJAX Request
             if ($request->isAJAX()) {
                 $path = $request->getUri()->getPath();
-                if (str_contains($path, '/admin/integrations/shopify/order-mappings/') || str_contains($path, '/pharmacy/shopify-orders/')) {
+                if (str_contains($path, '/admin/integrations/shopify/order-mappings/') || str_contains($path, '/admin/integrations/shopify/order-operations/') || str_contains($path, '/pharmacy/shopify-orders/')) {
                     $correlationId = bin2hex(random_bytes(16));
+                    $message = str_contains($path, '/admin/integrations/shopify/order-mappings/')
+                        ? 'You do not have permission to recheck mappings.'
+                        : 'You do not have permission to perform this action.';
                     log_message('warning', 'Shopify mapping permission denied. Correlation ID: ' . $correlationId);
                     return service('response')->setStatusCode(403)->setJSON([
                         'status' => false,
-                        'error' => ['code' => 'SHOPIFY_MAPPING_PERMISSION_DENIED', 'message' => 'You do not have permission to recheck mappings.', 'correlation_id' => $correlationId],
+                        'message' => $message,
+                        'msg' => $message,
+                        'data' => [],
+                        'error' => ['code' => 'SHOPIFY_MAPPING_PERMISSION_DENIED', 'message' => $message, 'correlation_id' => $correlationId],
                         'correlation_id' => $correlationId,
                         'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
                     ]);
                 }
-                return service('response')->setStatusCode(403)->setJSON(['status' => false, 'msg' => 'You do not have permission to perform this action.']);
+                return service('response')->setStatusCode(403)->setJSON(['status' => false, 'message' => 'You do not have permission to perform this action.', 'msg' => 'You do not have permission to perform this action.', 'data' => [], 'error' => ['code' => 'PERMISSION_DENIED', 'message' => 'You do not have permission to perform this action.'], 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
             }
 
             // Normal Request
