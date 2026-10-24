@@ -129,6 +129,8 @@ final class ShopifyOrderImportTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
         $operations = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $pharmacy = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+        $integration = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
 
         foreach ([
             'importExisting(int $importId, ?int $prescriptionId = null, ?string $correlationId = null)',
@@ -141,12 +143,16 @@ final class ShopifyOrderImportTest extends TestCase
             'variant_id',
             'upsertImportLine',
             'ensurePharmacyOrderForImport',
+            'bool $prescriptionRequired',
+            '$prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);',
             'affected_rows',
         ] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
         self::assertStringContainsString('importExisting($id, null, $correlationId)', $operations);
         self::assertStringContainsString('$correlationId);', $controller);
+        self::assertStringContainsString('$clinicId, $correlationId', $pharmacy);
+        self::assertStringContainsString('$prescriptionId > 0 ? $prescriptionId : null, $correlationId', $integration);
         self::assertStringContainsString("in_array((string) (\$result['status'] ?? ''), ['imported', 'processed', 'reconciled'], true)", $service);
     }
 

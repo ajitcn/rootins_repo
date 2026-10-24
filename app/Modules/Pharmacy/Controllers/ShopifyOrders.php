@@ -125,7 +125,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         }
 
         try {
-            $data = $this->operations->action($id, $action, $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
+            $data = $this->operations->action($id, $action, $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId, $correlationId);
             $this->scope->audit('pharmacy.shopify_order_action', ['import_id' => $id, 'action' => $action]);
             if (in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true) && array_key_exists('status', $data) && is_bool($data['status'])) {
                 $http = !empty($data['status']) ? 200 : 422;

@@ -436,20 +436,6 @@ final class ShopifyOrderImportService
             $failureVariantId = $this->diagnosticVariantId;
             $this->markFailureForEvent($eventId, $failure->category);
             ($this->events ?? new ShopifyWebhookEventService())->markFailed($eventId, $failure->category);
-            $failureData = [
-                'error_category' => $failure->category,
-                'failure_stage' => $failureStage,
-                'exception_class' => get_class($exception),
-                'sanitized_exception_message' => $sanitizedMessage,
-                'line_id' => $failureLineId !== '' ? $failureLineId : null,
-                'product_id' => $failureProductId !== '' ? $failureProductId : null,
-                'variant_id' => $failureVariantId !== '' ? $failureVariantId : null,
-                'target_table' => $failureTargetTable,
-                'lookup_type' => $failureLookupType,
-                'row_found' => $failureRowFound,
-                'database_error_code' => (string) ($dbError['code'] ?? ''),
-                'affected_rows' => $failureAffectedRows,
-            ];
             log_message('error', 'Shopify order reconciliation failed ' . json_encode([
                 'correlation_id' => $this->diagnosticCorrelationId,
                 'import_id' => $importId,
@@ -462,13 +448,14 @@ final class ShopifyOrderImportService
                 'row_found' => $failureRowFound,
                 'database_error_code' => (string) ($dbError['code'] ?? ''),
                 'sanitized_database_message' => $sanitizedMessage,
+                'sanitized_exception_message' => $sanitizedMessage,
                 'affected_rows' => $failureAffectedRows,
                 'processing_stage' => $failureStage,
                 'failure_category' => $failure->category,
                 'exception_class' => get_class($exception),
             ], JSON_UNESCAPED_SLASHES));
 
-            return ['http' => 500, 'body' => ['status' => false, 'msg' => $failure->getMessage(), 'data' => $failureData]];
+            return ['http' => 500, 'body' => ['status' => false, 'msg' => 'The Shopify order could not be imported safely.', 'data' => ['error_category' => $failure->category]]];
         }
     }
 
@@ -1390,6 +1377,7 @@ GRAPHQL, ['id' => $orderGid]);
         ];
         $shopifyOrderId = $this->shopifyId($payload['id'] ?? '');
         $this->stage($event, $shopifyOrderId, 'payment_update_started', null, 'shopify_order_imports', 'internal_import_id', true);
+        $prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);
         $orderId = $this->ensurePharmacyOrderForImport(
             $event,
             $importId,
@@ -1399,6 +1387,7 @@ GRAPHQL, ['id' => $orderGid]);
             $store,
             $shopifyOrderId,
             $payload,
+            $prescriptionRequired,
         );
         $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'lookup_started');
         $importId = $this->updateImportedPaymentRecord($event, $importId, $payload);

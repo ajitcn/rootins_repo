@@ -669,13 +669,16 @@ final class Integration extends BaseAdminController
 
     public function importOrder(): ResponseInterface
     {
+        $correlationId = bin2hex(random_bytes(16));
         $importId = (int) $this->request->getPost('import_id');
         $prescriptionId = (int) $this->request->getPost('prescription_id');
 
         try {
-            $result = (new ShopifyOrderImportService())->importExisting($importId, $prescriptionId > 0 ? $prescriptionId : null);
+            $result = (new ShopifyOrderImportService())->importExisting($importId, $prescriptionId > 0 ? $prescriptionId : null, $correlationId);
 
-            return $this->response->setStatusCode((int) $result['http'])->setJSON($result['body']);
+            $body = (array) ($result['body'] ?? []);
+            $body['correlation_id'] = $correlationId;
+            return $this->response->setStatusCode((int) $result['http'])->setJSON($body);
         } catch (\Throwable $exception) {
             log_message('error', 'Shopify order import request failed safely exception=' . get_class($exception) . ' file=' . basename($exception->getFile()) . ' line=' . $exception->getLine());
 
