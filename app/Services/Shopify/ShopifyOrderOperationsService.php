@@ -697,7 +697,7 @@ GRAPHQL;
         return $import;
     }
 
-    public function action(int $id, string $action, array $input = [], int $actor = 0, ?int $clinicId = null): array
+    public function action(int $id, string $action, array $input = [], int $actor = 0, ?int $clinicId = null, ?string $correlationId = null): array
     {
         $import = (new ShopifyOrderImportModel())->find($id);
         if ($import === null || ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId)) throw new InvalidArgumentException('Shopify order was not found.');
@@ -721,7 +721,7 @@ GRAPHQL;
             // failed request remains visible and retryable.
             $this->history($id, 'retry_started', $old, $old, null, null, $actor);
             try {
-                $result = (new ShopifyOrderImportService())->importExisting($id, null);
+                $result = (new ShopifyOrderImportService())->importExisting($id, null, $correlationId);
                 $afterRow = $model->find($id) ?? [];
                 $after = (string) ($afterRow['status'] ?? '');
                 $body = (array) ($result['body'] ?? []);

@@ -157,7 +157,7 @@ final class ShopifyOrderOperations extends BaseAdminController
             return $this->operationError('SHOPIFY_ORDER_ACTION_INVALID', 'This Shopify order action is not available.', $correlationId, $id, $action, 422);
         }
         try {
-            $data = $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0));
+            $data = $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0), null, $correlationId);
             $success = in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true)
                 ? (bool) ($data['status'] ?? false)
                 : in_array((string) ($data['status'] ?? ''), ['received', 'ready_to_import', 'quarantined'], true);

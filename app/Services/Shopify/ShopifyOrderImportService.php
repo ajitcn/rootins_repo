@@ -25,6 +25,10 @@ final class ShopifyOrderImportService
     private int $diagnosticAffectedRows = 0;
     private string $diagnosticTargetTable = 'shopify_order_imports';
     private ?string $diagnosticExceptionClass = null;
+    private string $diagnosticProcessingStage = '';
+    private string $diagnosticLineId = '';
+    private string $diagnosticProductId = '';
+    private string $diagnosticVariantId = '';
 
     public function __construct(
         private readonly ?ShopifyOrderImportModel $imports = null,
@@ -383,7 +387,7 @@ final class ShopifyOrderImportService
         ])->update();
     }
 
-    public function importExisting(int $importId, ?int $prescriptionId = null): array
+    public function importExisting(int $importId, ?int $prescriptionId = null, ?string $correlationId = null): array
     {
         $import = ($this->imports ?? new ShopifyOrderImportModel())->find($importId);
 
@@ -415,16 +419,56 @@ final class ShopifyOrderImportService
         }
 
         try {
-            $result = $this->processEvent($eventId, true);
+            $result = $this->processEvent($eventId, true, $correlationId);
 
-            return ['http' => 200, 'body' => ['status' => $result['status'] === 'imported', 'msg' => 'Shopify order reconciliation completed.', 'data' => $result]];
+            return ['http' => 200, 'body' => ['status' => in_array((string) ($result['status'] ?? ''), ['imported', 'processed', 'reconciled'], true), 'msg' => 'Shopify order reconciliation completed.', 'data' => $result]];
         } catch (\Throwable $exception) {
             $failure = ShopifyOrderImportFailure::fromException($exception, (string) ($event['topic'] ?? ''));
+            $dbError = db_connect()->error();
+            $sanitizedMessage = $this->sanitizeDatabaseMessage($exception->getMessage());
+            $failureStage = $this->diagnosticProcessingStage !== '' ? $this->diagnosticProcessingStage : 'unknown';
+            $failureTargetTable = $this->diagnosticTargetTable;
+            $failureLookupType = $this->diagnosticLookupType;
+            $failureRowFound = $this->diagnosticRowFound;
+            $failureAffectedRows = $this->diagnosticAffectedRows;
+            $failureLineId = $this->diagnosticLineId;
+            $failureProductId = $this->diagnosticProductId;
+            $failureVariantId = $this->diagnosticVariantId;
             $this->markFailureForEvent($eventId, $failure->category);
             ($this->events ?? new ShopifyWebhookEventService())->markFailed($eventId, $failure->category);
-            log_message('error', 'Shopify order reconciliation failed category=' . $failure->category . ' topic=' . (string) ($event['topic'] ?? '') . ' exception=' . get_class($exception));
+            $failureData = [
+                'error_category' => $failure->category,
+                'failure_stage' => $failureStage,
+                'exception_class' => get_class($exception),
+                'sanitized_exception_message' => $sanitizedMessage,
+                'line_id' => $failureLineId !== '' ? $failureLineId : null,
+                'product_id' => $failureProductId !== '' ? $failureProductId : null,
+                'variant_id' => $failureVariantId !== '' ? $failureVariantId : null,
+                'target_table' => $failureTargetTable,
+                'lookup_type' => $failureLookupType,
+                'row_found' => $failureRowFound,
+                'database_error_code' => (string) ($dbError['code'] ?? ''),
+                'affected_rows' => $failureAffectedRows,
+            ];
+            log_message('error', 'Shopify order reconciliation failed ' . json_encode([
+                'correlation_id' => $this->diagnosticCorrelationId,
+                'import_id' => $importId,
+                'shopify_order_id' => $this->shopifyId($payload['id'] ?? ''),
+                'line_id' => $failureLineId !== '' ? $failureLineId : null,
+                'product_id' => $failureProductId !== '' ? $failureProductId : null,
+                'variant_id' => $failureVariantId !== '' ? $failureVariantId : null,
+                'target_table' => $failureTargetTable,
+                'lookup_type' => $failureLookupType,
+                'row_found' => $failureRowFound,
+                'database_error_code' => (string) ($dbError['code'] ?? ''),
+                'sanitized_database_message' => $sanitizedMessage,
+                'affected_rows' => $failureAffectedRows,
+                'processing_stage' => $failureStage,
+                'failure_category' => $failure->category,
+                'exception_class' => get_class($exception),
+            ], JSON_UNESCAPED_SLASHES));
 
-            return ['http' => 500, 'body' => ['status' => false, 'msg' => 'Shopify order could not be reconciled safely.', 'data' => ['error_category' => $failure->category]]];
+            return ['http' => 500, 'body' => ['status' => false, 'msg' => $failure->getMessage(), 'data' => $failureData]];
         }
     }
 
@@ -531,12 +575,15 @@ final class ShopifyOrderImportService
 
         foreach ($items as $item) {
             $lineId = $this->shopifyId($item['id'] ?? null);
+            $this->diagnosticLineId = $lineId;
             if ($event !== null) $this->stage($event, $orderId, 'line_item_identity_resolution', $lineId === '' ? ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ID_INVALID : null);
             if ($lineId === '') {
                 return ['status' => 'invalid', 'reason' => 'Shopify line-item identity is missing.', 'category' => ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_ID_INVALID];
             }
             $productId = $this->shopifyId($item['product_id'] ?? null);
             $variantId = $this->shopifyId($item['variant_id'] ?? null);
+            $this->diagnosticProductId = $productId;
+            $this->diagnosticVariantId = $variantId;
             if ($event !== null) {
                 $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'product_id_extraction');
                 $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'variant_id_extraction');
@@ -594,8 +641,15 @@ final class ShopifyOrderImportService
             try {
                 $this->upsertImportLine($lineModel, $existing, $lineData);
             } catch (\Throwable $exception) {
-                if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_database_upsert', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE);
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'Shopify order line write failed.');
+                $dbError = db_connect()->error();
+                $sanitizedMessage = $this->sanitizeDatabaseMessage($exception->getMessage());
+                if ($event !== null) {
+                    $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_database_upsert', ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'shopify_order_import_lines', 'store_domain_shopify_order_id_line_id', $existing !== null, (int) db_connect()->affectedRows(), $exception, [
+                        'database_error_code' => (string) ($dbError['code'] ?? ''),
+                        'sanitized_database_message' => $sanitizedMessage,
+                    ]);
+                }
+                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_LINE_ITEM_DATABASE_FAILURE, 'Shopify order line write failed: ' . $sanitizedMessage);
             }
             if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_database_upsert');
             if ($event !== null) $this->stage($event, $this->shopifyId($payload['id'] ?? ''), 'line_item_status_update');
@@ -817,13 +871,19 @@ GRAPHQL, ['id' => $orderGid]);
     private function upsertImportLine(ShopifyOrderImportLineModel $model, ?array $existing, array $data): void
     {
         if ($existing !== null) {
-            $model->update((int) $existing['id'], $data);
+            if (! $model->update((int) $existing['id'], $data)) {
+                $error = db_connect()->error();
+                throw new RuntimeException('Shopify order line update failed: ' . $this->sanitizeDatabaseMessage((string) ($error['message'] ?? 'database update returned false')));
+            }
             return;
         }
 
         $data['created_at'] = $data['updated_at'];
         try {
-            $model->insert($data);
+            if ($model->insert($data) === false) {
+                $error = db_connect()->error();
+                throw new RuntimeException('Shopify order line insert failed: ' . $this->sanitizeDatabaseMessage((string) ($error['message'] ?? 'database insert returned false')));
+            }
         } catch (\Throwable $exception) {
             $race = $model
                 ->where('store_domain', $data['store_domain'])
@@ -833,7 +893,10 @@ GRAPHQL, ['id' => $orderGid]);
             if ($race === null) {
                 throw $exception;
             }
-            $model->update((int) $race['id'], $data);
+            if (! $model->update((int) $race['id'], $data)) {
+                $error = db_connect()->error();
+                throw new RuntimeException('Shopify order line race-update failed: ' . $this->sanitizeDatabaseMessage((string) ($error['message'] ?? 'database update returned false')));
+            }
         }
     }
 
@@ -1620,8 +1683,9 @@ GRAPHQL, ['id' => $orderGid]);
         };
     }
 
-    private function stage(array $event, string $orderId, string $stage, ?string $category = null, string $targetTable = '', string $lookupType = '', ?bool $rowFound = null, ?int $affectedRows = null, ?\Throwable $exception = null): void
+    private function stage(array $event, string $orderId, string $stage, ?string $category = null, string $targetTable = '', string $lookupType = '', ?bool $rowFound = null, ?int $affectedRows = null, ?\Throwable $exception = null, array $context = []): void
     {
+        $this->diagnosticProcessingStage = $stage;
         if ($targetTable !== '') $this->diagnosticTargetTable = $targetTable;
         if ($lookupType !== '') $this->diagnosticLookupType = $lookupType;
         if ($rowFound !== null) $this->diagnosticRowFound = $rowFound;
@@ -1631,6 +1695,9 @@ GRAPHQL, ['id' => $orderGid]);
             'correlation_id' => $this->diagnosticCorrelationId,
             'topic' => $this->diagnosticTopic !== '' ? $this->diagnosticTopic : (string) ($event['topic'] ?? ''),
             'shopify_order_id' => $orderId,
+            'line_id' => $this->diagnosticLineId !== '' ? $this->diagnosticLineId : null,
+            'product_id' => $this->diagnosticProductId !== '' ? $this->diagnosticProductId : null,
+            'variant_id' => $this->diagnosticVariantId !== '' ? $this->diagnosticVariantId : null,
             'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
             'webhook_id_hash' => ! empty($event['external_event_id']) ? hash('sha256', (string) $event['external_event_id']) : null,
             'internal_import_id' => $this->diagnosticImportId > 0 ? $this->diagnosticImportId : null,
@@ -1643,6 +1710,8 @@ GRAPHQL, ['id' => $orderGid]);
             'affected_row_count' => $this->diagnosticAffectedRows,
             'failure_category' => $category ?? 'none',
             'exception_class' => $this->diagnosticExceptionClass,
+            'database_error_code' => (string) ($context['database_error_code'] ?? ''),
+            'sanitized_database_message' => (string) ($context['sanitized_database_message'] ?? ''),
         ], JSON_UNESCAPED_SLASHES));
     }
 }

@@ -124,6 +124,32 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('new ShopifyOrderImportService())->processEvent', $controller);
     }
 
+    public function testRetryImport65PreservesCorrelationAndOriginalLineFailureDiagnostics(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $operations = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+
+        foreach ([
+            'importExisting(int $importId, ?int $prescriptionId = null, ?string $correlationId = null)',
+            'processEvent($eventId, true, $correlationId)',
+            'SHOPIFY_ORDER_LINE_IMPORT_FAILURE',
+            'sanitized_exception_message',
+            'database_error_code',
+            'line_id',
+            'product_id',
+            'variant_id',
+            'upsertImportLine',
+            'ensurePharmacyOrderForImport',
+            'affected_rows',
+        ] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('importExisting($id, null, $correlationId)', $operations);
+        self::assertStringContainsString('$correlationId);', $controller);
+        self::assertStringContainsString("in_array((string) (\$result['status'] ?? ''), ['imported', 'processed', 'reconciled'], true)", $service);
+    }
+
     public function testFailedImportIsRecoveredByPaidRetryWithoutCreatingAnotherImport(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
