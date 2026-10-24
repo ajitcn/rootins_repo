@@ -215,7 +215,9 @@ if (!function_exists('shopify_status_tone')) {
 if (!function_exists('shopify_status_badge_class')) {
     function shopify_status_badge_class(string $group, mixed $value): string
     {
-        return 'badge badge-status ri-status ri-status--' . shopify_status_tone($group, $value) . ' ri-status-dot';
+        $tone = shopify_status_tone($group, $value);
+        $semantic = ['green' => 'status-success', 'blue' => 'status-info', 'indigo' => 'status-info', 'red' => 'status-danger', 'gray' => 'status-neutral', 'purple' => 'status-purple', 'orange' => 'status-warning', 'amber' => 'status-warning'][$tone] ?? 'status-neutral';
+        return 'badge badge-status status-badge ri-status ri-status--' . $tone . ' ri-status-dot ' . $semantic;
     }
 }
 

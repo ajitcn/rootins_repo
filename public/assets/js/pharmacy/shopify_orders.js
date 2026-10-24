@@ -17,7 +17,7 @@
 
     function statusMarkup(group, value) {
         var status = window.rootinsShopifyStatus ? window.rootinsShopifyStatus(group, value) : { tone: 'gray', label: label(value) };
-        return '<span class="badge badge-status ri-status ri-status--' + escapeHtml(status.tone) + ' ri-status-dot">' + escapeHtml(status.label) + '</span>';
+        return '<span data-status-group="' + escapeHtml(group) + '" data-status="' + escapeHtml(status.status || '') + '" class="badge badge-status ri-status ri-status--' + escapeHtml(status.tone) + ' ri-status-dot ' + escapeHtml(status.className || '') + '">' + escapeHtml(status.label) + '</span>';
     }
 
     function deliveryLabel(value) {

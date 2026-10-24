@@ -10,6 +10,8 @@
         'ri-status--red', 'ri-status--gray', 'ri-status--orange',
         'ri-status--purple', 'ri-status--indigo', 'ri-status--charcoal'
     ];
+    var semanticClasses = ['status-success', 'status-warning', 'status-info', 'status-danger', 'status-neutral', 'status-purple'];
+    var semanticForTone = { green: 'status-success', amber: 'status-warning', blue: 'status-info', indigo: 'status-info', red: 'status-danger', gray: 'status-neutral', orange: 'status-warning', purple: 'status-purple', charcoal: 'status-neutral' };
 
     var selectors = [
         '.badge', '.status-badge', '.source-badge', '.permission-badge',
@@ -30,19 +32,30 @@
         prescription: { not_required: 'gray', uploaded: 'green', available: 'green', awaiting_review: 'amber', missing: 'red', rejected: 'red', approved: 'green' },
         delivery: { not_fulfilled: 'gray', processing: 'blue', packed: 'blue', shipped: 'indigo', delivered: 'green', fulfilled: 'green', cancelled: 'red', returned: 'purple', failed: 'red' }
     };
+    var deliveryStatusMap = {
+        not_fulfilled: { label: 'Not fulfilled', className: 'status-badge status-neutral' },
+        fulfilled: { label: 'Fulfilled', className: 'status-badge status-success' },
+        shipped: { label: 'Shipped', className: 'status-badge status-info' },
+        processing: { label: 'Processing', className: 'status-badge status-info' },
+        cancelled: { label: 'Cancelled', className: 'status-badge status-danger' },
+        returned: { label: 'Returned', className: 'status-badge status-purple' }
+    };
     var normalizeShopify = function (value) {
-        var status = String(value || '').toLowerCase().replace(/[\s\-/]+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        var normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+        var status = normalized.replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
         return status === 'order_fulfilled' ? 'fulfilled' : (status === 'partial_refund' ? 'partially_refunded' : (status === 'notfulfilled' ? 'not_fulfilled' : status));
     };
     window.rootinsShopifyStatus = function (group, value) {
-        var status = normalizeShopify(value), label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }) : 'Unknown';
+        var status = normalizeShopify(value), mapped = group === 'delivery' ? deliveryStatusMap[status] : null;
+        var label = mapped ? mapped.label : (status ? status.replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }) : 'Unknown');
         if (group === 'delivery' && !status) label = 'Not fulfilled';
-        return { status: status, tone: (shopifyTones[group] || {})[status] || 'gray', label: label };
+        return { status: status, tone: (shopifyTones[group] || {})[status] || 'gray', label: label, className: mapped ? mapped.className : '' };
     };
 
     var toneForValue = function (value) {
         value = normalize(value);
 
+        if (/(^| )not fulfilled( |$)/.test(value)) return 'gray';
         if (/shopify|external source|external/.test(value)) return 'purple';
         if (/self source|internal source|(^| )self( |$)|(^| )internal( |$)/.test(value)) return 'charcoal';
         if (/clarification required|clarification requested|near expiry|near-expiry|low stock|low-stock|(^| )warning( |$)/.test(value)) return 'orange';
@@ -57,6 +70,9 @@
     window.rootinsStatusTone = toneForValue;
 
     var toneFor = function (element) {
+        if (element.getAttribute('data-status-group') === 'delivery' && window.rootinsShopifyStatus) {
+            return window.rootinsShopifyStatus('delivery', element.getAttribute('data-status') || element.textContent).tone;
+        }
         var classes = normalize(element.className && typeof element.className === 'string' ? element.className : '');
         var text = normalize(element.getAttribute('data-status') || element.getAttribute('data-payment-status') || element.getAttribute('data-delivery-status') || element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent);
         return toneForValue(classes + ' ' + text);
@@ -66,7 +82,9 @@
         var tone = toneFor(element);
         if (!tone) return;
         toneClasses.forEach(function (className) { element.classList.remove(className); });
+        semanticClasses.forEach(function (className) { element.classList.remove(className); });
         element.classList.add('ri-status--' + tone);
+        element.classList.add(semanticForTone[tone] || 'status-neutral');
         if (element.matches('.badge, .status-badge, .source-badge, .inventory-status, [class*="status-badge"]')) {
             var hasMarkupDot = !!element.querySelector('.inventory-status-dot, .doctor-video-status-dot, [class*="status-dot"]');
             element.classList.toggle('ri-status-dot', !hasMarkupDot);

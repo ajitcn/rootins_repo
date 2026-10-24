@@ -33,5 +33,9 @@ final class StatusBadgeMappingTest extends CIUnitTestCase
         self::assertStringContainsString("return \$tones[\$group][\$status] ?? 'gray';", $helper);
         self::assertStringContainsString("'shipped' => 'indigo'", $helper);
         self::assertStringContainsString("tone: (shopifyTones[group] || {})[status] || 'gray'", $source);
+        self::assertStringContainsString('not_fulfilled: { label: \'Not fulfilled\', className: \'status-badge status-neutral\' }', $source);
+        self::assertStringContainsString('fulfilled: { label: \'Fulfilled\', className: \'status-badge status-success\' }', $source);
+        self::assertStringContainsString("if (/(^| )not fulfilled( |$)/.test(value)) return 'gray';", $source);
+        self::assertStringNotContainsString("value.includes('fulfilled')", $source);
     }
 }
