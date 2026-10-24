@@ -55,6 +55,27 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertStringContainsString('SHOPIFY_MAPPING_PERMISSION_DENIED', $permission);
     }
 
+    public function testShopifyOrderListUsesSafePrescriptionAndDeliveryDisplayRules(): void
+    {
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Views/pages/shopify_orders/index.php');
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $script = file_get_contents(ROOTPATH . 'public/assets/js/pharmacy/shopify_orders.js');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Config/Routes.php');
+
+        foreach (['Payment / Import Status', 'Not required', 'View prescription', 'Missing prescription', 'Not fulfilled'] as $marker) {
+            self::assertStringContainsString($marker, $view);
+        }
+        foreach (['prescription_document_id', 'prescription_required', 'Not fulfilled'] as $marker) {
+            self::assertStringContainsString($marker, $service . $script);
+        }
+        foreach (['patient_id', 'shopify_store_domain', 'shopify_customer_id', 'pharmacy.shopify_prescription_viewed', 'temporaryUrl'] as $marker) {
+            self::assertStringContainsString($marker, $controller);
+        }
+        self::assertStringContainsString('shopify-orders/(:num)/prescription', $routes);
+        self::assertStringNotContainsString('temporaryUrl($document)', $view . $script);
+    }
+
     public function testProcessModalUsesExplicitActionContractAndScrollableBootstrapLayout(): void
     {
         $view = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Views/pages/shopify_orders/detail.php');

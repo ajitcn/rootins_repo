@@ -15,6 +15,18 @@
         return String(value || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
     }
 
+    function deliveryLabel(value) {
+        return String(value || '').trim() ? label(value) : 'Not fulfilled';
+    }
+
+    function prescriptionMarkup(importData) {
+        var status = String(importData.prescription_status || '').toLowerCase();
+        if (status === 'not_required') return '<span class="badge badge-status badge-not-required">Not required</span>';
+        var base = String(window.BASE_URL || '/').replace(/\/?$/, '/');
+        if (importData.prescription_document_id) return '<a href="' + escapeHtml(base + 'pharmacy/shopify-orders/' + encodeURIComponent(importData.id) + '/prescription') + '">View prescription</a>';
+        return '<span class="text-danger">Missing prescription</span>';
+    }
+
     function refreshCsrf(payload) {
         if (window.RootinsCsrf) { window.RootinsCsrf.update(payload); return; }
         if (!payload || !payload.csrf || !payload.csrf.hash) return;
@@ -135,7 +147,7 @@
             + '<div><small>Shopify order</small><strong>' + escapeHtml(importData.shopify_order_number || importData.shopify_order_id) + '</strong><span>' + escapeHtml(importData.shopify_order_id) + '</span></div>'
             + '<div><small>Customer / patient</small><strong>' + escapeHtml(importData.customer_name_snapshot || importData.customer_email_snapshot || 'Unknown') + '</strong><span>' + escapeHtml(importData.registration_number || 'Patient not linked') + '</span></div>'
             + '<div><small>Status</small><strong>' + escapeHtml(label(importData.status)) + '</strong><span>' + escapeHtml(label(importData.mapping_status)) + ' · ' + escapeHtml(label(importData.prescription_status)) + '</span></div></div>';
-        html += '<h3 class="h6 mt-4">Medicine lines</h3><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Medicine</th><th>Shopify IDs</th><th>Qty</th><th>Mapping</th></tr></thead><tbody>';
+        html += '<div class="small text-muted mt-3"><strong>Prescription:</strong> ' + prescriptionMarkup(importData) + ' <span class="ml-3"><strong>Delivery:</strong> ' + escapeHtml(deliveryLabel(importData.fulfillment_status)) + '</span></div><h3 class="h6 mt-4">Medicine lines</h3><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Medicine</th><th>Shopify IDs</th><th>Qty</th><th>Mapping</th></tr></thead><tbody>';
         if (!lines.length) html += '<tr><td colspan="4" class="text-muted">No line items recorded.</td></tr>';
         lines.forEach(function (line) { html += '<tr><td><strong>' + escapeHtml(line.medicine_name || line.title_snapshot || 'Unmapped medicine') + '</strong><small class="d-block text-muted">' + escapeHtml((line.strength || '') + ' ' + (line.unit || '')) + '</small></td><td><small>Line: ' + escapeHtml(line.shopify_line_item_id) + '<br>Product: ' + escapeHtml(line.shopify_product_id || '—') + '<br>Variant: ' + escapeHtml(line.shopify_variant_id || '—') + '</small></td><td>' + escapeHtml(line.quantity) + '</td><td><span class="badge badge-status">' + escapeHtml(line.mapping_reason || label(line.status)) + '</span></td></tr>'; });
         html += '</tbody></table></div><h3 class="h6 mt-4">Order history</h3><div class="table-responsive"><table class="table table-sm"><thead><tr><th>When</th><th>Action</th><th>Transition</th><th>Reason</th></tr></thead><tbody>';

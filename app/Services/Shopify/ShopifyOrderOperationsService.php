@@ -618,6 +618,10 @@ GRAPHQL;
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') $query->groupStart()->like('i.shopify_order_number', $search)->orLike('i.shopify_order_id', $search)->orLike('i.customer_name_snapshot', $search)->orLike('i.customer_email_snapshot', $search)->orLike('p.registration_number', $search)->orLike('i.shopify_customer_id', $search)->groupEnd();
         $imports = $query->get(500)->getResultArray();
+        foreach ($imports as &$import) {
+            $this->decorateShopifyPrescriptionDisplay($import);
+        }
+        unset($import);
         $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $imports)));
         if ($ids === []) return $imports;
         $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, l.status, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
@@ -654,6 +658,29 @@ GRAPHQL;
         }
         unset($import);
         return $imports;
+    }
+
+    /** @param array<string, mixed> $import */
+    private function decorateShopifyPrescriptionDisplay(array &$import): void
+    {
+        $status = strtolower(trim((string) ($import['prescription_status'] ?? '')));
+        $reference = trim((string) ($import['prescription_reference'] ?? ''));
+        $import['prescription_required'] = $status !== 'not_required' && ($status !== '' || $reference !== '');
+        $import['prescription_document_id'] = null;
+
+        if ($reference === '') return;
+
+        $document = db_connect()->table('patient_documents')
+            ->select('id')
+            ->where('source_type', 'shopify')
+            ->where('external_upload_reference', $reference)
+            ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
+            ->where('shopify_customer_id', (string) ($import['shopify_customer_id'] ?? ''))
+            ->where('patient_id', (int) ($import['patient_id'] ?? 0))
+            ->get(1)
+            ->getRowArray();
+
+        $import['prescription_document_id'] = $document['id'] ?? null;
     }
 
     public function counters(?int $clinicId = null): array

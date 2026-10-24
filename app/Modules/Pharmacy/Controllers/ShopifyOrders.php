@@ -80,7 +80,13 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             $import = $this->operations->detail($id, $clinicId);
             $documentId = (int) ($import['prescription_document_id'] ?? 0);
             $document = $documentId > 0 ? (new ShopifyPrescriptionUploadService())->find($documentId) : null;
-            if ($import === null || $document === null || (int) ($document['clinic_id'] ?? 0) !== $clinicId) {
+            $authorizedDocument = $import !== null
+                && $document !== null
+                && (int) ($document['clinic_id'] ?? 0) === $clinicId
+                && (int) ($document['patient_id'] ?? 0) === (int) ($import['patient_id'] ?? 0)
+                && (string) ($document['shopify_store_domain'] ?? '') === (string) ($import['store_domain'] ?? '')
+                && (string) ($document['shopify_customer_id'] ?? '') === (string) ($import['shopify_customer_id'] ?? '');
+            if (! $authorizedDocument) {
                 return $this->response->setStatusCode(404)->setBody('Prescription was not found.');
             }
             $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => $documentId]);
