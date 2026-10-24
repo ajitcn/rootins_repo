@@ -1,10 +1,10 @@
 <?php
 
-namespace AppDatabaseMigrations;
+namespace App\Database\Migrations;
 
-use CodeIgniterDatabaseMigration;
+use CodeIgniter\Database\Migration;
 
-final class AddShopifyOrderImportPaymentState extends Migration
+class AddShopifyOrderImportPaymentState extends Migration
 {
     public function up(): void
     {
