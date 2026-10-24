@@ -257,6 +257,9 @@ h1, h2, h3, h4, h5, h6,
     --ri-status-purple-text: #655078;
     --ri-status-purple-bg: #f1ebf5;
     --ri-status-purple-border: #d6c7df;
+    --ri-status-indigo-text: #3f4d82;
+    --ri-status-indigo-bg: #eceefb;
+    --ri-status-indigo-border: #c9ceed;
     --ri-status-charcoal-text: #313438;
     --ri-status-charcoal-bg: #e8e9ea;
     --ri-status-charcoal-border: #c9cccf;
@@ -281,6 +284,7 @@ h1, h2, h3, h4, h5, h6,
 .ri-status--gray { color: var(--ri-status-gray-text) !important; background: var(--ri-status-gray-bg) !important; border-color: var(--ri-status-gray-border) !important; }
 .ri-status--orange { color: var(--ri-status-orange-text) !important; background: var(--ri-status-orange-bg) !important; border-color: var(--ri-status-orange-border) !important; }
 .ri-status--purple { color: var(--ri-status-purple-text) !important; background: var(--ri-status-purple-bg) !important; border-color: var(--ri-status-purple-border) !important; }
+.ri-status--indigo { color: var(--ri-status-indigo-text) !important; background: var(--ri-status-indigo-bg) !important; border-color: var(--ri-status-indigo-border) !important; }
 .ri-status--charcoal { color: var(--ri-status-charcoal-text) !important; background: var(--ri-status-charcoal-bg) !important; border-color: var(--ri-status-charcoal-border) !important; }
 
 .ri-status-dot { display: inline-flex; align-items: center; gap: .35rem; }
@@ -292,6 +296,7 @@ h1, h2, h3, h4, h5, h6,
 .ri-status--gray.ri-status-dot::before { background: var(--ri-status-gray-text); }
 .ri-status--orange.ri-status-dot::before { background: var(--ri-status-orange-text); }
 .ri-status--purple.ri-status-dot::before { background: var(--ri-status-purple-text); }
+.ri-status--indigo.ri-status-dot::before { background: var(--ri-status-indigo-text); }
 .ri-status--charcoal.ri-status-dot::before { background: var(--ri-status-charcoal-text); }
 
 /* Shared presentation for status-bearing cells, timeline entries and cards. */

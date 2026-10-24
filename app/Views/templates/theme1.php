@@ -112,7 +112,7 @@
   <script src="<?= base_url('assets/js/app.js')?>"></script>
   <script src="<?= base_url('assets/js/routes.js')?>"></script>
   <script src="<?= base_url('assets/js/common.js?v=20261009-preloader1')?>"></script>
-  <script src="<?= base_url('assets/js/status-colors.js?v=20261009-status4')?>"></script>
+  <script src="<?= base_url('assets/js/status-colors.js?v=20261024-status5')?>"></script>
   <script src="<?= base_url('assets/js/actions-menu.js?v=20261009-actions4')?>"></script>
   <script src="<?= base_url('assets/js/modal-layer.js?v=20261009-modal2')?>"></script>
   

@@ -6,7 +6,14 @@ $canManage = ! empty($canManage);
 $documentId = (int) ($import['prescription_document_id'] ?? 0);
 $actionUrl = base_url('pharmacy/shopify-orders/action/' . $id);
 $detailsUrl = base_url('pharmacy/shopify-orders/' . $id . '/json');
-$badge = static fn (string $value): string => 'badge badge-status badge-' . preg_replace('/[^a-z0-9]+/i', '-', strtolower($value ?: 'unknown'));
+$badge = static function (string $groupOrValue, mixed $value = null): string {
+    if ($value === null) {
+        $value = $groupOrValue;
+        $normalized = shopify_status_normalize($value);
+        $groupOrValue = in_array($normalized, ['not_required', 'uploaded', 'available', 'awaiting_review', 'missing', 'rejected', 'approved'], true) ? 'prescription' : (in_array($normalized, ['not_fulfilled', 'packed', 'shipped', 'delivered', 'fulfilled', 'returned'], true) ? 'delivery' : (in_array($normalized, ['paid', 'pending', 'refunded', 'partially_refunded'], true) ? 'payment' : 'import'));
+    }
+    return shopify_status_badge_class($groupOrValue, $value);
+};
 $patientName = trim((string) (($import['first_name'] ?? '') . ' ' . ($import['last_name'] ?? '')));
 $patientLabel = $patientName !== '' ? $patientName : ($import['registration_number'] ?? '');
 $identityStatus = (string) ($import['link_status'] ?? '');

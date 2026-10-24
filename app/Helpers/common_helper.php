@@ -181,3 +181,49 @@ if (!function_exists('display_permission_label')) {
         return $text;
     }
 }
+
+if (!function_exists('shopify_status_normalize')) {
+    function shopify_status_normalize(mixed $value): string
+    {
+        $status = strtolower(trim((string) $value));
+        $status = (string) preg_replace('/[\s\-\/]+/', '_', $status);
+        $status = (string) preg_replace('/[^a-z0-9_]+/', '', $status);
+
+        return match ($status) {
+            'order_fulfilled' => 'fulfilled',
+            'partial_refund' => 'partially_refunded',
+            'notfulfilled' => 'not_fulfilled',
+            default => $status,
+        };
+    }
+}
+
+if (!function_exists('shopify_status_tone')) {
+    function shopify_status_tone(string $group, mixed $value): string
+    {
+        $status = shopify_status_normalize($value);
+        $tones = [
+            'payment' => ['paid' => 'green', 'pending' => 'amber', 'failed' => 'red', 'refunded' => 'purple', 'partially_refunded' => 'orange', 'cancelled' => 'red'],
+            'import' => ['processed' => 'green', 'imported' => 'blue', 'ready_to_import' => 'blue', 'pending_mapping' => 'amber', 'quarantined' => 'orange', 'failed' => 'red', 'received' => 'gray', 'processing' => 'blue'],
+            'prescription' => ['not_required' => 'gray', 'uploaded' => 'green', 'available' => 'green', 'awaiting_review' => 'amber', 'missing' => 'red', 'rejected' => 'red', 'approved' => 'green'],
+            'delivery' => ['not_fulfilled' => 'gray', 'processing' => 'blue', 'packed' => 'blue', 'shipped' => 'indigo', 'delivered' => 'green', 'fulfilled' => 'green', 'cancelled' => 'red', 'returned' => 'purple', 'failed' => 'red'],
+        ];
+        return $tones[$group][$status] ?? 'gray';
+    }
+}
+
+if (!function_exists('shopify_status_badge_class')) {
+    function shopify_status_badge_class(string $group, mixed $value): string
+    {
+        return 'badge badge-status ri-status ri-status--' . shopify_status_tone($group, $value) . ' ri-status-dot';
+    }
+}
+
+if (!function_exists('shopify_status_label')) {
+    function shopify_status_label(string $group, mixed $value): string
+    {
+        $status = shopify_status_normalize($value);
+        if ($group === 'delivery' && $status === '') return 'Not fulfilled';
+        return $status === '' ? 'Unknown' : ucwords(str_replace('_', ' ', $status));
+    }
+}

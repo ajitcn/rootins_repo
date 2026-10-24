@@ -8,7 +8,7 @@
     var toneClasses = [
         'ri-status--green', 'ri-status--amber', 'ri-status--blue',
         'ri-status--red', 'ri-status--gray', 'ri-status--orange',
-        'ri-status--purple', 'ri-status--charcoal'
+        'ri-status--purple', 'ri-status--indigo', 'ri-status--charcoal'
     ];
 
     var selectors = [
@@ -22,6 +22,22 @@
 
     var normalize = function (value) {
         return String(value || '').toLowerCase().replace(/[–—]/g, '-').replace(/[_/]+/g, ' ').replace(/[^a-z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+
+    var shopifyTones = {
+        payment: { paid: 'green', pending: 'amber', failed: 'red', refunded: 'purple', partially_refunded: 'orange', cancelled: 'red' },
+        import: { processed: 'green', imported: 'blue', ready_to_import: 'blue', pending_mapping: 'amber', quarantined: 'orange', failed: 'red', received: 'gray', processing: 'blue' },
+        prescription: { not_required: 'gray', uploaded: 'green', available: 'green', awaiting_review: 'amber', missing: 'red', rejected: 'red', approved: 'green' },
+        delivery: { not_fulfilled: 'gray', processing: 'blue', packed: 'blue', shipped: 'indigo', delivered: 'green', fulfilled: 'green', cancelled: 'red', returned: 'purple', failed: 'red' }
+    };
+    var normalizeShopify = function (value) {
+        var status = String(value || '').toLowerCase().replace(/[\s\-/]+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        return status === 'order_fulfilled' ? 'fulfilled' : (status === 'partial_refund' ? 'partially_refunded' : (status === 'notfulfilled' ? 'not_fulfilled' : status));
+    };
+    window.rootinsShopifyStatus = function (group, value) {
+        var status = normalizeShopify(value), label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }) : 'Unknown';
+        if (group === 'delivery' && !status) label = 'Not fulfilled';
+        return { status: status, tone: (shopifyTones[group] || {})[status] || 'gray', label: label };
     };
 
     var toneForValue = function (value) {

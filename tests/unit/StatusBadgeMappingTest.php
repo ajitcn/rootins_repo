@@ -21,4 +21,17 @@ final class StatusBadgeMappingTest extends CIUnitTestCase
         self::assertStringContainsString('--ri-status-gray-text', $css);
         self::assertStringContainsString('--ri-status-purple-text', $css);
     }
+
+    public function testShopifyGroupsHaveSemanticMappingsAndNeutralFallback(): void
+    {
+        $helper = file_get_contents(ROOTPATH . 'app/Helpers/common_helper.php');
+        $source = file_get_contents(ROOTPATH . 'public/assets/js/status-colors.js');
+
+        foreach (['paid', 'partially_refunded', 'pending_mapping', 'ready_to_import', 'not_required', 'awaiting_review', 'not_fulfilled', 'shipped', 'order_fulfilled'] as $status) {
+            self::assertStringContainsString($status, $helper . $source);
+        }
+        self::assertStringContainsString("return \$tones[\$group][\$status] ?? 'gray';", $helper);
+        self::assertStringContainsString("'shipped' => 'indigo'", $helper);
+        self::assertStringContainsString("tone: (shopifyTones[group] || {})[status] || 'gray'", $source);
+    }
 }
