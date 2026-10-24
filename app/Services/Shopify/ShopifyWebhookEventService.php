@@ -146,7 +146,7 @@ final class ShopifyWebhookEventService
         $safe = [];
 
         if ((isset($payload['line_items']) && is_array($payload['line_items'])) || isset($payload['order_id'])) {
-            foreach (['id', 'order_id', 'order_number', 'currency', 'presentment_currency', 'total_price', 'current_total_price', 'financial_status', 'fulfillment_status', 'cancelled_at', 'gateway', 'shipping_provider', 'tracking_number'] as $key) {
+            foreach (['id', 'order_id', 'order_number', 'currency', 'presentment_currency', 'total_price', 'current_total_price', 'financial_status', 'fulfillment_status', 'cancelled_at', 'gateway', 'shipping_provider', 'tracking_number', 'tracking_url', 'tracking_company', 'status', 'created_at', 'updated_at', 'processed_at', 'total_refunded', 'amount'] as $key) {
                 if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
                     $safe[$key] = $payload[$key];
                 }
@@ -176,6 +176,12 @@ final class ShopifyWebhookEventService
             $safe['prescription_reference'] = $this->shopifyPrescriptionReference($payload);
             $safe['prescription_bundle_reference'] = $this->shopifyPrescriptionBundleReference($payload);
             $safe['rootins_appointment_intent'] = $this->appointmentIntentReference($payload);
+            $safe['refund_id'] = (string) ($payload['refund_id'] ?? ($payload['id'] ?? ''));
+            $safe['fulfillment_id'] = (string) ($payload['fulfillment_id'] ?? ($payload['id'] ?? ''));
+            $safe['refund_transactions'] = array_values(array_map(static function (mixed $transaction): array {
+                if (! is_array($transaction)) return [];
+                return ['amount' => (string) ($transaction['amount'] ?? ''), 'currency' => (string) ($transaction['currency'] ?? '')];
+            }, (array) ($payload['transactions'] ?? [])));
 
             return json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         }

@@ -152,7 +152,22 @@ final class Webhook extends BaseController
             if ($failureResponse !== null) return $failureResponse;
         }
 
-        if (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
+        if (in_array($topic, ['refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
+            try {
+                (new ShopifyOrderImportService())->processExternalEvent((int) $result['id'], $topic, $this->requestCorrelationId);
+            } catch (\Throwable $exception) {
+                $failure = ShopifyOrderImportFailure::fromException($exception, $topic);
+                (new ShopifyOrderImportService())->markFailureForEvent((int) $result['id'], $failure->category);
+                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], $failure->category);
+                log_message('error', 'Shopify external reconciliation failed safely ' . json_encode([
+                    'correlation_id' => $this->requestCorrelationId,
+                    'topic' => $topic,
+                    'failure_category' => $failure->category,
+                    'exception_class' => get_class($exception),
+                ], JSON_UNESCAPED_SLASHES));
+                return $this->error(500, $failure->category, 'Shopify external order update could not be processed safely.');
+            }
+        } elseif (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyOrderImportService())->processEvent((int) $result['id'], false, $this->requestCorrelationId);
                 $payloadForDiagnostic = json_decode($rawBody, true);

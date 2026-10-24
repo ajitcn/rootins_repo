@@ -459,6 +459,112 @@ final class ShopifyOrderImportService
         }
     }
 
+    /**
+     * Reconcile only refund/fulfilment webhooks. These payloads identify the
+     * Shopify order in order_id; payload id is the external refund/fulfilment
+     * identity and must never enter the order-import pipeline as an order ID.
+     */
+    public function processExternalEvent(int $eventId, string $topic, ?string $correlationId = null): array
+    {
+        $events = $this->events ?? new ShopifyWebhookEventService();
+        $event = $events->find($eventId);
+        $payload = is_array($event) ? json_decode((string) ($event['payload_json'] ?? ''), true) : null;
+        $this->diagnosticCorrelationId = $correlationId ?: bin2hex(random_bytes(16));
+        $this->diagnosticTopic = $topic;
+
+        if (! is_array($event) || ! is_array($payload)) {
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID, 'Shopify external webhook payload is invalid.');
+        }
+
+        $store = strtolower(trim((string) ($event['store_domain'] ?? '')));
+        $shopifyOrderId = $this->shopifyId($payload['order_id'] ?? '');
+        $externalId = $this->shopifyId($payload['id'] ?? '');
+        $this->stage($event, $shopifyOrderId, 'external_identity_resolved', null, 'shopify_order_imports', 'store_domain_shopify_order_id', false);
+        if ($store === '' || $shopifyOrderId === '' || $externalId === '') {
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_IDENTITY_NOT_FOUND, 'Shopify external webhook identity is incomplete.');
+        }
+
+        $db = db_connect();
+        $sql = 'SELECT * FROM shopify_order_imports WHERE store_domain = ? AND shopify_order_id = ? LIMIT 1';
+        if (strtolower((string) $db->DBDriver) === 'mysqli') $sql .= ' FOR UPDATE';
+        $db->transBegin();
+        $this->stage($event, $shopifyOrderId, 'import_row_lookup_started', null, 'shopify_order_imports', 'store_domain_shopify_order_id', false);
+        $import = $db->query($sql, [$store, $shopifyOrderId])->getRowArray() ?: null;
+        $this->diagnosticImportId = (int) ($import['id'] ?? 0);
+        $this->diagnosticImportStatus = (string) ($import['status'] ?? '');
+        $this->diagnosticRowFound = $import !== null;
+        $this->stage($event, $shopifyOrderId, 'import_row_lookup_completed', $import === null ? ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND : null, 'shopify_order_imports', 'store_domain_shopify_order_id', $import !== null);
+        if ($import === null) {
+            $db->transRollback();
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND, 'The Shopify order import record was not found.');
+        }
+
+        try {
+            $result = $topic === 'refunds/create'
+                ? $this->reconcileExternalRefund($db, $event, $payload, $import, $externalId)
+                : $this->reconcileExternalFulfillment($db, $event, $payload, $import, $externalId);
+
+            if (! $db->transStatus()) throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify external reconciliation write failed.');
+            $db->transCommit();
+        } catch (\Throwable $exception) {
+            $db->transRollback();
+            throw $exception;
+        }
+        $events->markProcessed($eventId);
+        return array_merge($result, ['internal_import_id' => (int) $import['id'], 'shopify_order_id' => $shopifyOrderId, 'store_domain' => $store]);
+    }
+
+    private function reconcileExternalRefund($db, array $event, array $payload, array $import, string $refundId): array
+    {
+        $importId = (int) $import['id'];
+        $orderId = (string) $import['shopify_order_id'];
+        $this->stage($event, $orderId, 'refund_reconciliation_started', null, 'shopify_order_import_refunds', 'internal_import_id_refund_id', true);
+        $currency = strtoupper(trim((string) ($payload['currency'] ?? $payload['presentment_currency'] ?? $import['currency'] ?? '')));
+        $amount = (float) ($payload['total_refunded'] ?? $payload['amount'] ?? 0);
+        if ($amount <= 0) foreach ((array) ($payload['refund_transactions'] ?? $payload['transactions'] ?? []) as $transaction) $amount += (float) ($transaction['amount'] ?? 0);
+        $refundStatus = $amount > 0 && (float) ($import['total_snapshot'] ?? 0) > 0 && $amount < (float) $import['total_snapshot'] ? 'partially_refunded' : 'refunded';
+        $table = $db->table('shopify_order_import_refunds');
+        $existing = $table->where('import_id', $importId)->where('shopify_refund_id', $refundId)->get(1)->getRowArray();
+        $data = ['store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_refund_id' => $refundId, 'amount' => $amount, 'currency' => $currency !== '' ? $currency : null, 'status' => $refundStatus, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($existing === null) { $data['import_id'] = $importId; $data['created_at'] = date('Y-m-d H:i:s'); $table->insert($data); } else $table->where('id', (int) $existing['id'])->update($data);
+        $affected = $db->affectedRows();
+        $this->diagnosticAffectedRows = $affected;
+        $this->stage($event, $orderId, 'refund_record_upserted', null, 'shopify_order_import_refunds', 'internal_import_id_refund_id', true, $affected);
+        $updates = ['payment_status' => 'refunded', 'financial_status' => $refundStatus, 'last_event_id' => (int) $event['id'], 'retry_count' => (int) ($import['retry_count'] ?? 0) + 1, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')];
+        $db->table('shopify_order_imports')->where('id', $importId)->update($updates);
+        if ((int) ($import['rootins_order_id'] ?? 0) > 0) {
+            $invoice = $db->table('invoices')->where('order_id', (int) $import['rootins_order_id']);
+            if ((int) ($import['clinic_id'] ?? 0) > 0) $invoice->where('clinic_id', (int) $import['clinic_id']);
+            $invoice->update(['payment_status' => 'refunded', 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+        $this->stage($event, $orderId, 'refund_payment_reconciled', null, 'shopify_order_imports', 'internal_import_id', true, $db->affectedRows());
+        return ['status' => 'processed', 'refund_id' => $refundId, 'refund_status' => $refundStatus, 'amount' => $amount, 'currency' => $currency, 'duplicate' => $existing !== null];
+    }
+
+    private function reconcileExternalFulfillment($db, array $event, array $payload, array $import, string $fulfillmentId): array
+    {
+        $importId = (int) $import['id'];
+        $orderId = (string) $import['shopify_order_id'];
+        $this->stage($event, $orderId, 'fulfillment_reconciliation_started', null, 'shopify_order_import_fulfillments', 'internal_import_id_fulfillment_id', true);
+        $rawStatus = strtolower(trim((string) ($payload['status'] ?? $payload['fulfillment_status'] ?? '')));
+        $status = match ($rawStatus) { 'success', 'fulfilled' => 'fulfilled', 'open', 'in_progress', 'processing' => 'processing', 'cancelled', 'canceled' => 'cancelled', 'failure', 'failed' => 'failed', default => $rawStatus !== '' ? $rawStatus : 'processing' };
+        $trackingNumber = trim((string) ($payload['tracking_number'] ?? ((array) ($payload['tracking_numbers'] ?? []))[0] ?? ''));
+        $trackingUrl = trim((string) ($payload['tracking_url'] ?? ((array) ($payload['tracking_urls'] ?? []))[0] ?? ''));
+        $carrier = trim((string) ($payload['tracking_company'] ?? $payload['shipping_provider'] ?? ''));
+        $table = $db->table('shopify_order_import_fulfillments');
+        $existing = $table->where('import_id', $importId)->where('shopify_fulfillment_id', $fulfillmentId)->get(1)->getRowArray();
+        $data = ['store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_fulfillment_id' => $fulfillmentId, 'status' => $status, 'tracking_company' => $carrier !== '' ? $carrier : null, 'tracking_number' => $trackingNumber !== '' ? $trackingNumber : null, 'tracking_url' => $trackingUrl !== '' ? $trackingUrl : null, 'fulfilled_at' => $status === 'fulfilled' ? date('Y-m-d H:i:s') : null, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($existing === null) { $data['import_id'] = $importId; $data['created_at'] = date('Y-m-d H:i:s'); $table->insert($data); } else $table->where('id', (int) $existing['id'])->update($data);
+        $affected = $db->affectedRows();
+        $this->diagnosticAffectedRows = $affected;
+        $this->stage($event, $orderId, 'fulfillment_record_upserted', null, 'shopify_order_import_fulfillments', 'internal_import_id_fulfillment_id', true, $affected);
+        $dbStatus = $status === 'fulfilled' ? 'fulfilled' : ($status === 'cancelled' ? 'returned' : ($status === 'failed' ? 'failed' : 'processing'));
+        $db->table('shopify_order_imports')->where('id', $importId)->update(['fulfillment_status' => $status, 'last_event_id' => (int) $event['id'], 'retry_count' => (int) ($import['retry_count'] ?? 0) + 1, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')]);
+        if ((int) ($import['rootins_order_id'] ?? 0) > 0) $db->table('medicine_orders')->where('id', (int) $import['rootins_order_id'])->update(['delivery_status' => $dbStatus, 'delivery_provider' => $carrier, 'tracking_reference' => $trackingNumber, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->stage($event, $orderId, 'fulfillment_delivery_reconciled', null, 'shopify_order_imports', 'internal_import_id', true, $db->affectedRows());
+        return ['status' => 'processed', 'fulfillment_id' => $fulfillmentId, 'delivery_status' => $status, 'duplicate' => $existing !== null];
+    }
+
     /** @return array<string, mixed> */
     private function upsertImport(array $event, array $payload): array
     {
