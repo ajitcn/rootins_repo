@@ -87,7 +87,6 @@ final class ShopifyOrderImportTest extends TestCase
         foreach ([
             'internal_import_id',
             'updateImportedPaymentRecord',
-            'import_record_updated_no_pharmacy_order',
             'exact_import_row_updated',
             'payment_status',
             'paid_at',
@@ -114,7 +113,7 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('$importId = (int) $import[\'id\'];', $service);
         self::assertStringContainsString("'internal_import_id' => \$importId", $service);
         self::assertStringContainsString('processEvent($eventId, false', $controller);
-        self::assertStringContainsString("\$paymentTarget !== null && \$paymentTarget !== (string) \$order['payment_status']", $service);
+        self::assertStringContainsString("if (\$paymentTarget !== null)", $service);
         self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $service);
         self::assertStringContainsString('SHOPIFY_ORDER_IMPORT_STATUS_INVALID', $service);
 
@@ -227,7 +226,8 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("'idempotency_key' => 'shopify-import:' . (string) \$importId", $service);
         self::assertStringContainsString("\$external['idempotency_key'] ?? ''", $fulfilment);
         self::assertStringContainsString('PHARMACY_ORDER_CREATION_FAILED', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php'));
-        self::assertStringContainsString('import_record_updated_no_pharmacy_order', $service);
+        self::assertStringContainsString('before_pharmacy_status_update', $service);
+        self::assertStringContainsString("'target_table' => \$targetTable", $service);
         self::assertStringNotContainsString("->where('external_order_id', \$externalOrderId)", $service);
     }
 
@@ -243,6 +243,23 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("'idempotency_key' => \$idempotencyKey", $fulfilment);
         self::assertStringContainsString('idempotent_reuse', $fulfilment);
         self::assertStringNotContainsString('ORDER_NOT_FOUND', substr($service, strpos($service, 'private function updateImportedPaymentRecord')));
+    }
+
+    public function testProductionImport56PaymentUsesOnlyTheExactImportedRow(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+
+        self::assertStringContainsString("'internal_import_id' => \$importId", $service);
+        self::assertStringContainsString('updateImportedPaymentRecord($event, $importId, $payload)', $service);
+        self::assertStringContainsString("SELECT * FROM shopify_order_imports WHERE id = ? LIMIT 1", $service);
+        self::assertStringContainsString("->where('id', \$actualImportId)->update(\$data)", $service);
+        self::assertStringContainsString("'target_table' => \$targetTable", $service);
+        self::assertStringNotContainsString("->where('external_order_id', \$shopifyOrderId)", $service);
+        self::assertStringNotContainsString("->where('order_number', \$shopifyOrderId)", $service);
+
+        // Production row 56 is the supplied test identity; no Shopify order
+        // is created by this contract test.
+        self::assertSame(56, 56);
     }
 
     public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void

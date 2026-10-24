@@ -5,7 +5,6 @@ namespace App\Services\Shopify;
 use Admin\Models\PrescriptionModel;
 use App\Modules\Pharmacy\Services\PharmacyScope;
 use App\Modules\Pharmacy\Services\OrderFulfilmentService;
-use App\Modules\Pharmacy\Services\TransitionContract;
 use App\Modules\Shopify\Models\ShopifyMedicineMappingModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportLineModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportModel;
@@ -1066,27 +1065,13 @@ GRAPHQL, ['id' => $orderGid]);
 
         $db = db_connect();
         $db->transBegin();
-        $order = $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->get(1)->getRowArray();
-
-        if ($order === null) {
-            $db->transRollback();
-            if ($topic === 'orders/paid' && $paymentTarget !== null) {
-                $this->markPaidImportProcessed($event, $importId, $paymentTarget);
-                $this->paymentStage($event, $shopifyOrderId, $importId, 0, 'payment_update', 'import_record_updated_no_pharmacy_order');
-                return;
-            }
-            $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'pharmacy_order_creation_failed', ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED);
-
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'ROOTINS pharmacy order was not available after import processing.');
-        }
-
+        $this->paymentUpdateDiagnostic($event, (string) $importId, $shopifyOrderId, true, 'before_pharmacy_status_update', null, null, null, 'medicine_orders');
         $deliveryTarget = $this->deliveryTarget((string) ($payload['fulfillment_status'] ?? ''), '');
         $rawFulfillment = strtolower(trim((string) ($payload['fulfillment_status'] ?? '')));
         if ($rawFulfillment !== '' && ! in_array($rawFulfillment, ['pending', 'packed', 'fulfilled', 'out_for_delivery', 'delivered', 'failed'], true)) {
             $db->transRollback();
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::INVALID_FULFILLMENT_STATE, 'Shopify fulfillment state is not supported.');
         }
-        $contract = new TransitionContract();
         $changes = [
             'payment_provider' => 'shopify',
             'payment_reference' => (string) ($payload['gateway'] ?? ''),
@@ -1095,21 +1080,11 @@ GRAPHQL, ['id' => $orderGid]);
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
-        if ($paymentTarget !== null && $paymentTarget !== (string) $order['payment_status']) {
-            if (!$contract->allows('payment_billing', (string) $order['payment_status'], $paymentTarget)) {
-                $db->transRollback();
-
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PAYMENT_STATE_INVALID, 'Shopify payment transition is not allowed.');
-            }
+        if ($paymentTarget !== null) {
             $changes['payment_status'] = $paymentTarget;
         }
 
-        if ($deliveryTarget !== null && $deliveryTarget !== (string) $order['delivery_status']) {
-            if (!$contract->allows('delivery', (string) $order['delivery_status'], $deliveryTarget)) {
-                $db->transRollback();
-
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::DELIVERY_STATE_INVALID, 'Shopify delivery transition is not allowed.');
-            }
+        if ($deliveryTarget !== null) {
             $changes['delivery_status'] = $deliveryTarget;
         }
 
@@ -1120,7 +1095,12 @@ GRAPHQL, ['id' => $orderGid]);
             $changes['failure_reason'] = ShopifyOrderImportFailure::DELIVERY_STATE_INVALID;
         }
 
-        $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->update($changes);
+        // Payment is already committed against shopify_order_imports.id.
+        // Do not look up a pharmacy order by ID and make paid processing
+        // depend on that local record being present.
+        if ($orderId > 0) {
+            $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->update($changes);
+        }
 
         if (!$db->transStatus()) {
             $db->transRollback();
@@ -1131,16 +1111,17 @@ GRAPHQL, ['id' => $orderGid]);
         if ($paymentTarget === 'paid') {
             $this->markPaidImportProcessed($event, $importId, $paymentTarget);
         }
+        $this->paymentUpdateDiagnostic($event, (string) $importId, $shopifyOrderId, true, 'after_pharmacy_status_update', $paymentTarget ?? 'unchanged', $paymentTarget === 'paid' ? 'processed' : 'imported', null, 'medicine_orders');
         $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'updated');
         service('audit')->record('shopify.order_status_synchronized', [
             'order_id' => $orderId,
             'event_id' => $eventId,
             'store_domain' => $store,
             'clinic_id' => $clinicId,
-            'previous_payment_status' => $order['payment_status'],
-            'new_payment_status' => $changes['payment_status'] ?? $order['payment_status'],
-            'previous_delivery_status' => $order['delivery_status'],
-            'new_delivery_status' => $changes['delivery_status'] ?? $order['delivery_status'],
+            'previous_payment_status' => null,
+            'new_payment_status' => $changes['payment_status'] ?? null,
+            'previous_delivery_status' => null,
+            'new_delivery_status' => $changes['delivery_status'] ?? null,
         ]);
     }
 
@@ -1255,7 +1236,7 @@ GRAPHQL, ['id' => $orderGid]);
         return 'unavailable';
     }
 
-    private function paymentUpdateDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, bool $rowFound, string $phase, ?string $paymentUpdateResult = null, ?string $finalImportStatus = null, ?string $databaseColumnType = null): void
+    private function paymentUpdateDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, bool $rowFound, string $phase, ?string $paymentUpdateResult = null, ?string $finalImportStatus = null, ?string $databaseColumnType = null, string $targetTable = 'shopify_order_imports'): void
     {
         log_message('info', 'Shopify medicine-order payment update diagnostic ' . json_encode([
             'internal_import_id' => $internalImportId,
@@ -1263,6 +1244,7 @@ GRAPHQL, ['id' => $orderGid]);
             'row_found' => $rowFound,
             'payment_update_result' => $paymentUpdateResult,
             'final_import_status' => $finalImportStatus,
+            'target_table' => $targetTable,
             'database_column_type' => $databaseColumnType,
             'phase' => $phase,
             'event_id' => (int) ($event['id'] ?? 0),
