@@ -69,6 +69,29 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringNotContainsString("'msg' => 'Operation completed.'", $view);
     }
 
+    public function testOrderOperationActionsUseJsonPostTimeoutAndGuaranteedCleanup(): void
+    {
+        $routes = $this->source('app/Modules/Admin/Config/Routes.php');
+        $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
+        $filter = $this->source('app/Filters/ShopifyMappingCsrf.php');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_operation_detail.php');
+        $script = $this->source('public/assets/js/admin/shopify/shopify_order_operation_detail.js');
+
+        foreach (['order-operations/(:num)/action', 'order-operations/(:num)/json', 'permission:shopify.order.operations'] as $marker) {
+            self::assertStringContainsString($marker, $routes);
+        }
+        foreach (['operationJson', 'operationError', 'affected_rows', 'SHOPIFY_ORDER_STATUS_INVALID', 'SHOPIFY_ORDER_DATABASE_FAILURE', 'correlation_id', 'target_table', 'sanitized_exception_message'] as $marker) {
+            self::assertStringContainsString($marker, $controller);
+        }
+        self::assertStringContainsString('/admin/integrations/shopify/order-operations/', $filter);
+        foreach (['data-shopify-operation-form', 'data-details-url', 'shopify_order_operation_detail.js'] as $marker) {
+            self::assertStringContainsString($marker, $view);
+        }
+        foreach (['method: \'POST\'', 'AbortController', 'The server returned an unexpected response.', '.finally', 'RootinsCsrf', 'refreshStatus', 'active', 'cleanup', 'credentials: \'same-origin\''] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
+    }
+
     public function testMedicineImportDetailHidesAppointmentActionAndShowsActualFailure(): void
     {
         $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');

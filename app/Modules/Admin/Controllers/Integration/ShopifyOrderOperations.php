@@ -41,6 +41,19 @@ final class ShopifyOrderOperations extends BaseAdminController
         return view(ADMIN_VIEW . 'pages/integrations/shopify_order_operation_detail', ['import' => $detail, 'readiness' => $this->operations->readiness(['store' => $detail['store_domain']]), 'medicines' => $this->operations->activeMedicines()]);
     }
 
+    public function detailJson(int $id): ResponseInterface
+    {
+        $correlationId = bin2hex(random_bytes(16));
+        try {
+            $detail = $this->operations->detail($id);
+            if ($detail === null) return $this->operationError('SHOPIFY_ORDER_IMPORT_NOT_FOUND', 'Shopify order operation was not found.', $correlationId, $id, 'detail', 404);
+            return $this->operationJson(true, 'Shopify order operation loaded.', 200, ['import' => $detail], $correlationId, $id, 'detail', 0);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify order operation detail failed ' . json_encode(['correlation_id' => $correlationId, 'operation_id' => $id, 'action' => 'detail', 'http_status' => 500, 'exception_class' => get_class($exception), 'sanitized_exception_message' => $this->sanitizeExceptionMessage($exception->getMessage())], JSON_UNESCAPED_SLASHES));
+            return $this->operationError('SHOPIFY_ORDER_DATABASE_FAILURE', 'Shopify order operation could not be loaded safely.', $correlationId, $id, 'detail', 500);
+        }
+    }
+
     public function viewPrescription(int $documentId): ResponseInterface
     {
         try {
@@ -137,18 +150,49 @@ final class ShopifyOrderOperations extends BaseAdminController
 
     public function action(int $id): ResponseInterface
     {
+        $correlationId = bin2hex(random_bytes(16));
         $action = trim((string) $this->request->getPost('action'));
-        if (in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true)) {
-            try {
-                $data = $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0));
-                $http = !empty($data['status']) ? 200 : 422;
-                return $this->response->setStatusCode($http)->setJSON($data + ['csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
-            } catch (\Throwable $exception) {
-                log_message('error', 'Shopify order retry endpoint failed safely. Exception: ' . get_class($exception));
-                return $this->response->setStatusCode(500)->setJSON(['status' => false, 'code' => 'SHOPIFY_ORDER_RETRY_FAILED', 'message' => 'Shopify order import could not be completed safely.', 'current_status' => 'unknown', 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]]);
-            }
+        if ($id <= 0) return $this->operationError('SHOPIFY_ORDER_IMPORT_ID_INVALID', 'The Shopify order operation ID is invalid.', $correlationId, $id, $action, 422);
+        if (! in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook', 'quarantine', 'release_quarantine', 'mark_ready'], true)) {
+            return $this->operationError('SHOPIFY_ORDER_ACTION_INVALID', 'This Shopify order action is not available.', $correlationId, $id, $action, 422);
         }
-        return $this->run(fn () => $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0)), 'Shopify order operation completed.');
+        try {
+            $data = $this->operations->action($id, $action, $this->request->getPost(), (int) ($this->user['id'] ?? 0));
+            $success = in_array($action, ['retry_validation', 'retry_import', 'retry_payment', 'reprocess_webhook'], true)
+                ? (bool) ($data['status'] ?? false)
+                : in_array((string) ($data['status'] ?? ''), ['received', 'ready_to_import', 'quarantined'], true);
+            $message = (string) ($data['message'] ?? $data['msg'] ?? ($success ? 'Shopify order operation completed.' : 'Shopify order operation failed.'));
+            $affectedRows = (int) ($data['affected_rows'] ?? ($success ? 1 : 0));
+            if (! $success || $affectedRows <= 0) {
+                return $this->operationError((string) ($data['code'] ?? 'SHOPIFY_ORDER_OPERATION_NOT_PERSISTED'), $message, $correlationId, $id, $action, 422, $data, $affectedRows);
+            }
+            return $this->operationJson(true, $message, 200, $data + ['affected_rows' => $affectedRows], $correlationId, $id, $action, $affectedRows);
+        } catch (InvalidArgumentException $exception) {
+            return $this->operationError('SHOPIFY_ORDER_STATUS_INVALID', $exception->getMessage(), $correlationId, $id, $action, 422);
+        } catch (\Throwable $exception) {
+            $affectedRows = (int) db_connect()->affectedRows();
+            log_message('error', 'Shopify order operation failed ' . json_encode(['correlation_id' => $correlationId, 'operation_id' => $id, 'action' => $action, 'current_status' => 'unknown', 'target_table' => 'shopify_order_imports', 'database_operation' => 'update', 'http_status' => 500, 'affected_rows' => $affectedRows, 'exception_class' => get_class($exception), 'sanitized_exception_message' => $this->sanitizeExceptionMessage($exception->getMessage())], JSON_UNESCAPED_SLASHES));
+            return $this->operationError('SHOPIFY_ORDER_DATABASE_FAILURE', 'Shopify order operation could not be completed safely.', $correlationId, $id, $action, 500, [], $affectedRows);
+        }
+    }
+
+    private function operationJson(bool $success, string $message, int $httpStatus, array $data, string $correlationId, int $id, string $action, int $affectedRows, ?string $errorCode = null): ResponseInterface
+    {
+        log_message($success ? 'info' : 'warning', 'Shopify order operation response ' . json_encode(['correlation_id' => $correlationId, 'operation_id' => $id, 'action' => $action, 'current_status' => (string) ($data['after_status'] ?? $data['status'] ?? 'unknown'), 'target_table' => 'shopify_order_imports', 'database_operation' => 'update', 'http_status' => $httpStatus, 'affected_rows' => $affectedRows, 'failure_category' => $success ? null : ($errorCode ?? 'SHOPIFY_ORDER_OPERATION_NOT_PERSISTED')], JSON_UNESCAPED_SLASHES));
+        $body = ['status' => $success, 'message' => $message, 'data' => $data, 'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()], 'correlation_id' => $correlationId];
+        if (! $success) $body['error'] = ['code' => $errorCode ?? 'SHOPIFY_ORDER_OPERATION_NOT_PERSISTED', 'message' => $message, 'correlation_id' => $correlationId];
+        return $this->response->setStatusCode($httpStatus)->setJSON($body);
+    }
+
+    private function operationError(string $code, string $message, string $correlationId, int $id, string $action, int $httpStatus, array $data = [], int $affectedRows = 0): ResponseInterface
+    {
+        $data['affected_rows'] = $affectedRows;
+        return $this->operationJson(false, $message, $httpStatus, $data, $correlationId, $id, $action, $affectedRows, $code);
+    }
+
+    private function sanitizeExceptionMessage(string $message): string
+    {
+        return substr((string) (preg_replace('/\s+/', ' ', trim($message)) ?: ''), 0, 240);
     }
 
     /** @param array<string, string> $fields */

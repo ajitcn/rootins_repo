@@ -768,6 +768,14 @@ GRAPHQL;
         if (in_array($action, ['quarantine', 'release_quarantine', 'mark_ready'], true)) {
             $status = $action === 'quarantine' ? 'quarantined' : ($action === 'mark_ready' ? 'ready_to_import' : 'received');
             $reason = trim((string) ($input['reason'] ?? '')) ?: null;
+            $allowedStatuses = [
+                'quarantine' => ['received', 'pending_mapping', 'ready_to_import', 'failed', 'quarantined'],
+                'release_quarantine' => ['quarantined'],
+                'mark_ready' => ['received', 'pending_mapping', 'failed', 'ready_to_import'],
+            ];
+            if (! in_array($old, $allowedStatuses[$action], true)) {
+                throw new InvalidArgumentException('The order cannot transition from ' . ($old !== '' ? $old : 'unknown') . ' using this action.');
+            }
             $updated = $model->update($id, ['status' => $status, 'quarantine_reason' => $reason, 'failure_reason' => $reason, 'updated_at' => date('Y-m-d H:i:s')]);
             $afterRow = $model->find($id);
             if (! $updated && (($afterRow['status'] ?? null) !== $status)) {

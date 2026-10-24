@@ -12,6 +12,7 @@ $routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\
     $routes->get('patient-readiness', 'ShopifyOrderOperations::readiness', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations', 'ShopifyOrderOperations::queue', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations/(:num)', 'ShopifyOrderOperations::detail/$1', ['filter' => 'permission:shopify.order.operations']);
+    $routes->get('order-operations/(:num)/json', 'ShopifyOrderOperations::detailJson/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-operations/prescriptions/(:num)/view', 'ShopifyOrderOperations::viewPrescription/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-mappings/save', 'ShopifyOrderOperations::saveMapping', ['filter' => 'permission:shopify.order.operations']);
     $routes->get('order-mappings/medicines', 'ShopifyOrderOperations::searchMedicines', ['filter' => 'permission:shopify.order.operations']);

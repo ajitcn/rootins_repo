@@ -18,6 +18,7 @@ final class ShopifyMappingCsrf extends CSRF
             $path = $request->getUri()->getPath();
             $isShopifyMappingAction = $path !== '' && (
                 str_contains($path, '/admin/integrations/shopify/order-mappings/')
+                || str_contains($path, '/admin/integrations/shopify/order-operations/')
                 || str_contains($path, '/pharmacy/shopify-orders/')
             );
             if ($isShopifyMappingAction) {
