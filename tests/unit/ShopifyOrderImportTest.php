@@ -85,9 +85,6 @@ final class ShopifyOrderImportTest extends TestCase
         foreach ([
             'internal_import_id',
             'updateImportedPaymentRecord',
-            'where(\'id\', $internalImportId)',
-            'where(\'store_domain\', $store)',
-            'where(\'shopify_order_id\', $shopifyOrderId)',
             'import_record_updated_no_pharmacy_order',
             'store_scoped_import_record_recovered',
         ] as $marker) {
@@ -96,7 +93,7 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $failure . $service);
         self::assertStringNotContainsString('where(\'shopify_line_item_id\', $shopifyOrderId)', $service);
         self::assertStringNotContainsString('where(\'shopify_order_number\', $shopifyOrderId)', $service);
-        self::assertStringContainsString('$record = $imports->where(\'id\', $internalImportId)->first()', $service);
+        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
         self::assertStringContainsString('paymentLookupDiagnostic', $service);
         self::assertStringContainsString("'import_row_exists' => \$record !== null", $service);
         self::assertStringContainsString("'current_import_status' => \$record['status'] ?? null", $service);
@@ -115,12 +112,26 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('processEvent($eventId, false', $controller);
         self::assertStringContainsString("\$paymentTarget !== null && \$paymentTarget !== (string) \$order['payment_status']", $service);
         self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $controller);
+        self::assertStringContainsString('SHOPIFY_ORDER_IMPORT_STATUS_INVALID', $controller);
 
         // orders/paid before orders/create must still enter the same importer,
         // which creates the import row before payment update.
         $paidBranch = substr($controller, strpos($controller, "if (\$topic === 'orders/paid'") );
         self::assertStringContainsString('processPaidEvent', $paidBranch);
         self::assertStringContainsString('new ShopifyOrderImportService())->processEvent', $controller);
+    }
+
+    public function testFailedImportIsRecoveredByPaidRetryWithoutCreatingAnotherImport(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+
+        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
+        self::assertStringNotContainsString('WHERE store_domain = ? AND shopify_order_id = ? AND status', $service);
+        foreach (['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'retry_count', 'payment_retry', 'payment_processed', 'FOR UPDATE'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString("'status' => 'processed'", $service);
+        self::assertStringContainsString('Shopify import cannot be paid from status:', $service);
     }
 
     public function testMedicinePaymentIsIdempotentAndRemainsAppointmentIndependent(): void
