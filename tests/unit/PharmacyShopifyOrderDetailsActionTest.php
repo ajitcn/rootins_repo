@@ -15,11 +15,15 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertStringContainsString('event.preventDefault()', $script);
         self::assertStringContainsString('finally {', $script);
         self::assertStringContainsString('clearStaleLoadingState()', $script);
-        self::assertStringContainsString('fetchWithTimeout(form.action', $script);
+        self::assertStringContainsString('fetchWithTimeout(actionUrl', $script);
         self::assertStringContainsString('AbortController', $script);
         self::assertStringContainsString('The server returned an unexpected response.', $script);
         self::assertStringContainsString('error.code', $script);
-        self::assertStringContainsString('refreshDetailStatus()', $script);
+        self::assertStringContainsString('.shopify-order-operation-action-form', $script);
+        self::assertStringContainsString('event.stopImmediatePropagation()', $script);
+        self::assertStringContainsString('Invalid Shopify order action URL.', $script);
+        self::assertStringContainsString("actionField.value = 'retry_import'", $script);
+        self::assertStringContainsString("$('body').removeClass('loading preloader-active rootins-loading')", $script);
         self::assertStringContainsString('credentials: \'same-origin\'', $script);
         self::assertStringContainsString('refreshCsrf(payload)', $script);
         self::assertStringContainsString("$('.modal-backdrop').remove()", $script);
@@ -56,7 +60,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         $view = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Views/pages/shopify_orders/detail.php');
         $css = file_get_contents(ROOTPATH . 'public/assets/css/pharmacy/shopify-orders.css');
 
-        foreach (['retry_validation', 'mark_ready', 'quarantine', 'release_quarantine'] as $action) {
+        foreach (['retry_validation', 'mark_ready', 'quarantine', 'release_quarantine', 'retry_payment'] as $action) {
             self::assertStringContainsString('value="' . $action . '"', $view);
         }
         self::assertStringContainsString('modal-dialog modal-lg modal-dialog-scrollable', $view);

@@ -23,9 +23,16 @@
 
     function fetchWithTimeout(url, options, timeoutMs) {
         var controller = window.AbortController ? new AbortController() : null;
-        var timer = window.setTimeout(function () { if (controller) controller.abort(); }, timeoutMs);
+        var rejectTimeout;
+        var timeoutPromise = new Promise(function (_, reject) { rejectTimeout = reject; });
+        var timer = window.setTimeout(function () {
+            if (controller) controller.abort();
+            var error = new Error('The request timed out. Please retry.');
+            error.name = 'AbortError';
+            rejectTimeout(error);
+        }, timeoutMs);
         if (controller) options.signal = controller.signal;
-        return fetch(url, options).finally(function () { window.clearTimeout(timer); });
+        return Promise.race([fetch(url, options), timeoutPromise]).finally(function () { window.clearTimeout(timer); });
     }
 
     function responseError(response, payload) {
@@ -64,7 +71,18 @@
             $('.modal-backdrop').remove();
             $('body').removeClass('modal-open').css('padding-right', '');
         }
+        $('body').removeClass('loading preloader-active rootins-loading');
+        $('.preloader, .loading-overlay').remove();
     }
+
+    function setActionLoading(form, loading) {
+        var $button = $(form).find('button[type="submit"]');
+        $button.prop('disabled', loading).attr('aria-busy', loading ? 'true' : 'false');
+        $(form).attr('aria-busy', loading ? 'true' : 'false');
+    }
+
+    function showToast(message) { feedback(message, false); }
+    function showErrorToast(message) { feedback(message, true); }
 
     function feedback(message, isError) {
         var $feedback = $('#shopifyOrderActionFeedback');
@@ -73,30 +91,32 @@
     }
 
     async function handle(form) {
-        var $form = $(form), $button = $form.find('[type="submit"]'), original = $button.html();
-        if ($button.prop('disabled')) return;
+        var $form = $(form), $button = $form.find('[type="submit"]');
+        if ($button.prop('disabled')) return false;
         if (form.checkValidity && !form.checkValidity()) { form.reportValidity(); return; }
-        $button.prop('disabled', true).attr('aria-busy', 'true');
+        var actionUrl = form.getAttribute('action');
+        var actionField = form.querySelector('[name="action"]');
+        if (actionField && actionField.value === 'retry_validation') actionField.value = 'retry_import';
+        setActionLoading(form, true);
         try {
+            if (!actionUrl || actionUrl.includes('loading-icon.gif') || actionUrl.includes('[object') || actionUrl.includes('undefined') || actionUrl.includes('null')) {
+                throw new Error('Invalid Shopify order action URL.');
+            }
             if (typeof window.show_loader === 'function') window.show_loader();
             var formData = new FormData(form);
             if (window.RootinsCsrf) window.RootinsCsrf.formData(formData);
-            var response = await fetchWithTimeout(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
+            var response = await fetchWithTimeout(actionUrl, { method: 'POST', body: formData, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
             var payload = await parseJsonResponse(response);
-            feedback(payload.message || payload.msg || 'Shopify order updated.', false);
-            if ($('#shopifyProcessOrderModal').hasClass('show')) $('#shopifyProcessOrderModal').modal('hide');
-            try {
-                await refreshDetailStatus();
-            } catch (refreshError) {
-                feedback('The action completed, but the order status could not be refreshed.', true);
-            }
+            showToast(payload.message || payload.msg || 'Operation completed successfully.');
+            window.location.reload();
         } catch (error) {
             var message = error && error.name === 'AbortError' ? 'The request timed out. Please retry.' : (error && error.message ? error.message : 'The action could not be completed safely.');
-            feedback(message, true);
+            showErrorToast(message);
         } finally {
             clearStaleLoadingState();
-            $button.prop('disabled', false).removeAttr('aria-busy').html(original);
+            setActionLoading(form, false);
         }
+        return false;
     }
 
     async function refreshDetailStatus() {
@@ -124,7 +144,18 @@
         return html + '</tbody></table></div>';
     }
 
-    $(document).off('submit.shopifyOrders', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-prescription-review-form').on('submit.shopifyOrders', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-prescription-review-form', function (event) { event.preventDefault(); handle(this); });
+    $('.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form')
+        .addClass('shopify-order-operation-action-form')
+        .attr('data-no-global-loader', 'true')
+        .find('[name="action"][value="retry_validation"]').val('retry_import');
+
+    $(document).off('submit.shopifyOrders', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form')
+        .on('submit', '.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form', async function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            await handle(this);
+            return false;
+        });
 
     $(document).off('click.shopifyOrders', '.js-shopify-order-details').on('click.shopifyOrders', '.js-shopify-order-details', function () {
         var $button = $(this), $body = $('#shopifyOrderDetailsBody');

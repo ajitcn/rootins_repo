@@ -44,5 +44,5 @@ $badge = static fn (string $value): string => 'badge badge-status badge-' . preg
     </section>
 </main>
 <div class="modal fade pharmacy-shopify-details-modal" id="shopifyOrderDetailsModal" tabindex="-1" role="dialog" aria-labelledby="shopifyOrderDetailsTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable" role="document"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="shopifyOrderDetailsTitle">Shopify order details</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body" id="shopifyOrderDetailsBody"><div class="text-center text-muted py-5">Select an order to load its details.</div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Close</button></div></div></div></div>
-<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/pharmacy/shopify_orders.js?v=20261023-shopify2') ?>"></script><?= $this->endSection() ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/pharmacy/shopify_orders.js?v=20261024-shopify-actions2') ?>"></script><?= $this->endSection() ?>
 <?= $this->endSection() ?>
