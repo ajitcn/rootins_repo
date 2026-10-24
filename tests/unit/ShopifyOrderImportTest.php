@@ -86,18 +86,20 @@ final class ShopifyOrderImportTest extends TestCase
             'internal_import_id',
             'updateImportedPaymentRecord',
             'import_record_updated_no_pharmacy_order',
-            'store_scoped_import_record_recovered',
+            'exact_import_row_updated',
+            'payment_status',
+            'paid_at',
+            'error_message',
         ] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
         self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $failure . $service);
         self::assertStringNotContainsString('where(\'shopify_line_item_id\', $shopifyOrderId)', $service);
         self::assertStringNotContainsString('where(\'shopify_order_number\', $shopifyOrderId)', $service);
-        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
-        self::assertStringContainsString('paymentLookupDiagnostic', $service);
-        self::assertStringContainsString("'import_row_exists' => \$record !== null", $service);
-        self::assertStringContainsString("'current_import_status' => \$record['status'] ?? null", $service);
-        self::assertStringContainsString("'lookup_type' => \$lookupType", $service);
+        self::assertStringContainsString('WHERE id = ? LIMIT 1', $service);
+        self::assertStringContainsString('paymentUpdateDiagnostic', $service);
+        self::assertStringContainsString("'row_found' => \$rowFound", $service);
+        self::assertStringContainsString("'payment_update_result' => \$paymentUpdateResult", $service);
     }
 
     public function testPaidOrderRegressionFlowsRemainRetryableAndIdempotent(): void
@@ -125,8 +127,8 @@ final class ShopifyOrderImportTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
 
-        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
-        self::assertStringNotContainsString('WHERE store_domain = ? AND shopify_order_id = ? AND status', $service);
+        self::assertStringContainsString("->where('store_domain', \$store)->where('shopify_order_id', \$orderId)", $service);
+        self::assertStringContainsString('WHERE id = ? LIMIT 1', $service);
         foreach (['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'retry_count', 'payment_retry', 'payment_processed', 'FOR UPDATE'] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
@@ -158,10 +160,31 @@ final class ShopifyOrderImportTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
-        self::assertStringContainsString('WHERE store_domain = ? AND shopify_order_id = ?', $service);
-        self::assertStringNotContainsString('WHERE store_domain = ? AND shopify_order_id = ? AND status', $service);
+        self::assertStringContainsString("->where('store_domain', \$store)->where('shopify_order_id', \$orderId)", $service);
+        self::assertStringContainsString('WHERE id = ? LIMIT 1', $service);
         self::assertStringContainsString("if (\$topic === 'orders/paid' && \$result['id'] !== null)", $controller);
         self::assertStringContainsString("if (\$result['duplicate'])", $controller);
+    }
+
+    public function testExistingImport53StylePaidOrderFinishesProcessedWithoutOrderNotFound(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-24-100000_AddShopifyOrderImportPaymentState.php');
+
+        foreach ([
+            "\$importId = (int) \$import['id'];",
+            "\$mappingResult = \$this->storeLinesAndResolveMappings(\$importId",
+            "'patient_status' => 'linked'",
+            'prescription_reference_lookup',
+            "'payment_status' => \$paymentStatus",
+            "'status' => 'processed'",
+            'PHARMACY_ORDER_NOT_CREATED',
+        ] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringNotContainsString('updateImportedPaymentRecord($event, $importId, $store, $shopifyOrderId, $payload)', $service);
+        self::assertStringContainsString('updateImportedPaymentRecord($event, $importId, $payload)', $service);
+        foreach (['payment_status', 'paid_at', 'error_message'] as $field) self::assertStringContainsString($field, $migration);
     }
 
     public function testMedicinePaymentIsIdempotentAndRemainsAppointmentIndependent(): void
