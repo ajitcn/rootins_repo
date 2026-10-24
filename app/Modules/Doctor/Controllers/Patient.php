@@ -9,6 +9,7 @@ use Admin\Services\PatientRegistrationService;
 use Admin\Models\Configuration\ServiceModel;
 use App\Services\LocationService;
 use App\Controllers\BaseController;
+use App\Services\Shopify\ShopifyConfiguration;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\HTTP\RedirectResponse;
 
@@ -186,16 +187,18 @@ class Patient extends BaseController
         }
 
         $query = db_connect()->table('patients')
-            ->select('patients.id, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.gender, patients.mobile_number, patients.mobile_normalized, patients.country_code, telephone_country_codes.normalized_code AS telephone_country_code, patients.status, patients.source_type, patients.created_at')
-            ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left');
+            ->select('patients.id, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.gender, patients.email, patients.mobile_number, patients.mobile_normalized, patients.country_code, telephone_country_codes.normalized_code AS telephone_country_code, patients.status, patients.source_type, patients.created_at, shopify_patient_identity_links.shopify_customer_id')
+            ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
+            ->join('shopify_patient_identity_links', "shopify_patient_identity_links.patient_id = patients.id AND shopify_patient_identity_links.link_status = 'linked'", 'left');
         $this->applyDoctorPatientScope($query, $context);
+        $query->groupBy('patients.id');
 
         if ($search !== '') {
-            $query->groupStart()->like('patients.first_name', $search)->orLike('patients.middle_name', $search)->orLike('patients.last_name', $search)->orLike('patients.registration_number', $search)->groupEnd();
+            $query->groupStart()->like('patients.first_name', $search)->orLike('patients.middle_name', $search)->orLike('patients.last_name', $search)->orLike('patients.registration_number', $search)->orLike('patients.email', $search)->orLike('shopify_patient_identity_links.shopify_customer_id', $search)->groupEnd();
         }
 
         if ($filters['patient_name'] !== '') {
-            $query->groupStart()->like('patients.first_name', $filters['patient_name'])->orLike('patients.middle_name', $filters['patient_name'])->orLike('patients.last_name', $filters['patient_name'])->groupEnd();
+            $query->groupStart()->like('patients.first_name', $filters['patient_name'])->orLike('patients.middle_name', $filters['patient_name'])->orLike('patients.last_name', $filters['patient_name'])->orLike('patients.email', $filters['patient_name'])->orLike('shopify_patient_identity_links.shopify_customer_id', $filters['patient_name'])->groupEnd();
         }
 
         if ($filters['mobile_number'] !== '') {
@@ -311,12 +314,28 @@ class Patient extends BaseController
         $consultationPatients = $db->table('consultations')->select('patient_id')->where('doctor_id', $context['doctor_id']);
         $prescriptionPatients = $db->table('prescriptions')->select('patient_id')->where('doctor_id', $context['doctor_id']);
         $registeredPatients = $db->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
+        if ($db->fieldExists('status', 'patients')) $query->where('patients.status', 1);
+        if ($db->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
+        $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
         $query->groupStart()
-            ->whereIn('patients.id', $appointmentPatients)
-            ->orWhereIn('patients.id', $consultationPatients)
-            ->orWhereIn('patients.id', $prescriptionPatients)
-            ->orWhereIn('patients.id', $registeredPatients)
+            ->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()
+            ->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $consultationPatients)->orWhereIn('patients.id', $prescriptionPatients)->orWhereIn('patients.id', $registeredPatients)->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()
             ->groupEnd();
+    }
+
+    private function shopifyVisiblePatientIds(array $context)
+    {
+        $db = db_connect();
+        $shopifyClinic = (new ShopifyConfiguration())->clinicStatus();
+        if ($db->tableExists('shopify_patient_identity_links')) {
+            if ($shopifyClinic['status'] === 'active' && (int) $shopifyClinic['id'] === (int) $context['clinic_id']) {
+                return $db->table('shopify_patient_identity_links')->select('patient_id')->where('link_status', 'linked')->where('patient_id IS NOT NULL', null, false);
+            }
+
+            return $db->table('patients')->select('id')->where('id', 0);
+        }
+        if ($db->tableExists('shopify_order_imports')) return $db->table('shopify_order_imports')->select('patient_id')->where('clinic_id', $context['clinic_id'])->where('patient_id IS NOT NULL', null, false);
+        return $db->table('patients')->select('id')->where('id', 0);
     }
 
     private function patientErrors(): array

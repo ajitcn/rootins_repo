@@ -8,6 +8,7 @@ use Admin\Models\PrescriptionOptionModel;
 use Admin\Models\User;
 use App\Controllers\BaseController;
 use App\Services\AppointmentConsultationEligibility;
+use App\Services\Shopify\ShopifyConfiguration;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Doctor\Models\FollowUpStatusModel;
@@ -303,11 +304,11 @@ class Records extends BaseController
         if ($search === '' || mb_strlen($search) < 2) {
             return $this->json(200, true, 'Enter at least 2 characters to search patients.', ['items' => [], 'pagination' => ['page' => 1, 'pages' => 1, 'page_size' => $pageSize, 'total' => 0]]);
         }
-        $query = db_connect()->table('patients')->select('patients.id, patients.first_name, patients.last_name, patients.registration_number, patients.mobile_number, patients.mobile_normalized, patients.country_code, telephone_country_codes.normalized_code AS telephone_country_code')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left');
+        $query = db_connect()->table('patients')->select('patients.id, patients.first_name, patients.last_name, patients.email, patients.registration_number, patients.mobile_number, patients.mobile_normalized, patients.country_code, telephone_country_codes.normalized_code AS telephone_country_code, shopify_patient_identity_links.shopify_customer_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('shopify_patient_identity_links', "shopify_patient_identity_links.patient_id = patients.id AND shopify_patient_identity_links.link_status = 'linked'", 'left');
         $this->applyDoctorPatientScope($query, $context);
 
         if ($search !== '') {
-            $query->groupStart()->like('patients.first_name', $search)->orLike('patients.last_name', $search)->orLike('patients.registration_number', $search)->orLike('patients.mobile_normalized', $search)->orLike('patients.mobile_number', $search)->groupEnd();
+            $query->groupStart()->like('patients.first_name', $search)->orLike('patients.last_name', $search)->orLike('patients.registration_number', $search)->orLike('patients.mobile_normalized', $search)->orLike('patients.mobile_number', $search)->orLike('patients.email', $search)->orLike('shopify_patient_identity_links.shopify_customer_id', $search)->groupEnd();
         }
         $total = $query->countAllResults(false);
         $pages = max(1, (int) ceil($total / $pageSize));
@@ -322,6 +323,7 @@ class Records extends BaseController
                 'name' => $name,
                 'mobile' => $mobile,
                 'registration_number' => (string) ($patient['registration_number'] ?? ''),
+                'shopify_customer_id' => (string) ($patient['shopify_customer_id'] ?? ''),
                 'label' => $name . ' · ' . ($mobile !== '' ? $mobile . ' · ' : '') . 'ID ' . (int) $patient['id'],
             ];
         }, $rows);
@@ -342,7 +344,11 @@ class Records extends BaseController
             return redirect()->to(base_url('permission-denied'));
         }
         $filters = $this->followUpFilters();
-        $query = db_connect()->table('consultations')->select('consultations.*, follow_up_types.name AS follow_up_type_name, follow_up_statuses.name AS follow_up_status_name, follow_up_statuses.code AS follow_up_status_code, appointments.appointment_number, appointments.appointment_type, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code')->join('patients', 'patients.id = consultations.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('follow_up_types', 'follow_up_types.id = consultations.follow_up_type_id', 'left')->join('follow_up_statuses', 'follow_up_statuses.id = consultations.follow_up_status_id', 'left')->join('appointments', 'appointments.id = consultations.appointment_id AND appointments.clinic_id = consultations.clinic_id', 'left')->where('consultations.doctor_id', $context['doctor_id'])->where('consultations.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('consultations.follow_up_date IS NOT NULL', null, false);
+        $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
+        $query = db_connect()->table('consultations')->select('consultations.*, follow_up_types.name AS follow_up_type_name, follow_up_statuses.name AS follow_up_status_name, follow_up_statuses.code AS follow_up_status_code, appointments.appointment_number, appointments.appointment_type, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code')->join('patients', 'patients.id = consultations.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('follow_up_types', 'follow_up_types.id = consultations.follow_up_type_id', 'left')->join('follow_up_statuses', 'follow_up_statuses.id = consultations.follow_up_status_id', 'left')->join('appointments', 'appointments.id = consultations.appointment_id AND appointments.clinic_id = consultations.clinic_id', 'left')->where('consultations.doctor_id', $context['doctor_id'])->where('consultations.clinic_id', $context['clinic_id'])->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->where('consultations.follow_up_date IS NOT NULL', null, false);
+        $patientDb = db_connect();
+        if ($patientDb->fieldExists('status', 'patients')) $query->where('patients.status', 1);
+        if ($patientDb->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
         $this->applySearch($query, $filters['search'], ['patients.first_name', 'patients.last_name', 'patients.registration_number', 'patients.mobile_normalized', 'patients.mobile_number', 'consultations.consultation_number', 'appointments.appointment_number', 'consultations.follow_up_time', 'follow_up_types.name', 'consultations.follow_up_type', 'follow_up_statuses.name', 'follow_up_statuses.code', 'consultations.status', 'consultations.follow_up_remarks']);
 
         if ($filters['status'] !== '') {
@@ -876,9 +882,28 @@ class Records extends BaseController
 
     private function applyDoctorPatientScope($query, array $context): void
     {
-        $appointmentPatients = db_connect()->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id']);
-        $registeredPatients = db_connect()->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
-        $query->where('patients.clinic_id', $context['clinic_id'])->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $registeredPatients)->groupEnd();
+        $db = db_connect();
+        $appointmentPatients = $db->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id']);
+        $registeredPatients = $db->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
+        if ($db->fieldExists('status', 'patients')) $query->where('patients.status', 1);
+        if ($db->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
+        $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
+        $query->groupStart()->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $registeredPatients)->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->groupEnd();
+    }
+
+    private function shopifyVisiblePatientIds(array $context)
+    {
+        $db = db_connect();
+        $shopifyClinic = (new ShopifyConfiguration())->clinicStatus();
+        if ($db->tableExists('shopify_patient_identity_links')) {
+            if ($shopifyClinic['status'] === 'active' && (int) $shopifyClinic['id'] === (int) $context['clinic_id']) {
+                return $db->table('shopify_patient_identity_links')->select('patient_id')->where('link_status', 'linked')->where('patient_id IS NOT NULL', null, false);
+            }
+
+            return $db->table('patients')->select('id')->where('id', 0);
+        }
+        if ($db->tableExists('shopify_order_imports')) return $db->table('shopify_order_imports')->select('patient_id')->where('clinic_id', $context['clinic_id'])->where('patient_id IS NOT NULL', null, false);
+        return $db->table('patients')->select('id')->where('id', 0);
     }
 
     private function isAjaxPost(): bool
