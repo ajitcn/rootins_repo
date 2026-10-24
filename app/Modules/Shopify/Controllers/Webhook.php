@@ -268,7 +268,10 @@ final class Webhook extends BaseController
                 $events->markFailed($eventId, $failure->category);
                 $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'medicine_order_payment_failed', $failure->category);
                 log_message('error', 'Shopify medicine payment import failed category=' . $failure->category . ' correlation_id=' . $this->requestCorrelationId);
-                return $this->error(500, 'SHOPIFY_ORDER_IMPORT_FAILED', 'Shopify medicine order could not be processed safely.');
+                $code = $failure->category === ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND
+                    ? ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND
+                    : 'SHOPIFY_ORDER_IMPORT_FAILED';
+                return $this->error(500, $code, 'Shopify medicine order could not be processed safely.');
             }
         }
 

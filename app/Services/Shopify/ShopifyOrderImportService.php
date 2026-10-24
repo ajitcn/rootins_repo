@@ -1150,14 +1150,23 @@ GRAPHQL, ['id' => $orderGid]);
     {
         $store = strtolower(trim($store));
         $shopifyOrderId = (string) $shopifyOrderId;
+        $internalImportId = (string) $importId;
         $imports = $this->imports ?? new ShopifyOrderImportModel();
-        $record = $importId > 0
-            ? $imports->where('id', $importId)->where('store_domain', $store)->where('shopify_order_id', $shopifyOrderId)->first()
-            : null;
-        $lookupKey = $record !== null ? 'internal_import_id' : 'store_domain_shopify_order_id';
+        $record = null;
+        $lookupKey = 'internal_import_id';
+
+        // The importer has already created/updated this row in the order
+        // creation transaction. Its returned ID is the authoritative payment
+        // target; do not turn this lookup into an order-number or line lookup.
+        if ($internalImportId !== '0') {
+            $record = $imports->where('id', $internalImportId)->first();
+            $this->paymentLookupDiagnostic($event, $internalImportId, $shopifyOrderId, $store, $record, $lookupKey);
+        }
 
         if ($record === null) {
+            $lookupKey = 'store_domain_shopify_order_id';
             $record = $imports->where('store_domain', $store)->where('shopify_order_id', $shopifyOrderId)->first();
+            $this->paymentLookupDiagnostic($event, $internalImportId, $shopifyOrderId, $store, $record, $lookupKey);
         }
         if ($record === null) {
             $this->paymentStage($event, $shopifyOrderId, $importId, 0, 'payment_update', $lookupKey . '_not_found', ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND);
@@ -1180,6 +1189,20 @@ GRAPHQL, ['id' => $orderGid]);
         $this->paymentStage($event, $shopifyOrderId, $actualImportId, (int) ($record['rootins_order_id'] ?? 0), 'payment_update', $lookupKey === 'internal_import_id' ? 'import_record_updated' : 'store_scoped_import_record_recovered');
 
         return $actualImportId;
+    }
+
+    /** Diagnostic immediately around the import-row payment lookup. */
+    private function paymentLookupDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, string $store, ?array $record, string $lookupType): void
+    {
+        log_message('info', 'Shopify medicine-order payment lookup diagnostic ' . json_encode([
+            'internal_import_id' => $internalImportId !== '0' ? $internalImportId : null,
+            'shopify_order_id' => $shopifyOrderId,
+            'store_domain' => $store,
+            'import_row_exists' => $record !== null,
+            'current_import_status' => $record['status'] ?? null,
+            'lookup_type' => $lookupType,
+            'event_id' => (int) ($event['id'] ?? 0),
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     /** Safe payment diagnostics; never include SQL, payloads, or credentials. */
