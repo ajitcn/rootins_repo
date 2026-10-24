@@ -530,7 +530,7 @@ $(window).on('pageshow.rootinsPreloader load.rootinsPreloader', function () {
     window.RootinsPreloader.reset();
 });
 
-$(document).on('submit.rootinsPreloader', 'form:not([data-no-global-loader])', function (event) {
+$(document).on('submit.rootinsPreloader', 'form:not([data-no-global-loader]):not(.shopify-order-operation-action-form)', function (event) {
     if (event.isDefaultPrevented()) {
         return;
     }

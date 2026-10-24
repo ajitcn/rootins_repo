@@ -13,4 +13,4 @@
 <?php if (! empty($import['intent_present'])): ?><form class="mt-3" method="post" action="<?= $actionUrl ?>" data-shopify-operation-form><?= csrf_field() ?><input type="hidden" name="action" value="reprocess_paid_appointment"><button class="btn btn-outline-info btn-block" type="submit">Reprocess paid appointment</button></form><?php endif; ?>
 </div></div><div class="card shadow-sm"><div class="card-body"><strong>Prescription</strong><p class="mb-1"><?= esc($import['prescription_reference'] ?: 'Missing') ?></p><span class="badge badge-light"><?= esc($import['prescription_status'] ?: 'not supplied') ?></span></div></div></div></div></main>
 <?= $this->endSection() ?>
-<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/shopify/shopify_order_operation_detail.js?v=20261024-actions3') ?>"></script><?= $this->endSection() ?>
+<?= $this->section('scripts') ?><script src="<?= base_url('assets/js/admin/shopify/shopify_order_operation_detail.js?v=20261024-actions4') ?>"></script><?= $this->endSection() ?>
