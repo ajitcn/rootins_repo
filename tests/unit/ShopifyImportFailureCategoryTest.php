@@ -40,7 +40,8 @@ final class ShopifyImportFailureCategoryTest extends TestCase
     {
         return [
             'prescription' => ['approved prescription is missing', 'orders/create', 'PRESCRIPTION_MISSING'],
-            'order' => ['imported order not found', 'orders/updated', 'ORDER_NOT_FOUND'],
+            'order' => ['imported order not found', 'orders/updated', 'IMPORT_ROW_NOT_FOUND'],
+            'paid pharmacy order' => ['pharmacy order not found', 'orders/paid', 'PHARMACY_ORDER_NOT_FOUND'],
             'refund order' => ['imported order not found', 'refunds/create', 'REFUND_ORDER_NOT_FOUND'],
             'cancelled' => ['order already cancelled', 'orders/cancelled', 'ORDER_ALREADY_CANCELLED'],
             'fulfillment' => ['fulfillment state is invalid', 'fulfillments/update', 'INVALID_FULFILLMENT_STATE'],

@@ -114,7 +114,7 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString("'internal_import_id' => \$importId", $service);
         self::assertStringContainsString('processEvent($eventId, false', $controller);
         self::assertStringContainsString("if (\$paymentTarget !== null)", $service);
-        self::assertStringContainsString('ORDER_IMPORT_RECORD_NOT_FOUND', $service);
+        self::assertStringContainsString('PAYMENT_ROW_NOT_FOUND', $service);
         self::assertStringContainsString('SHOPIFY_ORDER_IMPORT_STATUS_INVALID', $service);
 
         // orders/paid before orders/create must still enter the same importer,
@@ -130,7 +130,7 @@ final class ShopifyOrderImportTest extends TestCase
 
         self::assertStringContainsString("->where('store_domain', \$store)->where('shopify_order_id', \$orderId)", $service);
         self::assertStringContainsString('WHERE id = ? LIMIT 1', $service);
-        foreach (['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'retry_count', 'payment_retry', 'payment_processed', 'FOR UPDATE'] as $marker) {
+        foreach (['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'retry_count', 'payment_retry', 'import_processed', 'FOR UPDATE'] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
         self::assertStringContainsString("'status' => 'processed'", $service);
@@ -238,7 +238,7 @@ final class ShopifyOrderImportTest extends TestCase
 
         self::assertStringContainsString("\$allowedStatuses = ['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'imported'];", $service);
         self::assertStringContainsString("'payment_retry'", $service);
-        self::assertStringContainsString("'payment_processed'", $service);
+        self::assertStringContainsString("'import_processed'", $service);
         self::assertStringContainsString("WHERE id = ? LIMIT 1", $service);
         self::assertStringContainsString("'idempotency_key' => \$idempotencyKey", $fulfilment);
         self::assertStringContainsString('idempotent_reuse', $fulfilment);
@@ -260,6 +260,36 @@ final class ShopifyOrderImportTest extends TestCase
         // Production row 56 is the supplied test identity; no Shopify order
         // is created by this contract test.
         self::assertSame(56, 56);
+    }
+
+    public function testPaidMedicineImportWithoutAppointmentIntentProcessesExistingImportRow(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        foreach (['import_started', 'import_failed', 'import_processed', 'mapping_status', 'patient_status', 'prescription_status', 'not_required', "'status' => 'processed'"] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString("if (\$intentReference === '')", $controller);
+        self::assertStringContainsString('appointment_finalization_skipped', $controller);
+        self::assertStringContainsString("SELECT * FROM shopify_order_imports WHERE id = ? LIMIT 1", $service);
+        self::assertStringContainsString("'target_table' => \$targetTable", $service);
+    }
+
+    public function testEveryImportFailureStageEmitsRedactedStructuredDiagnostics(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+        $source = $service . $webhook;
+        foreach (['request_received', 'hmac_verified', 'payload_parsed', 'order_identity_resolved', 'import_row_before_upsert', 'import_row_upserted', 'internal_import_id_resolved', 'line_items_started', 'line_items_completed', 'customer_resolved', 'patient_resolved', 'mapping_resolved', 'prescription_resolved', 'payment_update_started', 'payment_row_lookup_started', 'payment_row_lookup_completed', 'payment_row_update_started', 'payment_row_update_completed', 'pharmacy_order_lookup_started', 'pharmacy_order_created_or_updated', 'import_status_update_started', 'import_status_update_completed', 'import_completed', 'import_failed'] as $stage) {
+            self::assertStringContainsString($stage, $source);
+        }
+        foreach (['correlation_id', 'internal_import_id', 'processing_stage', 'current_import_status', 'payment_status', 'target_table', 'lookup_type', 'row_found', 'affected_row_count', 'failure_category', 'exception_class'] as $field) {
+            self::assertStringContainsString($field, $source);
+        }
+        foreach (['rawBody', 'webhook_secret', 'X-Shopify-Hmac-Sha256', 'password', 'access_token'] as $secret) {
+            self::assertStringNotContainsString("json_encode([$secret", $source);
+        }
     }
 
     public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void

@@ -13,6 +13,10 @@ final class ShopifyOrderImportFailure extends RuntimeException
     public const MEDICINE_INACTIVE = 'MEDICINE_INACTIVE';
     public const ORDER_NOT_FOUND = 'ORDER_NOT_FOUND';
     public const ORDER_IMPORT_RECORD_NOT_FOUND = 'ORDER_IMPORT_RECORD_NOT_FOUND';
+    public const IMPORT_ROW_NOT_FOUND = 'IMPORT_ROW_NOT_FOUND';
+    public const PAYMENT_ROW_NOT_FOUND = 'PAYMENT_ROW_NOT_FOUND';
+    public const PHARMACY_ORDER_NOT_FOUND = 'PHARMACY_ORDER_NOT_FOUND';
+    public const PAYMENT_UPDATE_FAILED = 'PAYMENT_UPDATE_FAILED';
     public const SHOPIFY_ORDER_IMPORT_STATUS_INVALID = 'SHOPIFY_ORDER_IMPORT_STATUS_INVALID';
     public const PHARMACY_ORDER_CREATION_FAILED = 'PHARMACY_ORDER_CREATION_FAILED';
     public const ORDER_ALREADY_CANCELLED = 'ORDER_ALREADY_CANCELLED';
@@ -41,7 +45,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
     /** @var list<string> */
     private const CATEGORIES = [
         self::CUSTOMER_NOT_LINKED, self::PRESCRIPTION_MISSING, self::MEDICINE_NOT_MAPPED, self::MEDICINE_INACTIVE,
-        self::ORDER_NOT_FOUND, self::ORDER_IMPORT_RECORD_NOT_FOUND, self::SHOPIFY_ORDER_IMPORT_STATUS_INVALID, self::PHARMACY_ORDER_CREATION_FAILED, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
+        self::ORDER_NOT_FOUND, self::ORDER_IMPORT_RECORD_NOT_FOUND, self::IMPORT_ROW_NOT_FOUND, self::PAYMENT_ROW_NOT_FOUND, self::PHARMACY_ORDER_NOT_FOUND, self::PAYMENT_UPDATE_FAILED, self::SHOPIFY_ORDER_IMPORT_STATUS_INVALID, self::PHARMACY_ORDER_CREATION_FAILED, self::ORDER_ALREADY_CANCELLED, self::ORDER_ALREADY_IMPORTED,
         self::INVALID_FULFILLMENT_STATE, self::REFUND_ORDER_NOT_FOUND, self::STOCK_UNAVAILABLE,
         self::PAYMENT_STATE_INVALID, self::DELIVERY_STATE_INVALID, self::BILLING_CLINIC_UNAVAILABLE,
         self::SHOPIFY_ORDER_PAYLOAD_INVALID, self::SHOPIFY_ORDER_IDENTITY_FAILURE,
@@ -96,7 +100,11 @@ final class ShopifyOrderImportFailure extends RuntimeException
         elseif (str_contains($message, 'fulfillment') || str_contains($message, 'transition')) $category = self::INVALID_FULFILLMENT_STATE;
         if (str_contains($message, 'already cancelled')) $category = self::ORDER_ALREADY_CANCELLED;
         if (str_contains($message, 'order import record') && str_contains($message, 'not found')) $category = self::ORDER_IMPORT_RECORD_NOT_FOUND;
-        elseif (str_contains($message, 'order') && str_contains($message, 'not found')) $category = $topic === 'refunds/create' ? self::REFUND_ORDER_NOT_FOUND : self::ORDER_NOT_FOUND;
+        elseif (str_contains($message, 'order') && str_contains($message, 'not found')) {
+            $category = $topic === 'refunds/create'
+                ? self::REFUND_ORDER_NOT_FOUND
+                : ($topic === 'orders/paid' ? self::PHARMACY_ORDER_NOT_FOUND : self::IMPORT_ROW_NOT_FOUND);
+        }
 
         return new self($category, $exception->getMessage());
     }

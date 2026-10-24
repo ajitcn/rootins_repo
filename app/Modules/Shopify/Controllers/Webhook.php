@@ -26,6 +26,7 @@ final class Webhook extends BaseController
         $topic = $headerTopic !== '' ? $headerTopic : trim($topic);
         $medicineOrderTopic = $this->isMedicineOrderTopic($topic);
         $this->diagnostic($topic, '', '', 'request_received', 'none');
+        if ($medicineOrderTopic) $this->medicineOrderDiagnostic($topic, '', '', '', 'request_received', 'none');
 
         if (! (new ShopifyWebhookVerifier($configuration))->isValid($rawBody, $signature)) {
             if ($medicineOrderTopic) {
@@ -61,6 +62,10 @@ final class Webhook extends BaseController
         }
 
         $testPayload = json_decode($rawBody, true);
+        if ($medicineOrderTopic) {
+            $payloadOrderId = is_array($testPayload) ? (string) ($testPayload['id'] ?? $testPayload['order_id'] ?? '') : '';
+            $this->medicineOrderDiagnostic($topic, $payloadOrderId, $eventId, $shopDomain, 'payload_parsed', is_array($testPayload) ? 'none' : ShopifyOrderImportFailure::SHOPIFY_ORDER_PAYLOAD_INVALID);
+        }
         $endpointTest = $this->request->getHeaderLine('X-ROOTINS-Endpoint-Test') === '1'
             && $topic === 'rootins/endpoint-test'
             && is_array($testPayload)
@@ -236,9 +241,17 @@ final class Webhook extends BaseController
             'shopify_order_id' => $orderId,
             'webhook_id_hash' => $eventId !== '' ? hash('sha256', $eventId) : '',
             'store_domain' => strtolower(trim($storeDomain)),
+            'internal_import_id' => null,
             'intent_present' => $intentPresent,
             'processing_stage' => $stage,
+            'current_import_status' => null,
+            'payment_status' => null,
+            'target_table' => 'shopify_order_imports',
+            'lookup_type' => 'none',
+            'row_found' => false,
+            'affected_row_count' => 0,
             'failure_category' => $category,
+            'exception_class' => null,
         ], JSON_UNESCAPED_SLASHES));
     }
 
@@ -265,6 +278,7 @@ final class Webhook extends BaseController
                 return null;
             } catch (\Throwable $exception) {
                 $failure = ShopifyOrderImportFailure::fromException($exception, 'orders/paid');
+                (new ShopifyOrderImportService())->markFailureForEvent($eventId, $failure->category);
                 $events->markFailed($eventId, $failure->category);
                 $this->medicineOrderDiagnostic('orders/paid', $orderId, $webhookId, $shopDomain, 'medicine_order_payment_failed', $failure->category);
                 log_message('error', 'Shopify medicine payment import failed category=' . $failure->category . ' correlation_id=' . $this->requestCorrelationId);
