@@ -172,21 +172,6 @@ final class ShopifyOrderImportService
             return array_merge($importIdentity, ['status' => $paidImport ? 'processed' : (string) $import['status'], 'import_id' => $importId]);
         }
 
-        // A prior retry may have created the pharmacy order while the import
-        // row still carries a stale or missing rootins_order_id. Resolve the
-        // same external identity before creating anything new.
-        $existingPharmacyOrder = $this->findPharmacyOrderByShopifyIdentity($store, $orderId, $importClinicId);
-        if ($existingPharmacyOrder !== null) {
-            $existingRootinsOrderId = (int) $existingPharmacyOrder['id'];
-            $this->setImportState($importId, 'imported', null, $eventId, (int) ($import['patient_id'] ?? 0), $importClinicId, $existingRootinsOrderId);
-            $this->linkImportedLines($importId, $existingRootinsOrderId);
-            $this->applyExternalStatuses($existingRootinsOrderId, $payload, $store, $eventId, $importClinicId, (string) ($event['topic'] ?? ''), (int) $importIdentity['internal_import_id']);
-            $events->markProcessed($eventId);
-            $this->paymentStage($event, $orderId, $importId, $existingRootinsOrderId, 'payment_update', 'existing_pharmacy_order_reused');
-
-            return array_merge($importIdentity, ['status' => $paidImport ? 'processed' : 'imported', 'import_id' => $importId, 'rootins_order_id' => $existingRootinsOrderId]);
-        }
-
         try {
             $identity = $this->linkedCustomer($store, (string) ($payload['customer_id'] ?? ''));
         } catch (\Throwable $exception) {
@@ -293,8 +278,9 @@ final class ShopifyOrderImportService
         $result = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->create($prescriptionId, [
             'source_type' => 'shopify',
             'external_store_domain' => $store,
-            'external_order_id' => (string) $payload['id'],
+            'external_order_id' => $orderId,
             'external_order_number' => (string) ($payload['order_number'] ?? ''),
+            'idempotency_key' => 'shopify-import:' . (string) $importId,
             'delivery_address_snapshot' => $this->addressSnapshot($payload['shipping_address'] ?? []),
         ]);
 
@@ -1045,21 +1031,6 @@ GRAPHQL, ['id' => $orderGid]);
             ->getRowArray() !== null;
     }
 
-    /** @return array<string, mixed>|null */
-    private function findPharmacyOrderByShopifyIdentity(string $store, string $orderId, int $clinicId): ?array
-    {
-        if ($store === '' || $orderId === '' || $clinicId <= 0) return null;
-
-        return db_connect()->table('medicine_orders')
-            ->select('id, clinic_id, patient_id, status, payment_status')
-            ->where('external_store_domain', $store)
-            ->where('external_order_id', $orderId)
-            ->where('clinic_id', $clinicId)
-            ->orderBy('id', 'ASC')
-            ->get(1)
-            ->getRowArray() ?: null;
-    }
-
     private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId, string $topic = '', int $importId = 0): void
     {
         $event = ($this->events ?? new ShopifyWebhookEventService())->find($eventId) ?? [
@@ -1096,21 +1067,6 @@ GRAPHQL, ['id' => $orderGid]);
         $db = db_connect();
         $db->transBegin();
         $order = $db->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->get(1)->getRowArray();
-        if ($order === null) {
-            $externalOrderId = $shopifyOrderId;
-            if ($externalOrderId !== '' && $store !== '') {
-                $order = $db->table('medicine_orders')
-                    ->where('external_store_domain', $store)
-                    ->where('external_order_id', $externalOrderId)
-                    ->where('clinic_id', $clinicId)
-                    ->get(1)
-                    ->getRowArray();
-                if ($order !== null) {
-                    $orderId = (int) $order['id'];
-                    $this->paymentStage($event, $externalOrderId, $importId, $orderId, 'payment_update', 'external_identity_recovered');
-                }
-            }
-        }
 
         if ($order === null) {
             $db->transRollback();

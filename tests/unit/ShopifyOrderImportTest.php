@@ -67,9 +67,11 @@ final class ShopifyOrderImportTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
 
-        foreach (['findPharmacyOrderByShopifyIdentity', 'external_store_domain', 'external_order_id', 'external_identity_recovered', 'paymentStage', 'internal_import_reference', 'internal_pharmacy_order_reference'] as $marker) {
+        foreach (['external_store_domain', 'external_order_id', 'paymentStage', 'internal_import_reference', 'internal_pharmacy_order_reference'] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
+        self::assertStringNotContainsString('findPharmacyOrderByShopifyIdentity', $service);
+        self::assertStringNotContainsString('external_identity_recovered', $service);
         self::assertStringContainsString('appointment_finalization_skipped', $controller);
         self::assertStringContainsString('NO_APPOINTMENT_INTENT', $controller);
         $medicineBranch = substr($controller, strpos($controller, "if (\$intentReference === '')"), strpos($controller, 'appointment_payment_received') - strpos($controller, "if (\$intentReference === '')"));
@@ -215,6 +217,32 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('$paymentTarget', $service);
         self::assertStringContainsString('intent_present', $controller);
         self::assertStringContainsString('appointment_finalization_skipped', $controller);
+    }
+
+    public function testPaymentDoesNotRequirePharmacyOrderAndUsesImportIdempotencyReference(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $fulfilment = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Services/OrderFulfilmentService.php');
+
+        self::assertStringContainsString("'idempotency_key' => 'shopify-import:' . (string) \$importId", $service);
+        self::assertStringContainsString("\$external['idempotency_key'] ?? ''", $fulfilment);
+        self::assertStringContainsString('PHARMACY_ORDER_CREATION_FAILED', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php'));
+        self::assertStringContainsString('import_record_updated_no_pharmacy_order', $service);
+        self::assertStringNotContainsString("->where('external_order_id', \$externalOrderId)", $service);
+    }
+
+    public function testExistingFailedImportCanBePaidRepeatedlyWithoutDuplicatePharmacyOrders(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $fulfilment = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Services/OrderFulfilmentService.php');
+
+        self::assertStringContainsString("\$allowedStatuses = ['pending', 'failed', 'ready_to_import', 'processed', 'paid', 'imported'];", $service);
+        self::assertStringContainsString("'payment_retry'", $service);
+        self::assertStringContainsString("'payment_processed'", $service);
+        self::assertStringContainsString("WHERE id = ? LIMIT 1", $service);
+        self::assertStringContainsString("'idempotency_key' => \$idempotencyKey", $fulfilment);
+        self::assertStringContainsString('idempotent_reuse', $fulfilment);
+        self::assertStringNotContainsString('ORDER_NOT_FOUND', substr($service, strpos($service, 'private function updateImportedPaymentRecord')));
     }
 
     public function testLineImportRepairsReducedPaidPayloadsAndUsesLineIdentity(): void

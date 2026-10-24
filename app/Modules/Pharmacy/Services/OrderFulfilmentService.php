@@ -151,7 +151,11 @@ final class OrderFulfilmentService
         if ($prescription === null || ($prescription['status'] ?? '') !== 'approved') {
             return $this->result(422, 'Only an approved prescription in the assigned clinic can create a pharmacy order.', ['prescription_id' => 'Prescription must be approved.']);
         }
-        $idempotencyKey = 'prescription:' . $prescriptionId;
+        // Shopify imports are idempotent by the imported order record.
+        $idempotencyKey = trim((string) ($external['idempotency_key'] ?? ''));
+        if ($idempotencyKey === '') {
+            $idempotencyKey = 'prescription:' . $prescriptionId;
+        }
         $db = db_connect();
         $today = $this->today();
         $db->transBegin();
@@ -162,7 +166,18 @@ final class OrderFulfilmentService
             if ($existing !== null) {
                 $db->transRollback();
 
-                return $this->result(409, 'A medicine order already exists for this prescription.', ['prescription_id' => 'This prescription has already been converted into a pharmacy order.']);
+                return [
+                    'http' => 200,
+                    'body' => [
+                        'status' => true,
+                        'msg' => 'The pharmacy order already exists and was reused safely.',
+                        'data' => [
+                            'order_id' => (int) $existing['id'],
+                            'order_number' => (string) $existing['order_number'],
+                            'idempotent_reuse' => true,
+                        ],
+                    ],
+                ];
             }
             $items = db_connect()->table('prescription_items')->where('prescription_id', $prescriptionId)->orderBy('id', 'ASC')->get()->getResultArray();
 
