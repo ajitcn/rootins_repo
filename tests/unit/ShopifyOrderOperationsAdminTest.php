@@ -69,6 +69,23 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
         self::assertStringNotContainsString("'msg' => 'Operation completed.'", $view);
     }
 
+    public function testMedicineImportDetailHidesAppointmentActionAndShowsActualFailure(): void
+    {
+        $service = $this->source('app/Services/Shopify/ShopifyOrderOperationsService.php');
+        $view = $this->source('app/Modules/Admin/Views/pages/integrations/shopify_order_operation_detail.php');
+
+        self::assertStringContainsString("\$import['intent_present'] =", $service);
+        self::assertStringContainsString('appointmentIntentPresent', $service);
+        self::assertStringContainsString("'status' => 'skipped', 'reason' => 'NO_APPOINTMENT_INTENT'", $service);
+        self::assertStringContainsString("if (! empty(\$import['intent_present']))", $view);
+        self::assertStringContainsString('Import error', $view);
+        self::assertStringContainsString("\$import['error_message'] ?: \$import['last_error']", $view);
+        self::assertStringContainsString('Retry validation/import', $view);
+        self::assertStringContainsString('Mark ready for import', $view);
+        self::assertStringContainsString('Quarantine', $view);
+        self::assertStringContainsString('Release quarantine', $view);
+    }
+
     public function testTemporaryPrescriptionViewingIsAuditedAndSigned(): void
     {
         $controller = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');

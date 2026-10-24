@@ -690,6 +690,7 @@ GRAPHQL;
         $prescription = ! empty($import['prescription_reference']) ? db_connect()->table('patient_documents')->select('id')->where('source_type', 'shopify')->where('external_upload_reference', $import['prescription_reference'])->where('shopify_store_domain', $import['store_domain'])->where('shopify_customer_id', $import['shopify_customer_id'])->get(1)->getRowArray() : null;
         $import['prescription_document_id'] = $prescription['id'] ?? null;
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
+        $import['intent_present'] = $this->appointmentIntentPresent($event);
         return $import;
     }
 
@@ -700,6 +701,10 @@ GRAPHQL;
         $old = (string) ($import['status'] ?? '');
         $model = new ShopifyOrderImportModel();
         if ($action === 'reprocess_paid_appointment') {
+            $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
+            if (! $this->appointmentIntentPresent($event)) {
+                return ['status' => 'skipped', 'reason' => 'NO_APPOINTMENT_INTENT', 'import_id' => $id];
+            }
             $result = (new ShopifyAppointmentIntentService())->reprocessPaidOrder((string) $import['store_domain'], (string) $import['shopify_order_id']);
             service('audit')->record('shopify.order_operation_reprocess_paid_appointment', ['import_id' => $id, 'shopify_order_id' => (string) $import['shopify_order_id']]);
             return $result;
@@ -802,6 +807,14 @@ GRAPHQL;
 
     private function history(int $id, string $action, string $from, string $to, ?string $reason, ?string $error, int $actor): void
     { if (db_connect()->tableExists('shopify_order_import_history')) db_connect()->table('shopify_order_import_history')->insert(['import_id' => $id, 'action' => $action, 'from_status' => $from ?: null, 'to_status' => $to ?: null, 'reason' => $reason, 'error_message' => $error, 'actor_user_id' => $actor > 0 ? $actor : null, 'created_at' => date('Y-m-d H:i:s')]); }
+
+    private function appointmentIntentPresent(?array $event): bool
+    {
+        if ($event === null) return false;
+        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
+        return is_array($payload)
+            && (new ShopifyAppointmentIntentService())->appointmentIntentReferenceForOrder($payload) !== '';
+    }
 
     private function like(object $query, string $column, mixed $value): void { if (trim((string) $value) !== '') $query->like($column, trim((string) $value)); }
 }
