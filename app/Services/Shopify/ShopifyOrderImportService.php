@@ -1211,7 +1211,8 @@ GRAPHQL, ['id' => $orderGid]);
             $sql = 'SELECT * FROM shopify_order_imports WHERE id = ? LIMIT 1';
             if (strtolower((string) $db->DBDriver) === 'mysqli') $sql .= ' FOR UPDATE';
             $record = $db->query($sql, [$internalImportId])->getRowArray() ?: null;
-            $this->paymentUpdateDiagnostic($event, $internalImportId, $shopifyOrderId, $record !== null, 'before');
+            $columnType = $this->shopifyOrderImportColumnType($db);
+            $this->paymentUpdateDiagnostic($event, $internalImportId, $shopifyOrderId, $record !== null, 'before', null, null, $columnType);
             if ($record === null) {
                 throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::ORDER_IMPORT_RECORD_NOT_FOUND, 'Shopify order import record not found for the internal import ID.');
             }
@@ -1242,7 +1243,7 @@ GRAPHQL, ['id' => $orderGid]);
             if (! $db->table('shopify_order_imports')->where('id', $actualImportId)->update($data) || ! $db->transStatus()) {
                 throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify imported-order payment update failed.');
             }
-            $this->paymentUpdateDiagnostic($event, (string) $actualImportId, $shopifyOrderId, true, 'after', $paymentStatus, $currentStatus);
+            $this->paymentUpdateDiagnostic($event, (string) $actualImportId, $shopifyOrderId, true, 'after', $paymentStatus, $currentStatus, $columnType);
             $db->transCommit();
             $this->paymentStage($event, $shopifyOrderId, $actualImportId, (int) ($record['rootins_order_id'] ?? 0), 'payment_update', 'exact_import_row_updated');
             return $actualImportId;
@@ -1283,7 +1284,22 @@ GRAPHQL, ['id' => $orderGid]);
         $db->transCommit();
     }
 
-    private function paymentUpdateDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, bool $rowFound, string $phase, ?string $paymentUpdateResult = null, ?string $finalImportStatus = null): void
+    private function shopifyOrderImportColumnType($db): string
+    {
+        try {
+            foreach ($db->getFieldData('shopify_order_imports') as $field) {
+                if ((string) ($field->name ?? '') === 'shopify_order_id') {
+                    return strtoupper(trim((string) ($field->type ?? '') . '(' . (string) ($field->max_length ?? '') . ')'));
+                }
+            }
+        } catch (\Throwable) {
+            return 'unavailable';
+        }
+
+        return 'unavailable';
+    }
+
+    private function paymentUpdateDiagnostic(array $event, string $internalImportId, string $shopifyOrderId, bool $rowFound, string $phase, ?string $paymentUpdateResult = null, ?string $finalImportStatus = null, ?string $databaseColumnType = null): void
     {
         log_message('info', 'Shopify medicine-order payment update diagnostic ' . json_encode([
             'internal_import_id' => $internalImportId,
@@ -1291,6 +1307,7 @@ GRAPHQL, ['id' => $orderGid]);
             'row_found' => $rowFound,
             'payment_update_result' => $paymentUpdateResult,
             'final_import_status' => $finalImportStatus,
+            'database_column_type' => $databaseColumnType,
             'phase' => $phase,
             'event_id' => (int) ($event['id'] ?? 0),
         ], JSON_UNESCAPED_SLASHES));

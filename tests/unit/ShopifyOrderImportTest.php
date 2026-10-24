@@ -191,6 +191,20 @@ final class ShopifyOrderImportTest extends TestCase
         foreach (['payment_status', 'paid_at', 'error_message'] as $field) self::assertStringContainsString($field, $migration);
     }
 
+    public function testLargePaidShopifyOrderIdRemainsStringAndReportsColumnType(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-24-110000_EnsureShopifyOrderImportIdString.php');
+
+        self::assertStringContainsString("'shopify_order_id' => ['type' => 'VARCHAR', 'constraint' => 64", $migration);
+        self::assertStringContainsString("\$orderId = \$this->shopifyId(\$payload['id']);", $service);
+        self::assertStringContainsString('shopifyOrderImportColumnType', $service);
+        self::assertStringContainsString("'database_column_type' => \$databaseColumnType", $service);
+        $orderId = '18967742611775';
+        self::assertSame('18967742611775', $orderId);
+        self::assertStringNotContainsString('(int) $payload[\'id\']', $service);
+    }
+
     public function testMedicinePaymentIsIdempotentAndRemainsAppointmentIndependent(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
