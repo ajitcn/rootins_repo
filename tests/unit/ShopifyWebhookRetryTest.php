@@ -55,7 +55,7 @@ final class ShopifyWebhookRetryTest extends TestCase
             self::assertStringContainsString($category, $failure);
         }
         self::assertSame(
-            ShopifyOrderImportFailure::PHARMACY_ORDER_RECORD_NOT_FOUND,
+            ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED,
             ShopifyOrderImportFailure::fromException(new \RuntimeException('pharmacy order not found'), 'orders/paid')->category,
         );
         $medicineBranch = substr($controller, strpos($controller, "if (\$intentReference === '')"), strpos($controller, 'appointment_payment_received') - strpos($controller, "if (\$intentReference === '')"));
@@ -74,5 +74,18 @@ final class ShopifyWebhookRetryTest extends TestCase
         self::assertStringContainsString('last_failure_category', $adminView . $pharmacyView);
         self::assertStringContainsString('retry_failed', $operations);
         self::assertStringContainsString("'error_category'", $operations);
+    }
+
+    public function testMedicineLifecycleSharesThePharmacyUpsertAndPaymentPath(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+
+        self::assertStringContainsString('ensurePharmacyOrderForImport', $service);
+        self::assertStringContainsString('updateImportedPaymentRecord($event, $importId, $payload)', $service);
+        self::assertStringContainsString("'idempotency_key' => 'shopify-import:' . (string) \$importId", $service);
+        self::assertStringContainsString("if (\$intentReference === '')", $controller);
+        self::assertStringContainsString('appointment_finalization_skipped', $controller);
+        self::assertStringNotContainsString('finalizePaid($event, $payload)', substr($controller, strpos($controller, "if (\$intentReference === '')"), strpos($controller, 'appointment_payment_received') - strpos($controller, "if (\$intentReference === '')")));
     }
 }

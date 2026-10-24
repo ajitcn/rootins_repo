@@ -303,22 +303,7 @@ final class ShopifyOrderImportService
             return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
         }
 
-        $result = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->create($prescriptionId, [
-            'source_type' => 'shopify',
-            'external_store_domain' => $store,
-            'external_order_id' => $orderId,
-            'external_order_number' => (string) ($payload['order_number'] ?? ''),
-            'idempotency_key' => 'shopify-import:' . (string) $importId,
-            'delivery_address_snapshot' => $this->addressSnapshot($payload['shipping_address'] ?? []),
-        ]);
-
-        if ((int) ($result['http'] ?? 500) !== 200) {
-            $category = ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED;
-            $this->setImportState($importId, 'failed', $category, $eventId, $patientId, $clinicId);
-            throw new ShopifyOrderImportFailure($category, 'ROOTINS order fulfilment failed.');
-        }
-
-        $rootinsOrderId = (int) ($result['body']['data']['order_id'] ?? 0);
+        $rootinsOrderId = $this->ensurePharmacyOrderForImport($event, $importId, $prescriptionId, $patientId, $clinicId, $store, $orderId, $payload);
         $this->stage($event, $orderId, 'order_status_update');
         $this->setImportState($importId, 'imported', null, $eventId, $patientId, $clinicId, $rootinsOrderId);
         try {
@@ -1077,6 +1062,110 @@ GRAPHQL, ['id' => $orderGid]);
             ->getRowArray() !== null;
     }
 
+    /**
+     * Resolve the pharmacy order from the imported order identity. Creation is
+     * idempotent through shopify-import:<internal import id>; payment never
+     * has to depend on a pre-existing pharmacy row.
+     */
+    private function ensurePharmacyOrderForImport(array $event, int $importId, ?int $prescriptionId, int $patientId, int $clinicId, string $store, string $shopifyOrderId, array $payload): int
+    {
+        $this->stage($event, $shopifyOrderId, 'pharmacy_order_lookup_started', null, 'medicine_orders', 'internal_import_id', false);
+        $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, false, 'started', 0, 0);
+        $db = db_connect();
+        $db->transBegin();
+        $existing = $db->query('SELECT id FROM medicine_orders WHERE idempotency_key = ? AND clinic_id = ? LIMIT 1 FOR UPDATE', ['shopify-import:' . $importId, $clinicId])->getRowArray();
+        if ($existing === null) {
+            $existing = $db->query('SELECT id FROM medicine_orders WHERE external_store_domain = ? AND external_order_id = ? AND clinic_id = ? LIMIT 1 FOR UPDATE', [$store, $shopifyOrderId, $clinicId])->getRowArray();
+        }
+        if ($existing !== null) {
+            $orderId = (int) $existing['id'];
+            $this->synchronizePharmacyOrderCommercials($orderId, $clinicId, $patientId, $store, $shopifyOrderId, $payload);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['rootins_order_id' => $orderId, 'updated_at' => date('Y-m-d H:i:s')]);
+            $db->transCommit();
+            $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, true, 'success', $orderId, 1);
+            $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', null, 'medicine_orders', 'internal_import_id', true, 1);
+            return $orderId;
+        }
+
+        if ($prescriptionId === null || $prescriptionId <= 0 || $patientId <= 0 || $clinicId <= 0) {
+            $db->transRollback();
+            $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, false, 'failure', 0, 0, ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED);
+            $this->stage($event, $shopifyOrderId, 'pharmacy_order_upsert_failed', ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'medicine_orders', 'internal_import_id', false, 0);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'Pharmacy order requires a resolved prescription, patient, and clinic.');
+        }
+
+        // OrderFulfilmentService owns its own inventory transaction. Release
+        // the lookup lock before invoking it, then link the created row back
+        // to this import by the idempotency key/internal import ID.
+        $db->transRollback();
+
+        try {
+            $result = (new OrderFulfilmentService(new PharmacyScope(), $clinicId))->create($prescriptionId, [
+                'source_type' => 'shopify',
+                'external_store_domain' => $store,
+                'external_order_id' => $shopifyOrderId,
+                'external_order_number' => (string) ($payload['order_number'] ?? ''),
+                'idempotency_key' => 'shopify-import:' . (string) $importId,
+                'delivery_address_snapshot' => $this->addressSnapshot($payload['shipping_address'] ?? []),
+            ]);
+        } catch (\Throwable $exception) {
+            $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, false, 'failure', 0, 0, ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, $exception);
+            $this->stage($event, $shopifyOrderId, 'pharmacy_order_upsert_failed', ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'medicine_orders', 'internal_import_id', false, 0, $exception);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'Pharmacy order creation failed.');
+        }
+
+        $orderId = (int) ($result['body']['data']['order_id'] ?? 0);
+        if ((int) ($result['http'] ?? 500) !== 200 || $orderId <= 0) {
+            $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, false, 'failure', $orderId, 0, ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED);
+            $this->stage($event, $shopifyOrderId, 'pharmacy_order_upsert_failed', ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'medicine_orders', 'internal_import_id', false, 0);
+            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_CREATION_FAILED, 'Pharmacy order creation returned no order record.');
+        }
+
+        $this->synchronizePharmacyOrderCommercials($orderId, $clinicId, $patientId, $store, $shopifyOrderId, $payload);
+        ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['rootins_order_id' => $orderId, 'updated_at' => date('Y-m-d H:i:s')]);
+        $this->pharmacyOrderDiagnostic($event, $importId, $shopifyOrderId, true, 'success', $orderId, 1);
+        $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', null, 'medicine_orders', 'internal_import_id', true, 1);
+        return $orderId;
+    }
+
+    private function synchronizePharmacyOrderCommercials(int $orderId, int $clinicId, int $patientId, string $store, string $shopifyOrderId, array $payload): void
+    {
+        if ($orderId <= 0 || $clinicId <= 0) return;
+        $paymentStatus = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
+        $changes = ['external_store_domain' => $store, 'external_order_id' => $shopifyOrderId, 'external_order_number' => (string) ($payload['order_number'] ?? ''), 'updated_at' => date('Y-m-d H:i:s')];
+        if ($patientId > 0) $changes['patient_id'] = $patientId;
+        if ($paymentStatus !== null) $changes['payment_status'] = $paymentStatus;
+        db_connect()->table('medicine_orders')->where('id', $orderId)->where('clinic_id', $clinicId)->update($changes);
+        $invoice = db_connect()->table('invoices')->where('order_id', $orderId)->where('clinic_id', $clinicId)->orderBy('id', 'DESC')->get(1)->getRowArray();
+        if ($invoice !== null) {
+            $invoiceChanges = ['currency' => (string) ($payload['currency'] ?? $invoice['currency'] ?? 'INR'), 'updated_at' => date('Y-m-d H:i:s')];
+            if (array_key_exists('total_price', $payload)) $invoiceChanges['total'] = (float) $payload['total_price'];
+            if ($paymentStatus !== null) $invoiceChanges['payment_status'] = $paymentStatus;
+            db_connect()->table('invoices')->where('id', (int) $invoice['id'])->update($invoiceChanges);
+        }
+    }
+
+    private function pharmacyOrderDiagnostic(array $event, int $importId, string $shopifyOrderId, bool $rowFound, string $result, int $rowId, int $affectedRows, ?string $category = null, ?\Throwable $exception = null): void
+    {
+        log_message('info', 'Shopify medicine-order pharmacy upsert diagnostic ' . json_encode([
+            'correlation_id' => $this->diagnosticCorrelationId,
+            'topic' => (string) ($event['topic'] ?? $this->diagnosticTopic),
+            'store_domain' => strtolower(trim((string) ($event['store_domain'] ?? ''))),
+            'shopify_order_id' => $shopifyOrderId,
+            'webhook_id_hash' => ! empty($event['external_event_id']) ? hash('sha256', (string) $event['external_event_id']) : null,
+            'internal_import_id' => $importId,
+            'processing_stage' => 'pharmacy_order_upsert',
+            'target_table' => 'medicine_orders',
+            'lookup_type' => 'internal_import_id',
+            'row_found' => $rowFound,
+            'row_id' => $rowId > 0 ? $rowId : null,
+            'affected_row_count' => $affectedRows,
+            'upsert_result' => $result,
+            'failure_category' => $category ?? 'none',
+            'exception_class' => $exception === null ? null : get_class($exception),
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
     private function applyExternalStatuses(int $orderId, array $payload, string $store, int $eventId, int $clinicId, string $topic = '', int $importId = 0): void
     {
         $event = ($this->events ?? new ShopifyWebhookEventService())->find($eventId) ?? [
@@ -1086,6 +1175,16 @@ GRAPHQL, ['id' => $orderGid]);
         ];
         $shopifyOrderId = $this->shopifyId($payload['id'] ?? '');
         $this->stage($event, $shopifyOrderId, 'payment_update_started', null, 'shopify_order_imports', 'internal_import_id', true);
+        $orderId = $this->ensurePharmacyOrderForImport(
+            $event,
+            $importId,
+            $this->candidatePrescriptionId($payload),
+            (int) (($this->imports ?? new ShopifyOrderImportModel())->find($importId)['patient_id'] ?? 0),
+            $clinicId,
+            $store,
+            $shopifyOrderId,
+            $payload,
+        );
         $this->paymentStage($event, $shopifyOrderId, $importId, $orderId, 'payment_update', 'lookup_started');
         $importId = $this->updateImportedPaymentRecord($event, $importId, $payload);
         $paymentTarget = $this->paymentTarget((string) ($payload['financial_status'] ?? ''));
@@ -1157,10 +1256,7 @@ GRAPHQL, ['id' => $orderGid]);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::SHOPIFY_ORDER_DATABASE_FAILURE, 'Shopify order status update failed.');
         }
         $db->transCommit();
-        $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', $orderId > 0 ? null : ShopifyOrderImportFailure::PHARMACY_ORDER_RECORD_NOT_FOUND, 'medicine_orders', 'internal_import_id', $orderId > 0);
-        if ($orderId <= 0 && $paymentTarget !== 'paid') {
-            throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PHARMACY_ORDER_RECORD_NOT_FOUND, 'Pharmacy order was not available for the non-paid import operation.');
-        }
+        $this->stage($event, $shopifyOrderId, 'pharmacy_order_created_or_updated', null, 'medicine_orders', 'internal_import_id', $orderId > 0, $orderId > 0 ? 1 : 0);
         $this->stage($event, $shopifyOrderId, 'import_status_update_started', null, 'shopify_order_imports', 'internal_import_id', true);
         if ($paymentTarget === 'paid') {
             $this->markPaidImportProcessed($event, $importId, $paymentTarget);

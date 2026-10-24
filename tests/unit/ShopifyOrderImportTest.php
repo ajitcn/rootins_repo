@@ -231,6 +231,20 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString("->where('external_order_id', \$externalOrderId)", $service);
     }
 
+    public function testMissingPharmacyOrderIsUpsertedFromTheInternalImportIdentity(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+
+        foreach (['ensurePharmacyOrderForImport', 'shopify-import:', 'external_store_domain', 'external_order_id', 'patient_id', 'total_price', 'currency', 'pharmacy_order_upsert', 'pharmacy_order_created_or_updated', 'PHARMACY_ORDER_CREATION_FAILED'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('SELECT id FROM medicine_orders WHERE idempotency_key = ?', $service);
+        self::assertStringContainsString('SELECT id FROM medicine_orders WHERE external_store_domain = ?', $service);
+        self::assertStringContainsString('FOR UPDATE', $service);
+        self::assertStringContainsString('$orderId = $this->ensurePharmacyOrderForImport(', $service);
+        self::assertStringNotContainsString('PHARMACY_ORDER_RECORD_NOT_FOUND', substr($service, strpos($service, 'private function applyExternalStatuses')));
+    }
+
     public function testExistingFailedImportCanBePaidRepeatedlyWithoutDuplicatePharmacyOrders(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');

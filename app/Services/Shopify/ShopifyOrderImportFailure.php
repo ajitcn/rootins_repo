@@ -108,7 +108,7 @@ final class ShopifyOrderImportFailure extends RuntimeException
         elseif (str_contains($message, 'order') && str_contains($message, 'not found')) {
             $category = $topic === 'refunds/create'
                 ? self::REFUND_ORDER_NOT_FOUND
-                : ($topic === 'orders/paid' ? self::PHARMACY_ORDER_RECORD_NOT_FOUND : self::SHOPIFY_ORDER_IDENTITY_NOT_FOUND);
+                : ($topic === 'orders/paid' ? self::PHARMACY_ORDER_CREATION_FAILED : self::SHOPIFY_ORDER_IDENTITY_NOT_FOUND);
         }
 
         return new self($category, $exception->getMessage());
