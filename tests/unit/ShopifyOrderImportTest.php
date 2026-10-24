@@ -173,17 +173,21 @@ final class ShopifyOrderImportTest extends TestCase
 
         foreach ([
             "\$importId = (int) \$import['id'];",
+            "\$paidImport = strtolower((string) (\$payload['financial_status'] ?? '')) === 'paid';",
             "\$mappingResult = \$this->storeLinesAndResolveMappings(\$importId",
             "'patient_status' => 'linked'",
             'prescription_reference_lookup',
             "'payment_status' => \$paymentStatus",
             "'status' => 'processed'",
-            'PHARMACY_ORDER_NOT_CREATED',
+            'PHARMACY_ORDER_CREATION_FAILED',
         ] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
         self::assertStringNotContainsString('updateImportedPaymentRecord($event, $importId, $store, $shopifyOrderId, $payload)', $service);
         self::assertStringContainsString('updateImportedPaymentRecord($event, $importId, $payload)', $service);
+        foreach (["'internal_import_id' => \$importId", "'shopify_order_id' => \$orderId", "'store_domain' => \$store"] as $identityField) {
+            self::assertStringContainsString($identityField, $service);
+        }
         foreach (['payment_status', 'paid_at', 'error_message'] as $field) self::assertStringContainsString($field, $migration);
     }
 
