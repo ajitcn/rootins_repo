@@ -51,68 +51,119 @@
         });
     }
 
-    function cleanup(button) {
+    function setActionLoading(form, loading) {
+        var button = form && form.querySelector('button[type="submit"]');
+        if (button) {
+            button.disabled = loading;
+            button.setAttribute('aria-busy', loading ? 'true' : 'false');
+        }
+        if (form) form.setAttribute('aria-busy', loading ? 'true' : 'false');
+    }
+
+    function hideGlobalPreloader() {
         try {
             if (typeof window.hide_loader === 'function') window.hide_loader();
             if (window.RootinsPreloader) window.RootinsPreloader.reset();
+            var loader = document.querySelector('#globalPreloader');
+            if (loader) {
+                loader.classList.remove('show', 'active', 'd-block');
+                loader.setAttribute('aria-hidden', 'true');
+            }
             document.querySelectorAll('.modal-backdrop').forEach(function (element) { element.remove(); });
             document.body.classList.remove('rootins-loading', 'modal-open');
             document.body.style.overflow = '';
             document.body.style.paddingRight = '';
-        } finally {
-            if (button) {
-                button.disabled = false;
-                button.removeAttribute('aria-busy');
-            }
-        }
+        } catch (error) { /* cleanup must not mask the server/network result */ }
     }
 
-    function show(message, isError) {
-        var box = document.getElementById('shopifyAdminOperationFeedback');
-        if (box) {
-            box.className = 'alert ' + (isError ? 'alert-danger' : 'alert-success');
-            box.textContent = message;
-        }
-        if (typeof window[isError ? 'showError' : 'showSuccess'] === 'function') window[isError ? 'showError' : 'showSuccess'](message);
+    function showToast(message) {
+        if (typeof window.showSuccess === 'function') window.showSuccess(message);
     }
 
-    function refreshStatus() {
-        var page = document.getElementById('shopifyAdminOrderOperationPage');
-        if (!page || !page.dataset.detailsUrl) return Promise.resolve();
-        return request(page.dataset.detailsUrl, {credentials: 'same-origin', headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}}, 15000)
-            .then(parse)
-            .then(function (payload) {
-                var data = payload.data && payload.data.import ? payload.data.import : null;
-                if (!data) return;
-                var status = document.querySelector('[data-operation-status]');
-                var error = document.querySelector('[data-operation-error]');
-                if (status) status.textContent = data.status || 'unknown';
-                if (error) error.textContent = data.error_message || data.last_error || data.failure_reason || '';
-            });
+    function showErrorToast(message) {
+        if (typeof window.showError === 'function') window.showError(message);
     }
 
-    document.addEventListener('submit', function (event) {
-        var form = event.target.closest('[data-shopify-operation-form]');
-        if (!form) return;
+    function diagnostic(action, url, response, payload) {
+        var development = window.ROOTINS_ENV === 'development' || document.documentElement.getAttribute('data-environment') === 'development';
+        if (!development || !window.console || typeof window.console.debug !== 'function') return;
+        window.console.debug('[Shopify order operation]', {
+            action: action,
+            url: url,
+            http_status: response ? response.status : null,
+            response_content_type: response ? (response.headers.get('content-type') || '') : '',
+            parsed_error_code: payload && payload.error ? payload.error.code || null : null
+        });
+    }
+
+    $(document).off('submit.shopifyOrderOperations', '.shopify-order-operation-action-form');
+    $(document).on('submit', '.shopify-order-operation-action-form', async function (event) {
         event.preventDefault();
-        if (active) return;
+        event.stopImmediatePropagation();
+
+        var form = this;
         var button = form.querySelector('button[type="submit"]');
-        if (button && button.disabled) return;
-        if (form.checkValidity && !form.checkValidity()) { form.reportValidity(); return; }
+        var loader = document.querySelector('#globalPreloader');
+        var action = (form.querySelector('[name="action"]') || {}).value || '';
+
+        if (active || (button && button.disabled)) return false;
+        if (form.checkValidity && !form.checkValidity()) {
+            form.reportValidity();
+            return false;
+        }
+
         active = true;
-        if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+        setActionLoading(form, true);
         if (typeof window.show_loader === 'function') window.show_loader();
-        var data = new FormData(form);
-        if (window.RootinsCsrf) window.RootinsCsrf.formData(data);
-        request(form.action, {method: 'POST', credentials: 'same-origin', headers: headers(), body: data}, 30000)
-            .then(parse)
-            .then(function (payload) {
-                show(payload.message || 'Shopify order operation completed.', false);
-                return refreshStatus().catch(function () {
-                    show('The action succeeded, but the order status could not be refreshed.', true);
-                });
-            })
-            .catch(function (error) { show(error && error.name === 'AbortError' ? 'The request timed out. Please retry.' : (error.message || 'Shopify order operation failed.'), true); })
-            .finally(function () { active = false; cleanup(button); });
+        if (loader) loader.setAttribute('aria-hidden', 'false');
+
+        var controller = window.AbortController ? new AbortController() : null;
+        var rejectTimeout;
+        var timeoutPromise = new Promise(function (_, reject) { rejectTimeout = reject; });
+        var timeout = window.setTimeout(function () {
+            if (controller) controller.abort();
+            var timeoutError = new Error('The request timed out. Please retry.');
+            timeoutError.name = 'AbortError';
+            rejectTimeout(timeoutError);
+        }, 30000);
+        try {
+            var data = new FormData(form);
+            if (window.RootinsCsrf) window.RootinsCsrf.formData(data);
+            var requestHeaders = headers();
+            var response = await Promise.race([fetch(form.action, {
+                method: 'POST',
+                headers: requestHeaders,
+                body: data,
+                credentials: 'same-origin',
+                signal: controller ? controller.signal : undefined
+            }), timeoutPromise]);
+            var contentType = response.headers.get('content-type') || '';
+            var text = await response.text();
+            var payload;
+            if (!contentType.toLowerCase().includes('application/json')) {
+                diagnostic(action, form.action, response, null);
+                throw new Error('The server returned an unexpected HTML response.');
+            }
+            try { payload = JSON.parse(text); } catch (error) {
+                diagnostic(action, form.action, response, null);
+                throw new Error('The server returned an unexpected HTML response.');
+            }
+            refreshCsrf(payload);
+            diagnostic(action, form.action, response, payload);
+            if (!response.ok || payload.status === false) {
+                throw new Error((payload.error && payload.error.message) || payload.message || 'The operation could not be completed.');
+            }
+            showToast(payload.message || 'Operation completed successfully.');
+            window.location.reload();
+        } catch (error) {
+            showErrorToast(error && error.name === 'AbortError' ? 'The request timed out. Please retry.' : ((error && error.message) || 'The operation could not be completed.'));
+        } finally {
+            window.clearTimeout(timeout);
+            active = false;
+            setActionLoading(form, false);
+            hideGlobalPreloader();
+        }
+
+        return false;
     });
 }());

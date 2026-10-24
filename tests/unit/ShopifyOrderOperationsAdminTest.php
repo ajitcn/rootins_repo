@@ -84,10 +84,10 @@ final class ShopifyOrderOperationsAdminTest extends TestCase
             self::assertStringContainsString($marker, $controller);
         }
         self::assertStringContainsString('/admin/integrations/shopify/order-operations/', $filter);
-        foreach (['data-shopify-operation-form', 'data-details-url', 'shopify_order_operation_detail.js'] as $marker) {
+        foreach (['data-shopify-operation-form', 'shopify-order-operation-action-form', 'data-no-global-loader', 'data-details-url', 'shopify_order_operation_detail.js'] as $marker) {
             self::assertStringContainsString($marker, $view);
         }
-        foreach (['method: \'POST\'', 'AbortController', 'The server returned an unexpected response.', '.finally', 'RootinsCsrf', 'refreshStatus', 'active', 'cleanup', 'credentials: \'same-origin\''] as $marker) {
+        foreach (["$(document).on('submit', '.shopify-order-operation-action-form'", 'event.stopImmediatePropagation()', 'method: \'POST\'', 'AbortController', 'The server returned an unexpected HTML response.', 'finally', 'RootinsCsrf', 'setActionLoading', 'hideGlobalPreloader', 'window.location.reload()', 'credentials: \'same-origin\''] as $marker) {
             self::assertStringContainsString($marker, $script);
         }
     }
