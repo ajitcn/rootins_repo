@@ -69,7 +69,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         foreach (['prescription_document_id', 'prescription_required', 'Not fulfilled'] as $marker) {
             self::assertStringContainsString($marker, $service . $script);
         }
-        foreach (['patient_id', 'shopify_store_domain', 'shopify_customer_id', 'pharmacy.shopify_prescription_viewed', 'temporaryUrl'] as $marker) {
+        foreach (['resolvePharmacyPreview', 'pharmacy.shopify_prescription_viewed', 'temporaryUrl'] as $marker) {
             self::assertStringContainsString($marker, $controller);
         }
         self::assertStringContainsString('shopify-orders/(:num)/prescription', $routes);
@@ -87,5 +87,19 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertStringContainsString('modal-dialog modal-lg modal-dialog-scrollable', $view);
         self::assertStringContainsString('.shopify-process-modal .modal-body { overflow-y: auto;', $css);
         self::assertStringContainsString('.shopify-process-modal { z-index: 1070;', $css);
+    }
+
+    public function testPrescriptionPreviewResolvesScopedShopifyLinkageAndUsesTemporaryPrivateStorage(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+
+        foreach (['resolvePharmacyPreview', 'shopify_order_id', 'external_upload_reference', 'PRESCRIPTION_UPLOAD_NOT_FOUND', 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'PRESCRIPTION_ACCESS_DENIED', 'previewDiagnostic', 'temporaryUrl'] as $marker) {
+            self::assertStringContainsString($marker, $service . $controller);
+        }
+        foreach (['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as $mime) self::assertStringContainsString($mime, $service);
+        self::assertStringContainsString('decodeVerifiedAccessToken', $service);
+        self::assertStringContainsString("setHeader('Location', \$temporaryUrl)", $controller);
+        self::assertStringNotContainsString('readAuthorizedDocument($document)', $controller);
     }
 }

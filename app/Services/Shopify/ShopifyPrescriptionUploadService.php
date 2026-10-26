@@ -28,6 +28,7 @@ final class ShopifyPrescriptionUploadService
         'jpg' => 'image/jpeg',
         'jpeg' => 'image/jpeg',
         'png' => 'image/png',
+        'webp' => 'image/webp',
     ];
 
     private const STATUSES = ['uploaded', 'awaiting_review', 'under_review', 'accepted', 'rejected', 'clarification_required'];
@@ -341,6 +342,64 @@ final class ShopifyPrescriptionUploadService
     }
 
     /**
+     * Resolve a pharmacy preview from the signed order token and the actual
+     * Shopify import linkage. The document id is only a locator; every scope
+     * value is checked against the import before the private object is read.
+     *
+     * @param array<string, mixed> $import
+     * @return array<string, mixed>
+     */
+    public function resolvePharmacyPreview(string $token, int $orderId, int $clinicId, int $userId, array $import): array
+    {
+        $payload = $this->decodeVerifiedAccessToken($token);
+        $documentId = (int) ($payload['document_id'] ?? 0);
+        $importId = (int) ($import['id'] ?? 0);
+        $patientId = (int) ($import['patient_id'] ?? 0);
+        $store = trim((string) ($import['store_domain'] ?? ''));
+        $customerId = trim((string) ($import['shopify_customer_id'] ?? ''));
+        $reference = trim((string) ($import['prescription_reference'] ?? ''));
+        $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token', true, null);
+
+        if ($orderId <= 0 || $importId !== $orderId || $clinicId <= 0 || $userId <= 0 || $patientId <= 0
+            || (int) ($payload['order_id'] ?? 0) !== $orderId
+            || (int) ($payload['clinic_id'] ?? 0) !== $clinicId
+            || (int) ($payload['user_id'] ?? 0) !== $userId) {
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+        }
+
+        $document = null;
+        if ($documentId > 0) {
+            $query = $this->documents->where('id', $documentId)->where('source_type', 'shopify')->where('clinic_id', $clinicId)->where('patient_id', $patientId);
+            if ($store !== '') $query->where('shopify_store_domain', $store);
+            if ($customerId !== '') $query->where('shopify_customer_id', $customerId);
+            $document = $query->first();
+        }
+
+        if ($document === null && $store !== '' && $customerId !== '' && $patientId > 0) {
+            $query = $this->documents->where('source_type', 'shopify')->where('clinic_id', $clinicId)->where('patient_id', $patientId)->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId);
+            if ($reference !== '') $query->where('external_upload_reference', $reference);
+            elseif (! empty($import['shopify_order_id'])) $query->where('shopify_order_id', (string) $import['shopify_order_id']);
+            $document = $query->orderBy('id', 'DESC')->first();
+        }
+
+        if ($document === null) {
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'shopify_prescription_linkage', false, $reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
+            throw new ShopifyPrescriptionPreviewException($reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
+        }
+
+        if ((int) ($document['clinic_id'] ?? 0) !== $clinicId || (int) ($document['patient_id'] ?? 0) !== $patientId
+            || (string) ($document['shopify_store_domain'] ?? '') !== $store
+            || (string) ($document['shopify_customer_id'] ?? '') !== $customerId) {
+            $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? 0), $reference, 'document_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+        }
+
+        $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'shopify_upload', true, null);
+        return $document;
+    }
+
+    /**
      * Resolve download access from a signed Patient handoff or staff scope.
      *
      * @return array{document: array<string, mixed>, actor: string}
@@ -480,6 +539,35 @@ final class ShopifyPrescriptionUploadService
             && (int) ($payload['expires_at'] ?? 0) >= time();
     }
 
+    /** @return array<string, mixed> */
+    private function decodeVerifiedAccessToken(string $token): array
+    {
+        $parts = explode('.', trim($token), 2);
+        if (count($parts) !== 2 || $parts[0] === '' || ! hash_equals($this->sign($parts[0]), $parts[1])) {
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+        }
+        $payload = json_decode($this->base64UrlDecode($parts[0]), true);
+        if (! is_array($payload) || (int) ($payload['expires_at'] ?? 0) < time()) {
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+        }
+        return $payload;
+    }
+
+    private function previewDiagnostic(int $orderId, int $importId, int $documentId, string $reference, string $lookupType, bool $rowFound, ?string $failureCategory): void
+    {
+        log_message('info', 'Shopify pharmacy prescription preview ' . json_encode([
+            'correlation_id' => bin2hex(random_bytes(8)),
+            'order_id' => $orderId,
+            'import_id' => $importId,
+            'document_id' => $documentId,
+            'upload_reference' => $reference !== '' ? $reference : null,
+            'lookup_table' => 'patient_documents',
+            'lookup_type' => $lookupType,
+            'row_found' => $rowFound,
+            'failure_category' => $failureCategory,
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
     /** @return array{body:string, mime_type:string, file_name:string} */
     public function readAuthorizedDocument(array $document): array
     {
@@ -549,7 +637,7 @@ final class ShopifyPrescriptionUploadService
         $mime = $this->detectedMime($file);
 
         if (! isset(self::MIME_TYPES[$extension]) || self::MIME_TYPES[$extension] !== $mime) {
-            throw new ShopifyPrescriptionUploadValidationException(['document' => 'Only valid PDF, JPG, JPEG, or PNG prescription files are allowed.']);
+            throw new ShopifyPrescriptionUploadValidationException(['document' => 'Only valid PDF, JPG, JPEG, PNG, or WEBP prescription files are allowed.']);
         }
     }
 
@@ -692,4 +780,12 @@ final class ShopifyPrescriptionUploadConflictException extends RuntimeException
 
 final class ShopifyPrescriptionUploadNotFoundException extends RuntimeException
 {
+}
+
+final class ShopifyPrescriptionPreviewException extends RuntimeException
+{
+    public function __construct(public readonly string $category)
+    {
+        parent::__construct($category);
+    }
 }

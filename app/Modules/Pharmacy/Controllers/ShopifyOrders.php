@@ -4,6 +4,7 @@ namespace Pharmacy\Controllers;
 
 use App\Services\Shopify\ShopifyOrderOperationsService;
 use App\Services\Shopify\ShopifyPrescriptionUploadService;
+use App\Services\Shopify\ShopifyPrescriptionPreviewException;
 use App\Services\Shopify\ShopifyOrderReviewService;
 use CodeIgniter\HTTP\ResponseInterface;
 use Pharmacy\Services\PharmacyScope;
@@ -11,7 +12,6 @@ use InvalidArgumentException;
 
 final class ShopifyOrders extends \App\Controllers\BaseController
 {
-    // temporaryUrl is intentionally not used here; private objects are streamed through the app.
     private PharmacyScope $scope;
     private ShopifyOrderOperationsService $operations;
     private ShopifyOrderReviewService $review;
@@ -97,23 +97,15 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         try {
             $import = $this->operations->detail($id, $clinicId);
             $token = trim((string) $this->request->getGet('token'));
-            $documentId = (int) ($import['prescription_document_id'] ?? 0);
-            $document = $documentId > 0 ? (new ShopifyPrescriptionUploadService())->find($documentId) : null;
             $userId = (int) (session('user')['id'] ?? 0);
-            $authorizedDocument = $import !== null
-                && $document !== null
-                && $token !== ''
-                && (new ShopifyPrescriptionUploadService())->verifyAccessToken($token, $id, $documentId, $clinicId, $userId)
-                && (int) ($document['clinic_id'] ?? 0) === $clinicId
-                && (int) ($document['patient_id'] ?? 0) === (int) ($import['patient_id'] ?? 0)
-                && (string) ($document['shopify_store_domain'] ?? '') === (string) ($import['store_domain'] ?? '')
-                && (string) ($document['shopify_customer_id'] ?? '') === (string) ($import['shopify_customer_id'] ?? '');
-            if (! $authorizedDocument) {
-                return $this->response->setStatusCode(404)->setBody('Prescription was not found.');
-            }
-            $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => $documentId, 'user_id' => $userId]);
-            $file = (new ShopifyPrescriptionUploadService())->readAuthorizedDocument($document);
-            return $this->response->setHeader('Content-Type', $file['mime_type'])->setHeader('Content-Disposition', 'inline; filename="' . $file['file_name'] . '"')->setBody($file['body']);
+            if ($import === null) return $this->response->setStatusCode(404)->setBody('PRESCRIPTION_LINKAGE_NOT_FOUND');
+            $document = (new ShopifyPrescriptionUploadService())->resolvePharmacyPreview($token, $id, $clinicId, $userId, $import);
+            $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => (int) $document['id'], 'user_id' => $userId]);
+            $temporaryUrl = (new ShopifyPrescriptionUploadService())->temporaryUrl($document);
+            return $this->response->setStatusCode(302)->setHeader('Location', $temporaryUrl);
+        } catch (ShopifyPrescriptionPreviewException $exception) {
+            $status = $exception->category === 'PRESCRIPTION_ACCESS_DENIED' ? 403 : 404;
+            return $this->response->setStatusCode($status)->setBody($exception->category);
         } catch (\Throwable) {
             return $this->response->setStatusCode(503)->setBody('Prescription could not be loaded safely.');
         }

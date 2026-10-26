@@ -47,8 +47,8 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $service = $this->source('app/Services/Shopify/ShopifyPrescriptionUploadService.php');
         $pharmacy = $this->source('app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
         $admin = $this->source('app/Modules/Admin/Controllers/Integration/ShopifyOrderOperations.php');
-        foreach (['issueAccessToken', 'verifyAccessToken', 'expires_at', 'readAuthorizedDocument'] as $marker) self::assertStringContainsString($marker, $service);
-        foreach (['prescription_url', 'verifyAccessToken', 'pharmacy.shopify_prescription_viewed'] as $marker) self::assertStringContainsString($marker, $pharmacy);
+        foreach (['issueAccessToken', 'verifyAccessToken', 'resolvePharmacyPreview', 'expires_at', 'temporaryUrl'] as $marker) self::assertStringContainsString($marker, $service);
+        foreach (['prescription_url', 'resolvePharmacyPreview', 'pharmacy.shopify_prescription_viewed'] as $marker) self::assertStringContainsString($marker, $pharmacy);
         foreach (['prescription_url', 'verifyAccessToken', 'Prescription access denied'] as $marker) self::assertStringContainsString($marker, $admin);
         self::assertStringNotContainsString('redirect()->to((new ShopifyPrescriptionUploadService())->temporaryUrl', $pharmacy . $admin);
     }
