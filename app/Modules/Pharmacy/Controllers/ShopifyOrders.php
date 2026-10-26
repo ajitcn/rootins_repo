@@ -98,7 +98,11 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             $import = $this->operations->detail($id, $clinicId);
             $token = trim((string) $this->request->getGet('token'));
             $userId = (int) (session('user')['id'] ?? 0);
-            if ($import === null) return $this->response->setStatusCode(404)->setBody('PRESCRIPTION_LINKAGE_NOT_FOUND');
+            if ($import === null) {
+                $orderExists = db_connect()->table('shopify_order_imports')->where('id', $id)->countAllResults() > 0;
+                log_message('warning', 'Shopify prescription preview lookup ' . json_encode(['correlation_id' => bin2hex(random_bytes(8)), 'order_id' => $id, 'import_id' => $id, 'document_id' => null, 'lookup_table' => 'shopify_order_imports', 'lookup_type' => 'order_lookup', 'row_found' => $orderExists, 'failure_category' => $orderExists ? 'PRESCRIPTION_ACCESS_DENIED' : 'ORDER_NOT_FOUND'], JSON_UNESCAPED_SLASHES));
+                return $this->response->setStatusCode($orderExists ? 403 : 404)->setBody($orderExists ? 'PRESCRIPTION_ACCESS_DENIED' : 'ORDER_NOT_FOUND');
+            }
             $document = (new ShopifyPrescriptionUploadService())->resolvePharmacyPreview($token, $id, $clinicId, $userId, $import);
             $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => (int) $document['id'], 'user_id' => $userId]);
             $temporaryUrl = (new ShopifyPrescriptionUploadService())->temporaryUrl($document);

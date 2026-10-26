@@ -374,6 +374,7 @@ final class ShopifyPrescriptionUploadService
             $link = db_connect()->table('shopify_prescription_order_links')
                 ->where('store_domain', $store)->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))->where('import_id', $importId)
                 ->where('clinic_id', $clinicId)->where('patient_id', $patientId)->get(1)->getRowArray();
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'order_document_linkage', $link !== null, $link === null ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : null, 'shopify_prescription_order_links');
             if ($link !== null && (int) ($link['document_id'] ?? 0) > 0) $documentId = (int) $link['document_id'];
         }
         $document = null;
@@ -382,6 +383,7 @@ final class ShopifyPrescriptionUploadService
             if ($store !== '') $query->where('shopify_store_domain', $store);
             if ($customerId !== '') $query->where('shopify_customer_id', $customerId);
             $document = $query->first();
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'document_lookup', $document !== null, $document === null ? 'DOCUMENT_NOT_FOUND' : null, 'patient_documents');
         }
 
         if ($document === null && $store !== '' && $customerId !== '' && $patientId > 0) {
@@ -399,18 +401,25 @@ final class ShopifyPrescriptionUploadService
         }
 
         if ($document === null) {
-            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'shopify_prescription_linkage', false, $reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
-            throw new ShopifyPrescriptionPreviewException($reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
+            $category = $link !== null ? 'DOCUMENT_NOT_FOUND' : ($reference !== '' ? 'PRESCRIPTION_UPLOAD_NOT_FOUND' : 'PRESCRIPTION_LINKAGE_NOT_FOUND');
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'prescription_upload_lookup', false, $category, 'patient_documents');
+            throw new ShopifyPrescriptionPreviewException($category);
         }
 
+        $isDoctorSnapshot = (string) ($document['source_type'] ?? '') === 'rootins';
         if ((int) ($document['clinic_id'] ?? 0) !== $clinicId || (int) ($document['patient_id'] ?? 0) !== $patientId
-            || (string) ($document['shopify_store_domain'] ?? '') !== $store
-            || (string) ($document['shopify_customer_id'] ?? '') !== $customerId) {
+            || (! $isDoctorSnapshot && ((string) ($document['shopify_store_domain'] ?? '') !== $store
+            || (string) ($document['shopify_customer_id'] ?? '') !== $customerId))) {
             $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? 0), $reference, 'document_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
         }
 
-        $this->linkOrderPrescription($import, (int) $document['id'], null, $reference, $link);
+        try {
+            $this->linkOrderPrescription($import, (int) $document['id'], null, $reference, $link);
+        } catch (\Throwable $exception) {
+            $this->previewDiagnostic($orderId, $importId, (int) $document['id'], $reference, 'order_document_linkage_repair', false, 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'shopify_prescription_order_links');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_LINKAGE_NOT_FOUND');
+        }
         $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'prescription_linkage', true, null);
         return $document;
     }
@@ -600,7 +609,7 @@ final class ShopifyPrescriptionUploadService
         return $payload;
     }
 
-    private function previewDiagnostic(int $orderId, int $importId, int $documentId, string $reference, string $lookupType, bool $rowFound, ?string $failureCategory): void
+    private function previewDiagnostic(int $orderId, int $importId, int $documentId, string $reference, string $lookupType, bool $rowFound, ?string $failureCategory, string $lookupTable = 'patient_documents'): void
     {
         log_message('info', 'Shopify pharmacy prescription preview ' . json_encode([
             'correlation_id' => bin2hex(random_bytes(8)),
@@ -608,7 +617,7 @@ final class ShopifyPrescriptionUploadService
             'import_id' => $importId,
             'document_id' => $documentId,
             'upload_reference' => $reference !== '' ? $reference : null,
-            'lookup_table' => 'patient_documents',
+            'lookup_table' => $lookupTable,
             'lookup_type' => $lookupType,
             'row_found' => $rowFound,
             'failure_category' => $failureCategory,
