@@ -352,7 +352,12 @@ final class ShopifyPrescriptionUploadService
      */
     public function resolvePharmacyPreview(string $token, int $orderId, int $clinicId, int $userId, array $import): array
     {
-        $payload = $this->decodeVerifiedAccessToken($token);
+        try {
+            $payload = $this->decodeVerifiedAccessToken($token);
+        } catch (ShopifyPrescriptionPreviewException $exception) {
+            $this->previewAuthorizationDiagnostic($orderId, (int) ($import['id'] ?? 0), $userId, 0, $clinicId, (int) ($import['clinic_id'] ?? 0), (int) ($import['patient_id'] ?? 0), 0, (string) ($import['shopify_order_id'] ?? ''), [], [], $exception->category);
+            throw $exception;
+        }
         $documentId = (int) ($payload['document_id'] ?? 0);
         $importId = (int) ($import['id'] ?? 0);
         $patientId = (int) ($import['patient_id'] ?? 0);
@@ -367,17 +372,22 @@ final class ShopifyPrescriptionUploadService
         $activeUser = db_connect()->table('users')->where('id', $userId)->where('status', 1)->get(1)->getRowArray();
         $pharmacyAuthorized = in_array('Pharmacy Assistant', $roles, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
         $adminAuthorized = (bool) array_intersect(['Admin', 'Super Admin'], $roles) && in_array('prescription.view', $permissions, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
-        $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), $patientId, $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, $activeUser === null ? 'USER_INACTIVE' : ((! $pharmacyAuthorized && ! $adminAuthorized) ? 'PRESCRIPTION_VIEW_PERMISSION_REQUIRED' : null));
-
-        if ($orderId <= 0 || $importId !== $orderId || $clinicId <= 0 || $userId <= 0 || $patientId <= 0
-            || $activeUser === null || (! $pharmacyAuthorized && ! $adminAuthorized)
-            || (int) ($payload['order_id'] ?? 0) !== $orderId
-            || (int) ($payload['clinic_id'] ?? 0) !== $clinicId
-            || (int) ($payload['user_id'] ?? 0) !== $userId
-            || (int) ($import['clinic_id'] ?? 0) !== $clinicId) {
-            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
-            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+        $permissionFailure = $activeUser === null ? 'PRESCRIPTION_USER_INACTIVE' : ((! $pharmacyAuthorized && ! $adminAuthorized) ? 'PRESCRIPTION_PHARMACIST_PERMISSION_REQUIRED' : null);
+        $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), $patientId, $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, $permissionFailure);
+        if ($permissionFailure !== null) throw new ShopifyPrescriptionPreviewException($permissionFailure);
+        if ((int) ($payload['order_id'] ?? 0) !== $orderId || $importId !== $orderId) {
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token_scope', false, 'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ORDER_DOCUMENT_MISMATCH');
         }
+        if ((int) ($payload['clinic_id'] ?? 0) !== $clinicId || (int) ($import['clinic_id'] ?? 0) !== $clinicId) {
+            $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), $patientId, $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, 'PRESCRIPTION_CLINIC_MISMATCH');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_CLINIC_MISMATCH');
+        }
+        if ((int) ($payload['user_id'] ?? 0) !== $userId) {
+            $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), $patientId, $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, 'PRESCRIPTION_USER_MISMATCH');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_USER_MISMATCH');
+        }
+        if ($clinicId <= 0 || $userId <= 0 || $patientId <= 0) throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
 
         $link = null;
         if (db_connect()->tableExists('shopify_prescription_order_links')) {
@@ -385,6 +395,10 @@ final class ShopifyPrescriptionUploadService
                 ->where('store_domain', $store)->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))->where('import_id', $importId)
                 ->where('clinic_id', $clinicId)->where('patient_id', $patientId)->get(1)->getRowArray();
             $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'order_document_linkage', $link !== null, $link === null ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : null, 'shopify_prescription_order_links');
+            if ($link !== null && (int) ($link['document_id'] ?? 0) > 0 && $documentId > 0 && (int) $link['document_id'] !== $documentId) {
+                $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'order_document_linkage', false, 'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH', 'shopify_prescription_order_links');
+                throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ORDER_DOCUMENT_MISMATCH');
+            }
             if ($link !== null && (int) ($link['document_id'] ?? 0) > 0) $documentId = (int) $link['document_id'];
         }
         $document = null;
@@ -408,6 +422,14 @@ final class ShopifyPrescriptionUploadService
                 ->where('external_upload_reference', $reference)->where('clinic_id', $clinicId)->where('patient_id', $patientId);
             if ($documentId > 0) $query->where('id', $documentId);
             $document = $query->first();
+        }
+
+        if ($document === null && $documentId > 0) {
+            $unscopedDocument = $this->documents->where('id', $documentId)->where('source_type', 'shopify')->where('clinic_id', $clinicId)->first();
+            if ($unscopedDocument !== null && (int) ($unscopedDocument['patient_id'] ?? 0) !== $patientId) {
+                $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), (int) ($unscopedDocument['patient_id'] ?? 0), $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, 'PRESCRIPTION_PATIENT_MISMATCH');
+                throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_PATIENT_MISMATCH');
+            }
         }
 
         if ($document === null) {
@@ -449,8 +471,9 @@ final class ShopifyPrescriptionUploadService
         $orderDocumentMatches = empty($document['shopify_order_id']) || (string) $document['shopify_order_id'] === (string) ($import['shopify_order_id'] ?? '');
         if ((int) ($document['clinic_id'] ?? 0) !== $clinicId || (int) ($document['patient_id'] ?? 0) !== $patientId
             || (! $isDoctorSnapshot && (! $shopifyScopeMatches || ! $orderDocumentMatches))) {
-            $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? 0), $reference, 'document_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
-            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+            $failure = (int) ($document['clinic_id'] ?? 0) !== $clinicId ? 'PRESCRIPTION_CLINIC_MISMATCH' : ((int) ($document['patient_id'] ?? 0) !== $patientId ? 'PRESCRIPTION_PATIENT_MISMATCH' : 'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH');
+            $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? 0), $reference, 'document_scope', false, $failure);
+            throw new ShopifyPrescriptionPreviewException($failure);
         }
 
         if ((string) ($document['_lookup_table'] ?? 'patient_documents') !== 'patient_documents') {
@@ -745,12 +768,11 @@ final class ShopifyPrescriptionUploadService
     {
         $parts = explode('.', trim($token), 2);
         if (count($parts) !== 2 || $parts[0] === '' || ! hash_equals($this->sign($parts[0]), $parts[1])) {
-            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_PREVIEW_TOKEN_INVALID');
         }
         $payload = json_decode($this->base64UrlDecode($parts[0]), true);
-        if (! is_array($payload) || (int) ($payload['expires_at'] ?? 0) < time()) {
-            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
-        }
+        if (! is_array($payload)) throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_PREVIEW_TOKEN_INVALID');
+        if ((int) ($payload['expires_at'] ?? 0) < time()) throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_PREVIEW_TOKEN_EXPIRED');
         return $payload;
     }
 
@@ -777,8 +799,6 @@ final class ShopifyPrescriptionUploadService
             'correlation_id' => bin2hex(random_bytes(8)),
             'authenticated_user_id' => $userId,
             'token_user_id' => $tokenUserId,
-            'authenticated_roles' => array_values(array_map('strval', $roles)),
-            'authenticated_permissions' => array_values(array_map('strval', $permissions)),
             'token_clinic_id' => $tokenClinicId,
             'current_clinic_scope' => $orderClinicId,
             'order_clinic_id' => $orderClinicId,
@@ -787,6 +807,7 @@ final class ShopifyPrescriptionUploadService
             'shopify_order_id' => $shopifyOrderId,
             'document_owner_patient_id' => $patientId,
             'document_id' => $documentId,
+            'permission_result' => ! in_array($failure, ['PRESCRIPTION_PHARMACIST_PERMISSION_REQUIRED', 'PRESCRIPTION_USER_INACTIVE', 'PRESCRIPTION_PREVIEW_TOKEN_INVALID', 'PRESCRIPTION_PREVIEW_TOKEN_EXPIRED'], true),
             'failure_rule' => $failure,
         ], JSON_UNESCAPED_SLASHES));
     }

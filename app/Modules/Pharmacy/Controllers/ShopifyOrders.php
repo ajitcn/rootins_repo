@@ -108,7 +108,17 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             $temporaryUrl = (new ShopifyPrescriptionUploadService())->temporaryUrl($document);
             return $this->response->setStatusCode(302)->setHeader('Location', $temporaryUrl);
         } catch (ShopifyPrescriptionPreviewException $exception) {
-            $status = $exception->category === 'PRESCRIPTION_ACCESS_DENIED' ? 403 : 404;
+            $status = in_array($exception->category, [
+                'PRESCRIPTION_ACCESS_DENIED',
+                'PRESCRIPTION_PREVIEW_TOKEN_INVALID',
+                'PRESCRIPTION_PREVIEW_TOKEN_EXPIRED',
+                'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH',
+                'PRESCRIPTION_CLINIC_MISMATCH',
+                'PRESCRIPTION_PATIENT_MISMATCH',
+                'PRESCRIPTION_PHARMACIST_PERMISSION_REQUIRED',
+                'PRESCRIPTION_USER_INACTIVE',
+                'PRESCRIPTION_USER_MISMATCH',
+            ], true) ? 403 : 404;
             return $this->response->setStatusCode($status)->setBody($exception->category);
         } catch (\Throwable) {
             return $this->response->setStatusCode(503)->setBody('Prescription could not be loaded safely.');
@@ -217,8 +227,6 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             'correlation_id' => bin2hex(random_bytes(8)),
             'authenticated_user_id' => $userId,
             'token_user_id' => $tokenUserId,
-            'authenticated_roles' => array_values(array_map('strval', $roles)),
-            'authenticated_permissions' => array_values(array_map('strval', $permissions)),
             'token_clinic_id' => $tokenClinicId,
             'current_clinic_scope' => $this->scope->clinicId() ?? null,
             'order_clinic_id' => $orderClinicId,

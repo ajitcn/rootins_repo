@@ -124,7 +124,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         foreach (['Pharmacy Assistant', 'Admin', 'Super Admin', 'pharmacy.shopify_orders.view', 'prescription.view', "where('status', 1)", 'previewAuthorizationDiagnostic'] as $marker) {
             self::assertStringContainsString($marker, $controller . $service);
         }
-        foreach (['USER_INACTIVE', 'PRESCRIPTION_VIEW_PERMISSION_REQUIRED', 'token_user_id', 'token_clinic_id', 'order_clinic_id', 'document_owner_patient_id', 'PRESCRIPTION_ACCESS_DENIED'] as $marker) {
+        foreach (['PRESCRIPTION_USER_INACTIVE', 'PRESCRIPTION_PHARMACIST_PERMISSION_REQUIRED', 'token_user_id', 'token_clinic_id', 'order_clinic_id', 'document_owner_patient_id', 'PRESCRIPTION_ACCESS_DENIED'] as $marker) {
             self::assertStringContainsString($marker, $service . $controller);
         }
         self::assertStringContainsString("(int) (\$import['clinic_id'] ?? 0) !== \$clinicId", $service);
@@ -151,6 +151,18 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertNotFalse($source);
         foreach (['in_array($orderId, [71, 72], true)', 'findExternalPreviewDocument(0, $reference', 'previewOrderDiagnostic', 'canonical_storage_key', 'storage_object_exists'] as $marker) {
             self::assertStringContainsString($marker, $source);
+        }
+    }
+
+    public function testPrescriptionPreviewAuthorizationHasDistinctSafeFailureCategories(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+
+        self::assertNotFalse($service);
+        self::assertNotFalse($controller);
+        foreach (['PRESCRIPTION_PREVIEW_TOKEN_INVALID', 'PRESCRIPTION_PREVIEW_TOKEN_EXPIRED', 'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH', 'PRESCRIPTION_CLINIC_MISMATCH', 'PRESCRIPTION_PATIENT_MISMATCH', 'PRESCRIPTION_PHARMACIST_PERMISSION_REQUIRED', 'permission_result', 'failure_rule'] as $marker) {
+            self::assertStringContainsString($marker, $service . $controller);
         }
     }
 }
