@@ -166,6 +166,10 @@ final class ShopifyPrescriptionUploadService
         if ($store === '' || $customer === '' || $patientId < 1) {
             throw new ShopifyPrescriptionUploadValidationException(['customer' => 'A signed Shopify customer scope is required.']);
         }
+        $clinicId = $this->resolveShopifyUploadClinic($patientId, (int) ($context['clinic_id'] ?? 0));
+        if ($clinicId === null) {
+            throw new ShopifyPrescriptionUploadClinicScopeException();
+        }
 
         $link = db_connect()->table('shopify_patient_identity_links')
             ->where('shopify_store_domain', $store)
@@ -191,6 +195,14 @@ final class ShopifyPrescriptionUploadService
             ->where('shopify_store_domain', $store)->where('shopify_customer_id', $customer)
             ->where('external_upload_reference', $externalReference)->first();
         if ($existing !== null) {
+            $existingClinic = (int) ($existing['clinic_id'] ?? 0);
+            if ($existingClinic === 0) {
+                $this->documents->where('id', (int) $existing['id'])->where('clinic_id', null)->where('patient_id', $patientId)->set(['clinic_id' => $clinicId, 'updated_at' => date('Y-m-d H:i:s')])->update();
+                log_message('info', 'Shopify prescription document clinic repair ' . json_encode(['correlation_id' => bin2hex(random_bytes(8)), 'upload_reference' => $externalReference, 'document_id' => (int) $existing['id'], 'patient_id' => $patientId, 'clinic_id_before' => null, 'clinic_id_after' => $clinicId, 'order_import_id' => null, 'lookup_result' => 'repaired', 'failure_category' => null], JSON_UNESCAPED_SLASHES));
+                $existing = $this->documents->find((int) $existing['id']) ?? $existing;
+            } elseif ($existingClinic !== $clinicId) {
+                throw new ShopifyPrescriptionUploadClinicScopeException();
+            }
             return $this->proxyResponse($existing);
         }
 
@@ -210,7 +222,7 @@ final class ShopifyPrescriptionUploadService
             $retention = (new DateTimeImmutable($now))->modify('+' . max(1, (int) env('SHOPIFY_PRESCRIPTION_RETENTION_DAYS', 365)) . ' days')->format('Y-m-d H:i:s');
             $db->transBegin();
             $id = $this->documents->insert([
-                'patient_id' => $patientId, 'clinic_id' => null, 'document_type' => 'prescription_upload',
+                'patient_id' => $patientId, 'clinic_id' => $clinicId, 'document_type' => 'prescription_upload',
                 'title' => $title, 'file_name' => basename($key), 'original_file_name' => $file->getClientName(),
                 'file_path' => $key, 'file_size' => (int) $file->getSize(), 'mime_type' => $mime,
                 'source_type' => 'shopify', 'shopify_store_domain' => $store, 'shopify_customer_id' => $customer,
@@ -233,7 +245,7 @@ final class ShopifyPrescriptionUploadService
             'upload_reference' => $externalReference,
             'document_id' => (int) $id,
             'patient_id' => $patientId,
-            'clinic_id' => null,
+            'clinic_id' => $clinicId,
             'lookup_table' => 'patient_documents',
             'lookup_result' => 'created',
             'storage_key_fingerprint' => $this->redactStorageKey($key),
@@ -375,7 +387,16 @@ final class ShopifyPrescriptionUploadService
             'clinic_id' => (int) ($import['clinic_id'] ?? 0),
             'authenticated_user_id' => 0,
         ];
-        $upload = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), (string) ($import['store_domain'] ?? ''), (string) ($import['shopify_customer_id'] ?? ''), (int) ($import['patient_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), true, $context);
+        $clinicId = (int) ($import['clinic_id'] ?? 0);
+        $upload = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), (string) ($import['store_domain'] ?? ''), (string) ($import['shopify_customer_id'] ?? ''), (int) ($import['patient_id'] ?? 0), $clinicId, true, $context);
+        if ($upload === null && $clinicId > 0) {
+            $upload = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), (string) ($import['store_domain'] ?? ''), (string) ($import['shopify_customer_id'] ?? ''), (int) ($import['patient_id'] ?? 0), 0, true, $context);
+            if ($upload !== null && (string) ($upload['_lookup_table'] ?? '') === 'patient_documents' && (int) ($upload['clinic_id'] ?? 0) === 0) {
+                $this->documents->where('id', (int) $upload['id'])->where('clinic_id', null)->where('patient_id', (int) ($import['patient_id'] ?? 0))->set(['clinic_id' => $clinicId, 'updated_at' => date('Y-m-d H:i:s')])->update();
+                log_message('info', 'Shopify prescription document clinic repair ' . json_encode(['correlation_id' => bin2hex(random_bytes(8)), 'upload_reference' => $reference, 'document_id' => (int) $upload['id'], 'patient_id' => (int) ($import['patient_id'] ?? 0), 'clinic_id_before' => null, 'clinic_id_after' => $clinicId, 'import_id' => (int) ($import['id'] ?? 0), 'lookup_result' => 'repaired', 'failure_category' => null], JSON_UNESCAPED_SLASHES));
+                $upload = $this->documents->find((int) $upload['id']);
+            }
+        }
         if ($upload === null) return null;
         if ((string) ($upload['_lookup_table'] ?? 'patient_documents') === 'patient_documents') return $upload;
         try {
@@ -870,6 +891,16 @@ final class ShopifyPrescriptionUploadService
         return $storageKey === '' ? null : 'sha256:' . substr(hash('sha256', $storageKey), 0, 16);
     }
 
+    private function resolveShopifyUploadClinic(int $patientId, int $contextClinicId = 0): ?int
+    {
+        $candidate = $contextClinicId;
+        if ($candidate < 1) {
+            try { $candidate = (int) (($this->configuration ?? (new ShopifyConfigurationService())->runtime())->clinicId() ?? 0); } catch (\Throwable) { $candidate = 0; }
+        }
+        if ($candidate < 1) $candidate = (int) (db_connect()->table('patients')->select('clinic_id')->where('id', $patientId)->where('status', 1)->get(1)->getRow('clinic_id') ?? 0);
+        return $candidate > 0 && db_connect()->table('clinics')->where('id', $candidate)->where('status', 1)->countAllResults() === 1 ? $candidate : null;
+    }
+
     private function previewAuthorizationDiagnostic(int $orderId, int $importId, int $userId, int $tokenUserId, int $tokenClinicId, int $orderClinicId, int $patientId, int $documentId, string $shopifyOrderId, array $roles, array $permissions, ?string $failure): void
     {
         log_message('info', 'Shopify pharmacy prescription authorization ' . json_encode([
@@ -1088,6 +1119,10 @@ final class ShopifyPrescriptionUploadValidationException extends InvalidArgument
 }
 
 final class ShopifyPrescriptionUploadCustomerException extends RuntimeException
+{
+}
+
+final class ShopifyPrescriptionUploadClinicScopeException extends RuntimeException
 {
 }
 

@@ -9,6 +9,7 @@ use App\Services\Shopify\ShopifyProxyAuthenticationException;
 use App\Services\Shopify\ShopifyProxyService;
 use App\Services\Shopify\ShopifyPrescriptionUploadValidationException;
 use App\Services\Shopify\ShopifyPrescriptionUploadCustomerException;
+use App\Services\Shopify\ShopifyPrescriptionUploadClinicScopeException;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -96,6 +97,9 @@ final class Proxy extends BaseController
         } catch (ShopifyPrescriptionUploadCustomerException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'customer_unlinked');
             return $this->json(403, false, $exception->getMessage(), [], 'SHOPIFY_CUSTOMER_UNLINKED');
+        } catch (ShopifyPrescriptionUploadClinicScopeException $exception) {
+            if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'clinic_scope_required');
+            return $this->json(422, false, 'A valid Shopify pharmacy clinic scope is required.', [], 'PRESCRIPTION_CLINIC_SCOPE_REQUIRED');
         } catch (ShopifyProxyAuthenticationException $exception) {
             if ($claimed && $idempotency instanceof ShopifyOperationIdempotencyService) $idempotency->fail($idempotencyKey ?? $key, 'authentication');
             if ($operation === 'patients.register') {

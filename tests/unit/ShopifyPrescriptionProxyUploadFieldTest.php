@@ -50,12 +50,13 @@ final class ShopifyPrescriptionProxyUploadFieldTest extends TestCase
         self::assertStringContainsString('Idempotency-Key: <unique-uuid>', $docs);
     }
 
-    public function testUploadIsGlobalAndClinicIsDeferredToFinancialProcessing(): void
+    public function testUploadRequiresClinicScopeBeforeMetadataCreation(): void
     {
         $upload = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
         $orderImport = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
-        self::assertStringContainsString("'clinic_id' => null", $upload);
-        self::assertStringNotContainsString('no active pharmacy clinic', strtolower($upload));
+        self::assertStringContainsString("'clinic_id' => \$clinicId", $upload);
+        self::assertStringContainsString('resolveShopifyUploadClinic', $upload);
+        self::assertStringContainsString('PRESCRIPTION_CLINIC_SCOPE_REQUIRED', file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php'));
         self::assertStringContainsString('SHOPIFY_CUSTOMER_UNLINKED', file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php'));
         self::assertStringContainsString('BILLING_CLINIC_UNAVAILABLE', $orderImport . $upload . file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php'));
         self::assertStringContainsString('prescription_upload_reviewed', $upload);

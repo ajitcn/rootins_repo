@@ -91,4 +91,13 @@ final class ShopifyPrescriptionUploadTest extends TestCase
         self::assertStringContainsString('notifyReviewers', $service);
         self::assertStringContainsString('PatientNotificationService', $service);
     }
+
+    public function testShopifyUploadRequiresResolvedClinicAndSupportsExistingDocumentRepair(): void
+    {
+        $service = (string) file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $proxy = (string) file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Proxy.php');
+        foreach (['resolveShopifyUploadClinic', 'ShopifyPrescriptionUploadClinicScopeException', 'PRESCRIPTION_CLINIC_SCOPE_REQUIRED', 'clinic repair', "where('clinic_id', null)"] as $marker) {
+            self::assertStringContainsString($marker, $service . $proxy);
+        }
+    }
 }
