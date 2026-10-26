@@ -73,6 +73,20 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         self::assertStringContainsString("setStatusCode(403)", $pharmacy . $admin);
     }
 
+    public function testFreshUploadOrderImportAndPreviewMetadataContract(): void
+    {
+        $upload = $this->source('app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');
+        $preview = $this->source('app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+
+        foreach (['storage_key_fingerprint', 'ensureOrderPrescriptionMetadata', 'PRESCRIPTION_METADATA_CREATION_FAILED', 'prescriptionImportDiagnostic'] as $marker) {
+            self::assertStringContainsString($marker, $upload . $import);
+        }
+        foreach (['prescription_reference', 'linkOrderPrescription', 'resolvePharmacyPreview', '_preview_refresh_token'] as $marker) {
+            self::assertStringContainsString($marker, $import . $preview);
+        }
+    }
+
     public function testActivePrescriptionAndFinalizedSnapshotContractsAreScoped(): void
     {
         $active = $this->source('app/Services/Shopify/ShopifyActivePrescriptionService.php');

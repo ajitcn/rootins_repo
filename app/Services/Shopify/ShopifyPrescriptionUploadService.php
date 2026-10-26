@@ -226,6 +226,19 @@ final class ShopifyPrescriptionUploadService
             throw $exception;
         }
         service('audit')->record('shopify.prescription_upload_created', ['source_type' => 'shopify', 'store_domain' => $store, 'external_upload_reference' => $externalReference]);
+        log_message('info', 'Shopify prescription upload diagnostic ' . json_encode([
+            'correlation_id' => bin2hex(random_bytes(8)),
+            'shopify_order_id' => null,
+            'import_id' => null,
+            'upload_reference' => $externalReference,
+            'document_id' => (int) $id,
+            'patient_id' => $patientId,
+            'clinic_id' => null,
+            'lookup_table' => 'patient_documents',
+            'lookup_result' => 'created',
+            'storage_key_fingerprint' => $this->redactStorageKey($key),
+            'failure_category' => null,
+        ], JSON_UNESCAPED_SLASHES));
         $this->notifyReviewers(null, (int) $id);
         return $this->proxyResponse(['external_upload_reference' => $externalReference, 'upload_status' => 'uploaded', 'created_at' => date('Y-m-d H:i:s'), 'mime_type' => $mime, 'file_size' => (int) $file->getSize()]);
     }
@@ -343,6 +356,37 @@ final class ShopifyPrescriptionUploadService
     }
 
     /**
+     * Resolve the existing Shopify upload for an order import and ensure the
+     * standard document metadata/linkage can reference it without re-uploading.
+     *
+     * @param array<string, mixed> $import
+     * @return array<string, mixed>|null
+     */
+    public function ensureOrderPrescriptionMetadata(array $import, string $reference): ?array
+    {
+        $reference = trim($reference);
+        $context = [
+            'order_id' => (int) ($import['id'] ?? 0),
+            'shopify_order_id' => (string) ($import['shopify_order_id'] ?? ''),
+            'import_id' => (int) ($import['id'] ?? 0),
+            'document_id' => 0,
+            'reference' => $reference,
+            'patient_id' => (int) ($import['patient_id'] ?? 0),
+            'clinic_id' => (int) ($import['clinic_id'] ?? 0),
+            'authenticated_user_id' => 0,
+        ];
+        $upload = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), (string) ($import['store_domain'] ?? ''), (string) ($import['shopify_customer_id'] ?? ''), (int) ($import['patient_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), true, $context);
+        if ($upload === null) return null;
+        if ((string) ($upload['_lookup_table'] ?? 'patient_documents') === 'patient_documents') return $upload;
+        try {
+            return $this->ensureDocumentMetadata($upload, $import, $reference);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify prescription metadata creation failed safely.');
+            throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_METADATA_CREATION_FAILED');
+        }
+    }
+
+    /**
      * Resolve a pharmacy preview from the signed order token and the actual
      * Shopify import linkage. The document id is only a locator; every scope
      * value is checked against the import before the private object is read.
@@ -365,7 +409,7 @@ final class ShopifyPrescriptionUploadService
         $customerId = trim((string) ($import['shopify_customer_id'] ?? ''));
         $reference = trim((string) ($import['prescription_reference'] ?? ''));
         $tokenDocumentStale = false;
-        $previewContext = ['order_id' => $orderId, 'import_id' => $importId, 'document_id' => $documentId, 'reference' => $reference, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'authenticated_user_id' => $userId];
+        $previewContext = ['order_id' => $orderId, 'shopify_order_id' => (string) ($import['shopify_order_id'] ?? ''), 'import_id' => $importId, 'document_id' => $documentId, 'reference' => $reference, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'authenticated_user_id' => $userId];
         $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token', true, null);
         if (in_array($orderId, [71, 72], true)) $this->previewOrderDiagnostic($orderId, $import, $documentId, $reference);
 
@@ -805,6 +849,7 @@ final class ShopifyPrescriptionUploadService
         log_message('info', 'Shopify pharmacy prescription metadata lookup ' . json_encode([
             'correlation_id' => bin2hex(random_bytes(8)),
             'order_id' => (int) ($context['order_id'] ?? 0),
+            'shopify_order_id' => (string) ($context['shopify_order_id'] ?? ''),
             'import_id' => (int) ($context['import_id'] ?? 0),
             'document_id' => (int) ($context['document_id'] ?? 0),
             'prescription_upload_reference' => ($context['reference'] ?? '') !== '' ? (string) $context['reference'] : null,

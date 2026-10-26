@@ -280,16 +280,25 @@ final class ShopifyOrderImportService
                 }
             } else {
             try {
-                $document = $this->findPrescriptionDocument($prescriptionReference, $store, (string) ($payload['customer_id'] ?? ''), $patientId);
+                $document = (new ShopifyPrescriptionUploadService())->ensureOrderPrescriptionMetadata([
+                    'id' => $importId,
+                    'shopify_order_id' => $orderId,
+                    'store_domain' => $store,
+                    'shopify_customer_id' => (string) ($payload['customer_id'] ?? ''),
+                    'patient_id' => $patientId,
+                    'clinic_id' => $clinicId,
+                ], $prescriptionReference);
             } catch (\Throwable $exception) {
-                $this->stage($event, $orderId, 'prescription_reference_lookup', ShopifyOrderImportFailure::PRESCRIPTION_REFERENCE_FAILURE);
-                throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PRESCRIPTION_REFERENCE_FAILURE, 'Shopify prescription reference could not be linked.');
+                $category = $exception instanceof ShopifyPrescriptionPreviewException ? $exception->category : ShopifyOrderImportFailure::PRESCRIPTION_REFERENCE_FAILURE;
+                $this->stage($event, $orderId, 'prescription_metadata_lookup', $category, 'patient_documents', 'prescription_reference', false, null, null, ['import_id' => $importId, 'upload_reference' => $prescriptionReference, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
+                throw new ShopifyOrderImportFailure($category, 'Shopify prescription metadata could not be linked.');
             }
             $expired = $document !== null && ! empty($document['retention_expires_at']) && (string) $document['retention_expires_at'] < date('Y-m-d H:i:s');
             if ($document === null || $expired) {
-                $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
+                $failure = $document === null ? ShopifyOrderImportFailure::PRESCRIPTION_METADATA_CREATION_FAILED : ShopifyOrderImportFailure::PRESCRIPTION_MISSING;
+                $this->setImportState($importId, 'quarantined', $failure, $eventId, $patientId, $clinicId);
                 ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'invalid']);
-                $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+                $events->markFailed($eventId, $failure);
                 service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'invalid_prescription_reference']);
                 return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
             }
@@ -297,6 +306,7 @@ final class ShopifyOrderImportService
             db_connect()->table('patient_documents')->where('id', (int) $document['id'])->update(['shopify_order_id' => (string) $payload['id'], 'upload_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review', 'updated_at' => date('Y-m-d H:i:s')]);
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review']);
             (new ShopifyPrescriptionUploadService())->linkOrderPrescription(['id' => $importId, 'store_domain' => $store, 'shopify_order_id' => $orderId, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'prescription_bundle_reference' => (string) ($payload['prescription_bundle_reference'] ?? '')], $prescriptionDocumentId, null, $prescriptionReference);
+            $this->prescriptionImportDiagnostic($orderId, $importId, $prescriptionReference, $prescriptionDocumentId, $patientId, (int) $clinicId, 'prescription_linkage', true, null);
             if (($document['upload_status'] ?? '') !== 'accepted') {
                 $this->setImportState($importId, 'quarantined', 'awaiting_review', $eventId, $patientId, $clinicId);
                 $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
@@ -340,6 +350,7 @@ final class ShopifyOrderImportService
 
         if ($prescriptionId !== null || $prescriptionDocumentId > 0 || $prescriptionReference !== '') {
             (new ShopifyPrescriptionUploadService())->linkOrderPrescription(['id' => $importId, 'store_domain' => $store, 'shopify_order_id' => $orderId, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'prescription_bundle_reference' => (string) ($payload['prescription_bundle_reference'] ?? '')], $prescriptionDocumentId, $prescriptionId, $prescriptionReference, null);
+            $this->prescriptionImportDiagnostic($orderId, $importId, $prescriptionReference, $prescriptionDocumentId, $patientId, (int) $clinicId, 'prescription_linkage', true, null);
         }
 
         $rootinsOrderId = $this->ensurePharmacyOrderForImport($event, $importId, $prescriptionId, $patientId, $clinicId, $store, $orderId, $payload, $prescriptionRequired);
@@ -1166,6 +1177,22 @@ GRAPHQL, ['id' => $orderGid]);
             ->where('source_type', 'shopify')->where('external_upload_reference', $reference)
             ->where('shopify_store_domain', $store)->where('shopify_customer_id', $customerId)
             ->where('patient_id', $patientId)->get(1)->getRowArray();
+    }
+
+    private function prescriptionImportDiagnostic(string $shopifyOrderId, int $importId, string $reference, int $documentId, int $patientId, int $clinicId, string $lookup, bool $found, ?string $failure): void
+    {
+        log_message('info', 'Shopify prescription import diagnostic ' . json_encode([
+            'correlation_id' => $this->diagnosticCorrelationId !== '' ? $this->diagnosticCorrelationId : bin2hex(random_bytes(8)),
+            'shopify_order_id' => $shopifyOrderId,
+            'import_id' => $importId,
+            'upload_reference' => $reference !== '' ? $reference : null,
+            'document_id' => $documentId > 0 ? $documentId : null,
+            'patient_id' => $patientId > 0 ? $patientId : null,
+            'clinic_id' => $clinicId > 0 ? $clinicId : null,
+            'lookup_table' => $lookup === 'prescription_linkage' ? 'shopify_prescription_order_links' : 'shopify_order_imports',
+            'lookup_result' => $found ? 'found' : 'not_found',
+            'failure_category' => $failure,
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     private function findDoctorPrescription(string $reference, int $patientId, int $clinicId): ?array
