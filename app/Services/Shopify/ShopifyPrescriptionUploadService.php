@@ -361,10 +361,19 @@ final class ShopifyPrescriptionUploadService
         $reference = trim((string) ($import['prescription_reference'] ?? ''));
         $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token', true, null);
 
+        $roles = is_array(session('roles')) ? session('roles') : [];
+        $permissions = is_array(session('permissions')) ? session('permissions') : [];
+        $activeUser = db_connect()->table('users')->where('id', $userId)->where('status', 1)->get(1)->getRowArray();
+        $pharmacyAuthorized = in_array('Pharmacy Assistant', $roles, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
+        $adminAuthorized = (bool) array_intersect(['Admin', 'Super Admin'], $roles) && in_array('prescription.view', $permissions, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
+        $this->previewAuthorizationDiagnostic($orderId, $importId, $userId, (int) ($payload['user_id'] ?? 0), (int) ($payload['clinic_id'] ?? 0), (int) ($import['clinic_id'] ?? 0), $patientId, $documentId, (string) ($import['shopify_order_id'] ?? ''), $roles, $permissions, $activeUser === null ? 'USER_INACTIVE' : ((! $pharmacyAuthorized && ! $adminAuthorized) ? 'PRESCRIPTION_VIEW_PERMISSION_REQUIRED' : null));
+
         if ($orderId <= 0 || $importId !== $orderId || $clinicId <= 0 || $userId <= 0 || $patientId <= 0
+            || $activeUser === null || (! $pharmacyAuthorized && ! $adminAuthorized)
             || (int) ($payload['order_id'] ?? 0) !== $orderId
             || (int) ($payload['clinic_id'] ?? 0) !== $clinicId
-            || (int) ($payload['user_id'] ?? 0) !== $userId) {
+            || (int) ($payload['user_id'] ?? 0) !== $userId
+            || (int) ($import['clinic_id'] ?? 0) !== $clinicId) {
             $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
         }
@@ -407,9 +416,11 @@ final class ShopifyPrescriptionUploadService
         }
 
         $isDoctorSnapshot = (string) ($document['source_type'] ?? '') === 'rootins';
+        $shopifyScopeMatches = (string) ($document['shopify_store_domain'] ?? '') === $store
+            && (string) ($document['shopify_customer_id'] ?? '') === $customerId;
+        $orderDocumentMatches = empty($document['shopify_order_id']) || (string) $document['shopify_order_id'] === (string) ($import['shopify_order_id'] ?? '');
         if ((int) ($document['clinic_id'] ?? 0) !== $clinicId || (int) ($document['patient_id'] ?? 0) !== $patientId
-            || (! $isDoctorSnapshot && ((string) ($document['shopify_store_domain'] ?? '') !== $store
-            || (string) ($document['shopify_customer_id'] ?? '') !== $customerId))) {
+            || (! $isDoctorSnapshot && (! $shopifyScopeMatches || ! $orderDocumentMatches))) {
             $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? 0), $reference, 'document_scope', false, 'PRESCRIPTION_ACCESS_DENIED');
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
         }
@@ -621,6 +632,26 @@ final class ShopifyPrescriptionUploadService
             'lookup_type' => $lookupType,
             'row_found' => $rowFound,
             'failure_category' => $failureCategory,
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function previewAuthorizationDiagnostic(int $orderId, int $importId, int $userId, int $tokenUserId, int $tokenClinicId, int $orderClinicId, int $patientId, int $documentId, string $shopifyOrderId, array $roles, array $permissions, ?string $failure): void
+    {
+        log_message('info', 'Shopify pharmacy prescription authorization ' . json_encode([
+            'correlation_id' => bin2hex(random_bytes(8)),
+            'authenticated_user_id' => $userId,
+            'token_user_id' => $tokenUserId,
+            'authenticated_roles' => array_values(array_map('strval', $roles)),
+            'authenticated_permissions' => array_values(array_map('strval', $permissions)),
+            'token_clinic_id' => $tokenClinicId,
+            'current_clinic_scope' => $orderClinicId,
+            'order_clinic_id' => $orderClinicId,
+            'order_id' => $orderId,
+            'import_id' => $importId,
+            'shopify_order_id' => $shopifyOrderId,
+            'document_owner_patient_id' => $patientId,
+            'document_id' => $documentId,
+            'failure_rule' => $failure,
         ], JSON_UNESCAPED_SLASHES));
     }
 

@@ -25,7 +25,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
     public function index(): string|ResponseInterface
     {
-        $clinicId = $this->clinicId('pharmacy.shopify_orders.view');
+        $clinicId = $this->previewClinicId();
         if ($clinicId === null) return redirect()->to(base_url('permission-denied'));
 
         try {
@@ -54,7 +54,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
     public function detail(int $id): string|ResponseInterface
     {
-        $clinicId = $this->clinicId('pharmacy.shopify_orders.view');
+        $clinicId = $this->previewClinicId();
         if ($clinicId === null) return $this->response->setStatusCode(403)->setBody('Shopify order access denied.');
 
         try {
@@ -76,7 +76,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
     public function detailJson(int $id): ResponseInterface
     {
-        $clinicId = $this->clinicId('pharmacy.shopify_orders.view');
+        $clinicId = $this->previewClinicId();
         if ($clinicId === null) return $this->json(false, 'Shopify order access denied.', 403);
 
         try {
@@ -91,7 +91,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
     public function viewPrescription(int $id): ResponseInterface
     {
-        $clinicId = $this->clinicId('pharmacy.shopify_orders.view');
+        $clinicId = $this->previewClinicId();
         if ($clinicId === null) return $this->response->setStatusCode(403)->setBody('Prescription access denied.');
 
         try {
@@ -194,6 +194,37 @@ final class ShopifyOrders extends \App\Controllers\BaseController
     {
         $clinicId = $this->scope->clinicId();
         return $clinicId !== null && $this->scope->can($permission) ? $clinicId : null;
+    }
+
+    private function previewClinicId(): ?int
+    {
+        $user = session('user');
+        $roles = is_array(session('roles')) ? session('roles') : [];
+        $permissions = is_array(session('permissions')) ? session('permissions') : [];
+        $userId = is_array($user) ? (int) ($user['id'] ?? 0) : 0;
+        $clinicId = is_array($user) ? (int) ($user['clinic_id'] ?? session('clinic_id') ?? 0) : (int) (session('clinic_id') ?? 0);
+        $pharmacy = in_array('Pharmacy Assistant', $roles, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
+        $admin = (bool) array_intersect(['Admin', 'Super Admin'], $roles) && in_array('prescription.view', $permissions, true) && in_array('pharmacy.shopify_orders.view', $permissions, true);
+        if ($userId <= 0 || $clinicId <= 0 || (! $pharmacy && ! $admin)) return null;
+        $active = db_connect()->table('users')->where('id', $userId)->where('status', 1)->countAllResults() === 1;
+        $this->previewAuthorizationDiagnostic($userId, null, $clinicId, null, null, $roles, $permissions, $active ? null : 'USER_INACTIVE');
+        return $active ? $clinicId : null;
+    }
+
+    private function previewAuthorizationDiagnostic(int $userId, ?int $tokenUserId, ?int $tokenClinicId, ?int $orderClinicId, ?int $documentId, array $roles, array $permissions, ?string $failure): void
+    {
+        log_message('info', 'Shopify pharmacy prescription authorization ' . json_encode([
+            'correlation_id' => bin2hex(random_bytes(8)),
+            'authenticated_user_id' => $userId,
+            'token_user_id' => $tokenUserId,
+            'authenticated_roles' => array_values(array_map('strval', $roles)),
+            'authenticated_permissions' => array_values(array_map('strval', $permissions)),
+            'token_clinic_id' => $tokenClinicId,
+            'current_clinic_scope' => $this->scope->clinicId() ?? null,
+            'order_clinic_id' => $orderClinicId,
+            'document_id' => $documentId,
+            'failure_rule' => $failure,
+        ], JSON_UNESCAPED_SLASHES));
     }
 
     /** @param array<string, mixed> $data */

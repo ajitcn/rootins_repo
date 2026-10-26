@@ -115,4 +115,19 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertStringContainsString("where('store_domain', \$data['store_domain'])", $service);
         self::assertStringContainsString('addUniqueKey', $migration);
     }
+
+    public function testPrescriptionPreviewAuthorizationCoversPharmacistAdminAndScopeFailures(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+
+        foreach (['Pharmacy Assistant', 'Admin', 'Super Admin', 'pharmacy.shopify_orders.view', 'prescription.view', "where('status', 1)", 'previewAuthorizationDiagnostic'] as $marker) {
+            self::assertStringContainsString($marker, $controller . $service);
+        }
+        foreach (['USER_INACTIVE', 'PRESCRIPTION_VIEW_PERMISSION_REQUIRED', 'token_user_id', 'token_clinic_id', 'order_clinic_id', 'document_owner_patient_id', 'PRESCRIPTION_ACCESS_DENIED'] as $marker) {
+            self::assertStringContainsString($marker, $service . $controller);
+        }
+        self::assertStringContainsString("(int) (\$import['clinic_id'] ?? 0) !== \$clinicId", $service);
+        self::assertStringContainsString("(int) (\$payload['user_id'] ?? 0) !== \$userId", $service);
+    }
 }
