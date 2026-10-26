@@ -149,7 +149,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         $source = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
 
         self::assertNotFalse($source);
-        foreach (['in_array($orderId, [71, 72], true)', 'findExternalPreviewDocument(0, $reference', 'previewOrderDiagnostic', 'canonical_storage_key', 'storage_object_exists'] as $marker) {
+        foreach (['in_array($orderId, [71, 72], true)', 'findExternalPreviewDocument(0, $reference', 'previewOrderDiagnostic', 'canonical_storage_key_redacted', 'storage_object_exists', '_preview_refresh_token'] as $marker) {
             self::assertStringContainsString($marker, $source);
         }
     }

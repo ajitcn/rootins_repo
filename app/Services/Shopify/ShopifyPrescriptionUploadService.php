@@ -364,6 +364,8 @@ final class ShopifyPrescriptionUploadService
         $store = trim((string) ($import['store_domain'] ?? ''));
         $customerId = trim((string) ($import['shopify_customer_id'] ?? ''));
         $reference = trim((string) ($import['prescription_reference'] ?? ''));
+        $tokenDocumentStale = false;
+        $previewContext = ['order_id' => $orderId, 'import_id' => $importId, 'document_id' => $documentId, 'reference' => $reference, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'authenticated_user_id' => $userId];
         $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'token', true, null);
         if (in_array($orderId, [71, 72], true)) $this->previewOrderDiagnostic($orderId, $import, $documentId, $reference);
 
@@ -396,8 +398,7 @@ final class ShopifyPrescriptionUploadService
                 ->where('clinic_id', $clinicId)->where('patient_id', $patientId)->get(1)->getRowArray();
             $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'order_document_linkage', $link !== null, $link === null ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : null, 'shopify_prescription_order_links');
             if ($link !== null && (int) ($link['document_id'] ?? 0) > 0 && $documentId > 0 && (int) $link['document_id'] !== $documentId) {
-                $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'order_document_linkage', false, 'PRESCRIPTION_ORDER_DOCUMENT_MISMATCH', 'shopify_prescription_order_links');
-                throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ORDER_DOCUMENT_MISMATCH');
+                $tokenDocumentStale = true;
             }
             if ($link !== null && (int) ($link['document_id'] ?? 0) > 0) $documentId = (int) $link['document_id'];
         }
@@ -433,11 +434,11 @@ final class ShopifyPrescriptionUploadService
         }
 
         if ($document === null) {
-            $document = $this->findExternalPreviewDocument($documentId, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId);
+            $document = $this->findExternalPreviewDocument($documentId, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId, false, $previewContext);
             if ($document === null && $reference !== '') {
                 // The token's document_id may be stale. Resolve the canonical upload by
                 // its stored prescription/upload reference before reporting metadata missing.
-                $document = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId, true);
+                $document = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId, true, $previewContext);
             }
             $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'prescription_document_lookup', $document !== null, $document === null ? 'PRESCRIPTION_DOCUMENT_METADATA_NOT_FOUND' : null, (string) ($document['_lookup_table'] ?? 'prescription_documents'), $document !== null && trim((string) ($document['file_path'] ?? '')) !== '');
         }
@@ -447,7 +448,7 @@ final class ShopifyPrescriptionUploadService
             $storageExists = $storageKey !== '' && $this->storage->objectExists($storageKey);
             $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? $documentId), (string) ($document['external_upload_reference'] ?? $reference), 'storage_object_lookup', $storageExists, $storageExists ? null : 'PRESCRIPTION_STORAGE_OBJECT_NOT_FOUND', (string) ($document['_lookup_table'] ?? 'patient_documents'), $storageKey !== '', $storageKey);
             if (! $storageExists && $reference !== '') {
-                $replacement = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId, true);
+                $replacement = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId, true, $previewContext);
                 if ($replacement !== null) {
                     $replacementKey = $this->storage->normalizeKey((string) ($replacement['file_path'] ?? ''));
                     if ($replacementKey !== '' && $this->storage->objectExists($replacementKey)) $document = $replacement;
@@ -487,6 +488,9 @@ final class ShopifyPrescriptionUploadService
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_LINKAGE_NOT_FOUND');
         }
         $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'prescription_linkage', true, null, (string) ($document['_lookup_table'] ?? 'patient_documents'), trim((string) ($document['file_path'] ?? '')) !== '');
+        if ($tokenDocumentStale || (int) ($payload['document_id'] ?? 0) !== (int) ($document['id'] ?? 0)) {
+            $document['_preview_refresh_token'] = $this->issueAccessToken($orderId, (int) $document['id'], $clinicId, $userId);
+        }
         return $document;
     }
 
@@ -549,7 +553,7 @@ final class ShopifyPrescriptionUploadService
             'document_table' => (string) ($candidate['_lookup_table'] ?? ($link !== null ? 'shopify_prescription_order_links' : 'unknown')),
             'storage_disk' => 'r2',
             'storage_bucket' => (string) env('R2_BUCKET'),
-            'canonical_storage_key' => $key !== '' ? $key : null,
+            'canonical_storage_key_redacted' => $this->redactStorageKey($key),
             'storage_object_exists' => $key !== '' ? $this->storage->objectExists($key) : false,
             'upload_reference' => ((string) ($candidate['external_upload_reference'] ?? $reference)) !== '' ? (string) ($candidate['external_upload_reference'] ?? $reference) : null,
             'failure_category' => null,
@@ -557,7 +561,7 @@ final class ShopifyPrescriptionUploadService
     }
 
     /** @return array<string, mixed>|null */
-    private function findExternalPreviewDocument(int $documentId, string $reference, string $shopifyOrderId, string $store, string $customerId, int $patientId, int $clinicId, bool $externalFirst = false): ?array
+    private function findExternalPreviewDocument(int $documentId, string $reference, string $shopifyOrderId, string $store, string $customerId, int $patientId, int $clinicId, bool $externalFirst = false, array $diagnosticContext = []): ?array
     {
         $db = db_connect();
         $tables = $externalFirst ? ['shopify_prescription_uploads', 'prescription_documents', 'patient_documents'] : ['patient_documents', 'shopify_prescription_uploads', 'prescription_documents'];
@@ -575,6 +579,8 @@ final class ShopifyPrescriptionUploadService
             }
             if ($tableName === 'patient_documents' && in_array('source_type', $fields, true)) $query->whereIn('source_type', ['shopify', 'rootins']);
             $row = $query->get(1)->getRowArray();
+            $candidateKey = $row === null ? '' : $this->storage->normalizeKey((string) ($row['file_path'] ?? $row['storage_key'] ?? $row['object_key'] ?? $row['path'] ?? ''));
+            $this->previewMetadataTableDiagnostic($diagnosticContext, $tableName, $row !== null, $candidateKey);
             if ($row === null) continue;
             $row['_lookup_table'] = $tableName;
             $row['source_type'] = (string) ($row['source_type'] ?? ($tableName === 'patient_documents' ? 'shopify' : 'shopify'));
@@ -583,7 +589,7 @@ final class ShopifyPrescriptionUploadService
             $row['shopify_store_domain'] = (string) ($row['shopify_store_domain'] ?? $row['store_domain'] ?? $store);
             $row['shopify_customer_id'] = (string) ($row['shopify_customer_id'] ?? $customerId);
             $row['shopify_order_id'] = (string) ($row['shopify_order_id'] ?? $shopifyOrderId);
-            $row['file_path'] = (string) ($row['file_path'] ?? $row['storage_key'] ?? $row['object_key'] ?? $row['path'] ?? '');
+            $row['file_path'] = $candidateKey;
             $row['file_name'] = (string) ($row['file_name'] ?? $row['original_file_name'] ?? $row['name'] ?? 'prescription-upload');
             $row['mime_type'] = (string) ($row['mime_type'] ?? $row['content_type'] ?? 'application/octet-stream');
             $row['external_upload_reference'] = (string) ($row['external_upload_reference'] ?? $row['upload_reference'] ?? $reference);
@@ -788,9 +794,35 @@ final class ShopifyPrescriptionUploadService
             'lookup_type' => $lookupType,
             'row_found' => $rowFound,
             'storage_key_present' => $storageKeyPresent,
-            'storage_key' => $storageKey !== '' ? $storageKey : null,
+            'storage_key_redacted' => $this->redactStorageKey($storageKey),
             'failure_category' => $failureCategory,
         ], JSON_UNESCAPED_SLASHES));
+    }
+
+    /** @param array<string, mixed> $context */
+    private function previewMetadataTableDiagnostic(array $context, string $table, bool $found, string $storageKey): void
+    {
+        log_message('info', 'Shopify pharmacy prescription metadata lookup ' . json_encode([
+            'correlation_id' => bin2hex(random_bytes(8)),
+            'order_id' => (int) ($context['order_id'] ?? 0),
+            'import_id' => (int) ($context['import_id'] ?? 0),
+            'document_id' => (int) ($context['document_id'] ?? 0),
+            'prescription_upload_reference' => ($context['reference'] ?? '') !== '' ? (string) $context['reference'] : null,
+            'patient_id' => (int) ($context['patient_id'] ?? 0),
+            'clinic_id' => (int) ($context['clinic_id'] ?? 0),
+            'authenticated_user_id' => (int) ($context['authenticated_user_id'] ?? 0),
+            'metadata_table' => $table,
+            'lookup_result' => $found ? 'found' : 'not_found',
+            'canonical_storage_key_redacted' => $this->redactStorageKey($storageKey),
+            'storage_object_exists' => $storageKey !== '' ? $this->storage->objectExists($storageKey) : false,
+            'failure_category' => $found ? null : 'PRESCRIPTION_DOCUMENT_METADATA_NOT_FOUND',
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function redactStorageKey(string $storageKey): ?string
+    {
+        $storageKey = trim($storageKey);
+        return $storageKey === '' ? null : 'sha256:' . substr(hash('sha256', $storageKey), 0, 16);
     }
 
     private function previewAuthorizationDiagnostic(int $orderId, int $importId, int $userId, int $tokenUserId, int $tokenClinicId, int $orderClinicId, int $patientId, int $documentId, string $shopifyOrderId, array $roles, array $permissions, ?string $failure): void

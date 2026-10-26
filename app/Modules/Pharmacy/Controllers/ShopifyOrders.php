@@ -104,6 +104,10 @@ final class ShopifyOrders extends \App\Controllers\BaseController
                 return $this->response->setStatusCode($orderExists ? 403 : 404)->setBody($orderExists ? 'PRESCRIPTION_ACCESS_DENIED' : 'ORDER_NOT_FOUND');
             }
             $document = (new ShopifyPrescriptionUploadService())->resolvePharmacyPreview($token, $id, $clinicId, $userId, $import);
+            if (! empty($document['_preview_refresh_token'])) {
+                $freshUrl = base_url('pharmacy/shopify-orders/' . $id . '/prescription?token=' . rawurlencode((string) $document['_preview_refresh_token']));
+                return $this->response->setStatusCode(302)->setHeader('Location', $freshUrl);
+            }
             $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => (int) $document['id'], 'user_id' => $userId]);
             $temporaryUrl = (new ShopifyPrescriptionUploadService())->temporaryUrl($document);
             return $this->response->setStatusCode(302)->setHeader('Location', $temporaryUrl);
