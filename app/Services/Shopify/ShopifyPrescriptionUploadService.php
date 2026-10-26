@@ -177,7 +177,7 @@ final class ShopifyPrescriptionUploadService
         }
 
         $externalReference = trim($externalReference);
-        if (! preg_match('/^RXP-[A-Z0-9-]{16,191}$/', $externalReference)) {
+        if (! preg_match('/^RX[PN]-[A-Z0-9-]{6,191}$/', $externalReference)) {
             throw new ShopifyPrescriptionUploadValidationException(['prescription_reference' => 'A valid prescription reference is required.']);
         }
         $title = trim($title) ?: 'Prescription upload';
@@ -452,6 +452,64 @@ final class ShopifyPrescriptionUploadService
             (string) ($document['mime_type'] ?? 'application/octet-stream'),
             'inline; filename="' . $fileName . '"',
         );
+    }
+
+    public function issueAccessToken(int $orderId, int $documentId, int $clinicId, int $userId, int $ttl = 300): string
+    {
+        $payload = [
+            'order_id' => $orderId,
+            'document_id' => $documentId,
+            'clinic_id' => $clinicId,
+            'user_id' => $userId,
+            'expires_at' => time() + max(1, $ttl),
+        ];
+        $encoded = $this->base64Url(json_encode($payload, JSON_THROW_ON_ERROR));
+        return $encoded . '.' . $this->sign($encoded);
+    }
+
+    public function verifyAccessToken(string $token, int $orderId, int $documentId, int $clinicId, int $userId): bool
+    {
+        $parts = explode('.', trim($token), 2);
+        if (count($parts) !== 2 || ! hash_equals($this->sign($parts[0]), $parts[1])) return false;
+        $payload = json_decode($this->base64UrlDecode($parts[0]), true);
+        return is_array($payload)
+            && (int) ($payload['order_id'] ?? 0) === $orderId
+            && (int) ($payload['document_id'] ?? 0) === $documentId
+            && (int) ($payload['clinic_id'] ?? 0) === $clinicId
+            && (int) ($payload['user_id'] ?? 0) === $userId
+            && (int) ($payload['expires_at'] ?? 0) >= time();
+    }
+
+    /** @return array{body:string, mime_type:string, file_name:string} */
+    public function readAuthorizedDocument(array $document): array
+    {
+        if (empty($document['file_path']) || (! empty($document['retention_expires_at']) && $document['retention_expires_at'] < date('Y-m-d H:i:s'))) {
+            throw new ShopifyPrescriptionUploadNotFoundException('Prescription upload is unavailable.');
+        }
+        $object = $this->storage->getObject((string) $document['file_path']);
+        return [
+            'body' => (string) $object['Body'],
+            'mime_type' => (string) ($document['mime_type'] ?? 'application/octet-stream'),
+            'file_name' => preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) ($document['file_name'] ?? 'prescription-upload'))),
+        ];
+    }
+
+    private function sign(string $value): string
+    {
+        $key = (string) env('SHOPIFY_PRESCRIPTION_ACCESS_KEY');
+        if ($key === '') $key = (string) config('Encryption')->key;
+        if ($key === '') throw new RuntimeException('Prescription access signing is not configured.');
+        return $this->base64Url(hash_hmac('sha256', $value, $key, true));
+    }
+
+    private function base64Url(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function base64UrlDecode(string $value): string
+    {
+        return (string) base64_decode(strtr($value, '-_', '+/') . str_repeat('=', (4 - strlen($value) % 4) % 4), true);
     }
 
     /** @return array{upload_reference: string, status: string, received_at: string, message: string} */

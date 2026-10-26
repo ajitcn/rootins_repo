@@ -17,6 +17,7 @@ final class ShopifyOrderImportModel extends Model
         'prescription_reference', 'prescription_status',
         'shopify_customer_id', 'customer_name_snapshot', 'customer_email_snapshot', 'customer_mobile_snapshot',
         'patient_status', 'mapping_status', 'quarantine_reason', 'last_error', 'last_attempted_at',
+        'review_status', 'review_reason', 'reviewed_by', 'reviewed_at',
     ];
     protected $useTimestamps = false;
 }

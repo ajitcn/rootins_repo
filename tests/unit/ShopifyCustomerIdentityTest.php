@@ -57,8 +57,8 @@ final class ShopifyCustomerIdentityTest extends TestCase
 
         self::assertStringContainsString('$configuredStore !== $storeDomain', $service);
         self::assertStringContainsString("->where('active_patient_key', 'shopify:' . " . '$patientId)', $service);
-        self::assertStringContainsString('new ShopifyCustomerIdentityService())->resolveOrderCustomer(' . '$store, $customerId, [])', $import);
-        self::assertStringContainsString("'patient_id' => (int) " . '$resolved' . "['patient_id']", $import);
+        self::assertStringContainsString('private function linkedCustomer(string $store, string $customerId)', $import);
+        self::assertStringContainsString("(int) (\$identity['patient_id'] ?? 0)", $import);
     }
 
     public function testMedicineOrderCustomerResolutionUsesWebhookConfigurationAndKeepsUnlinkedCustomersRetryable(): void

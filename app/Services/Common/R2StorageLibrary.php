@@ -72,4 +72,10 @@ class R2StorageLibrary
 
         return (string) $this->client->createPresignedRequest($command, '+' . max(1, $minutes) . ' minutes')->getUri();
     }
+
+    /** Read a private object for an already-authorized application response. */
+    public function getObject(string $key): array
+    {
+        return $this->client->getObject(['Bucket' => $this->bucket, 'Key' => $key]);
+    }
 }

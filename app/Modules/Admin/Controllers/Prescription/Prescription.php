@@ -178,7 +178,7 @@ class Prescription extends BaseAdminController
             if (!$prescriptionId) {
                 throw new \RuntimeException('Prescription insert failed.');
             }
-            $prescriptionNumber = sprintf('RXN-%06d', (int) $prescriptionId);
+            $prescriptionNumber = sprintf('RXP-%06d', (int) $prescriptionId);
 
             if (!$this->prescription->update($prescriptionId, ['prescription_number' => $prescriptionNumber, 'updated_at' => date('Y-m-d H:i:s')])) {
                 throw new \RuntimeException('Prescription number assignment failed.');

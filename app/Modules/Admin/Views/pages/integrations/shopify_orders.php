@@ -39,7 +39,7 @@
                                     <form method="post" action="<?= base_url('admin/integrations/shopify/orders/import') ?>" class="d-flex align-items-center">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="import_id" value="<?= (int) $import['id'] ?>">
-                                        <input type="number" name="prescription_id" class="form-control form-control-sm mr-2" placeholder="Approved prescription ID" aria-label="Approved prescription ID">
+                                        <input type="text" name="prescription_reference" class="form-control form-control-sm mr-2" placeholder="Prescription reference" aria-label="Prescription reference">
                                         <button class="btn btn-sm btn-primary" type="submit">Import</button>
                                     </form>
                                 <?php else: ?>

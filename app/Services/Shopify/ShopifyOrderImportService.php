@@ -8,6 +8,7 @@ use App\Modules\Pharmacy\Services\OrderFulfilmentService;
 use App\Modules\Shopify\Models\ShopifyMedicineMappingModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportLineModel;
 use App\Modules\Shopify\Models\ShopifyOrderImportModel;
+use App\Modules\Shopify\Models\ShopifyOrderNotificationModel;
 use App\Modules\Shopify\Models\ShopifyPatientIdentityLinkModel;
 use CodeIgniter\Database\BaseConnection;
 use RuntimeException;
@@ -204,37 +205,37 @@ final class ShopifyOrderImportService
             $this->stage($event, $orderId, 'customer_patient_resolution', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
             throw new ShopifyOrderImportFailure(ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'Shopify customer identity could not be resolved.');
         }
+        $clinicId = ($this->configuration ?? new ShopifyConfiguration())->clinicId();
         $this->stage($event, $orderId, 'customer_patient_resolution', $identity === null ? ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE : null);
         $this->stage($event, $orderId, 'customer_resolved', $identity === null ? ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE : null, 'shopify_patient_identity_links', 'store_domain_customer_id', $identity !== null);
 
         if ($identity === null) {
-            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'patients', 'patient_id', false);
+            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, 'patients', 'patient_id', false);
             $customerId = $this->shopifyId($payload['customer_id'] ?? '');
             $patientStatus = $customerId === '' ? 'guest' : 'link_pending';
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, [
                 'patient_status' => $patientStatus,
                 'customer_name_snapshot' => $this->customerLookupFailure !== null ? 'Customer data unavailable' : null,
-                'quarantine_reason' => ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE,
-                'last_error' => $this->customerLookupFailure !== null ? 'Customer data unavailable. Retry customer resolution.' : 'Shopify customer is not linked to a ROOTINS patient.',
+                'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED,
+                'last_error' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED,
                 'last_attempted_at' => date('Y-m-d H:i:s'),
             ]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, $eventId);
-            $events->markFailed($eventId, ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
-            service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $patientStatus]);
+            $this->setImportState($importId, 'awaiting_patient_link', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, $eventId, 0, (int) ($clinicId ?? 0));
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED);
+            service('audit')->record('shopify.order_awaiting_patient_link', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => $patientStatus]);
 
-            return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
+            return array_merge($importIdentity, ['status' => 'awaiting_patient_link', 'import_id' => $importId]);
         }
 
-        $clinicId = ($this->configuration ?? new ShopifyConfiguration())->clinicId();
         $patientId = (int) ($identity['patient_id'] ?? 0);
 
         if ($patientId <= 0) {
-            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'patients', 'patient_id', false);
-            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'missing', 'quarantine_reason' => ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, 'last_attempted_at' => date('Y-m-d H:i:s')]);
-            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE, $eventId);
-            $events->markFailed($eventId, ShopifyOrderImportFailure::PATIENT_RESOLUTION_FAILURE);
+            $this->stage($event, $orderId, 'patient_resolved', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, 'patients', 'patient_id', false);
+            ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'link_pending', 'quarantine_reason' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, 'last_error' => ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, 'last_attempted_at' => date('Y-m-d H:i:s')]);
+            $this->setImportState($importId, 'awaiting_patient_link', ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED, $eventId, 0, (int) ($clinicId ?? 0));
+            $events->markProcessed($eventId, ShopifyOrderImportFailure::SHOPIFY_PATIENT_LINK_REQUIRED);
 
-            return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
+            return array_merge($importIdentity, ['status' => 'awaiting_patient_link', 'import_id' => $importId]);
         }
 
         ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['patient_status' => 'linked', 'last_attempted_at' => date('Y-m-d H:i:s')]);
@@ -257,8 +258,26 @@ final class ShopifyOrderImportService
         }
 
         $prescriptionReference = trim((string) ($payload['prescription_reference'] ?? ''));
+        $prescriptionId = null;
+        $prescriptionExpired = false;
         $this->stage($event, $orderId, 'prescription_reference_lookup');
         if ($prescriptionReference !== '') {
+            $doctorPrescription = $this->findDoctorPrescription($prescriptionReference, $patientId, (int) $clinicId);
+            if ($doctorPrescription !== null) {
+                $prescriptionExpired = ! empty($doctorPrescription['valid_until']) && (string) $doctorPrescription['valid_until'] < date('Y-m-d');
+                if (! $prescriptionExpired) {
+                    $prescriptionId = (int) $doctorPrescription['id'];
+                    ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'active']);
+                }
+            }
+            if ($doctorPrescription !== null) {
+                if ($prescriptionExpired) {
+                    $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_EXPIRED, $eventId, $patientId, $clinicId);
+                    $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_EXPIRED);
+                    $this->queueNotification($importId, 'prescription_expired');
+                    return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
+                }
+            } else {
             try {
                 $document = $this->findPrescriptionDocument($prescriptionReference, $store, (string) ($payload['customer_id'] ?? ''), $patientId);
             } catch (\Throwable $exception) {
@@ -281,6 +300,7 @@ final class ShopifyOrderImportService
                 service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'prescription_awaiting_review']);
                 return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
             }
+            }
         }
 
         // A successful reconciliation clears only stale mapping/quarantine
@@ -294,22 +314,31 @@ final class ShopifyOrderImportService
         $prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);
         if (trim((string) ($payload['prescription_reference'] ?? '')) === '') {
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_status' => $prescriptionRequired ? 'missing' : 'not_required']);
+            if ($prescriptionRequired && db_connect()->tableExists('shopify_order_import_lines')) {
+                db_connect()->table('shopify_order_import_lines')->where('import_id', $importId)->whereIn('review_status', ['mapped', 'prescription_required'])->update(['review_status' => 'prescription_missing', 'updated_at' => date('Y-m-d H:i:s')]);
+            }
         }
         $this->stage($event, $orderId, 'mapping_resolved', null, 'shopify_order_import_lines', 'internal_import_id', true);
         $this->stage($event, $orderId, 'prescription_resolved', null, 'shopify_order_imports', 'internal_import_id', true);
-        $prescriptionId = $this->candidatePrescriptionId($payload);
-
         if ($prescriptionRequired && ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
             $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
+            $this->queueNotification($importId, 'new_prescription_required');
             service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'missing_prescription']);
 
+            return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
+        }
+        if ($prescriptionId !== null && ! $this->prescriptionItemsMatchOrder($prescriptionId, $importId)) {
+            $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_INVALID, $eventId, $patientId, $clinicId);
+            $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_INVALID);
+            $this->queueNotification($importId, 'prescription_rejected');
             return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
         }
 
         $rootinsOrderId = $this->ensurePharmacyOrderForImport($event, $importId, $prescriptionId, $patientId, $clinicId, $store, $orderId, $payload, $prescriptionRequired);
         $this->stage($event, $orderId, 'order_status_update');
         $this->setImportState($importId, 'imported', null, $eventId, $patientId, $clinicId, $rootinsOrderId);
+        $this->queueNotification($importId, 'complete_approval');
         try {
             $this->linkImportedLines($importId, $rootinsOrderId);
             $this->stage($event, $orderId, 'line_item_status_update');
@@ -387,7 +416,7 @@ final class ShopifyOrderImportService
         ])->update();
     }
 
-    public function importExisting(int $importId, ?int $prescriptionId = null, ?string $correlationId = null): array
+    public function importExisting(int $importId, ?string $prescriptionReference = null, ?string $correlationId = null): array
     {
         $import = ($this->imports ?? new ShopifyOrderImportModel())->find($importId);
 
@@ -408,8 +437,13 @@ final class ShopifyOrderImportService
             return ['http' => 422, 'body' => ['status' => false, 'msg' => 'The Shopify order data is unavailable.']];
         }
 
-        if ($prescriptionId !== null) {
-            $payload['rootins_prescription_id'] = $prescriptionId;
+        if ($prescriptionReference !== null) {
+            $prescriptionReference = trim($prescriptionReference);
+            if (! preg_match('/^RX[PN]-[A-Z0-9-]{6,191}$/', $prescriptionReference)) {
+                return ['http' => 422, 'body' => ['status' => false, 'msg' => 'A valid prescription reference is required.']];
+            }
+            $payload['prescription_reference'] = $prescriptionReference;
+            unset($payload['rootins_prescription_id']);
             $event['payload_json'] = json_encode($payload);
             $events = $this->events ?? new ShopifyWebhookEventService();
 
@@ -527,17 +561,30 @@ final class ShopifyOrderImportService
         $existing = $table->where('import_id', $importId)->where('shopify_refund_id', $refundId)->get(1)->getRowArray();
         $data = ['store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_refund_id' => $refundId, 'amount' => $amount, 'currency' => $currency !== '' ? $currency : null, 'status' => $refundStatus, 'updated_at' => date('Y-m-d H:i:s')];
         if ($existing === null) { $data['import_id'] = $importId; $data['created_at'] = date('Y-m-d H:i:s'); $table->insert($data); } else $table->where('id', (int) $existing['id'])->update($data);
+        foreach ((array) ($payload['refund_line_items'] ?? []) as $line) {
+            $lineId = trim((string) ($line['line_item_id'] ?? ''));
+            if ($lineId === '' || ! $db->tableExists('shopify_order_import_line_refunds')) continue;
+            $lineTable = $db->table('shopify_order_import_line_refunds');
+            $lineData = ['import_id' => $importId, 'store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_refund_id' => $refundId, 'shopify_line_item_id' => $lineId, 'quantity' => max(0, (int) ($line['quantity'] ?? 0)), 'amount' => (float) ($line['amount'] ?? 0), 'status' => $refundStatus, 'updated_at' => date('Y-m-d H:i:s')];
+            $lineExisting = $lineTable->where(['import_id' => $importId, 'shopify_refund_id' => $refundId, 'shopify_line_item_id' => $lineId])->get(1)->getRowArray();
+            if ($lineExisting === null) { $lineData['created_at'] = date('Y-m-d H:i:s'); $lineTable->insert($lineData); } else $lineTable->where('id', (int) $lineExisting['id'])->update($lineData);
+            $db->table('shopify_order_import_lines')->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->update(['review_status' => $refundStatus === 'partially_refunded' ? 'partially_refunded' : 'refunded', 'updated_at' => date('Y-m-d H:i:s')]);
+        }
         $affected = $db->affectedRows();
         $this->diagnosticAffectedRows = $affected;
         $this->stage($event, $orderId, 'refund_record_upserted', null, 'shopify_order_import_refunds', 'internal_import_id_refund_id', true, $affected);
-        $updates = ['payment_status' => 'refunded', 'financial_status' => $refundStatus, 'last_event_id' => (int) $event['id'], 'retry_count' => (int) ($import['retry_count'] ?? 0) + 1, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')];
+        $updates = ['payment_status' => $refundStatus, 'financial_status' => $refundStatus, 'last_event_id' => (int) $event['id'], 'retry_count' => (int) ($import['retry_count'] ?? 0) + 1, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')];
         $db->table('shopify_order_imports')->where('id', $importId)->update($updates);
         if ((int) ($import['rootins_order_id'] ?? 0) > 0) {
             $invoice = $db->table('invoices')->where('order_id', (int) $import['rootins_order_id']);
             if ((int) ($import['clinic_id'] ?? 0) > 0) $invoice->where('clinic_id', (int) $import['clinic_id']);
-            $invoice->update(['payment_status' => 'refunded', 'updated_at' => date('Y-m-d H:i:s')]);
+            $invoice->update(['payment_status' => $refundStatus, 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+        if ((int) ($import['rootins_order_id'] ?? 0) > 0) {
+            $db->table('medicine_orders')->where('id', (int) $import['rootins_order_id'])->update(['payment_status' => $refundStatus, 'updated_at' => date('Y-m-d H:i:s')]);
         }
         $this->stage($event, $orderId, 'refund_payment_reconciled', null, 'shopify_order_imports', 'internal_import_id', true, $db->affectedRows());
+        $this->queueNotification($importId, $refundStatus === 'partially_refunded' ? 'partial_refund' : 'complete_refund');
         return ['status' => 'processed', 'refund_id' => $refundId, 'refund_status' => $refundStatus, 'amount' => $amount, 'currency' => $currency, 'duplicate' => $existing !== null];
     }
 
@@ -555,6 +602,15 @@ final class ShopifyOrderImportService
         $existing = $table->where('import_id', $importId)->where('shopify_fulfillment_id', $fulfillmentId)->get(1)->getRowArray();
         $data = ['store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_fulfillment_id' => $fulfillmentId, 'status' => $status, 'tracking_company' => $carrier !== '' ? $carrier : null, 'tracking_number' => $trackingNumber !== '' ? $trackingNumber : null, 'tracking_url' => $trackingUrl !== '' ? $trackingUrl : null, 'fulfilled_at' => $status === 'fulfilled' ? date('Y-m-d H:i:s') : null, 'updated_at' => date('Y-m-d H:i:s')];
         if ($existing === null) { $data['import_id'] = $importId; $data['created_at'] = date('Y-m-d H:i:s'); $table->insert($data); } else $table->where('id', (int) $existing['id'])->update($data);
+        foreach ((array) ($payload['fulfillment_line_items'] ?? []) as $line) {
+            $lineId = trim((string) ($line['line_item_id'] ?? ''));
+            if ($lineId === '' || ! $db->tableExists('shopify_order_import_line_fulfillments')) continue;
+            $lineTable = $db->table('shopify_order_import_line_fulfillments');
+            $lineData = ['import_id' => $importId, 'store_domain' => (string) $import['store_domain'], 'shopify_order_id' => $orderId, 'shopify_fulfillment_id' => $fulfillmentId, 'shopify_line_item_id' => $lineId, 'quantity' => max(0, (int) ($line['quantity'] ?? 0)), 'status' => $status, 'updated_at' => date('Y-m-d H:i:s')];
+            $lineExisting = $lineTable->where(['import_id' => $importId, 'shopify_fulfillment_id' => $fulfillmentId, 'shopify_line_item_id' => $lineId])->get(1)->getRowArray();
+            if ($lineExisting === null) { $lineData['created_at'] = date('Y-m-d H:i:s'); $lineTable->insert($lineData); } else $lineTable->where('id', (int) $lineExisting['id'])->update($lineData);
+            $db->table('shopify_order_import_lines')->where('import_id', $importId)->where('shopify_line_item_id', $lineId)->update(['review_status' => $status === 'fulfilled' ? 'fulfilled' : 'partially_fulfilled', 'updated_at' => date('Y-m-d H:i:s')]);
+        }
         $affected = $db->affectedRows();
         $this->diagnosticAffectedRows = $affected;
         $this->stage($event, $orderId, 'fulfillment_record_upserted', null, 'shopify_order_import_fulfillments', 'internal_import_id_fulfillment_id', true, $affected);
@@ -562,7 +618,20 @@ final class ShopifyOrderImportService
         $db->table('shopify_order_imports')->where('id', $importId)->update(['fulfillment_status' => $status, 'last_event_id' => (int) $event['id'], 'retry_count' => (int) ($import['retry_count'] ?? 0) + 1, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')]);
         if ((int) ($import['rootins_order_id'] ?? 0) > 0) $db->table('medicine_orders')->where('id', (int) $import['rootins_order_id'])->update(['delivery_status' => $dbStatus, 'delivery_provider' => $carrier, 'tracking_reference' => $trackingNumber, 'updated_at' => date('Y-m-d H:i:s')]);
         $this->stage($event, $orderId, 'fulfillment_delivery_reconciled', null, 'shopify_order_imports', 'internal_import_id', true, $db->affectedRows());
+        $this->queueNotification($importId, $status === 'fulfilled' ? 'complete_fulfilment' : 'partial_fulfilment');
         return ['status' => 'processed', 'fulfillment_id' => $fulfillmentId, 'delivery_status' => $status, 'duplicate' => $existing !== null];
+    }
+
+    private function queueNotification(int $importId, string $type): void
+    {
+        if (! db_connect()->tableExists('shopify_order_notifications')) return;
+        $import = ($this->imports ?? new ShopifyOrderImportModel())->find($importId);
+        if ($import === null) return;
+        $contacts = ['email' => (string) ($import['customer_email_snapshot'] ?? ''), 'sms' => (string) ($import['customer_mobile_snapshot'] ?? ''), 'whatsapp' => (string) ($import['customer_mobile_snapshot'] ?? '')];
+        foreach ($contacts as $channel => $address) {
+            if (trim($address) === '') continue;
+            try { (new ShopifyOrderNotificationModel())->insert(['store_domain' => (string) ($import['store_domain'] ?? ''), 'import_id' => $importId, 'patient_id' => (int) ($import['patient_id'] ?? 0) ?: null, 'shopify_customer_id' => (string) ($import['shopify_customer_id'] ?? ''), 'shopify_order_id' => (string) ($import['shopify_order_id'] ?? ''), 'notification_type' => $type, 'channel' => $channel, 'template_key' => 'shopify.' . $type, 'safe_payload_json' => json_encode(['order_id' => (string) ($import['shopify_order_number'] ?? $import['shopify_order_id'] ?? ''), 'recipient' => $address], JSON_UNESCAPED_SLASHES), 'status' => 'pending', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]); } catch (\Throwable $e) { log_message('warning', 'Shopify notification outbox enqueue failed: ' . get_class($e)); }
+        }
     }
 
     /** @return array<string, mixed> */
@@ -729,6 +798,7 @@ final class ShopifyOrderImportService
                 'shopify_price_snapshot' => $preserveLineCommercials && $existing !== null ? (float) ($existing['shopify_price_snapshot'] ?? 0) : (float) ($item['price'] ?? 0),
                 'status' => $existing !== null && (int) ($existing['rootins_order_item_id'] ?? 0) > 0 && $status === 'mapped' ? 'imported' : $status,
                 'mapping_reason' => $resolution['reason'],
+                'review_status' => $existing['review_status'] ?? ($resolution['result'] === 'mapped' ? 'mapped' : ($resolution['result'] === 'inactive' ? 'inactive' : 'unmapped')),
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
             try {
@@ -1008,16 +1078,10 @@ GRAPHQL, ['id' => $orderGid]);
             return $link;
         }
 
-        $resolved = (new ShopifyCustomerIdentityService())->resolveOrderCustomer($store, $customerId, []);
-        if (($resolved['patient_id'] ?? null) === null) {
-            return null;
-        }
-
-        return [
-            'patient_id' => (int) $resolved['patient_id'],
-            'link_status' => 'linked',
-            'matched_by' => (string) ($resolved['matched_by'] ?? 'source_reference'),
-        ];
+        // Medicine-order webhooks may consume only a pre-created, linked
+        // identity. They must never infer a patient from email/phone or
+        // create a second patient during order import.
+        return null;
     }
 
     private function refreshImportedPatientIdentity(int $importId, string $store, string $customerId): void
@@ -1084,26 +1148,9 @@ GRAPHQL, ['id' => $orderGid]);
     /** @param array<string, mixed> $event @param array<string, mixed> $payload */
     private function resolveOrderCustomerIdentity(array $event, array $payload): void
     {
-        $customerId = $this->shopifyId($payload['customer_id'] ?? '');
-        $customer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
-        if ($customerId === '' || $customer === []) return;
-
-        try {
-            (new ShopifyCustomerIdentityService())->resolveOrderCustomer(
-                strtolower(trim((string) ($event['store_domain'] ?? ''))),
-                $customerId,
-                $customer,
-            );
-        } catch (\Throwable $exception) {
-            log_message('warning', 'Shopify medicine-order customer identity resolution unavailable exception=' . get_class($exception));
-        }
-    }
-
-    private function candidatePrescriptionId(array $payload): ?int
-    {
-        $value = (int) ($payload['rootins_prescription_id'] ?? 0);
-
-        return $value > 0 ? $value : null;
+        // Patient registration/linking is a checkout readiness step. The
+        // medicine-order webhook only consumes the existing scoped link in
+        // linkedCustomer(); it must not infer or create patient identities.
     }
 
     private function findPrescriptionDocument(string $reference, string $store, string $customerId, int $patientId): ?array
@@ -1114,13 +1161,50 @@ GRAPHQL, ['id' => $orderGid]);
             ->where('patient_id', $patientId)->get(1)->getRowArray();
     }
 
+    private function findDoctorPrescription(string $reference, int $patientId, int $clinicId): ?array
+    {
+        if ($reference === '' || $patientId <= 0 || $clinicId <= 0) return null;
+        return db_connect()->table('prescriptions')
+            ->select('id, valid_until, status')
+            ->where('prescription_number', $reference)
+            ->where('patient_id', $patientId)
+            ->where('clinic_id', $clinicId)
+            ->whereIn('status', ['active', 'approved', 'completed', 'finalized'])
+            ->get(1)->getRowArray() ?: null;
+    }
+
+    private function prescriptionIdForReference(string $reference, int $patientId, int $clinicId): ?int
+    {
+        $row = $this->findDoctorPrescription(trim($reference), $patientId, $clinicId);
+        return $row === null ? null : (int) $row['id'];
+    }
+
+    private function prescriptionItemsMatchOrder(int $prescriptionId, int $importId): bool
+    {
+        $prescribed = [];
+        foreach (db_connect()->table('prescription_items')->select('medicine_id, quantity')->where('prescription_id', $prescriptionId)->get()->getResultArray() as $item) {
+            $medicineId = (int) ($item['medicine_id'] ?? 0);
+            if ($medicineId <= 0) return false;
+            $prescribed[$medicineId] = ($prescribed[$medicineId] ?? 0) + (float) ($item['quantity'] ?? 0);
+        }
+        $ordered = [];
+        foreach (db_connect()->table('shopify_order_import_lines')->select('medicine_id, quantity, status')->where('import_id', $importId)->get()->getResultArray() as $line) {
+            $medicineId = (int) ($line['medicine_id'] ?? 0);
+            if ($medicineId <= 0 || ! isset($prescribed[$medicineId]) || ! in_array((string) ($line['status'] ?? ''), ['mapped', 'imported', 'pending'], true)) return false;
+            $ordered[$medicineId] = ($ordered[$medicineId] ?? 0) + (float) ($line['quantity'] ?? 0);
+        }
+        foreach ($ordered as $medicineId => $quantity) if ($quantity > ($prescribed[$medicineId] ?? 0)) return false;
+        return $ordered !== [];
+    }
+
     private function approvedPrescriptionMatches(int $prescriptionId, int $patientId, int $clinicId): bool
     {
         $row = db_connect()->table('prescriptions')
             ->where('id', $prescriptionId)
             ->where('patient_id', $patientId)
             ->where('clinic_id', $clinicId)
-            ->where('status', 'approved')
+            ->whereIn('status', ['active', 'approved', 'completed', 'finalized'])
+            ->groupStart()->where('valid_until >=', date('Y-m-d'))->orWhere('valid_until', null)->groupEnd()
             ->get(1)
             ->getRowArray();
 
@@ -1484,11 +1568,14 @@ GRAPHQL, ['id' => $orderGid]);
         $shopifyOrderId = $this->shopifyId($payload['id'] ?? '');
         $this->stage($event, $shopifyOrderId, 'payment_update_started', null, 'shopify_order_imports', 'internal_import_id', true);
         $prescriptionRequired = $this->prescriptionRequiredForOrder($store, $payload);
+        $import = ($this->imports ?? new ShopifyOrderImportModel())->find($importId) ?: [];
+        $patientId = (int) ($import['patient_id'] ?? 0);
+        $prescriptionId = $this->prescriptionIdForReference((string) ($import['prescription_reference'] ?? $payload['prescription_reference'] ?? ''), $patientId, $clinicId);
         $orderId = $this->ensurePharmacyOrderForImport(
             $event,
             $importId,
-            $this->candidatePrescriptionId($payload),
-            (int) (($this->imports ?? new ShopifyOrderImportModel())->find($importId)['patient_id'] ?? 0),
+            $prescriptionId,
+            $patientId,
             $clinicId,
             $store,
             $shopifyOrderId,
@@ -1755,7 +1842,8 @@ GRAPHQL, ['id' => $orderGid]);
         return match (strtolower(trim($status))) {
             'authorized', 'partially_paid' => 'authorized',
             'paid' => 'paid',
-            'refunded', 'partially_refunded' => 'refunded',
+            'refunded' => 'refunded',
+            'partially_refunded' => 'partially_refunded',
             'voided', 'failed' => 'failed',
             default => null,
         };

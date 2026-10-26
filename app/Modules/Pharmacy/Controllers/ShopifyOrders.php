@@ -4,19 +4,23 @@ namespace Pharmacy\Controllers;
 
 use App\Services\Shopify\ShopifyOrderOperationsService;
 use App\Services\Shopify\ShopifyPrescriptionUploadService;
+use App\Services\Shopify\ShopifyOrderReviewService;
 use CodeIgniter\HTTP\ResponseInterface;
 use Pharmacy\Services\PharmacyScope;
 use InvalidArgumentException;
 
 final class ShopifyOrders extends \App\Controllers\BaseController
 {
+    // temporaryUrl is intentionally not used here; private objects are streamed through the app.
     private PharmacyScope $scope;
     private ShopifyOrderOperationsService $operations;
+    private ShopifyOrderReviewService $review;
 
     public function __construct()
     {
         $this->scope = new PharmacyScope();
         $this->operations = new ShopifyOrderOperationsService();
+        $this->review = new ShopifyOrderReviewService();
     }
 
     public function index(): string|ResponseInterface
@@ -26,8 +30,18 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
         try {
             $filters = $this->request->getGet();
+            $prescriptions = new ShopifyPrescriptionUploadService();
+            $userId = (int) (session('user')['id'] ?? 0);
+            $imports = $this->operations->queue(is_array($filters) ? $filters : [], $clinicId);
+            foreach ($imports as &$import) {
+                if (! empty($import['prescription_document_id'])) {
+                    $token = $prescriptions->issueAccessToken((int) $import['id'], (int) $import['prescription_document_id'], $clinicId, $userId);
+                    $import['prescription_url'] = base_url('pharmacy/shopify-orders/' . (int) $import['id'] . '/prescription?token=' . rawurlencode($token));
+                }
+            }
+            unset($import);
             return view(PHARMACY_VIEW . 'pages/shopify_orders/index', [
-                'imports' => $this->operations->queue(is_array($filters) ? $filters : [], $clinicId),
+                'imports' => $imports,
                 'counters' => $this->operations->counters($clinicId),
                 'filters' => is_array($filters) ? $filters : [],
                 'canManage' => $this->scope->can('pharmacy.shopify_orders.manage'),
@@ -46,6 +60,10 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         try {
             $import = $this->operations->detail($id, $clinicId);
             if ($import === null) return $this->response->setStatusCode(404)->setBody('Shopify order was not found.');
+            if (! empty($import['prescription_document_id'])) {
+                $token = (new ShopifyPrescriptionUploadService())->issueAccessToken($id, (int) $import['prescription_document_id'], $clinicId, (int) (session('user')['id'] ?? 0));
+                $import['prescription_url'] = base_url('pharmacy/shopify-orders/' . $id . '/prescription?token=' . rawurlencode($token));
+            }
             return view(PHARMACY_VIEW . 'pages/shopify_orders/detail', [
                 'import' => $import,
                 'canManage' => $this->scope->can('pharmacy.shopify_orders.manage'),
@@ -78,10 +96,14 @@ final class ShopifyOrders extends \App\Controllers\BaseController
 
         try {
             $import = $this->operations->detail($id, $clinicId);
+            $token = trim((string) $this->request->getGet('token'));
             $documentId = (int) ($import['prescription_document_id'] ?? 0);
             $document = $documentId > 0 ? (new ShopifyPrescriptionUploadService())->find($documentId) : null;
+            $userId = (int) (session('user')['id'] ?? 0);
             $authorizedDocument = $import !== null
                 && $document !== null
+                && $token !== ''
+                && (new ShopifyPrescriptionUploadService())->verifyAccessToken($token, $id, $documentId, $clinicId, $userId)
                 && (int) ($document['clinic_id'] ?? 0) === $clinicId
                 && (int) ($document['patient_id'] ?? 0) === (int) ($import['patient_id'] ?? 0)
                 && (string) ($document['shopify_store_domain'] ?? '') === (string) ($import['store_domain'] ?? '')
@@ -89,8 +111,9 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             if (! $authorizedDocument) {
                 return $this->response->setStatusCode(404)->setBody('Prescription was not found.');
             }
-            $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => $documentId]);
-            return redirect()->to((new ShopifyPrescriptionUploadService())->temporaryUrl($document, 5));
+            $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => $documentId, 'user_id' => $userId]);
+            $file = (new ShopifyPrescriptionUploadService())->readAuthorizedDocument($document);
+            return $this->response->setHeader('Content-Type', $file['mime_type'])->setHeader('Content-Disposition', 'inline; filename="' . $file['file_name'] . '"')->setBody($file['body']);
         } catch (\Throwable) {
             return $this->response->setStatusCode(503)->setBody('Prescription could not be loaded safely.');
         }
@@ -117,6 +140,28 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             $message = $exception instanceof InvalidArgumentException ? $exception->getMessage() : 'Prescription review could not be processed safely.';
             return $this->json(false, $message, 422);
         }
+    }
+
+    public function reviewLine(): ResponseInterface
+    {
+        $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
+        if ($clinicId === null) return $this->json(false, 'Shopify order management is not permitted.', 403);
+        try {
+            $data = $this->review->reviewLine((int) $this->request->getPost('import_id'), (int) $this->request->getPost('line_id'), (string) $this->request->getPost('action'), $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
+            return $this->json(true, 'Medicine line review saved.', 200, $data);
+        } catch (InvalidArgumentException $e) { return $this->json(false, $e->getMessage(), 422); }
+        catch (\Throwable $e) { log_message('error', 'Shopify line review failed: ' . get_class($e)); return $this->json(false, 'Medicine line review could not be saved safely.', 500); }
+    }
+
+    public function reviewOrder(): ResponseInterface
+    {
+        $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
+        if ($clinicId === null) return $this->json(false, 'Shopify order management is not permitted.', 403);
+        try {
+            $data = $this->review->reviewOrder((int) $this->request->getPost('import_id'), (string) $this->request->getPost('action'), $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
+            return $this->json(true, 'Shopify order review saved.', 200, $data);
+        } catch (InvalidArgumentException $e) { return $this->json(false, $e->getMessage(), 422); }
+        catch (\Throwable $e) { log_message('error', 'Shopify order review failed: ' . get_class($e)); return $this->json(false, 'Shopify order review could not be saved safely.', 500); }
     }
 
     public function action(int $id): ResponseInterface

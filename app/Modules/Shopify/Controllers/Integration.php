@@ -671,10 +671,10 @@ final class Integration extends BaseAdminController
     {
         $correlationId = bin2hex(random_bytes(16));
         $importId = (int) $this->request->getPost('import_id');
-        $prescriptionId = (int) $this->request->getPost('prescription_id');
+        $prescriptionReference = trim((string) $this->request->getPost('prescription_reference'));
 
         try {
-            $result = (new ShopifyOrderImportService())->importExisting($importId, $prescriptionId > 0 ? $prescriptionId : null, $correlationId);
+            $result = (new ShopifyOrderImportService())->importExisting($importId, $prescriptionReference !== '' ? $prescriptionReference : null, $correlationId);
 
             $body = (array) ($result['body'] ?? []);
             $body['correlation_id'] = $correlationId;

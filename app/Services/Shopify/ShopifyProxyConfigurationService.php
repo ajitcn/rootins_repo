@@ -7,7 +7,7 @@ use InvalidArgumentException;
 
 final class ShopifyProxyConfigurationService
 {
-    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload'];
+    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload', 'prescriptions.active', 'orders.status'];
 
     public function __construct(private readonly ?ShopifyCoreApiProxyConfigurationModel $model = null) {}
 

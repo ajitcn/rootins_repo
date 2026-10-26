@@ -12,6 +12,7 @@ use Admin\Models\PrescriptionModel;
 use Admin\Services\MedicineLookupService;
 use Admin\Models\User;
 use App\Controllers\BaseController;
+use App\Services\Common\PrescriptionSnapshotService;
 use App\Services\AppointmentConsultationEligibility;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -591,22 +592,23 @@ class Clinical extends BaseController
         }
         $existing = $this->prescriptions->where('consultation_id', $consultationId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->first();
 
-        if ($existing !== null && $existing['status'] === 'approved') {
-            return $this->json(409, false, 'Approved prescriptions cannot be modified.');
+        if ($existing !== null && in_array((string) $existing['status'], ['active', 'approved', 'completed', 'finalized'], true)) {
+            return $this->json(409, false, 'Finalized prescriptions cannot be modified.');
         }
 
         try {
             $db = db_connect();
             $db->transBegin();
             $now = date('Y-m-d H:i:s');
-            $data = ['consultation_id' => $consultationId, 'patient_id' => (int) $consultation['patient_id'], 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id'], 'prescription_date' => trim((string) $this->request->getPost('prescription_date')) ?: date('Y-m-d'), 'notes' => $this->nullable('notes'), 'status' => $status, 'updated_at' => $now];
+            $prescriptionDate = trim((string) $this->request->getPost('prescription_date')) ?: date('Y-m-d');
+            $data = ['consultation_id' => $consultationId, 'patient_id' => (int) $consultation['patient_id'], 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id'], 'prescription_date' => $prescriptionDate, 'valid_until' => $this->prescriptionValidUntil($status, $prescriptionDate), 'notes' => $this->nullable('notes'), 'status' => $status, 'updated_at' => $now];
 
             if ($existing === null) {
                 $data['prescription_number'] = 'TMP-RX-' . bin2hex(random_bytes(8));
                 $data['created_at'] = $now;
                 $id = $this->prescriptions->insert($data);
 
-                if (!$id || !$this->prescriptions->update($id, ['prescription_number' => sprintf('RXN-%06d', $id)])) {
+                if (!$id || !$this->prescriptions->update($id, ['prescription_number' => sprintf('RXP-%06d', $id)])) {
                     throw new \RuntimeException('Prescription insert failed.');
                 }
             } else {
@@ -635,6 +637,9 @@ class Clinical extends BaseController
             return $this->json(500, false, 'Prescription could not be saved safely.');
         }
         $this->audit('doctor.prescription_saved', $context, ['prescription_id' => $id, 'consultation_id' => $consultationId, 'status' => $status]);
+        if (in_array($status, ['active', 'approved', 'completed', 'finalized'], true)) {
+            try { (new PrescriptionSnapshotService())->createIfFinalized((int) $id); } catch (Throwable $e) { log_message('error', 'Doctor prescription PDF snapshot failed safely: ' . get_class($e)); }
+        }
 
         return $this->json(200, true, $status === 'submitted' ? 'Prescription submitted for review.' : 'Prescription draft saved.', ['prescription_id' => $id]);
     }
@@ -836,6 +841,7 @@ class Clinical extends BaseController
                     'doctor_id' => $context['doctor_id'],
                     'clinic_id' => $context['clinic_id'],
                     'prescription_date' => date('Y-m-d'),
+                    'valid_until' => $this->prescriptionValidUntil($prescriptionStatus, date('Y-m-d')),
                     'notes' => $this->nullable('notes'),
                     'status' => $prescriptionStatus,
                     'updated_at' => $now,
@@ -846,7 +852,7 @@ class Clinical extends BaseController
                     $prescriptionData['created_at'] = $now;
                     $prescriptionId = $this->prescriptions->insert($prescriptionData);
 
-                    if (! $prescriptionId || ! $this->prescriptions->update($prescriptionId, ['prescription_number' => sprintf('RXN-%06d', $prescriptionId)])) {
+                    if (! $prescriptionId || ! $this->prescriptions->update($prescriptionId, ['prescription_number' => sprintf('RXP-%06d', $prescriptionId)])) {
                         throw new \RuntimeException('Prescription insert failed.');
                     }
                 } else {
@@ -1098,6 +1104,20 @@ class Clinical extends BaseController
         if (! $hasRows && $durationInput !== '') {
             $errors['items'] = 'Add at least one medicine or clear the duration.';
         }
+    }
+
+    private function prescriptionValidUntil(string $status, string $prescriptionDate): ?string
+    {
+        if (! in_array($status, ['submitted', 'completed', 'approved', 'active', 'finalized'], true)) {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $prescriptionDate);
+        if ($date === false) {
+            $date = new \DateTimeImmutable('today');
+        }
+
+        return $date->modify('+30 days')->format('Y-m-d');
     }
 
     private function normalizePrescriptionItems(mixed $posted, array &$errors, int $clinicId): array

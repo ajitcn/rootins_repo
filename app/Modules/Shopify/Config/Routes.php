@@ -55,4 +55,8 @@ $routes->get('rootins-proxy/health', '\App\Modules\Shopify\Controllers\Proxy::he
 $routes->get('rootins-proxy/appointments/availability', '\App\Modules\Shopify\Controllers\Proxy::availability');
 $routes->post('rootins-proxy/appointments/book', '\App\Modules\Shopify\Controllers\Proxy::book');
 $routes->post('rootins-proxy/patients/register', '\App\Modules\Shopify\Controllers\Proxy::register');
+$routes->post('apps/rootins/patients/register', '\App\Modules\Shopify\Controllers\Proxy::register');
+$routes->get('apps/rootins/prescriptions/active', '\App\Modules\Shopify\Controllers\ActivePrescriptions::show');
+$routes->get('rootins-proxy/prescriptions/active', '\App\Modules\Shopify\Controllers\ActivePrescriptions::show');
 $routes->post('rootins-proxy/prescriptions/upload', '\App\Modules\Shopify\Controllers\Proxy::upload');
+$routes->get('rootins-proxy/orders/status', '\App\Modules\Shopify\Controllers\CustomerOrderStatus::show');

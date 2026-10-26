@@ -21,6 +21,8 @@ $routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\
     $routes->post('order-mappings/recheck', 'ShopifyOrderOperations::recheckMappings', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-mappings/toggle/(:num)', 'ShopifyOrderOperations::toggleMapping/$1', ['filter' => 'permission:shopify.order.operations']);
     $routes->post('order-operations/(:num)/action', 'ShopifyOrderOperations::action/$1', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-operations/review/line', 'ShopifyOrderOperations::reviewLine', ['filter' => 'permission:shopify.order.operations']);
+    $routes->post('order-operations/review/order', 'ShopifyOrderOperations::reviewOrder', ['filter' => 'permission:shopify.order.operations']);
 });
 $routes->group('admin/access', ['namespace' => 'Admin\Controllers\Access', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Access::index', ['filter' => 'permission:role.manage']);

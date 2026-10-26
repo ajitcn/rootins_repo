@@ -172,12 +172,13 @@ final class ShopifyWebhookEventService
                     'properties' => $this->safeAppointmentProperties($item['properties'] ?? []),
                 ];
             }
-            $safe['rootins_prescription_id'] = $this->prescriptionReference($payload);
             $safe['prescription_reference'] = $this->shopifyPrescriptionReference($payload);
             $safe['prescription_bundle_reference'] = $this->shopifyPrescriptionBundleReference($payload);
             $safe['rootins_appointment_intent'] = $this->appointmentIntentReference($payload);
             $safe['refund_id'] = (string) ($payload['refund_id'] ?? ($payload['id'] ?? ''));
             $safe['fulfillment_id'] = (string) ($payload['fulfillment_id'] ?? ($payload['id'] ?? ''));
+            $safe['refund_line_items'] = $this->safeExternalLineItems($payload['refund_line_items'] ?? []);
+            $safe['fulfillment_line_items'] = $this->safeExternalLineItems($payload['line_items'] ?? ($payload['fulfillment_line_items'] ?? []));
             $safe['refund_transactions'] = array_values(array_map(static function (mixed $transaction): array {
                 if (! is_array($transaction)) return [];
                 return ['amount' => (string) ($transaction['amount'] ?? ''), 'currency' => (string) ($transaction['currency'] ?? '')];
@@ -213,30 +214,25 @@ final class ShopifyWebhookEventService
         return $safe;
     }
 
+    private function safeExternalLineItems(mixed $items): array
+    {
+        $safe = [];
+        foreach ((array) $items as $item) {
+            if (! is_array($item)) continue;
+            $line = is_array($item['line_item'] ?? null) ? $item['line_item'] : $item;
+            $lineId = (string) ($item['line_item_id'] ?? $line['id'] ?? '');
+            if ($lineId === '') continue;
+            $safe[] = ['line_item_id' => $lineId, 'quantity' => max(0, (int) ($item['quantity'] ?? $line['quantity'] ?? 0)), 'amount' => (string) ($item['subtotal'] ?? $item['amount'] ?? '')];
+        }
+        return $safe;
+    }
+
     public function replacePayload(int $eventId, string $payload): bool
     {
         return $this->update($eventId, [
             'payload_json' => $payload,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
-    }
-
-    private function prescriptionReference(array $payload): ?int
-    {
-        foreach ((array) ($payload['note_attributes'] ?? []) as $attribute) {
-            if (!is_array($attribute)) {
-                continue;
-            }
-            $name = strtolower(trim((string) ($attribute['name'] ?? '')));
-
-            if (in_array($name, ['rootins_prescription_id', 'prescription_id'], true)) {
-                $id = (int) ($attribute['value'] ?? 0);
-
-                return $id > 0 ? $id : null;
-            }
-        }
-
-        return null;
     }
 
     private function shopifyPrescriptionReference(array $payload): ?string
@@ -261,7 +257,7 @@ final class ShopifyWebhookEventService
         }
         foreach ($values as $value) {
             $value = trim($value);
-            if (preg_match('/^RXP-[A-Z0-9-]{16,191}$/', $value)) return $value;
+            if (preg_match('/^RX[PN]-[A-Z0-9-]{6,191}$/', $value)) return $value;
         }
         return null;
     }

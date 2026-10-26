@@ -47,6 +47,28 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('unit_price', $service);
     }
 
+    public function testMedicineOrdersRequireCheckoutPatientReadinessAndUseOnlyScopedLinks(): void
+    {
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
+        $import = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $failure = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportFailure.php');
+        self::assertStringContainsString("apps/rootins/patients/register", $routes);
+        foreach (['logged_in_customer_id', 'booking_enabled', 'order_ready', 'medicine_order_ready', 'readiness_status', 'patient_reference'] as $marker) self::assertStringContainsString($marker, $proxy);
+        foreach (['awaiting_patient_link', 'SHOPIFY_PATIENT_LINK_REQUIRED', 'markProcessed'] as $marker) self::assertStringContainsString($marker, $import . $failure);
+        self::assertStringContainsString('store_domain', $import);
+        self::assertStringContainsString('shopify_customer_id', $import);
+        self::assertStringNotContainsString('resolveOrderCustomer($store, $customerId', $import);
+    }
+
+    public function testRegistrationAndRetryRemainIdempotentAndCrossStoreScoped(): void
+    {
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $operations = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderOperationsService.php');
+        foreach (['findExistingPatient', 'ensureCustomerPatientLink', 'SHOPIFY_STORE_MISMATCH', 'already_registered', 'shopify_store_domain', 'shopify_customer_id'] as $marker) self::assertStringContainsString($marker, $proxy);
+        foreach (['retry_validation', 'importExisting($id, null, $correlationId)'] as $marker) self::assertStringContainsString($marker, $operations);
+    }
+
     public function testImportRecordsSafeStagesAndSpecificFailureCategories(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
@@ -133,7 +155,7 @@ final class ShopifyOrderImportTest extends TestCase
         $integration = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Integration.php');
 
         foreach ([
-            'importExisting(int $importId, ?int $prescriptionId = null, ?string $correlationId = null)',
+            'importExisting(int $importId, ?string $prescriptionReference = null, ?string $correlationId = null)',
             'processEvent($eventId, true, $correlationId)',
             'SHOPIFY_ORDER_LINE_IMPORT_FAILURE',
             'sanitized_exception_message',
@@ -152,7 +174,7 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringContainsString('importExisting($id, null, $correlationId)', $operations);
         self::assertStringContainsString('$correlationId);', $controller);
         self::assertStringContainsString('$clinicId, $correlationId', $pharmacy);
-        self::assertStringContainsString('$prescriptionId > 0 ? $prescriptionId : null, $correlationId', $integration);
+        self::assertStringContainsString('$prescriptionReference !== \'\' ? $prescriptionReference : null, $correlationId', $integration);
         self::assertStringContainsString("in_array((string) (\$result['status'] ?? ''), ['imported', 'processed', 'reconciled'], true)", $service);
     }
 
@@ -423,5 +445,21 @@ final class ShopifyOrderImportTest extends TestCase
         foreach (['access_token', 'password', 'otp', 'webhook_secret'] as $secret) {
             self::assertStringNotContainsString($secret, strtolower($service));
         }
+    }
+
+    public function testPrescriptionAndLineReconciliationHardeningIsPresent(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $eventService = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyWebhookEventService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-26-140000_CreateShopifyLineReconciliation.php');
+
+        self::assertStringNotContainsString('candidatePrescriptionId(', $service);
+        self::assertStringContainsString('prescriptionIdForReference', $service);
+        self::assertStringContainsString('prescriptionItemsMatchOrder', $service);
+        self::assertStringContainsString('refund_line_items', $eventService);
+        self::assertStringContainsString('fulfillment_line_items', $eventService);
+        self::assertStringContainsString('shopify_order_import_line_refunds', $migration);
+        self::assertStringContainsString('shopify_order_import_line_fulfillments', $migration);
+        self::assertStringContainsString("payment_status' => \$refundStatus", $service);
     }
 }

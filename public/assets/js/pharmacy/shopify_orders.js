@@ -211,4 +211,20 @@
                 $('.loading, .is-loading').removeClass('loading is-loading').removeAttr('aria-busy');
             });
     });
+    $(document).off('submit.shopifyReview', '.shopify-line-review-form, .shopify-order-review-form').on('submit.shopifyReview', '.shopify-line-review-form, .shopify-order-review-form', async function (event) {
+        event.preventDefault();
+        var form = this;
+        if ($(form).data('busy')) return false;
+        $(form).data('busy', true);
+        try {
+            var body = new FormData(form);
+            if (window.RootinsCsrf) window.RootinsCsrf.formData(body);
+            var response = await fetchWithTimeout(form.action, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
+            var payload = await parseJsonResponse(response);
+            feedback(payload.message || payload.msg || 'Review saved.', false);
+            window.location.reload();
+        } catch (error) { feedback(error && error.message ? error.message : 'Review could not be saved safely.', true); }
+        finally { $(form).data('busy', false); }
+        return false;
+    });
 }(window.jQuery));

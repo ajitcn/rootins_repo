@@ -556,6 +556,7 @@ GRAPHQL;
             throw new InvalidArgumentException('Shopify order was not found.');
         }
 
+        $this->refreshPrescriptionReference($import, $clinicId);
         $result = (new ShopifyOrderImportService())->recheckMapping($importId);
         $updated = (new ShopifyOrderImportModel())->find($importId) ?? $import;
         $counts = $this->mappingCounts($importId);
@@ -571,6 +572,30 @@ GRAPHQL;
                 'mapping_recheck' => $counts,
             ],
         ];
+    }
+
+    /** Link a later Shopify upload to the existing import without creating an order. */
+    private function refreshPrescriptionReference(array $import, ?int $clinicId): void
+    {
+        if ($clinicId !== null && (int) ($import['clinic_id'] ?? 0) !== $clinicId) return;
+        $query = db_connect()->table('patient_documents')
+            ->where('source_type', 'shopify')
+            ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
+            ->where('shopify_customer_id', (string) ($import['shopify_customer_id'] ?? ''))
+            ->where('patient_id', (int) ($import['patient_id'] ?? 0));
+        $reference = trim((string) ($import['prescription_reference'] ?? ''));
+        if ($reference !== '') $query->where('external_upload_reference', $reference);
+        else $query->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
+        $document = $query->orderBy('id', 'DESC')->get(1)->getRowArray();
+        if ($document === null) return;
+        $now = date('Y-m-d H:i:s');
+        db_connect()->table('shopify_order_imports')->where('id', (int) $import['id'])->update([
+            'prescription_reference' => (string) ($document['external_upload_reference'] ?? ''),
+            'prescription_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review',
+            'updated_at' => $now,
+        ]);
+        db_connect()->table('patient_documents')->where('id', (int) $document['id'])->update(['shopify_order_id' => (string) ($import['shopify_order_id'] ?? ''), 'updated_at' => $now]);
+        service('audit')->record('shopify.prescription_reference_rechecked', ['import_id' => (int) $import['id'], 'document_id' => (int) $document['id']]);
     }
 
     /** @return array{lines_checked:int, lines_mapped:int, lines_unmapped:int, errors:int} */
@@ -668,19 +693,18 @@ GRAPHQL;
         $import['prescription_required'] = $status !== 'not_required' && ($status !== '' || $reference !== '');
         $import['prescription_document_id'] = null;
 
-        if ($reference === '') return;
-
-        $document = db_connect()->table('patient_documents')
+        $query = db_connect()->table('patient_documents')
             ->select('id')
             ->where('source_type', 'shopify')
-            ->where('external_upload_reference', $reference)
             ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
             ->where('shopify_customer_id', (string) ($import['shopify_customer_id'] ?? ''))
-            ->where('patient_id', (int) ($import['patient_id'] ?? 0))
-            ->get(1)
-            ->getRowArray();
+            ->where('patient_id', (int) ($import['patient_id'] ?? 0));
+        if ($reference !== '') $query->where('external_upload_reference', $reference);
+        else $query->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
+        $document = $query->get(1)->getRowArray();
 
         $import['prescription_document_id'] = $document['id'] ?? null;
+        if ($document !== null && $status === '') $import['prescription_required'] = true;
     }
 
     public function counters(?int $clinicId = null): array
@@ -691,7 +715,7 @@ GRAPHQL;
         $total = $db->table('shopify_order_imports');
         if ($clinicId !== null) $total->where('clinic_id', $clinicId);
         $result['total_shopify_orders'] = $total->countAllResults();
-        foreach (['awaiting_review' => ['prescription_status' => 'awaiting_review'], 'quarantined' => ['status' => 'quarantined'], 'unmapped' => ['mapping_status' => 'unmapped'], 'prescription_review' => ['prescription_status' => 'awaiting_review'], 'ready_to_process' => ['status' => 'ready_to_import']] as $name => $conditions) {
+        foreach (['awaiting_review' => ['prescription_status' => 'awaiting_review'], 'awaiting_patient_link' => ['status' => 'awaiting_patient_link'], 'quarantined' => ['status' => 'quarantined'], 'unmapped' => ['mapping_status' => 'unmapped'], 'prescription_review' => ['prescription_status' => 'awaiting_review'], 'ready_to_process' => ['status' => 'ready_to_import']] as $name => $conditions) {
             $q = $db->table('shopify_order_imports');
             if ($clinicId !== null) $q->where('clinic_id', $clinicId);
             foreach ($conditions as $field => $value) $q->where($field, $value);
@@ -714,7 +738,10 @@ GRAPHQL;
         $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
         $webhookHistory = db_connect()->table('shopify_webhook_events')->select('id, external_event_id, topic, status, error_message, retry_count, created_at, updated_at')->where('store_domain', $import['store_domain'])->like('payload_json', (string) $import['shopify_order_id'])->orderBy('created_at', 'DESC')->get(100)->getResultArray();
         $auditHistory = db_connect()->table('audit_logs')->select('id, action, route, occurred_at, context')->like('context', '"import_id":' . $id)->orderBy('occurred_at', 'DESC')->get(100)->getResultArray();
-        $prescription = ! empty($import['prescription_reference']) ? db_connect()->table('patient_documents')->select('id')->where('source_type', 'shopify')->where('external_upload_reference', $import['prescription_reference'])->where('shopify_store_domain', $import['store_domain'])->where('shopify_customer_id', $import['shopify_customer_id'])->get(1)->getRowArray() : null;
+        $prescriptionQuery = db_connect()->table('patient_documents')->select('id')->where('source_type', 'shopify')->where('shopify_store_domain', $import['store_domain'])->where('shopify_customer_id', $import['shopify_customer_id'])->where('patient_id', (int) ($import['patient_id'] ?? 0));
+        if (! empty($import['prescription_reference'])) $prescriptionQuery->where('external_upload_reference', $import['prescription_reference']);
+        else $prescriptionQuery->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
+        $prescription = $prescriptionQuery->get(1)->getRowArray();
         $import['prescription_document_id'] = $prescription['id'] ?? null;
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
         $import['intent_present'] = $this->appointmentIntentPresent($event);
@@ -824,7 +851,7 @@ GRAPHQL;
             (new ShopifyOrderImportModel())->update($id, ['patient_id' => $patientId, 'patient_status' => 'linked', 'status' => 'received', 'updated_at' => date('Y-m-d H:i:s')]);
             $this->history($id, $action, $old, 'received', null, null, $actor); service('audit')->record('shopify.order_patient_selected', ['import_id' => $id]); return ['status' => 'received', 'import_id' => $id];
         }
-        if ($action === 'select_prescription') { return (new ShopifyOrderImportService())->importExisting($id, (int) ($input['prescription_id'] ?? 0)); }
+        if ($action === 'select_prescription') { return (new ShopifyOrderImportService())->importExisting($id, trim((string) ($input['prescription_reference'] ?? '')) ?: null); }
         if ($action === 'map_line') {
             $line = (new ShopifyOrderImportLineModel())->where('id', (int) ($input['line_id'] ?? 0))->where('import_id', $id)->first();
             if ($line === null) throw new InvalidArgumentException('The selected Shopify line is invalid.');

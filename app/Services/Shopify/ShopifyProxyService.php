@@ -16,7 +16,7 @@ use App\Services\TelephoneContactService;
 
 final class ShopifyProxyService
 {
-    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload'];
+    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload', 'prescriptions.active', 'orders.status'];
     private const TIMESTAMP_TOLERANCE_SECONDS = 300;
 
     public function verify(string $operation, array $query, string $rawQuery): array
@@ -25,7 +25,7 @@ final class ShopifyProxyService
         $received = array_keys($query);
         sort($received, SORT_STRING);
         $required = ['shop', 'timestamp', 'signature', 'path_prefix'];
-        if ($operation === 'prescriptions.upload') {
+        if (in_array($operation, ['patients.register', 'prescriptions.upload', 'prescriptions.active', 'orders.status'], true)) {
             $required[] = 'logged_in_customer_id';
         }
         $missing = array_values(array_filter($required, static fn (string $name): bool => ! array_key_exists($name, $query) || is_array($query[$name]) || trim((string) $query[$name]) === ''));
@@ -123,7 +123,7 @@ final class ShopifyProxyService
         // $credential = $operation === 'prescriptions.upload' ? $this->credential() : [];
         $credential = [];
         if ($operation !== 'appointments.availability') $this->rateLimit((int) ($configuration['id'] ?? 0), (int) ($configuration['rate_limit_per_minute'] ?? 0));
-        $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true);
+        $patientScoped = in_array($operation, ['appointments.book', 'prescriptions.upload'], true) || $operation === 'prescriptions.active';
         $autoLinkPatient = $operation === 'appointments.book';
         if ($operation === 'appointments.availability') $payload = $this->normalizeAvailabilityPayload($payload);
         if ($operation === 'appointments.book') $payload = $this->normalizeBookingPayload($payload);
@@ -161,6 +161,7 @@ final class ShopifyProxyService
         return match ($operation) {
             'appointments.availability' => (new CoreApiAppointmentService())->availability([], $payload),
             'appointments.book' => (new ShopifyAppointmentIntentService())->create($context, $credential, $payload),
+            'prescriptions.active' => (new ShopifyActivePrescriptionService())->forCustomer((string) $context['store_domain'], $customerId, (int) ($context['patient_id'] ?? 0)),
             'prescriptions.upload' => $file === null ? throw new CoreApiException(422, 'FILE_REQUIRED', 'A prescription file is required.') : (new ShopifyPrescriptionUploadService())->uploadFromProxy(
                 ['store_domain' => (string) $context['store_domain'], 'customer_id' => $customerId, 'patient_id' => (int) $context['patient_id']],
                 $file,
@@ -258,7 +259,11 @@ final class ShopifyProxyService
         }
         $validated = $this->validateSubmittedPatient($patient, $customerId);
         $resolved = $this->ensureCustomerPatientLink($context, $credential, $validated);
-        return ['booking_enabled' => true, 'patient_reference' => $resolved['patient_reference']];
+        return ['booking_enabled' => true, 'patient_reference' => $resolved['patient_reference'],
+            'order_ready' => true,
+            'medicine_order_ready' => true,
+            'readiness_status' => 'ready',
+        ];
     }
 
     /** @return array{patient_id:int, patient_reference:string, already_registered:bool} */
