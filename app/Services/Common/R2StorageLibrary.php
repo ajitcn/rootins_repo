@@ -58,7 +58,7 @@ class R2StorageLibrary
      */
     public function getTemporaryUrl(string $key, int $minutes = 10, ?string $contentType = null, ?string $contentDisposition = null): string
     {
-        $parameters = ['Bucket' => $this->bucket, 'Key' => $key];
+        $parameters = ['Bucket' => $this->bucket, 'Key' => $this->normalizeKey($key)];
 
         if ($contentType !== null && $contentType !== '') {
             $parameters['ResponseContentType'] = $contentType;
@@ -76,6 +76,26 @@ class R2StorageLibrary
     /** Read a private object for an already-authorized application response. */
     public function getObject(string $key): array
     {
-        return $this->client->getObject(['Bucket' => $this->bucket, 'Key' => $key]);
+        return $this->client->getObject(['Bucket' => $this->bucket, 'Key' => $this->normalizeKey($key)]);
+    }
+
+    public function objectExists(string $key): bool
+    {
+        try {
+            $this->client->headObject(['Bucket' => $this->bucket, 'Key' => $this->normalizeKey($key)]);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public function normalizeKey(string $key): string
+    {
+        $key = trim($key);
+        if (preg_match('#^https?://#i', $key) === 1) $key = (string) parse_url($key, PHP_URL_PATH);
+        $key = ltrim($key, '/');
+        $bucket = trim($this->bucket, '/');
+        if ($bucket !== '' && str_starts_with($key, $bucket . '/')) $key = substr($key, strlen($bucket) + 1);
+        return ltrim($key, '/');
     }
 }

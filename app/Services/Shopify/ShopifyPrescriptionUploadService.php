@@ -392,7 +392,7 @@ final class ShopifyPrescriptionUploadService
             if ($store !== '') $query->where('shopify_store_domain', $store);
             if ($customerId !== '') $query->where('shopify_customer_id', $customerId);
             $document = $query->first();
-            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'document_lookup', $document !== null, $document === null ? 'DOCUMENT_NOT_FOUND' : null, 'patient_documents');
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'document_lookup', $document !== null, $document === null ? 'PRESCRIPTION_DOCUMENT_NOT_FOUND' : null, 'patient_documents', $document !== null && trim((string) ($document['file_path'] ?? '')) !== '');
         }
 
         if ($document === null && $store !== '' && $customerId !== '' && $patientId > 0) {
@@ -410,8 +410,29 @@ final class ShopifyPrescriptionUploadService
         }
 
         if ($document === null) {
-            $category = $link !== null ? 'DOCUMENT_NOT_FOUND' : ($reference !== '' ? 'PRESCRIPTION_UPLOAD_NOT_FOUND' : 'PRESCRIPTION_LINKAGE_NOT_FOUND');
-            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'prescription_upload_lookup', false, $category, 'patient_documents');
+            $document = $this->findExternalPreviewDocument($documentId, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId);
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'prescription_document_lookup', $document !== null, $document === null ? 'PRESCRIPTION_DOCUMENT_NOT_FOUND' : null, (string) ($document['_lookup_table'] ?? 'prescription_documents'), $document !== null && trim((string) ($document['file_path'] ?? '')) !== '');
+        }
+
+        if ($document !== null) {
+            $storageKey = $this->storage->normalizeKey((string) ($document['file_path'] ?? ''));
+            $storageExists = $storageKey !== '' && $this->storage->objectExists($storageKey);
+            $this->previewDiagnostic($orderId, $importId, (int) ($document['id'] ?? $documentId), (string) ($document['external_upload_reference'] ?? $reference), 'storage_object_lookup', $storageExists, $storageExists ? null : 'PRESCRIPTION_DOCUMENT_NOT_FOUND', (string) ($document['_lookup_table'] ?? 'patient_documents'), $storageKey !== '', $storageKey);
+            if (! $storageExists && $reference !== '') {
+                $replacement = $this->findExternalPreviewDocument(0, $reference, (string) ($import['shopify_order_id'] ?? ''), $store, $customerId, $patientId, $clinicId);
+                if ($replacement !== null) {
+                    $replacementKey = $this->storage->normalizeKey((string) ($replacement['file_path'] ?? ''));
+                    if ($replacementKey !== '' && $this->storage->objectExists($replacementKey)) $document = $replacement;
+                }
+            }
+            if ($document !== null && ! $this->storage->objectExists($this->storage->normalizeKey((string) ($document['file_path'] ?? '')))) {
+                throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_DOCUMENT_NOT_FOUND');
+            }
+        }
+
+        if ($document === null) {
+            $category = $link !== null ? 'PRESCRIPTION_DOCUMENT_NOT_FOUND' : ($reference !== '' ? 'PRESCRIPTION_UPLOAD_NOT_FOUND' : 'PRESCRIPTION_LINKAGE_NOT_FOUND');
+            $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'prescription_upload_lookup', false, $category, 'patient_documents', false);
             throw new ShopifyPrescriptionPreviewException($category);
         }
 
@@ -431,8 +452,38 @@ final class ShopifyPrescriptionUploadService
             $this->previewDiagnostic($orderId, $importId, (int) $document['id'], $reference, 'order_document_linkage_repair', false, 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'shopify_prescription_order_links');
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_LINKAGE_NOT_FOUND');
         }
-        $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'prescription_linkage', true, null);
+        $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'prescription_linkage', true, null, (string) ($document['_lookup_table'] ?? 'patient_documents'), trim((string) ($document['file_path'] ?? '')) !== '');
         return $document;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findExternalPreviewDocument(int $documentId, string $reference, string $shopifyOrderId, string $store, string $customerId, int $patientId, int $clinicId): ?array
+    {
+        $db = db_connect();
+        foreach (['patient_documents', 'shopify_prescription_uploads', 'prescription_documents'] as $tableName) {
+            if (! $db->tableExists($tableName)) continue;
+            $fields = array_map(static fn ($field): string => (string) ($field->name ?? ''), $db->getFieldData($tableName));
+            $query = $db->table($tableName);
+            if ($documentId > 0 && in_array('id', $fields, true)) $query->where('id', $documentId);
+            elseif ($reference !== '' && in_array('upload_reference', $fields, true)) $query->where('upload_reference', $reference);
+            elseif ($reference !== '' && in_array('external_upload_reference', $fields, true)) $query->where('external_upload_reference', $reference);
+            elseif ($shopifyOrderId !== '' && in_array('shopify_order_id', $fields, true)) $query->where('shopify_order_id', $shopifyOrderId);
+            else continue;
+            foreach ([['patient_id', $patientId], ['clinic_id', $clinicId], ['store_domain', $store], ['shopify_store_domain', $store], ['shopify_customer_id', $customerId]] as [$field, $value]) {
+                if ($value !== '' && $value !== 0 && in_array($field, $fields, true)) $query->where($field, $value);
+            }
+            if ($tableName === 'patient_documents' && in_array('source_type', $fields, true)) $query->whereIn('source_type', ['shopify', 'rootins']);
+            $row = $query->get(1)->getRowArray();
+            if ($row === null) continue;
+            $row['_lookup_table'] = $tableName;
+            $row['source_type'] = (string) ($row['source_type'] ?? ($tableName === 'patient_documents' ? 'shopify' : 'shopify'));
+            $row['file_path'] = (string) ($row['file_path'] ?? $row['storage_key'] ?? $row['object_key'] ?? $row['path'] ?? '');
+            $row['file_name'] = (string) ($row['file_name'] ?? $row['original_file_name'] ?? $row['name'] ?? 'prescription-upload');
+            $row['mime_type'] = (string) ($row['mime_type'] ?? $row['content_type'] ?? 'application/octet-stream');
+            $row['external_upload_reference'] = (string) ($row['external_upload_reference'] ?? $row['upload_reference'] ?? $reference);
+            return $row;
+        }
+        return null;
     }
 
     /** @param array<string, mixed> $import @param array<string, mixed>|null $existing */
@@ -620,7 +671,7 @@ final class ShopifyPrescriptionUploadService
         return $payload;
     }
 
-    private function previewDiagnostic(int $orderId, int $importId, int $documentId, string $reference, string $lookupType, bool $rowFound, ?string $failureCategory, string $lookupTable = 'patient_documents'): void
+    private function previewDiagnostic(int $orderId, int $importId, int $documentId, string $reference, string $lookupType, bool $rowFound, ?string $failureCategory, string $lookupTable = 'patient_documents', ?bool $storageKeyPresent = null, string $storageKey = ''): void
     {
         log_message('info', 'Shopify pharmacy prescription preview ' . json_encode([
             'correlation_id' => bin2hex(random_bytes(8)),
@@ -631,6 +682,8 @@ final class ShopifyPrescriptionUploadService
             'lookup_table' => $lookupTable,
             'lookup_type' => $lookupType,
             'row_found' => $rowFound,
+            'storage_key_present' => $storageKeyPresent,
+            'storage_key' => $storageKey !== '' ? $storageKey : null,
             'failure_category' => $failureCategory,
         ], JSON_UNESCAPED_SLASHES));
     }

@@ -94,7 +94,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
 
-        foreach (['resolvePharmacyPreview', 'shopify_order_id', 'external_upload_reference', 'PRESCRIPTION_UPLOAD_NOT_FOUND', 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'PRESCRIPTION_ACCESS_DENIED', 'ORDER_NOT_FOUND', 'DOCUMENT_NOT_FOUND', 'previewDiagnostic', 'temporaryUrl'] as $marker) {
+        foreach (['resolvePharmacyPreview', 'shopify_order_id', 'external_upload_reference', 'PRESCRIPTION_UPLOAD_NOT_FOUND', 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'PRESCRIPTION_DOCUMENT_NOT_FOUND', 'PRESCRIPTION_ACCESS_DENIED', 'ORDER_NOT_FOUND', 'previewDiagnostic', 'temporaryUrl'] as $marker) {
             self::assertStringContainsString($marker, $service . $controller);
         }
         foreach (['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as $mime) self::assertStringContainsString($mime, $service);
@@ -129,5 +129,18 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         }
         self::assertStringContainsString("(int) (\$import['clinic_id'] ?? 0) !== \$clinicId", $service);
         self::assertStringContainsString("(int) (\$payload['user_id'] ?? 0) !== \$userId", $service);
+    }
+
+    public function testPreviewSupportsShopifyUploadAndDoctorSnapshotTablesWithSpecificMissingDocumentError(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+
+        foreach (['shopify_prescription_uploads', 'prescription_documents', 'patient_documents', 'storage_key', 'object_key', 'upload_reference', 'PRESCRIPTION_DOCUMENT_NOT_FOUND', 'storage_key_present', 'objectExists', 'normalizeKey'] as $marker) {
+            self::assertStringContainsString($marker, $service);
+        }
+        self::assertStringContainsString('source_type', $service);
+        self::assertStringContainsString("'rootins'", $service);
+        self::assertStringContainsString('linkOrderPrescription', $service);
+        self::assertStringContainsString('tableExists', $service);
     }
 }
