@@ -102,4 +102,17 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         self::assertStringContainsString("setHeader('Location', \$temporaryUrl)", $controller);
         self::assertStringNotContainsString('readAuthorizedDocument($document)', $controller);
     }
+
+    public function testPrescriptionOrderLinkageIsIdempotentAndRecreatedOnRetry(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
+        $import = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-26-150000_CreateShopifyPrescriptionOrderLinks.php');
+
+        foreach (['linkOrderPrescription', 'shopify_prescription_order_links', 'shopify_order_id', 'import_id', 'document_id', 'prescription_reference', 'prescription_bundle_reference'] as $marker) {
+            self::assertStringContainsString($marker, $service . $import . $migration);
+        }
+        self::assertStringContainsString("where('store_domain', \$data['store_domain'])", $service);
+        self::assertStringContainsString('addUniqueKey', $migration);
+    }
 }

@@ -7,6 +7,7 @@ use Admin\Models\PatientModel;
 use Admin\Models\User;
 use App\Services\Common\R2StorageLibrary;
 use App\Services\PatientScope;
+use App\Modules\Shopify\Models\ShopifyPrescriptionOrderLinkModel;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Pharmacy\Services\PharmacyScope;
 use DateTimeImmutable;
@@ -368,6 +369,13 @@ final class ShopifyPrescriptionUploadService
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
         }
 
+        $link = null;
+        if (db_connect()->tableExists('shopify_prescription_order_links')) {
+            $link = db_connect()->table('shopify_prescription_order_links')
+                ->where('store_domain', $store)->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))->where('import_id', $importId)
+                ->where('clinic_id', $clinicId)->where('patient_id', $patientId)->get(1)->getRowArray();
+            if ($link !== null && (int) ($link['document_id'] ?? 0) > 0) $documentId = (int) $link['document_id'];
+        }
         $document = null;
         if ($documentId > 0) {
             $query = $this->documents->where('id', $documentId)->where('source_type', 'shopify')->where('clinic_id', $clinicId)->where('patient_id', $patientId);
@@ -383,6 +391,13 @@ final class ShopifyPrescriptionUploadService
             $document = $query->orderBy('id', 'DESC')->first();
         }
 
+        if ($document === null && $reference !== '' && $patientId > 0) {
+            $query = $this->documents->where('source_type', 'rootins')->where('document_type', 'prescription_pdf')
+                ->where('external_upload_reference', $reference)->where('clinic_id', $clinicId)->where('patient_id', $patientId);
+            if ($documentId > 0) $query->where('id', $documentId);
+            $document = $query->first();
+        }
+
         if ($document === null) {
             $this->previewDiagnostic($orderId, $importId, $documentId, $reference, 'shopify_prescription_linkage', false, $reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
             throw new ShopifyPrescriptionPreviewException($reference !== '' ? 'PRESCRIPTION_LINKAGE_NOT_FOUND' : 'PRESCRIPTION_UPLOAD_NOT_FOUND');
@@ -395,8 +410,40 @@ final class ShopifyPrescriptionUploadService
             throw new ShopifyPrescriptionPreviewException('PRESCRIPTION_ACCESS_DENIED');
         }
 
-        $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'shopify_upload', true, null);
+        $this->linkOrderPrescription($import, (int) $document['id'], null, $reference, $link);
+        $this->previewDiagnostic($orderId, $importId, (int) $document['id'], (string) ($document['external_upload_reference'] ?? $reference), 'prescription_linkage', true, null);
         return $document;
+    }
+
+    /** @param array<string, mixed> $import @param array<string, mixed>|null $existing */
+    public function linkOrderPrescription(array $import, int $documentId = 0, ?int $prescriptionId = null, string $reference = '', ?array $existing = null): void
+    {
+        if (! db_connect()->tableExists('shopify_prescription_order_links')) return;
+        $now = date('Y-m-d H:i:s');
+        $data = [
+            'store_domain' => (string) ($import['store_domain'] ?? ''),
+            'shopify_order_id' => (string) ($import['shopify_order_id'] ?? ''),
+            'import_id' => (int) ($import['id'] ?? 0),
+            'patient_id' => (int) ($import['patient_id'] ?? 0) ?: null,
+            'clinic_id' => (int) ($import['clinic_id'] ?? 0) ?: null,
+            'prescription_id' => $prescriptionId,
+            'prescription_reference' => $reference !== '' ? $reference : null,
+            'bundle_reference' => trim((string) ($import['prescription_bundle_reference'] ?? '')) ?: null,
+            'document_id' => $documentId > 0 ? $documentId : null,
+            'upload_reference' => (string) (($documentId > 0 ? $this->documents->find($documentId)['external_upload_reference'] ?? null : null) ?? $reference) ?: null,
+            'status' => 'linked',
+            'updated_at' => $now,
+        ];
+        $table = db_connect()->table('shopify_prescription_order_links');
+        if ($existing === null) {
+            $existing = $table->where('store_domain', $data['store_domain'])->where('shopify_order_id', $data['shopify_order_id'])->where('import_id', $data['import_id'])->get(1)->getRowArray();
+        }
+        if ($existing === null) {
+            $data['created_at'] = $now;
+            $table->insert($data);
+        } else {
+            $table->where('id', (int) $existing['id'])->update($data);
+        }
     }
 
     /**

@@ -259,6 +259,7 @@ final class ShopifyOrderImportService
 
         $prescriptionReference = trim((string) ($payload['prescription_reference'] ?? ''));
         $prescriptionId = null;
+        $prescriptionDocumentId = 0;
         $prescriptionExpired = false;
         $this->stage($event, $orderId, 'prescription_reference_lookup');
         if ($prescriptionReference !== '') {
@@ -292,8 +293,10 @@ final class ShopifyOrderImportService
                 service('audit')->record('shopify.order_quarantined', ['event_id' => $eventId, 'import_id' => $importId, 'reason' => 'invalid_prescription_reference']);
                 return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
             }
+            $prescriptionDocumentId = (int) ($document['id'] ?? 0);
             db_connect()->table('patient_documents')->where('id', (int) $document['id'])->update(['shopify_order_id' => (string) $payload['id'], 'upload_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review', 'updated_at' => date('Y-m-d H:i:s')]);
             ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => ($document['upload_status'] ?? '') === 'accepted' ? 'accepted' : 'awaiting_review']);
+            (new ShopifyPrescriptionUploadService())->linkOrderPrescription(['id' => $importId, 'store_domain' => $store, 'shopify_order_id' => $orderId, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'prescription_bundle_reference' => (string) ($payload['prescription_bundle_reference'] ?? '')], $prescriptionDocumentId, null, $prescriptionReference);
             if (($document['upload_status'] ?? '') !== 'accepted') {
                 $this->setImportState($importId, 'quarantined', 'awaiting_review', $eventId, $patientId, $clinicId);
                 $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
@@ -333,6 +336,10 @@ final class ShopifyOrderImportService
             $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_INVALID);
             $this->queueNotification($importId, 'prescription_rejected');
             return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
+        }
+
+        if ($prescriptionId !== null || $prescriptionDocumentId > 0 || $prescriptionReference !== '') {
+            (new ShopifyPrescriptionUploadService())->linkOrderPrescription(['id' => $importId, 'store_domain' => $store, 'shopify_order_id' => $orderId, 'patient_id' => $patientId, 'clinic_id' => $clinicId, 'prescription_bundle_reference' => (string) ($payload['prescription_bundle_reference'] ?? '')], $prescriptionDocumentId, $prescriptionId, $prescriptionReference, null);
         }
 
         $rootinsOrderId = $this->ensurePharmacyOrderForImport($event, $importId, $prescriptionId, $patientId, $clinicId, $store, $orderId, $payload, $prescriptionRequired);
