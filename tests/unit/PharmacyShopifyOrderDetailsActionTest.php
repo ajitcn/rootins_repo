@@ -94,7 +94,7 @@ final class PharmacyShopifyOrderDetailsActionTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionUploadService.php');
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Pharmacy/Controllers/ShopifyOrders.php');
 
-        foreach (['resolvePharmacyPreview', 'shopify_order_id', 'external_upload_reference', 'PRESCRIPTION_UPLOAD_NOT_FOUND', 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'PRESCRIPTION_DOCUMENT_NOT_FOUND', 'PRESCRIPTION_ACCESS_DENIED', 'ORDER_NOT_FOUND', 'previewDiagnostic', 'temporaryUrl'] as $marker) {
+        foreach (['resolvePharmacyPreview', 'shopify_order_id', 'external_upload_reference', 'PRESCRIPTION_LINKAGE_NOT_FOUND', 'PRESCRIPTION_DOCUMENT_NOT_FOUND', 'PRESCRIPTION_ACCESS_DENIED', 'ORDER_NOT_FOUND', 'DOCUMENT_STORAGE_NOT_FOUND', 'previewDiagnostic', 'temporaryUrl'] as $marker) {
             self::assertStringContainsString($marker, $service . $controller);
         }
         foreach (['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as $mime) self::assertStringContainsString($mime, $service);
