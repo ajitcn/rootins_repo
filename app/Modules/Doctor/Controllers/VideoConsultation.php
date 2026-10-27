@@ -201,7 +201,7 @@ final class VideoConsultation extends BaseController
             return null;
         }
 
-        return db_connect()->table('appointments')->select('appointments.*, patients.registration_number, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.mobile_number AS patient_mobile_number')->join('patients', 'patients.id = appointments.patient_id')->where('appointments.id', $appointmentId)->where('appointments.doctor_id', $context['doctor_id'])->where('appointments.clinic_id', $context['clinic_id'])->where('appointments.appointment_type', 'video')->where('patients.clinic_id', $context['clinic_id'])->get()->getRowArray() ?: null;
+        return db_connect()->table('appointments')->select('appointments.*, patients.registration_number, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.mobile_number AS patient_mobile_number')->join('patients', 'patients.id = appointments.patient_id')->where('appointments.id', $appointmentId)->where('appointments.doctor_id', $context['doctor_id'])->where('appointments.clinic_id', $context['clinic_id'])->where('appointments.appointment_type', 'video')->get()->getRowArray() ?: null;
     }
 
     private function canUseAppointment(array $appointment, ?array $context): bool

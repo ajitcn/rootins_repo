@@ -39,7 +39,6 @@ final class PrescriptionReviewService
             ->join('patients', 'patients.id = prescriptions.patient_id')
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
             ->where('prescriptions.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->where('doctors.clinic_id', $clinicId)
             ->whereIn('prescriptions.status', array_keys(TransitionContract::PRESCRIPTION_REVIEW));
 

@@ -47,6 +47,15 @@ final class ShopifyOrderImportTest extends TestCase
         self::assertStringNotContainsString('unit_price', $service);
     }
 
+    public function testWebhookImportRejectsNonOrderableStructuredPrescriptions(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
+        self::assertStringContainsString('ShopifyPrescriptionEligibility::isOrderable', $service);
+        self::assertStringContainsString('ShopifyPrescriptionEligibility::REASON', $service);
+        self::assertStringContainsString("'status' => 'quarantined'", $service);
+        self::assertStringNotContainsString('PRESCRIPTION_EXPIRED, $eventId', $service);
+    }
+
     public function testMedicineOrdersRequireCheckoutPatientReadinessAndUseOnlyScopedLinks(): void
     {
         $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');

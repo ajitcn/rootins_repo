@@ -27,4 +27,12 @@ final class ShopifyOrderReviewWorkflowTest extends CIUnitTestCase
         self::assertStringContainsString("store_domain", $customer);
         self::assertStringContainsString("shopify_customer_id", $customer);
     }
+
+    public function testPharmacistReviewRejectsNonOrderablePrescriptions(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderReviewService.php');
+        self::assertStringContainsString('ShopifyPrescriptionEligibility::ORDERABLE_STATUSES', $service);
+        self::assertStringContainsString("where('p.valid_until IS NOT NULL', null, false)", $service);
+        self::assertStringContainsString('ShopifyPrescriptionEligibility::REASON', $service);
+    }
 }

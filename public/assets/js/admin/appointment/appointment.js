@@ -3,6 +3,7 @@ $(function () {
     const rescheduleForm = '#appointmentRescheduleForm';
     const editModal = '#appointmentModal';
     const rescheduleModal = '#appointmentRescheduleModal';
+    const slotState = { request: 0, loaded: false, values: [] };
 
     function portalAppointmentModals() {
         [editModal, rescheduleModal, '#appointmentFilterModal'].forEach(function (selector) {
@@ -35,7 +36,81 @@ $(function () {
         $('#appointment_status').val('scheduled').selectpicker('refresh');
         $('#appointmentModal .modal-title').text('Add Appointment');
         $(editForm + ' .save').text('Save Appointment');
+        clearAppointmentSlots();
         toggleCancellationFields();
+    }
+
+    function normalizeInputTime(value) {
+        const normalized = window.rootinsNormalizeTime ? window.rootinsNormalizeTime(value) : null;
+        return normalized ? normalized.slice(0, 5) : String(value || '').slice(0, 5);
+    }
+
+    function clearAppointmentSlots(message) {
+        slotState.request += 1;
+        slotState.loaded = false;
+        slotState.values = [];
+        $('#appointment_time').removeAttr('min max').empty().val('').prop('disabled', false);
+        $('#appointmentTimeSlots').empty();
+        $('#appointmentTimeHelp').text(message || 'Select a doctor and date to load available 15-minute slots.');
+    }
+
+    function loadAppointmentSlots(preserveTime) {
+        const doctorId = $('#appointment_doctor_id').val();
+        const clinicId = $('#appointment_clinic_id').val();
+        const date = window.rootinsDateToIso ? window.rootinsDateToIso('#appointment_date') : $('#appointment_date').val();
+        const selected = normalizeInputTime($('#appointment_time').val());
+        const request = ++slotState.request;
+        if (!doctorId || !clinicId || !date) {
+            clearAppointmentSlots();
+            return;
+        }
+        slotState.loaded = false;
+        $('#appointment_time').prop('disabled', true);
+        $('#appointmentTimeSlots').empty();
+        $('#appointmentTimeHelp').text('Loading available times…');
+        ajaxRequest({
+            url: ROUTES.appointments.availableSlots,
+            method: 'GET',
+            data: { doctor_id: doctorId, clinic_id: clinicId, appointment_date: date, duration_minutes: $('#duration_minutes').val() || 15, appointment_id: $('#appointment_id').val() || 0 },
+            success: function (response) {
+                if (request !== slotState.request) return;
+                const data = response && response.data ? response.data : {};
+                slotState.loaded = true;
+                slotState.values = (data.slots || []).map(function (slot) { return String(slot.value || '').slice(0, 5); });
+                $('#appointment_time').attr({ min: data.min || '', max: data.max || '' }).prop('disabled', false);
+                $('#appointmentTimeSlots').html((data.slots || []).map(function (slot) { return $('<option>').attr('value', slot.value).attr('label', slot.label || slot.value); }));
+                $('#appointmentTimeHelp').text(data.message || (slotState.values.length ? 'Available times are shown in your local 12-hour format.' : 'No available times remain for this date.'));
+                const nextTime = preserveTime && slotState.values.indexOf(selected) !== -1 ? selected : '';
+                $('#appointment_time').val(nextTime);
+                if (preserveTime && selected && !nextTime) $('#appointment_timeErr').text('The previous time is no longer available. Please select another time.');
+                $('#appointment_end_time').val(endTime(nextTime, $('#duration_minutes').val()));
+            },
+            error: function () {
+                if (request !== slotState.request) return;
+                slotState.loaded = true;
+                slotState.values = [];
+                $('#appointment_time').prop('disabled', false).val('');
+                $('#appointmentTimeHelp').text('Unable to load availability. Please try again.');
+            }
+        });
+    }
+
+    function validateAppointmentTime() {
+        const value = String($('#appointment_time').val() || '').trim();
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+            $('#appointment_timeErr').text('Select a valid appointment time.');
+            return false;
+        }
+        if (Number(value.slice(3, 5)) % 15 !== 0) {
+            $('#appointment_timeErr').text('Choose a time in 15-minute increments.');
+            return false;
+        }
+        if (slotState.loaded && slotState.values.indexOf(value) === -1) {
+            $('#appointment_timeErr').text('That time is outside the doctor’s availability or is already booked.');
+            return false;
+        }
+        $('#appointment_timeErr').empty();
+        return true;
     }
 
     function setBusy(form, busy) {
@@ -65,7 +140,7 @@ $(function () {
         $('#appointment_service_name').val(appointment.service_name || 'Service not specified');
         if (window.setSharedDateValue) setSharedDateValue('#appointment_date', appointment.appointment_date);
         else $('#appointment_date').val(appointment.appointment_date || '');
-        $('#appointment_time').val(window.rootinsFormatTime ? rootinsFormatTime(appointment.appointment_time) : appointment.appointment_time);
+        $('#appointment_time').val(normalizeInputTime(appointment.appointment_time));
         $('#appointment_end_time').val(endTime(appointment.appointment_time, appointment.duration_minutes));
         $('#duration_minutes').val(appointment.duration_minutes);
         $('#appointment_type').val(appointment.appointment_type).selectpicker('refresh');
@@ -122,6 +197,7 @@ $(function () {
                 else {
                     resetAppointmentForm();
                     setAppointmentFields(response.data);
+                    loadAppointmentSlots(true);
                     $('#appointmentModal .modal-title').text('Edit Appointment');
                     $(editForm + ' .save').text('Update Appointment');
                 }
@@ -146,8 +222,20 @@ $(function () {
         event.preventDefault(); $('#appointmentRescheduleErrors').addClass('d-none').empty(); loadAppointment(appointmentId(this), 'reschedule');
     });
     $(document).off('change.rootinsAppointments', '#appointment_status').on('change.rootinsAppointments', '#appointment_status', toggleCancellationFields);
-    $(document).off('input.rootinsAppointments', '#appointment_time, #duration_minutes').on('input.rootinsAppointments', '#appointment_time, #duration_minutes', function () {
+    $(document).off('change.rootinsAppointments changeDate.rootinsAppointments', '#appointment_doctor_id, #appointment_date').on('change.rootinsAppointments changeDate.rootinsAppointments', '#appointment_doctor_id, #appointment_date', function () {
+        $('#appointment_time').val('');
+        $('#appointment_timeErr').empty();
+        loadAppointmentSlots(false);
+    });
+    $(document).off('change.rootinsAppointments', '#duration_minutes').on('change.rootinsAppointments', '#duration_minutes', function () {
+        loadAppointmentSlots(Boolean($('#appointment_id').val()));
+    });
+    $(document).off('input.rootinsAppointments change.rootinsAppointments', '#appointment_time').on('input.rootinsAppointments change.rootinsAppointments', '#appointment_time', function () {
         $('#appointment_end_time').val(endTime($('#appointment_time').val(), $('#duration_minutes').val()));
+        if (slotState.loaded && $('#appointment_time').val() && !validateAppointmentTime()) {
+            $('#appointment_time').val('');
+            $('#appointment_end_time').val('');
+        }
     });
     $(document).off('input.rootinsAppointments', '#reschedule_new_start_time').on('input.rootinsAppointments', '#reschedule_new_start_time', function () {
         $('#reschedule_new_end_time').val(endTime($('#reschedule_new_start_time').val(), $('#reschedule_duration_minutes').val()));
@@ -156,7 +244,7 @@ $(function () {
     $(document).off('submit.rootinsAppointments', editForm).on('submit.rootinsAppointments', editForm, function (event) {
         event.preventDefault();
         const form = this, id = $('#appointment_id').val();
-        clearFormErrors(form); setBusy(form, true);
+        clearFormErrors(form); if (!validateAppointmentTime()) { $('#appointment_time').trigger('focus'); return; } setBusy(form, true);
         ajaxRequest({url: id ? ROUTES.appointments.update + encodeURIComponent(id) : ROUTES.appointments.save, method: 'POST', data: $(form).serialize(), form: form,
             success: function (response) {
                 if (response && response.status) { $(editModal).modal('hide'); showSuccess(response.msg); reload_page(500); return; }

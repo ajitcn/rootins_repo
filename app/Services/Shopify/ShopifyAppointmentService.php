@@ -571,7 +571,6 @@ final class ShopifyAppointmentService
             ->first();
         $patient = (new PatientModel())
             ->where('id', $patientId)
-            ->where('clinic_id', $clinicId)
             ->where('status', 1)
             ->first();
 

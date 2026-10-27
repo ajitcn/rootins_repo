@@ -25,7 +25,7 @@ final class ShopifyCustomerIdentityTest extends TestCase
 
         self::assertStringContainsString('where(\'patients.email\', $email)', $service);
         self::assertStringContainsString('where(\'patients.mobile_normalized\', $mobile[\'mobile\'])', $service);
-        self::assertStringContainsString("where('patients.clinic_id', \$clinicId)", $service);
+        self::assertStringNotContainsString("where('patients.clinic_id', \$clinicId)", $service);
         self::assertStringContainsString("'source_type' => 'shopify'", $service);
         self::assertStringContainsString("'shopify'", $registration);
         self::assertStringContainsString('$status = \'ambiguous\'', $service);
@@ -39,10 +39,9 @@ final class ShopifyCustomerIdentityTest extends TestCase
             'where(\'shopify_store_domain\', $storeDomain)',
             'where(\'shopify_customer_id\', $customerId)',
             "where('source_type', 'shopify')",
-            'where(\'source_reference\', $customerId)',
+            'where(\'source_reference\', $this->sourceReference($storeDomain, $customerId))',
             'where(\'status\', 1)',
             "'matched_by' => 'source_reference'",
-            "'active_patient_key' => 'shopify:' . " . '$patientId',
         ] as $needle) {
             self::assertStringContainsString($needle, $service);
         }
@@ -56,7 +55,7 @@ final class ShopifyCustomerIdentityTest extends TestCase
         $import = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
 
         self::assertStringContainsString('$configuredStore !== $storeDomain', $service);
-        self::assertStringContainsString("->where('active_patient_key', 'shopify:' . " . '$patientId)', $service);
+        self::assertStringContainsString("->where('active_patient_key', \$this->activePatientKey(\$storeDomain, \$patientId))", $service);
         self::assertStringContainsString('private function linkedCustomer(string $store, string $customerId)', $import);
         self::assertStringContainsString("(int) (\$identity['patient_id'] ?? 0)", $import);
     }

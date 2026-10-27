@@ -9,6 +9,8 @@ final class AdminAppointmentListUiTest extends CIUnitTestCase
     public function testAdminAppointmentListUsesGroupedColumnsAndPermissionAwareActions(): void
     {
         $controller = file_get_contents(ROOTPATH . 'app/Modules/Admin/Controllers/Appointment/Appointment.php');
+        $leaveModel = file_get_contents(ROOTPATH . 'app/Modules/Admin/Models/Doctor/DoctorLeaveModel.php');
+        $scheduleModel = file_get_contents(ROOTPATH . 'app/Modules/Admin/Models/Doctor/DoctorScheduleModel.php');
         $view = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/appointment/index.php');
         $script = file_get_contents(ROOTPATH . 'public/assets/js/admin/appointment/appointment.js');
         $actionsScript = file_get_contents(ROOTPATH . 'public/assets/js/actions-menu.js');
@@ -26,6 +28,10 @@ final class AdminAppointmentListUiTest extends CIUnitTestCase
         self::assertStringNotContainsString('SERVICE / CLINIC', $view);
         self::assertStringContainsString("ROUTES.appointments.queueStatus + id", $script);
         self::assertStringContainsString("status: 'cancelled'", $script);
+        self::assertStringContainsString('type="time"', $view);
+        self::assertStringContainsString('step="900"', $view);
+        self::assertStringContainsString('ROUTES.appointments.availableSlots', $script);
+        self::assertStringContainsString('validateAppointmentTime', $script);
         self::assertStringContainsString("wrapper.closest('.admin-appointment-page')", $actionsScript);
 
         foreach (['admin-appointment-table-wrap', 'table-layout: fixed', 'admin-appointment-indicator--eligible', '@media (max-width: 375px)', '--ri-z-modal-popover'] as $contract) {
@@ -49,5 +55,24 @@ final class AdminAppointmentListUiTest extends CIUnitTestCase
 
         self::assertStringContainsString('.modal-backdrop { z-index: 1040; }', $css);
         self::assertStringContainsString('.modal { z-index: 1050; }', $css);
+    }
+
+    public function testAppointmentAvailabilityUsesScheduleLeaveBreakAndBookingRules(): void
+    {
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Admin/Config/Routes.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Admin/Controllers/Appointment/Appointment.php');
+        $script = file_get_contents(ROOTPATH . 'public/assets/js/admin/appointment/appointment.js');
+        $leaveModel = file_get_contents(ROOTPATH . 'app/Modules/Admin/Models/Doctor/DoctorLeaveModel.php');
+        $scheduleModel = file_get_contents(ROOTPATH . 'app/Modules/Admin/Models/Doctor/DoctorScheduleModel.php');
+
+        self::assertStringContainsString("'available-slots', 'Appointment::availableSlots'", $routes);
+        foreach (['break_start_time', 'intervalBlockedByLeave', 'intervalBlockedByBreak', 'intervalBooked', 'Appointment time cannot be in the past.', 'appointment_time'] as $marker) {
+            self::assertStringContainsString($marker, $controller);
+        }
+        self::assertStringContainsString('doctor_leaves', $leaveModel);
+        self::assertStringContainsString('doctor_schedules', $scheduleModel);
+        foreach (['appointment_date', 'doctor_id', 'duration_minutes', 'appointment_id', 'clearAppointmentSlots', 'The previous time is no longer available'] as $marker) {
+            self::assertStringContainsString($marker, $script);
+        }
     }
 }

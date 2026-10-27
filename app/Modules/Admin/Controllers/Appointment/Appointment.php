@@ -5,6 +5,8 @@ namespace Admin\Controllers\Appointment;
 use Admin\Models\AppointmentModel;
 use Admin\Models\Clinic\ClinicModel;
 use Admin\Models\Doctor\DoctorModel;
+use Admin\Models\Doctor\DoctorLeaveModel;
+use Admin\Models\Doctor\DoctorScheduleModel;
 use Admin\Models\PatientModel;
 use App\Controllers\BaseAdminController;
 use App\Services\AppointmentConsultationEligibility;
@@ -19,12 +21,18 @@ class Appointment extends BaseAdminController
 
     protected ClinicModel $clinic;
 
+    protected DoctorScheduleModel $doctorSchedule;
+
+    protected DoctorLeaveModel $doctorLeave;
+
     public function __construct()
     {
         $this->appointment = new AppointmentModel();
         $this->patient = new PatientModel();
         $this->doctor = new DoctorModel();
         $this->clinic = new ClinicModel();
+        $this->doctorSchedule = new DoctorScheduleModel();
+        $this->doctorLeave = new DoctorLeaveModel();
     }
 
     public function index()
@@ -474,6 +482,32 @@ class Appointment extends BaseAdminController
         return $this->response->setJSON(['status' => true, 'msg' => '', 'data' => $appointment]);
     }
 
+    public function availableSlots()
+    {
+        if (!$this->request->isAJAX() || $this->request->getMethod(true) !== 'GET') {
+            return $this->invalidRequest();
+        }
+
+        $doctorId = (int) $this->request->getGet('doctor_id');
+        $clinicId = (int) $this->request->getGet('clinic_id');
+        $date = rootins_parse_date($this->request->getGet('appointment_date'));
+        $ignoreId = (int) $this->request->getGet('appointment_id');
+        $errors = [];
+        if ($doctorId <= 0) $errors['doctor_id'] = 'Select a doctor.';
+        if ($date === null) $errors['appointment_date'] = 'Select a valid appointment date.';
+        $doctor = $doctorId > 0 ? $this->doctor->where('id', $doctorId)->where('status', 1)->first() : null;
+        $clinic = $clinicId > 0 ? $this->clinic->where('id', $clinicId)->where('status', 1)->first() : null;
+        if ($doctor === null) $errors['doctor_id'] = 'The selected doctor is invalid or inactive.';
+        if ($clinic === null) $errors['clinic_id'] = 'Select a valid clinic.';
+        if ($doctor !== null && $clinic !== null && (int) $doctor['clinic_id'] !== $clinicId) $errors['doctor_id'] = 'The selected doctor is not assigned to the selected clinic.';
+        if ($errors !== []) return $this->validationFailure($errors);
+
+        $duration = max(1, (int) $this->request->getGet('duration_minutes') ?: 15);
+        $availability = $this->appointmentAvailability($doctorId, $clinicId, (string) $date, $duration, $ignoreId, false);
+
+        return $this->response->setJSON(['status' => true, 'msg' => $availability['message'], 'data' => $availability]);
+    }
+
     public function save()
     {
         if (!$this->request->isAJAX() || $this->request->getMethod(true) !== 'POST') {
@@ -493,6 +527,8 @@ class Appointment extends BaseAdminController
         if ($references !== []) {
             return $this->validationFailure($references);
         }
+        $scheduleErrors = $this->validateAppointmentSchedule();
+        if ($scheduleErrors !== []) return $this->validationFailure($scheduleErrors);
         $userId = $this->authenticatedUserId();
 
         if ($userId === null) {
@@ -561,6 +597,10 @@ class Appointment extends BaseAdminController
         if ($references !== []) {
             return $this->validationFailure($references);
         }
+        $existingTime = rootins_parse_time($existing['appointment_time'] ?? '') ?? '';
+        $requestedTime = rootins_parse_time($this->request->getPost('appointment_time')) ?? '';
+        $scheduleErrors = $this->validateAppointmentSchedule($id, $existing['appointment_date'] === rootins_parse_date($this->request->getPost('appointment_date')) && $existingTime === $requestedTime);
+        if ($scheduleErrors !== []) return $this->validationFailure($scheduleErrors);
         $userId = $this->authenticatedUserId();
 
         if ($userId === null) {
@@ -611,7 +651,108 @@ class Appointment extends BaseAdminController
             return ['appointment_date' => 'Enter a valid appointment date as dd-mm-yyyy.'];
         }
 
-        return rootins_parse_time($this->request->getPost('appointment_time')) === null ? ['appointment_time' => 'Enter a valid time as hh:mm AM/PM.'] : [];
+        return rootins_parse_time($this->request->getPost('appointment_time')) === null ? ['appointment_time' => 'Enter a valid time such as 15:30.'] : [];
+    }
+
+    private function validateAppointmentSchedule(?int $ignoreId = null, bool $allowExistingPast = false): array
+    {
+        $doctorId = (int) $this->request->getPost('doctor_id');
+        $clinicId = (int) $this->request->getPost('clinic_id');
+        $date = rootins_parse_date($this->request->getPost('appointment_date'));
+        $time = rootins_parse_time($this->request->getPost('appointment_time'));
+        if ($date === null || $time === null) return [];
+
+        $today = $this->applicationNow()->format('Y-m-d');
+        $current = $this->applicationNow()->format('H:i:s');
+        if (!$allowExistingPast && ($date < $today || ($date === $today && $time < $current))) {
+            return ['appointment_time' => 'Appointment time cannot be in the past.'];
+        }
+
+        $duration = max(1, (int) $this->request->getPost('duration_minutes'));
+        $availability = $this->appointmentAvailability($doctorId, $clinicId, $date, $duration, $ignoreId, false);
+        $timeValue = substr($time, 0, 5);
+        if (!in_array($timeValue, $availability['slot_values'], true)) {
+            return ['appointment_time' => $availability['message'] !== '' ? $availability['message'] : 'The selected time is not available for this doctor.'];
+        }
+
+        return [];
+    }
+
+    /** @return array<string,mixed> */
+    private function appointmentAvailability(int $doctorId, int $clinicId, string $date, int $duration, int $ignoreId = 0, bool $includePast = true): array
+    {
+        $day = (int) (new \DateTimeImmutable($date))->format('N');
+        $schedules = $this->doctorSchedule->where('doctor_id', $doctorId)->where('day_of_week', $day)->where('status', 1)->orderBy('start_time', 'ASC')->findAll();
+        $leaves = $this->doctorLeave->where('doctor_id', $doctorId)->where('status', 1)->where('start_date <=', $date)->where('end_date >=', $date)->findAll();
+        $booked = db_connect()->table('appointments')->select('id, appointment_time, duration_minutes')->where('doctor_id', $doctorId)->where('clinic_id', $clinicId)->where('appointment_date', $date)->whereIn('status', ['scheduled', 'confirmed', 'checked_in', 'in_queue'])->get()->getResultArray();
+        $now = $this->applicationNow();
+        $slotValues = [];
+        $slotLabels = [];
+        $minimum = null;
+        $maximum = null;
+
+        foreach ($schedules as $schedule) {
+            $start = $this->timeMinutes($schedule['start_time'] ?? null);
+            $end = $this->timeMinutes($schedule['end_time'] ?? null);
+            if ($start === null || $end === null || $end <= $start) continue;
+            $minimum = $minimum === null ? $start : min($minimum, $start);
+            $maximum = $maximum === null ? $end : max($maximum, $end);
+            $step = max(1, (int) ($schedule['slot_duration'] ?? 15));
+            for ($minutes = $start; $minutes + $duration <= $end; $minutes += $step) {
+                if ($minutes % 15 !== 0 || $this->intervalBlockedByBreak($minutes, $minutes + $duration, $schedule) || $this->intervalBlockedByLeave($minutes, $minutes + $duration, $leaves)) continue;
+                $value = sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+                if (!$includePast && $date < $now->format('Y-m-d')) continue;
+                if (!$includePast && $date === $now->format('Y-m-d') && $value . ':00' < $now->format('H:i:s')) continue;
+                if ($this->intervalBooked($minutes, $minutes + $duration, $booked, $ignoreId)) continue;
+                if (!in_array($value, $slotValues, true)) {
+                    $slotValues[] = $value;
+                    $slotLabels[] = ['value' => $value, 'label' => rootins_format_time($value)];
+                }
+            }
+        }
+
+        sort($slotValues);
+        usort($slotLabels, static fn (array $a, array $b): int => strcmp($a['value'], $b['value']));
+        $message = $schedules === [] ? 'This doctor has no availability on the selected day.' : ($slotValues === [] ? 'No available appointment times remain for this date.' : '');
+        return ['slots' => $slotLabels, 'slot_values' => $slotValues, 'min' => $minimum === null ? '' : sprintf('%02d:%02d', intdiv($minimum, 60), $minimum % 60), 'max' => $maximum === null ? '' : sprintf('%02d:%02d', intdiv($maximum, 60), $maximum % 60), 'message' => $message];
+    }
+
+    private function intervalBlockedByBreak(int $start, int $end, array $schedule): bool
+    {
+        $breakStart = $this->timeMinutes($schedule['break_start_time'] ?? null);
+        $breakEnd = $this->timeMinutes($schedule['break_end_time'] ?? null);
+        return $breakStart !== null && $breakEnd !== null && $start < $breakEnd && $end > $breakStart;
+    }
+
+    private function intervalBlockedByLeave(int $start, int $end, array $leaves): bool
+    {
+        foreach ($leaves as $leave) {
+            $leaveStart = $this->timeMinutes($leave['start_time'] ?? null);
+            $leaveEnd = $this->timeMinutes($leave['end_time'] ?? null);
+            if ($leaveStart === null || $leaveEnd === null || ($start < $leaveEnd && $end > $leaveStart)) return true;
+        }
+        return false;
+    }
+
+    private function intervalBooked(int $start, int $end, array $booked, int $ignoreId): bool
+    {
+        foreach ($booked as $appointment) {
+            if ((int) ($appointment['id'] ?? 0) === $ignoreId) continue;
+            $bookedStart = $this->timeMinutes($appointment['appointment_time'] ?? null);
+            if ($bookedStart !== null && $start < $bookedStart + max(1, (int) ($appointment['duration_minutes'] ?? 15)) && $end > $bookedStart) return true;
+        }
+        return false;
+    }
+
+    private function timeMinutes(mixed $value): ?int
+    {
+        $time = rootins_parse_time($value);
+        return $time === null ? null : ((int) substr($time, 0, 2) * 60) + (int) substr($time, 3, 2);
+    }
+
+    private function applicationNow(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('now', new \DateTimeZone((string) (config('App')->appTimezone ?: date_default_timezone_get())));
     }
 
     private function validateReferences(): array

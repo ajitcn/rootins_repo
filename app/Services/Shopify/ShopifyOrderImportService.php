@@ -260,24 +260,19 @@ final class ShopifyOrderImportService
         $prescriptionReference = trim((string) ($payload['prescription_reference'] ?? ''));
         $prescriptionId = null;
         $prescriptionDocumentId = 0;
-        $prescriptionExpired = false;
         $this->stage($event, $orderId, 'prescription_reference_lookup');
         if ($prescriptionReference !== '') {
             $doctorPrescription = $this->findDoctorPrescription($prescriptionReference, $patientId, (int) $clinicId);
             if ($doctorPrescription !== null) {
-                $prescriptionExpired = ! empty($doctorPrescription['valid_until']) && (string) $doctorPrescription['valid_until'] < date('Y-m-d');
-                if (! $prescriptionExpired) {
-                    $prescriptionId = (int) $doctorPrescription['id'];
-                    ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'active']);
-                }
-            }
-            if ($doctorPrescription !== null) {
-                if ($prescriptionExpired) {
-                    $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_EXPIRED, $eventId, $patientId, $clinicId);
-                    $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_EXPIRED);
-                    $this->queueNotification($importId, 'prescription_expired');
+                if (! ShopifyPrescriptionEligibility::isOrderable($doctorPrescription)) {
+                    ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'invalid']);
+                    $this->setImportState($importId, 'quarantined', ShopifyPrescriptionEligibility::REASON, $eventId, $patientId, $clinicId);
+                    $events->markFailed($eventId, ShopifyPrescriptionEligibility::REASON);
+                    $this->queueNotification($importId, 'prescription_rejected');
                     return array_merge($importIdentity, ['status' => 'quarantined', 'import_id' => $importId]);
                 }
+                $prescriptionId = (int) $doctorPrescription['id'];
+                ($this->imports ?? new ShopifyOrderImportModel())->update($importId, ['prescription_reference' => $prescriptionReference, 'prescription_status' => 'active']);
             } else {
             try {
                 $document = (new ShopifyPrescriptionUploadService())->ensureOrderPrescriptionMetadata([
@@ -1198,19 +1193,20 @@ GRAPHQL, ['id' => $orderGid]);
     private function findDoctorPrescription(string $reference, int $patientId, int $clinicId): ?array
     {
         if ($reference === '' || $patientId <= 0 || $clinicId <= 0) return null;
-        return db_connect()->table('prescriptions')
-            ->select('id, valid_until, status')
-            ->where('prescription_number', $reference)
-            ->where('patient_id', $patientId)
-            ->where('clinic_id', $clinicId)
-            ->whereIn('status', ['active', 'approved', 'completed', 'finalized'])
+        return db_connect()->table('prescriptions p')
+            ->select('p.id, p.valid_until, p.status')
+            ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
+            ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
+            ->where('p.prescription_number', $reference)
+            ->where('p.patient_id', $patientId)
+            ->where('p.clinic_id', $clinicId)
             ->get(1)->getRowArray() ?: null;
     }
 
     private function prescriptionIdForReference(string $reference, int $patientId, int $clinicId): ?int
     {
         $row = $this->findDoctorPrescription(trim($reference), $patientId, $clinicId);
-        return $row === null ? null : (int) $row['id'];
+        return $row !== null && ShopifyPrescriptionEligibility::isOrderable($row) ? (int) $row['id'] : null;
     }
 
     private function prescriptionItemsMatchOrder(int $prescriptionId, int $importId): bool
@@ -1233,12 +1229,15 @@ GRAPHQL, ['id' => $orderGid]);
 
     private function approvedPrescriptionMatches(int $prescriptionId, int $patientId, int $clinicId): bool
     {
-        $row = db_connect()->table('prescriptions')
-            ->where('id', $prescriptionId)
-            ->where('patient_id', $patientId)
-            ->where('clinic_id', $clinicId)
-            ->whereIn('status', ['active', 'approved', 'completed', 'finalized'])
-            ->groupStart()->where('valid_until >=', date('Y-m-d'))->orWhere('valid_until', null)->groupEnd()
+        $row = db_connect()->table('prescriptions p')
+            ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
+            ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
+            ->where('p.id', $prescriptionId)
+            ->where('p.patient_id', $patientId)
+            ->where('p.clinic_id', $clinicId)
+            ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)
+            ->where('p.valid_until IS NOT NULL', null, false)
+            ->where('p.valid_until >=', ShopifyPrescriptionEligibility::today())
             ->get(1)
             ->getRowArray();
 
@@ -1457,16 +1456,16 @@ GRAPHQL, ['id' => $orderGid]);
         $db->transBegin();
         if ($patientId <= 0) {
             $db->transRollback();
-            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PHARMACY_ORDER_PATIENT_INVALID, 'The linked ROOTINS patient is invalid.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
+            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PATIENT_NOT_FOUND, 'The linked ROOTINS patient was not found.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
         }
         if ($clinicId <= 0 || $db->table('clinics')->where('id', $clinicId)->where('status', 1)->get(1)->getRowArray() === null) {
             $db->transRollback();
             return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PHARMACY_ORDER_CLINIC_SCOPE_INVALID, 'The configured pharmacy billing clinic is invalid.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
         }
-        $patient = $db->table('patients')->select('id, clinic_id')->where('id', $patientId)->where('status', 1)->get(1)->getRowArray();
-        if ($patient === null || ($patient['clinic_id'] !== null && (int) $patient['clinic_id'] !== $clinicId)) {
+        $patient = $db->table('patients')->select('id')->where('id', $patientId)->where('status', 1)->get(1)->getRowArray();
+        if ($patient === null) {
             $db->transRollback();
-            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PHARMACY_ORDER_PATIENT_INVALID, 'The linked ROOTINS patient is not valid for the pharmacy scope.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
+            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PATIENT_NOT_FOUND, 'The linked ROOTINS patient was not found.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
         }
         if ($prescriptionRequired && ($prescriptionId === null || $prescriptionId <= 0 || ! $this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $db->transRollback();

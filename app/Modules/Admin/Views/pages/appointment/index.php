@@ -279,7 +279,9 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="appointment_time">Time <span class="text-danger">*</span></label>
-                                <input type="text" name="appointment_time" id="appointment_time" class="form-control" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off">
+                                <input type="time" name="appointment_time" id="appointment_time" class="form-control" step="900" list="appointmentTimeSlots" required autocomplete="off" aria-describedby="appointmentTimeHelp appointment_timeErr">
+                                <datalist id="appointmentTimeSlots"></datalist>
+                                <small id="appointmentTimeHelp" class="form-text text-muted">Select a doctor and date to load available 15-minute slots.</small>
                                 <div class="validation-error" id="appointment_timeErr"></div>
                             </div>
                         </div>

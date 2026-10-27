@@ -275,9 +275,9 @@ class Patient extends BaseController
         if ($patient === null) {
             return redirect()->to(base_url('permission-denied'));
         }
-        $appointments = $db->table('appointments')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('appointment_date', 'DESC')->orderBy('appointment_time', 'DESC')->limit(25)->get()->getResultArray();
-        $consultations = $db->table('consultations')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('consultation_date', 'DESC')->limit(25)->get()->getResultArray();
-        $prescriptions = $db->table('prescriptions')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->orderBy('prescription_date', 'DESC')->limit(25)->get()->getResultArray();
+        $appointments = $db->table('appointments')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('appointment_date', 'DESC')->orderBy('appointment_time', 'DESC')->limit(25)->get()->getResultArray();
+        $consultations = $db->table('consultations')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('consultation_date', 'DESC')->limit(25)->get()->getResultArray();
+        $prescriptions = $db->table('prescriptions')->where('patient_id', $patientId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->orderBy('prescription_date', 'DESC')->limit(25)->get()->getResultArray();
         service('audit')->record('doctor.patient_view', ['patient_id' => $patientId, 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id']]);
 
         return view(DOCTOR_VIEW . 'pages/patient', ['patient' => $patient, 'appointments' => $appointments, 'consultations' => $consultations, 'prescriptions' => $prescriptions, 'countries' => service('location')->countries(), 'telephoneCodes' => service('location')->telephoneCodes()]);
@@ -310,17 +310,8 @@ class Patient extends BaseController
     private function applyDoctorPatientScope($query, array $context): void
     {
         $db = db_connect();
-        $appointmentPatients = $db->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id']);
-        $consultationPatients = $db->table('consultations')->select('patient_id')->where('doctor_id', $context['doctor_id']);
-        $prescriptionPatients = $db->table('prescriptions')->select('patient_id')->where('doctor_id', $context['doctor_id']);
-        $registeredPatients = $db->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
         if ($db->fieldExists('status', 'patients')) $query->where('patients.status', 1);
         if ($db->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
-        $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
-        $query->groupStart()
-            ->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()
-            ->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $consultationPatients)->orWhereIn('patients.id', $prescriptionPatients)->orWhereIn('patients.id', $registeredPatients)->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()
-            ->groupEnd();
     }
 
     private function shopifyVisiblePatientIds(array $context)

@@ -178,7 +178,7 @@ class Records extends BaseController
                     }
                 }
             }
-            $query = db_connect()->table('appointments')->select('appointments.*, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, consultations.id AS consultation_id, prescriptions.id AS prescription_id')->join('patients', 'patients.id = appointments.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('consultations', 'consultations.appointment_id = appointments.id', 'left')->join('prescriptions', 'prescriptions.consultation_id = consultations.id', 'left')->where('appointments.doctor_id', $context['doctor_id'])->where('appointments.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id']);
+        $query = db_connect()->table('appointments')->select('appointments.*, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, consultations.id AS consultation_id, prescriptions.id AS prescription_id')->join('patients', 'patients.id = appointments.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('consultations', 'consultations.appointment_id = appointments.id', 'left')->join('prescriptions', 'prescriptions.consultation_id = consultations.id', 'left')->where('appointments.doctor_id', $context['doctor_id'])->where('appointments.clinic_id', $context['clinic_id']);
             $applyAppointmentFilters = function ($builder, bool $includeStatus = true) use ($filters, $serviceFilterName): void {
                 $this->applySearch($builder, $filters['search'], [
                     'appointments.appointment_number',
@@ -231,7 +231,7 @@ class Records extends BaseController
                 ->join('patients', 'patients.id = appointments.patient_id')
                 ->where('appointments.doctor_id', $context['doctor_id'])
                 ->where('appointments.clinic_id', $context['clinic_id'])
-                ->where('patients.clinic_id', $context['clinic_id']);
+                ;
             $applyAppointmentFilters($summaryQuery, false);
             $summary = $summaryQuery->get()->getRowArray() ?? [];
             $statusSummary = [
@@ -345,7 +345,7 @@ class Records extends BaseController
         }
         $filters = $this->followUpFilters();
         $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
-        $query = db_connect()->table('consultations')->select('consultations.*, follow_up_types.name AS follow_up_type_name, follow_up_statuses.name AS follow_up_status_name, follow_up_statuses.code AS follow_up_status_code, appointments.appointment_number, appointments.appointment_type, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code')->join('patients', 'patients.id = consultations.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('follow_up_types', 'follow_up_types.id = consultations.follow_up_type_id', 'left')->join('follow_up_statuses', 'follow_up_statuses.id = consultations.follow_up_status_id', 'left')->join('appointments', 'appointments.id = consultations.appointment_id AND appointments.clinic_id = consultations.clinic_id', 'left')->where('consultations.doctor_id', $context['doctor_id'])->where('consultations.clinic_id', $context['clinic_id'])->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->where('consultations.follow_up_date IS NOT NULL', null, false);
+        $query = db_connect()->table('consultations')->select('consultations.*, follow_up_types.name AS follow_up_type_name, follow_up_statuses.name AS follow_up_status_name, follow_up_statuses.code AS follow_up_status_code, appointments.appointment_number, appointments.appointment_type, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code')->join('patients', 'patients.id = consultations.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('follow_up_types', 'follow_up_types.id = consultations.follow_up_type_id', 'left')->join('follow_up_statuses', 'follow_up_statuses.id = consultations.follow_up_status_id', 'left')->join('appointments', 'appointments.id = consultations.appointment_id AND appointments.clinic_id = consultations.clinic_id', 'left')->where('consultations.doctor_id', $context['doctor_id'])->where('consultations.clinic_id', $context['clinic_id'])->where('consultations.follow_up_date IS NOT NULL', null, false);
         $patientDb = db_connect();
         if ($patientDb->fieldExists('status', 'patients')) $query->where('patients.status', 1);
         if ($patientDb->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
@@ -451,7 +451,7 @@ class Records extends BaseController
             return $this->validation($errors);
         }
         $db = db_connect();
-        $patient = $db->table('patients')->where('id', $patientId)->where('clinic_id', $context['clinic_id'])->get()->getRowArray();
+        $patient = $db->table('patients')->where('id', $patientId)->where('status', 1)->get()->getRowArray();
 
         if ($patient === null) {
             return $this->validation(['patient_id' => 'Select a patient in your clinic scope.']);
@@ -522,7 +522,7 @@ class Records extends BaseController
             return redirect()->to(base_url('permission-denied'));
         }
         $filters = $this->listFilters();
-        $query = db_connect()->table('invoices')->select('invoices.invoice_number, invoices.currency, invoices.total, invoices.status, invoices.payment_status, invoices.created_at, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name')->join('appointments', 'appointments.id = invoices.appointment_id')->join('patients', 'patients.id = invoices.patient_id')->where('appointments.doctor_id', $context['doctor_id'])->where('invoices.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id']);
+        $query = db_connect()->table('invoices')->select('invoices.invoice_number, invoices.currency, invoices.total, invoices.status, invoices.payment_status, invoices.created_at, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name')->join('appointments', 'appointments.id = invoices.appointment_id')->join('patients', 'patients.id = invoices.patient_id')->where('appointments.doctor_id', $context['doctor_id'])->where('invoices.clinic_id', $context['clinic_id']);
         $patientId = max(0, (int) $this->request->getGet('patient_id'));
 
         if ($patientId > 0) {
@@ -542,7 +542,7 @@ class Records extends BaseController
             return redirect()->to(base_url('permission-denied'));
         }
         $filters = $this->prescriptionFilters();
-        $query = db_connect()->table('prescriptions')->select('prescriptions.*, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.logo AS clinic_logo, (SELECT COUNT(*) FROM prescription_items AS prescription_item_count WHERE prescription_item_count.prescription_id = prescriptions.id) AS medicine_count', false)->join('patients', 'patients.id = prescriptions.patient_id AND patients.clinic_id = prescriptions.clinic_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('clinics', 'clinics.id = prescriptions.clinic_id AND clinics.status = 1', 'left')->where('prescriptions.doctor_id', $context['doctor_id'])->where('prescriptions.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id']);
+        $query = db_connect()->table('prescriptions')->select('prescriptions.*, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.logo AS clinic_logo, (SELECT COUNT(*) FROM prescription_items AS prescription_item_count WHERE prescription_item_count.prescription_id = prescriptions.id) AS medicine_count', false)->join('patients', 'patients.id = prescriptions.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('clinics', 'clinics.id = prescriptions.clinic_id AND clinics.status = 1', 'left')->where('prescriptions.doctor_id', $context['doctor_id'])->where('prescriptions.clinic_id', $context['clinic_id']);
         $this->applySearch($query, $filters['search'], ['prescriptions.prescription_number', 'patients.first_name', 'patients.last_name', 'patients.registration_number', 'patients.mobile_number', 'patients.mobile_normalized', 'prescriptions.status']);
 
         if ($filters['status'] !== '') {
@@ -883,12 +883,8 @@ class Records extends BaseController
     private function applyDoctorPatientScope($query, array $context): void
     {
         $db = db_connect();
-        $appointmentPatients = $db->table('appointments')->select('patient_id')->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id']);
-        $registeredPatients = $db->table('patient_clinic_transfers')->select('patient_id')->where('to_clinic_id', $context['clinic_id'])->where('transferred_by', $context['user_id']);
         if ($db->fieldExists('status', 'patients')) $query->where('patients.status', 1);
         if ($db->fieldExists('deleted_at', 'patients')) $query->where('patients.deleted_at', null);
-        $shopifyPatientIds = $this->shopifyVisiblePatientIds($context);
-        $query->groupStart()->groupStart()->where('patients.clinic_id', $context['clinic_id'])->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->groupStart()->whereIn('patients.id', $appointmentPatients)->orWhereIn('patients.id', $registeredPatients)->orWhereIn('patients.id', $shopifyPatientIds)->groupEnd()->groupEnd();
     }
 
     private function shopifyVisiblePatientIds(array $context)

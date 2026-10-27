@@ -5,6 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 /** @var RouteCollection $routes */
 $routes->group('admin', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Dashboard::index');
+    $routes->get('data', 'Dashboard::data');
 });
 $routes->group('admin/integrations/shopify', ['namespace' => 'Admin\Controllers\Integration', 'filter' => 'auth'], function ($routes) {
     $routes->get('order-mappings', 'ShopifyOrderOperations::mappings', ['filter' => 'permission:shopify.order.operations']);
@@ -224,6 +225,7 @@ $routes->group('admin/appointments', ['namespace' => 'Admin\Controllers\Appointm
     $routes->post('queue-status/(:num)', 'Appointment::queueStatus/$1', ['filter' => 'permission:appointment.edit']);
     $routes->get('reports', 'Appointment::reports', ['filter' => 'permission:appointment.view']);
     $routes->get('reports-data', 'Appointment::reportsData', ['filter' => 'permission:appointment.view']);
+    $routes->get('available-slots', 'Appointment::availableSlots', ['filter' => 'permission:appointment.view']);
     $routes->get('edit/(:num)', 'Appointment::edit/$1', ['filter' => 'permission:appointment.edit']);
     $routes->post('save', 'Appointment::save', ['filter' => 'permission:appointment.create']);
     $routes->post('update/(:num)', 'Appointment::update/$1', ['filter' => 'permission:appointment.edit']);

@@ -75,8 +75,8 @@ final class ShopifyOrderReviewService
         if ($quantity > (int) ($line['quantity'] ?? 0)) throw new InvalidArgumentException('Approved quantity cannot exceed the Shopify ordered quantity.');
         $reference = trim((string) ($import['prescription_reference'] ?? ''));
         if ($reference === '') return;
-        $prescription = db_connect()->table('prescriptions')->select('id')->where('prescription_number', $reference)->where('patient_id', (int) ($import['patient_id'] ?? 0))->where('clinic_id', (int) ($import['clinic_id'] ?? 0))->whereIn('status', ['active', 'approved', 'completed', 'finalized'])->groupStart()->where('valid_until >=', date('Y-m-d'))->orWhere('valid_until', null)->groupEnd()->get(1)->getRowArray();
-        if ($prescription === null) throw new InvalidArgumentException('The prescription reference is missing, invalid, or expired.');
+        $prescription = db_connect()->table('prescriptions p')->select('p.id, p.status, p.valid_until')->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')->where('p.prescription_number', $reference)->where('p.patient_id', (int) ($import['patient_id'] ?? 0))->where('p.clinic_id', (int) ($import['clinic_id'] ?? 0))->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->where('p.valid_until IS NOT NULL', null, false)->where('p.valid_until >=', ShopifyPrescriptionEligibility::today())->get(1)->getRowArray();
+        if ($prescription === null || ! ShopifyPrescriptionEligibility::isOrderable($prescription)) throw new InvalidArgumentException(ShopifyPrescriptionEligibility::REASON);
         $item = db_connect()->table('prescription_items')->select('quantity')->where('prescription_id', (int) $prescription['id'])->where('medicine_id', (int) ($line['medicine_id'] ?? 0))->get(1)->getRowArray();
         if ($item === null || $quantity > (int) ($item['quantity'] ?? 0)) throw new InvalidArgumentException('Approved quantity cannot exceed the prescribed quantity.');
     }

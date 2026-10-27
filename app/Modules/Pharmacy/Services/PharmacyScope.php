@@ -53,7 +53,6 @@ final class PharmacyScope
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
             ->where('prescriptions.id', $id)
             ->where('prescriptions.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->where('doctors.clinic_id', $clinicId)
             ->get()->getRowArray() ?: null;
     }
@@ -88,7 +87,6 @@ final class PharmacyScope
             ->join('patients', 'patients.id = medicine_orders.patient_id')
             ->where('medicine_orders.id', $id)
             ->where('medicine_orders.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->get()->getRowArray() ?: null;
     }
 

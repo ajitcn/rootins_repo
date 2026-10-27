@@ -302,13 +302,6 @@ final class ShopifyProxyService
             $this->identityFailure('SHOPIFY_PATIENT_INACTIVE', 'The linked ROOTINS patient is inactive.', ['patient' => 'Reactivate the patient before booking.']);
         }
 
-        try {
-            $foreignLink = $links->where('shopify_customer_id', $customerId)->where('shopify_store_domain !=', $store)->where('link_status', 'linked')->first();
-        } catch (Throwable $exception) {
-            $this->registrationDependency('PATIENT_IDENTITY_LINK_UNAVAILABLE', $exception);
-        }
-        if ($foreignLink !== null) $this->identityFailure('SHOPIFY_STORE_MISMATCH', 'The Shopify customer is linked to another store.', ['shopify_customer' => 'This customer cannot be linked across stores.']);
-
         $profileRequired = $this->requiredProfileFields($registrationFields);
         if ($profileRequired !== []) throw new CoreApiException(422, 'PATIENT_PROFILE_INCOMPLETE', 'The ROOTINS patient profile is incomplete for registration.', ['required_fields' => implode(',', $profileRequired)]);
         try {
@@ -320,7 +313,7 @@ final class ShopifyProxyService
         }
         if ($result === null) {
             try {
-                $result = (new PatientRegistrationService())->register($registrationFields, null, ['source_type' => 'shopify', 'source_reference' => $customerId]);
+                $result = (new PatientRegistrationService())->register($registrationFields, null, ['source_type' => 'shopify', 'source_reference' => 'shopify:' . $store . ':' . $customerId]);
             } catch (InvalidArgumentException $exception) {
                 throw $exception;
             } catch (Throwable $exception) {
@@ -328,7 +321,7 @@ final class ShopifyProxyService
             }
         }
         $now = date('Y-m-d H:i:s');
-        $linkData = ['shopify_store_domain' => $store, 'shopify_customer_id' => $customerId, 'patient_id' => (int) $result['id'], 'email_snapshot' => trim((string) ($registrationFields['email'] ?? '')), 'mobile_snapshot' => trim((string) ($registrationFields['mobile_number'] ?? '')), 'link_status' => 'linked', 'matched_by' => 'proxy_registration', 'active_patient_key' => 'shopify:' . (int) $result['id'], 'linked_at' => $now, 'created_at' => $now, 'updated_at' => $now];
+        $linkData = ['shopify_store_domain' => $store, 'shopify_customer_id' => $customerId, 'patient_id' => (int) $result['id'], 'email_snapshot' => trim((string) ($registrationFields['email'] ?? '')), 'mobile_snapshot' => trim((string) ($registrationFields['mobile_number'] ?? '')), 'link_status' => 'linked', 'matched_by' => 'proxy_registration', 'active_patient_key' => 'shopify:' . hash('sha256', $store . '|' . (int) $result['id']), 'linked_at' => $now, 'created_at' => $now, 'updated_at' => $now];
         try {
             if ($existing !== null) $links->update((int) $existing['id'], $linkData);
             else $links->insert($linkData);

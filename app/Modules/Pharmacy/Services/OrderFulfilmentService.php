@@ -47,7 +47,6 @@ final class OrderFulfilmentService
             ->join('patients', 'patients.id = orders.patient_id')
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->where('orders.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->groupStart()
                 ->where('prescriptions.clinic_id', $clinicId)
                 ->orWhere('prescriptions.id', null)
@@ -95,7 +94,7 @@ final class OrderFulfilmentService
         if ($clinicId === null || $orderId <= 0) {
             return null;
         }
-        $order = db_connect()->table('medicine_orders AS orders')->select('orders.*, payment_providers.provider_name AS payment_provider_name, providers.provider_name, providers.tracking_url_template, clinics.clinic_name, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.mobile_number, patients.country_code, (SELECT invoice_number FROM invoices WHERE invoices.order_id = orders.id AND invoices.clinic_id = orders.clinic_id ORDER BY invoices.id DESC LIMIT 1) AS invoice_number')->join('clinics', 'clinics.id = orders.clinic_id')->join('patients', 'patients.id = orders.patient_id')->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')->join('payment_providers', 'payment_providers.provider_code = orders.payment_provider', 'left')->where('orders.id', $orderId)->where('orders.clinic_id', $clinicId)->where('clinics.id', $clinicId)->where('patients.clinic_id', $clinicId)->groupStart()->where('prescriptions.clinic_id', $clinicId)->orWhere('prescriptions.id', null)->groupEnd()->get()->getRowArray();
+        $order = db_connect()->table('medicine_orders AS orders')->select('orders.*, payment_providers.provider_name AS payment_provider_name, providers.provider_name, providers.tracking_url_template, clinics.clinic_name, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.middle_name, patients.last_name, patients.mobile_number, patients.country_code, (SELECT invoice_number FROM invoices WHERE invoices.order_id = orders.id AND invoices.clinic_id = orders.clinic_id ORDER BY invoices.id DESC LIMIT 1) AS invoice_number')->join('clinics', 'clinics.id = orders.clinic_id')->join('patients', 'patients.id = orders.patient_id')->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')->join('payment_providers', 'payment_providers.provider_code = orders.payment_provider', 'left')->where('orders.id', $orderId)->where('orders.clinic_id', $clinicId)->where('clinics.id', $clinicId)->groupStart()->where('prescriptions.clinic_id', $clinicId)->orWhere('prescriptions.id', null)->groupEnd()->get()->getRowArray();
 
         if ($order === null) {
             return null;
@@ -362,7 +361,7 @@ final class OrderFulfilmentService
         $db->transBegin();
 
         try {
-            $order = $db->query('SELECT orders.* FROM medicine_orders orders JOIN patients ON patients.id = orders.patient_id AND patients.clinic_id = ? JOIN prescriptions ON prescriptions.id = orders.prescription_id AND prescriptions.clinic_id = ? WHERE orders.id = ? AND orders.clinic_id = ? LIMIT 1 FOR UPDATE', [$clinicId, $clinicId, $orderId, $clinicId])->getRowArray();
+            $order = $db->query('SELECT orders.* FROM medicine_orders orders JOIN patients ON patients.id = orders.patient_id JOIN prescriptions ON prescriptions.id = orders.prescription_id AND prescriptions.clinic_id = ? WHERE orders.id = ? AND orders.clinic_id = ? LIMIT 1 FOR UPDATE', [$clinicId, $orderId, $clinicId])->getRowArray();
 
             if ($order === null) {
                 $db->transRollback();
@@ -432,7 +431,7 @@ final class OrderFulfilmentService
      */
     private function approvedPrescriptions(int $clinicId): array
     {
-        return db_connect()->table('prescriptions')->select('prescriptions.id, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.last_name')->join('patients', 'patients.id = prescriptions.patient_id')->join('doctors', 'doctors.id = prescriptions.doctor_id')->join('medicine_orders', 'medicine_orders.prescription_id = prescriptions.id', 'left')->where('prescriptions.clinic_id', $clinicId)->where('patients.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId)->where('prescriptions.status', 'approved')->where('medicine_orders.id', null)->orderBy('prescriptions.prescription_date', 'ASC')->limit(100)->get()->getResultArray();
+        return db_connect()->table('prescriptions')->select('prescriptions.id, prescriptions.prescription_number, prescriptions.prescription_date, patients.registration_number, patients.first_name, patients.last_name')->join('patients', 'patients.id = prescriptions.patient_id')->join('doctors', 'doctors.id = prescriptions.doctor_id')->join('medicine_orders', 'medicine_orders.prescription_id = prescriptions.id', 'left')->where('prescriptions.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId)->where('prescriptions.status', 'approved')->where('medicine_orders.id', null)->orderBy('prescriptions.prescription_date', 'ASC')->limit(100)->get()->getResultArray();
     }
 
     /**
@@ -449,7 +448,6 @@ final class OrderFulfilmentService
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
             ->where('prescriptions.id', $prescriptionId)
             ->where('prescriptions.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->where('doctors.clinic_id', $clinicId)
             ->get(1)
             ->getRowArray() ?: null;

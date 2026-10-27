@@ -27,7 +27,7 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');
 
         self::assertStringContainsString('findDoctorPrescription', $service);
-        self::assertStringContainsString('PRESCRIPTION_EXPIRED', $service);
+        self::assertStringContainsString('PRESCRIPTION_NOT_ORDERABLE', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionEligibility.php'));
         self::assertStringNotContainsString('$prescriptionId = $this->candidatePrescriptionId($payload);', $service);
     }
 }

@@ -106,11 +106,9 @@ final class ShopifyCustomerIdentityService
             ->first();
         $patientReference = null;
         if ($link !== null && ! empty($link['patient_id'])) {
-            $clinicId = $configuration->clinicId();
-            $patient = $clinicId === null ? null : ($this->patients ?? new PatientModel())
+            $patient = ($this->patients ?? new PatientModel())
                 ->select('registration_number')
                 ->where('id', (int) $link['patient_id'])
-                ->where('clinic_id', $clinicId)
                 ->where('status', 1)
                 ->first();
             $patientReference = $patient['registration_number'] ?? null;
@@ -139,11 +137,9 @@ final class ShopifyCustomerIdentityService
         $patientReference = null;
 
         if ($link !== null && ! empty($link['patient_id'])) {
-            $clinicId = $configuration->clinicId();
-            $patient = $clinicId === null ? null : ($this->patients ?? new PatientModel())
+            $patient = ($this->patients ?? new PatientModel())
                 ->select('registration_number')
                 ->where('id', (int) $link['patient_id'])
-                ->where('clinic_id', $clinicId)
                 ->where('status', 1)
                 ->first();
             $patientReference = $patient['registration_number'] ?? null;
@@ -204,15 +200,8 @@ final class ShopifyCustomerIdentityService
      */
     public function patientOptions(): array
     {
-        $clinicId = ($this->configuration ?? new ShopifyConfiguration())->clinicId();
-
-        if ($clinicId === null) {
-            return [];
-        }
-
         return ($this->patients ?? new PatientModel())
             ->select('id, registration_number, first_name, last_name')
-            ->where('clinic_id', $clinicId)
             ->where('status', 1)
             ->orderBy('first_name', 'ASC')
             ->findAll(250);
@@ -221,17 +210,15 @@ final class ShopifyCustomerIdentityService
     public function linkExisting(int $linkId, int $patientId): bool
     {
         $configuration = $this->configuration ?? new ShopifyConfiguration();
-        $clinicId = $configuration->clinicId();
         $links = $this->links ?? new ShopifyPatientIdentityLinkModel();
         $link = $this->scopedLink($linkId);
 
-        if ($link === null || $clinicId === null) {
-            throw new InvalidArgumentException('The Shopify identity is outside the configured clinic scope.');
+        if ($link === null) {
+            throw new InvalidArgumentException('The Shopify identity is outside the configured store scope.');
         }
 
         $patient = ($this->patients ?? new PatientModel())
             ->where('id', $patientId)
-            ->where('clinic_id', $clinicId)
             ->where('status', 1)
             ->first();
 
@@ -240,7 +227,7 @@ final class ShopifyCustomerIdentityService
         }
 
         $conflict = $links
-            ->where('active_patient_key', 'shopify:' . $patientId)
+            ->where('active_patient_key', $this->activePatientKey($link['shopify_store_domain'], $patientId))
             ->where('id !=', $linkId)
             ->where('link_status', 'linked')
             ->first();
@@ -253,7 +240,7 @@ final class ShopifyCustomerIdentityService
             'patient_id' => $patientId,
             'link_status' => 'linked',
             'matched_by' => 'admin',
-            'active_patient_key' => 'shopify:' . $patientId,
+            'active_patient_key' => $this->activePatientKey($link['shopify_store_domain'], $patientId),
             'linked_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -276,9 +263,7 @@ final class ShopifyCustomerIdentityService
     {
         $configuration = $this->configuration ?? new ShopifyConfiguration();
         $link = $this->scopedLink($linkId);
-        $clinicId = $configuration->clinicId();
-
-        if ($link === null || $clinicId === null || ! $configuration->allowAutomaticPatientCreation()) {
+        if ($link === null || ! $configuration->allowAutomaticPatientCreation()) {
             throw new InvalidArgumentException('Patient creation is not enabled for this Shopify integration.');
         }
 
@@ -295,7 +280,7 @@ final class ShopifyCustomerIdentityService
         }
 
         $registration = (new PatientRegistrationService())->register([
-            'clinic_id' => $clinicId,
+            'clinic_id' => null,
             'first_name' => trim((string) ($data['first_name'] ?? '')),
             'last_name' => trim((string) ($data['last_name'] ?? '')),
             'email' => strtolower(trim((string) ($data['email'] ?? $link['email_snapshot'] ?? ''))),
@@ -303,11 +288,11 @@ final class ShopifyCustomerIdentityService
             'country_code' => $phone['country_code'],
             'date_of_birth' => trim((string) ($data['date_of_birth'] ?? '')),
             'source_type' => 'shopify',
-            'source_reference' => (string) $link['shopify_customer_id'],
+            'source_reference' => $this->sourceReference($link['shopify_store_domain'], (string) $link['shopify_customer_id']),
             'status' => 1,
         ], (int) ((session('user') ?? [])['id'] ?? 0), [
             'source_type' => 'shopify',
-            'source_reference' => (string) $link['shopify_customer_id'],
+            'source_reference' => $this->sourceReference($link['shopify_store_domain'], (string) $link['shopify_customer_id']),
         ]);
         $this->linkExisting($linkId, (int) $registration['id']);
 
@@ -372,20 +357,20 @@ final class ShopifyCustomerIdentityService
         // clinic assignment is handled by the order/billing scope.
         $sourcePatient = ($this->patients ?? new PatientModel())
             ->where('source_type', 'shopify')
-            ->where('source_reference', $customerId)
+            ->where('source_reference', $this->sourceReference($storeDomain, $customerId))
             ->where('status', 1)
             ->first();
         if ($sourcePatient !== null) {
             $patientId = (int) ($sourcePatient['id'] ?? 0);
             $conflict = $links
-                ->where('active_patient_key', 'shopify:' . $patientId)
+                ->where('active_patient_key', $this->activePatientKey($storeDomain, $patientId))
                 ->where('link_status', 'linked')
                 ->first();
             if ($conflict === null || (int) ($conflict['id'] ?? 0) === (int) ($link['id'] ?? 0)) {
                 $data['patient_id'] = $patientId;
                 $data['link_status'] = 'linked';
                 $data['matched_by'] = 'source_reference';
-                $data['active_patient_key'] = 'shopify:' . $patientId;
+                $data['active_patient_key'] = $this->activePatientKey($storeDomain, $patientId);
                 $data['linked_at'] = date('Y-m-d H:i:s');
                 $data['created_at'] = $link['created_at'] ?? date('Y-m-d H:i:s');
                 $linkId = $link === null
@@ -409,7 +394,7 @@ final class ShopifyCustomerIdentityService
             $status = 'linked';
             $matchedBy = $matches[0]['matched_by'];
             $conflict = $links
-                ->where('active_patient_key', 'shopify:' . $patientId)
+                ->where('active_patient_key', $this->activePatientKey($storeDomain, $patientId))
                 ->where('id !=', (int) ($link['id'] ?? 0))
                 ->where('link_status', 'linked')
                 ->first();
@@ -426,7 +411,7 @@ final class ShopifyCustomerIdentityService
         $data['patient_id'] = $patientId;
         $data['link_status'] = $status;
         $data['matched_by'] = $matchedBy;
-        $data['active_patient_key'] = $patientId !== null ? 'shopify:' . $patientId : null;
+        $data['active_patient_key'] = $patientId !== null ? $this->activePatientKey($storeDomain, $patientId) : null;
         $data['linked_at'] = $patientId !== null ? date('Y-m-d H:i:s') : null;
         $data['created_at'] = $link['created_at'] ?? date('Y-m-d H:i:s');
 
@@ -445,17 +430,13 @@ final class ShopifyCustomerIdentityService
      */
     private function findMatches(string $email, ?array $mobile): array
     {
-        $configuration = $this->configuration ?? new ShopifyConfiguration();
-        $clinicId = $configuration->clinicId();
-
-        if ($clinicId === null || ($email === '' && $mobile === null)) {
+        if ($email === '' && $mobile === null) {
             return [];
         }
 
         $patients = $this->patients ?? new PatientModel();
         $query = $patients
             ->select('patients.id, patients.email, patients.mobile_normalized, patients.country_code')
-            ->where('patients.clinic_id', $clinicId)
             ->where('patients.status', 1)
             ->groupStart();
 
@@ -523,6 +504,16 @@ final class ShopifyCustomerIdentityService
             ->where('id', $linkId)
             ->where('shopify_store_domain', strtolower($configuration->storeDomain()))
             ->first();
+    }
+
+    private function activePatientKey(string $storeDomain, int $patientId): string
+    {
+        return 'shopify:' . hash('sha256', strtolower(trim($storeDomain)) . '|' . $patientId);
+    }
+
+    private function sourceReference(string $storeDomain, string $customerId): string
+    {
+        return 'shopify:' . strtolower(trim($storeDomain)) . ':' . trim($customerId);
     }
 
     /**

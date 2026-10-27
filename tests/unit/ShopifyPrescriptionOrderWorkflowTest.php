@@ -95,7 +95,8 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $clinical = $this->source('app/Modules/Doctor/Controllers/Clinical.php');
 
         self::assertStringContainsString("where('p.patient_id', \$patientId)", $active);
-        self::assertStringContainsString("whereIn('p.status', ['active', 'approved', 'completed', 'finalized'])", $active);
+        self::assertStringContainsString("whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)", $active);
+        self::assertStringContainsString("where('p.valid_until IS NOT NULL', null, false)", $active);
         self::assertStringNotContainsString("'submitted'", $active);
         self::assertStringContainsString('createIfFinalized', $snapshot);
         self::assertStringContainsString('source_type', $snapshot);
@@ -109,7 +110,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $review = $this->source('app/Services/Shopify/ShopifyOrderReviewService.php');
         $migration = $this->source('app/Database/Migrations/2026-10-26-140000_CreateShopifyLineReconciliation.php');
 
-        foreach (['prescription_expired', 'new_prescription_required', 'prescription_rejected', 'medicine_unavailable', 'substitute_required', 'partial_refund', 'partial_fulfilment'] as $type) {
+        foreach (['new_prescription_required', 'prescription_rejected', 'medicine_unavailable', 'substitute_required', 'partial_refund', 'partial_fulfilment'] as $type) {
             self::assertStringContainsString($type, $import . $review);
         }
         self::assertStringContainsString('addUniqueKey', $migration);

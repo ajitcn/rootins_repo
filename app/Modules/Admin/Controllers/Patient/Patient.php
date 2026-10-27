@@ -116,19 +116,18 @@ class Patient extends BaseAdminController
         }
 
         $db = db_connect();
-        $clinicId = (int) ($patient['clinic_id'] ?? 0);
         $today = date('Y-m-d');
-        $appointmentScope = $db->table('appointments')->where('patient_id', $id)->where('clinic_id', $clinicId);
+        $appointmentScope = $db->table('appointments')->where('patient_id', $id);
         $totalAppointments = (clone $appointmentScope)->countAllResults();
         $lastAppointment = (clone $appointmentScope)->orderBy('appointment_date', 'DESC')->orderBy('appointment_time', 'DESC')->get(1)->getRowArray();
         $upcomingAppointment = (clone $appointmentScope)->where('appointment_date >=', $today)->whereNotIn('status', ['cancelled', 'no_show'])->orderBy('appointment_date', 'ASC')->orderBy('appointment_time', 'ASC')->get(1)->getRowArray();
-        $prescriptionScope = $db->table('prescriptions')->where('patient_id', $id)->where('clinic_id', $clinicId);
+        $prescriptionScope = $db->table('prescriptions')->where('patient_id', $id);
         $prescriptionCount = (clone $prescriptionScope)->countAllResults();
         $timeline = $this->patientTimeline($id);
         $activityDates = array_filter(array_merge([
             $patient['updated_at'] ?? null,
             $lastAppointment['appointment_date'] ?? null,
-            $prescriptionCount > 0 ? (($latestPrescription = $db->table('prescriptions')->select('prescription_date')->where('patient_id', $id)->where('clinic_id', $clinicId)->orderBy('prescription_date', 'DESC')->get(1)->getRowArray())['prescription_date'] ?? null) : null,
+            $prescriptionCount > 0 ? (($latestPrescription = $db->table('prescriptions')->select('prescription_date')->where('patient_id', $id)->orderBy('prescription_date', 'DESC')->get(1)->getRowArray())['prescription_date'] ?? null) : null,
         ], array_column($timeline, 'occurred_at')));
 
         return view(ADMIN_VIEW . 'pages/patient/view', [

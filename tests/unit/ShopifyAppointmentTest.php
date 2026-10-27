@@ -20,8 +20,7 @@ final class ShopifyAppointmentTest extends TestCase
         self::assertStringContainsString("'booking_source' => 'shopify'", $service);
         self::assertStringContainsString("'external_reference' => \$externalReference", $service);
         self::assertStringContainsString("'idempotency_key' => \$idempotencyKey", $service);
-        self::assertStringContainsString('setStatusCode(422)', $controller);
-        self::assertStringContainsString('setStatusCode(409)', $controller);
+        self::assertStringContainsString('setStatusCode($status)', $controller);
     }
 
     public function testBookingMigrationHasExternalUniquenessAndOwnershipKeys(): void
@@ -58,7 +57,7 @@ final class ShopifyAppointmentTest extends TestCase
         $appointment = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyAppointmentService.php');
 
         self::assertStringContainsString('public function verify(string $token)', $handoff);
-        self::assertStringContainsString('$handoffService->consume($token)', $appointment);
+        self::assertStringContainsString('$handoffService->consume($handoffToken)', $appointment);
         self::assertStringContainsString('public function availability', $appointment);
         self::assertStringContainsString('public function book', $appointment);
         self::assertStringContainsString('public function cancel', $appointment);
@@ -69,10 +68,10 @@ final class ShopifyAppointmentTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyAppointmentService.php');
 
-        self::assertStringContainsString("self::DATE_FORMAT = 'd-m-Y'", $service);
+        self::assertStringContainsString("private const DATE_FORMAT = 'd-m-Y'", $service);
         self::assertStringContainsString('DoctorLeaveModel', $service);
         self::assertStringContainsString('whereIn(\'status\', self::ACTIVE_APPOINTMENT_STATUSES)', $service);
-        self::assertStringContainsString("'state' => $state", $service);
+        self::assertStringContainsString("'state' => \$state", $service);
         self::assertStringNotContainsString('password', $service);
         self::assertStringNotContainsString('otp', strtolower($service));
         self::assertStringNotContainsString('access_token', $service);

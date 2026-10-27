@@ -83,7 +83,6 @@ final class OrderLabelService
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->where('orders.id', $orderId)
             ->where('orders.clinic_id', $clinicId)
-            ->where('patients.clinic_id', $clinicId)
             ->groupStart()
                 ->where('prescriptions.id IS NULL', null, false)
                 ->orWhere('prescriptions.clinic_id', $clinicId)

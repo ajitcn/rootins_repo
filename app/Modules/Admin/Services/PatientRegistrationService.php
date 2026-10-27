@@ -36,9 +36,6 @@ class PatientRegistrationService
         if (!in_array($sourceType, ['self', 'shopify'], true)) {
             throw new InvalidArgumentException('Patient source is invalid.');
         }
-        if ($sourceType !== 'shopify' && empty($patientData['clinic_id'])) {
-            throw new InvalidArgumentException('A clinic is required for patient registration.');
-        }
         $patientData['mobile_number'] = self::normalizeRequiredMobileNumber($patientData['mobile_number'] ?? null);
         // The deployed patients schema requires a non-null DATE. Validate and
         // normalize before starting the transaction so callers receive a
@@ -70,7 +67,6 @@ class PatientRegistrationService
                     ->where('country_code', (string) $country['phone_code'])
                     ->where('mobile_normalized', $mobileNormalized)
                     ->where('status', 1);
-                if ((int) ($patientData['clinic_id'] ?? 0) > 0) $duplicateQuery->where('clinic_id', (int) $patientData['clinic_id']);
                 $duplicate = $duplicateQuery->get()->getRowArray();
 
                 if ($duplicate !== null) {

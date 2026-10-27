@@ -63,6 +63,7 @@ const ROUTES = {
         queueStatus : BASE_URL + 'admin/appointments/queue-status/',
         reports     : BASE_URL + 'admin/appointments/reports',
         reportsData : BASE_URL + 'admin/appointments/reports-data',
+        availableSlots: BASE_URL + 'admin/appointments/available-slots',
         edit        : BASE_URL + 'admin/appointments/edit/',
         save        : BASE_URL + 'admin/appointments/save',
         update      : BASE_URL + 'admin/appointments/update/',

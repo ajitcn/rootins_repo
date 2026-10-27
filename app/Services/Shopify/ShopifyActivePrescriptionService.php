@@ -14,15 +14,15 @@ final class ShopifyActivePrescriptionService
         }
 
         $db = db_connect();
-        $today = date('Y-m-d');
+        $today = ShopifyPrescriptionEligibility::today();
         $prescriptions = $db->table('prescriptions p')
             ->select('p.id, p.prescription_number, p.prescription_date, p.valid_until')
+            ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
+            ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
             ->where('p.patient_id', $patientId)
-            ->whereIn('p.status', ['active', 'approved', 'completed', 'finalized'])
-            ->groupStart()
-                ->where('p.valid_until >=', $today)
-                ->orGroupStart()->where('p.valid_until', null)->where('p.prescription_date >=', $today)->groupEnd()
-            ->groupEnd()
+            ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)
+            ->where('p.valid_until IS NOT NULL', null, false)
+            ->where('p.valid_until >=', $today)
             ->orderBy('p.prescription_date', 'DESC')
             ->orderBy('p.id', 'DESC')
             ->get()->getResultArray();
@@ -32,7 +32,7 @@ final class ShopifyActivePrescriptionService
             $items = $this->items($db, $storeDomain, (int) $prescription['id']);
             $result[] = [
                 'prescription_reference' => (string) $prescription['prescription_number'],
-                'valid_until' => $prescription['valid_until'] ?: $prescription['prescription_date'],
+                'valid_until' => (string) $prescription['valid_until'],
                 'items' => $items['items'],
                 'excluded_items' => $items['excluded_items'],
             ];
