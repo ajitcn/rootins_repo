@@ -116,15 +116,17 @@ payments, inventory, and fulfilment is approved.
 
 ## Webhook topics
 
-The planned topics are customers create/update, orders create/update/cancel,
+The enabled topics are customers create/update, orders create/update/cancel,
 fulfillments create/update, refunds create, and app uninstall.
 
 The webhook endpoint verifies the raw request-body HMAC, store configuration,
 and external event ID before persisting only event metadata and a SHA-256
 payload hash. For customer create/update events it also stores a minimized
 customer payload containing only the external ID, name, email, phone, and
-optional date of birth needed for identity review. Full webhook payloads are
-never stored. Other business processing remains deferred.
+safe default-address fields needed for patient synchronization. Full webhook
+payloads are never stored. Customer events idempotently match or create a
+global ROOTINS patient and maintain a store-scoped identity link; updates
+change profile fields only and never clinical fields.
 
 ## Data ownership
 
@@ -141,10 +143,11 @@ never stored. Other business processing remains deferred.
 
 Webhook events are deduplicated by store and Shopify event ID. API operations
 use deterministic operation keys in the local idempotency table. Failed
-operations remain observable with a retry count and safe error message. A
-later phase must add bounded exponential retry, dead-letter/manual replay,
-out-of-order event handling, and reconciliation screens before live business
-synchronization is enabled.
+operations remain observable with a retry count and safe error message. Failed
+customer events remain retryable through the existing event status flow;
+duplicate event IDs do not repeat patient or link writes. The Admin Shopify
+customer view exposes the store, customer ID, patient reference, link status,
+last sync time, and safe sync error.
 
 ## Security model
 

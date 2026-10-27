@@ -40,13 +40,15 @@
                 <div class="p-4 text-muted">No Shopify customer identities require review.</div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0"><caption class="sr-only">Shopify customer identity review queue</caption><thead><tr><th>Shopify store</th><th>Customer ID</th><th>ROOTINS patient</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+                    <table class="table table-sm mb-0"><caption class="sr-only">Shopify customer identity review queue</caption><thead><tr><th>Shopify store</th><th>Customer ID</th><th>ROOTINS patient</th><th>Status</th><th>Last synced</th><th>Last sync error</th><th>Actions</th></tr></thead><tbody>
                     <?php foreach ($customerLinks as $link): ?>
                         <tr>
                             <td class="text-break"><?= esc($link['shopify_store_domain']) ?></td>
                             <td class="text-break"><code><?= esc($link['shopify_customer_id']) ?></code><br><span class="small text-muted"><?= esc($link['email_snapshot'] ?: 'No email') ?><br><?= esc($link['mobile_snapshot'] ?: 'No mobile') ?></span></td>
                             <td><?= esc($link['patient_reference'] ?: 'Not linked') ?></td>
                             <td><span class="badge badge-light"><?= esc(ucfirst((string) $link['link_status'])) ?></span></td>
+                            <td class="small"><?= esc($link['last_synced_at'] ?: 'Never') ?></td>
+                            <td class="small text-danger"><?= esc($link['last_sync_error'] ?: '—') ?></td>
                             <td>
                                 <?php if ($link['link_status'] !== 'linked'): ?>
                                 <form class="shopify-identity-action form-inline mb-2" method="post" action="<?= base_url('admin/integrations/shopify/customers/link') ?>">

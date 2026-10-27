@@ -27,52 +27,7 @@ final class ShopifyCustomerIdentityService
      */
     public function processCustomerEvent(int $eventId): array
     {
-        $events = $this->events ?? new ShopifyWebhookEventService();
-        $event = $events->find($eventId);
-
-        if ($event === null) {
-            throw new InvalidArgumentException('Shopify event was not found.');
-        }
-
-        if ((string) ($event['status'] ?? '') === 'processed') {
-            return ['status' => 'processed', 'patient_id' => null, 'link_id' => null];
-        }
-
-        $payload = json_decode((string) ($event['payload_json'] ?? ''), true);
-
-        if (! is_array($payload)) {
-            $events->markFailed($eventId, 'Customer payload is unavailable.');
-
-            return ['status' => 'unmatched', 'patient_id' => null, 'link_id' => null];
-        }
-
-        $customerId = trim((string) ($payload['id'] ?? ''));
-
-        if ($customerId === '') {
-            $events->markFailed($eventId, 'Customer ID is unavailable.');
-
-            return ['status' => 'unmatched', 'patient_id' => null, 'link_id' => null];
-        }
-
-        $result = $this->resolveCustomer(
-            (string) $event['store_domain'],
-            $customerId,
-            $payload,
-        );
-        $events->markProcessed($eventId);
-
-        service('audit')->record('shopify.customer_' . $result['status'], [
-            'store_domain' => (string) $event['store_domain'],
-            'customer_id' => $customerId,
-            'patient_id' => $result['patient_id'],
-            'matched_by' => $result['matched_by'] ?? null,
-        ]);
-
-        return [
-            'status' => $result['status'],
-            'patient_id' => $result['patient_id'],
-            'link_id' => $result['link_id'],
-        ];
+        return (new ShopifyCustomerPatientSyncService())->processEvent($eventId);
     }
 
     /**
@@ -189,6 +144,9 @@ final class ShopifyCustomerIdentityService
         foreach ($rows as &$row) {
             $patient = ! empty($row['patient_id']) ? ($this->patients ?? new PatientModel())->select('registration_number')->where('id', (int) $row['patient_id'])->first() : null;
             $row['patient_reference'] = (string) ($patient['registration_number'] ?? '');
+            $event = ($this->events ?? new ShopifyWebhookEventService())->findLatestCustomerEvent((string) $row['shopify_store_domain'], (string) $row['shopify_customer_id']);
+            $row['last_synced_at'] = $event !== null && (string) ($event['status'] ?? '') === 'processed' ? ($event['processed_at'] ?? null) : null;
+            $row['last_sync_error'] = $event !== null && (string) ($event['status'] ?? '') === 'failed' ? (string) ($event['error_message'] ?? '') : '';
             unset($row['patient_id']);
         }
         unset($row);

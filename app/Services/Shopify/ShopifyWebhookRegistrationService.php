@@ -11,7 +11,7 @@ final class ShopifyWebhookRegistrationService
     public const CONFIRMATION = 'I confirm the approved Shopify webhook changes';
 
     /** @var list<string> */
-    private const APPROVED_TOPICS = ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'orders/paid', 'fulfillments/create', 'fulfillments/update', 'refunds/create'];
+    private const APPROVED_TOPICS = ['customers/create', 'customers/update', 'orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled', 'orders/paid', 'fulfillments/create', 'fulfillments/update', 'refunds/create'];
 
     public function __construct(
         private readonly ?ShopifyClient $client = null,

@@ -10,6 +10,7 @@ use App\Services\Shopify\ShopifyOrderImportFailure;
 use App\Services\Shopify\ShopifyWebhookEventService;
 use App\Services\Shopify\ShopifyWebhookVerifier;
 use App\Services\Shopify\ShopifyAppointmentIntentService;
+use App\Services\Shopify\ShopifyCustomerPatientSyncException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 final class Webhook extends BaseController
@@ -36,7 +37,7 @@ final class Webhook extends BaseController
             }
             $this->diagnostic($topic, '', '', 'verification_failed', 'SHOPIFY_WEBHOOK_HMAC_INVALID');
 
-            return $this->error(401, 'SHOPIFY_WEBHOOK_AUTH_FAILED', 'Webhook authentication failed.');
+            return $this->error(401, 'SHOPIFY_WEBHOOK_HMAC_INVALID', 'Webhook authentication failed.');
         }
 
         $shopDomain = strtolower(trim($this->request->getHeaderLine('X-Shopify-Shop-Domain')));
@@ -139,6 +140,27 @@ final class Webhook extends BaseController
         if (in_array($topic, ['customers/create', 'customers/update'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyCustomerIdentityService())->processCustomerEvent((int) $result['id']);
+            } catch (ShopifyCustomerPatientSyncException $exception) {
+                (new ShopifyWebhookEventService())->markFailed((int) $result['id'], $exception->category);
+                service('audit')->record('shopify.customer_patient_sync_failed', [
+                    'correlation_id' => $this->requestCorrelationId,
+                    'topic' => $topic,
+                    'store_domain' => $shopDomain,
+                    'event_id_hash' => hash('sha256', $eventId),
+                    'processing_stage' => 'customer_patient_sync',
+                    'failure_category' => $exception->category,
+                ]);
+                log_message('error', 'Shopify customer patient synchronization failed ' . json_encode([
+                    'correlation_id' => $this->requestCorrelationId,
+                    'topic' => $topic,
+                    'store_domain' => $shopDomain,
+                    'event_id_hash' => hash('sha256', $eventId),
+                    'processing_stage' => 'customer_patient_sync',
+                    'failure_category' => $exception->category,
+                ], JSON_UNESCAPED_SLASHES));
+                $status = $exception->category === 'SHOPIFY_PATIENT_IDENTITY_CONFLICT' ? 409 : ($exception->category === 'SHOPIFY_PATIENT_SYNC_FAILED' ? 500 : 422);
+
+                return $this->error($status, $exception->category, 'Shopify customer patient synchronization could not be completed safely.');
             } catch (\Throwable $exception) {
                 (new ShopifyWebhookEventService())->markFailed((int) $result['id'], 'Customer identity processing failed.');
                 log_message('error', 'Shopify customer identity processing failed safely.');

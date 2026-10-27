@@ -192,6 +192,9 @@ final class ShopifyWebhookEventService
                 $safe[$key] = (string) $payload[$key];
             }
         }
+        if (array_key_exists('default_address', $payload)) {
+            $safe['default_address'] = $this->safeAddress($payload['default_address']);
+        }
 
         return $safe === [] ? null : json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     }

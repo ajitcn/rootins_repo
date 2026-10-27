@@ -42,6 +42,8 @@ $routes->group('admin/integrations/shopify', [
 });
 
 $routes->post('integrations/shopify/webhooks/orders/paid', '\App\Modules\Shopify\Controllers\Webhook::receive/orders/paid');
+$routes->post('integrations/shopify/webhooks/customers/create', '\App\Modules\Shopify\Controllers\Webhook::receive/customers/create');
+$routes->post('integrations/shopify/webhooks/customers/update', '\App\Modules\Shopify\Controllers\Webhook::receive/customers/update');
 $routes->post('integrations/shopify/webhooks/(:any)', '\App\Modules\Shopify\Controllers\Webhook::receive/$1');
 $routes->get('patient/login/shopify', '\App\Modules\Shopify\Controllers\Handoff::patientLogin');
 $routes->get('integrations/shopify/appointments/availability', '\App\Modules\Shopify\Controllers\Appointment::availability');
