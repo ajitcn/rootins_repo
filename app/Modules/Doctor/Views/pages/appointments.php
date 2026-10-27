@@ -196,7 +196,9 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                             </div>
                             <div class="form-group col-md-4 col-12">
                                 <label for="appointment-time">Time <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input id="appointment-time" name="appointment_time" type="text" class="form-control" placeholder="hh:mm AM/PM" inputmode="text" autocomplete="off" required>
+                                <input id="appointment-time" name="appointment_time" type="time" class="form-control" step="900" list="appointment-time-options" autocomplete="off" aria-describedby="appointment-time-help appointment_timeErr" required disabled>
+                                <datalist id="appointment-time-options"></datalist>
+                                <small id="appointment-time-help" class="form-text text-muted">Select a date to load available 15-minute times.</small>
                                 <div class="validation-error" id="appointment_timeErr"></div>
                             </div>
                             <div class="form-group col-md-4 col-12">
@@ -390,6 +392,8 @@ $(function () {
     const csrf = function () { return $('input[name="csrf_rtn"]').first().val(); };
     let patientSearchTimer = null;
     let doctorVideoRequest = null;
+    let appointmentSlotsRequest = null;
+    let appointmentSlotValues = [];
 
     $(document).on('click.doctorVideoConsultation', '.js-video-consultation', function () {
         const button = $(this);
@@ -647,6 +651,69 @@ $(function () {
         $('#appointment-service-legacy').val(names.join(', '));
     });
 
+    function clearAppointmentTime(message) {
+        const input = $('#appointment-time');
+        appointmentSlotValues = [];
+        input.val('').removeAttr('min max').prop('disabled', true).removeClass('is-invalid').attr('aria-invalid', 'false');
+        $('#appointment-time-options').empty();
+        $('#appointment-time-help').text(message || 'Select a date to load available 15-minute times.');
+        $('#appointment_timeErr').text('');
+    }
+
+    function loadAppointmentSlots() {
+        const date = String($('#appointment-date').val() || '').trim();
+        clearAppointmentTime(date ? 'Loading available 15-minute times…' : 'Select a date to load available 15-minute times.');
+        if (!date) return;
+        if (appointmentSlotsRequest && appointmentSlotsRequest.readyState !== 4) appointmentSlotsRequest.abort();
+        appointmentSlotsRequest = ajaxRequest({
+            url: '<?= base_url('doctor/appointments/available-slots') ?>',
+            method: 'GET',
+            dataType: 'json',
+            data: { appointment_date: date },
+            success: function (response) {
+                if (!response.status) {
+                    $('#appointment-time-help').text(response.msg || 'Times could not be loaded.');
+                    return;
+                }
+                const data = response.data || {};
+                appointmentSlotValues = (data.slots || []).map(function (slot) { return String(slot.value || '').slice(0, 5); });
+                const options = (data.slots || []).map(function (slot) {
+                    return $('<option>').attr('value', String(slot.value || '').slice(0, 5)).attr('label', slot.label || slot.value || '');
+                });
+                $('#appointment-time-options').empty().append(options);
+                const input = $('#appointment-time');
+                if (appointmentSlotValues.length) {
+                    input.attr({min: data.min || appointmentSlotValues[0], max: data.max || appointmentSlotValues[appointmentSlotValues.length - 1]}).prop('disabled', false);
+                    $('#appointment-time-help').text('Available times are shown in 15-minute intervals.');
+                } else {
+                    $('#appointment-time-help').text(data.msg || 'No appointment times are available for this date.');
+                }
+            },
+            error: function (xhr, status) {
+                if (status === 'abort') return;
+                $('#appointment-time-help').text('Times could not be loaded. Try selecting the date again.');
+            }
+        });
+    }
+
+    $(document).on('change.doctorAppointmentSlots changeDate.doctorAppointmentSlots input.doctorAppointmentSlots', '#appointment-date', loadAppointmentSlots);
+    $(document).on('change.doctorAppointmentSlots input.doctorAppointmentSlots', '#appointment-time', function () {
+        const value = String(this.value || '').trim();
+        const valid = /^([01]\d|2[0-3]):[0-5]\d$/.test(value) && Number(value.slice(3)) % 15 === 0 && appointmentSlotValues.indexOf(value) !== -1;
+        $('#appointment_timeErr').text(value && !valid ? 'Select an available time in 15-minute increments.' : '');
+        $(this).toggleClass('is-invalid', Boolean(value && !valid)).attr('aria-invalid', value && !valid ? 'true' : 'false');
+    });
+
+    $(document).on('hidden.bs.modal.doctorAppointmentSlots', '#doctor-appointment-create-modal', function () {
+        if (appointmentSlotsRequest && appointmentSlotsRequest.readyState !== 4) appointmentSlotsRequest.abort();
+        clearAppointmentTime();
+    });
+
+    $(document).on('shown.bs.modal.doctorAppointmentSlots', '#doctor-appointment-create-modal', function () {
+        if ($('#appointment-date').val()) loadAppointmentSlots();
+        else clearAppointmentTime();
+    });
+
     createForm.on('submit', function (event) {
         event.preventDefault();
         const submit = $('#doctor-appointment-create-submit');
@@ -654,6 +721,13 @@ $(function () {
         clearFormErrors(createForm);
         if (!patientIdInput.val()) {
             setPatientError('Select a patient from the search results.');
+            return;
+        }
+        const selectedTime = String($('#appointment-time').val() || '').trim();
+        const validTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(selectedTime) && Number(selectedTime.slice(3)) % 15 === 0 && appointmentSlotValues.indexOf(selectedTime) !== -1;
+        if (!validTime) {
+            $('#appointment_timeErr').text('Select an available time in 15-minute increments.');
+            $('#appointment-time').addClass('is-invalid').attr('aria-invalid', 'true').trigger('focus');
             return;
         }
         submit.prop('disabled', true).attr('aria-busy', 'true');

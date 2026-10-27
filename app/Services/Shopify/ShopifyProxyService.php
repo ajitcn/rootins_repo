@@ -363,13 +363,13 @@ final class ShopifyProxyService
         $firstName = $this->patientString($patient['first_name'] ?? null);
         $lastName = $this->patientString($patient['last_name'] ?? null);
         if ($this->invalidPatientName($firstName)) $errors['first_name'] = 'First name is required and must be 1–100 characters.';
-        if ($this->invalidPatientName($lastName)) $errors['last_name'] = 'Last name is required and must be 1–100 characters.';
+        if ($lastName !== '' && $this->invalidPatientName($lastName)) $errors['last_name'] = 'Last name must be 1–100 characters.';
 
         $gender = strtolower($this->patientString($patient['gender'] ?? null));
-        if (! in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Select a valid gender.';
+        if ($gender !== '' && ! in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Select a valid gender.';
 
         $bookingFor = strtolower($this->patientString($patient['booking_for'] ?? null));
-        if ($bookingFor !== 'self') $errors['booking_for'] = 'Select a supported booking subject.';
+        if ($bookingFor !== '' && $bookingFor !== 'self') $errors['booking_for'] = 'Select a supported booking subject.';
 
         $countryCode = TelephoneCountryCode::normalizeCode($this->patientString($patient['country_code'] ?? null));
         $country = $countryCode === null ? null : (new TelephoneCountryCode())->activeByCode($countryCode);
@@ -418,7 +418,7 @@ final class ShopifyProxyService
             'clinic_id' => 0,
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'gender' => $gender,
+            'gender' => $gender !== '' ? $gender : null,
             'date_of_birth' => $dateOfBirth !== '' ? $dateOfBirth : null,
             'email' => $email,
             'country_code' => $countryCode,
@@ -502,7 +502,7 @@ final class ShopifyProxyService
     private function requiredCustomerDataFields(array $fields): array
     {
         $required = [];
-        foreach (['first_name', 'last_name'] as $field) {
+        foreach (['first_name'] as $field) {
             $value = trim((string) ($fields[$field] ?? ''));
             if ($this->isPlaceholderValue($value) || $value === '' || mb_strlen($value) > 100) $required[] = $field;
         }

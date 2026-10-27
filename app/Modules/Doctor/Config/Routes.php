@@ -6,6 +6,7 @@ use CodeIgniter\Router\RouteCollection;
 $routes->group('doctor', ['namespace' => 'Doctor\Controllers', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'Dashboard::index', ['filter' => 'permission:doctor.view']);
     $routes->get('appointments/patients/search', 'Records::patientSearch', ['filter' => 'permission:appointment.create']);
+    $routes->get('appointments/available-slots', 'Records::availableSlots', ['filter' => 'permission:appointment.create']);
     $routes->get('appointments/(:num)', 'Appointment::view/$1', ['filter' => 'permission:appointment.view']);
     $routes->get('clinical/appointments/search', 'Clinical::appointmentSearch', ['filter' => 'permission:consultation.view']);
     $routes->get('clinical/past-visits', 'Clinical::pastVisits', ['filter' => 'permission:consultation.view']);

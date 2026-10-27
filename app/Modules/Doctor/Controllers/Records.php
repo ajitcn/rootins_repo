@@ -142,6 +142,82 @@ class Records extends BaseController
         return $this->updateAppointment($appointmentId, false);
     }
 
+    public function availableSlots(): ResponseInterface
+    {
+        if ($this->request->getMethod(true) !== 'GET') {
+            return $this->json(405, false, 'Invalid request.');
+        }
+
+        $context = $this->context();
+        $date = $this->normalizeDisplayDate(trim((string) $this->request->getGet('appointment_date')));
+
+        if ($context === null) {
+            return $this->json(403, false, 'Doctor scope is invalid.');
+        }
+
+        if ($date === null) {
+            return $this->json(422, false, 'A valid appointment date is required.', ['slots' => []]);
+        }
+
+        $db = db_connect();
+        $day = (int) date('N', strtotime($date));
+        $today = date('Y-m-d');
+        $now = date('H:i:s');
+        $leave = (new \Admin\Models\Doctor\DoctorLeaveModel())
+            ->where('doctor_id', $context['doctor_id'])
+            ->where('status', 1)
+            ->where('start_date <=', $date)
+            ->where('end_date >=', $date)
+            ->countAllResults() > 0;
+        $schedules = $db->table('doctor_schedules')
+            ->where('doctor_id', $context['doctor_id'])
+            ->where('day_of_week', $day)
+            ->where('status', 1)
+            ->orderBy('start_time', 'ASC')
+            ->get()->getResultArray();
+        $booked = array_fill_keys(array_map(static fn (array $row): string => substr((string) $row['appointment_time'], 0, 5), $db->table('appointments')
+            ->select('appointment_time')
+            ->where('doctor_id', $context['doctor_id'])
+            ->where('clinic_id', $context['clinic_id'])
+            ->where('appointment_date', $date)
+            ->whereIn('status', ['scheduled', 'confirmed', 'checked_in', 'in_queue'])
+            ->get()->getResultArray()), true);
+        $slots = [];
+
+        if (! $leave) {
+            foreach ($schedules as $schedule) {
+                $start = substr((string) $schedule['start_time'], 0, 5);
+                $end = substr((string) $schedule['end_time'], 0, 5);
+                $breakStart = substr((string) ($schedule['break_start_time'] ?? ''), 0, 5);
+                $breakEnd = substr((string) ($schedule['break_end_time'] ?? ''), 0, 5);
+                $scheduleStart = $this->timeToMinutes($start);
+                $scheduleEnd = $this->timeToMinutes($end);
+                $firstQuarter = intdiv($scheduleStart + 14, 15) * 15;
+                $lastQuarter = intdiv($scheduleEnd, 15) * 15;
+
+                for ($minutes = $firstQuarter; $minutes + 15 <= $lastQuarter; $minutes += 15) {
+                    $value = sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+                    $time = $value . ':00';
+                    $inBreak = $breakStart !== '' && $breakEnd !== '' && $value >= $breakStart && $value < $breakEnd;
+                    $past = $date === $today && $time <= $now;
+
+                    if ($inBreak || $past || isset($booked[$value])) {
+                        continue;
+                    }
+
+                    $slots[$value] = ['value' => $value, 'label' => rootins_format_time($time)];
+                }
+            }
+        }
+
+        $values = array_values($slots);
+        return $this->json(200, true, $values === [] ? 'No appointment times are available for this date.' : 'Appointment times loaded.', [
+            'slots' => $values,
+            'min' => $values[0]['value'] ?? '',
+            'max' => $values[count($values) - 1]['value'] ?? '',
+        ]);
+    }
+
     public function cancel(int $appointmentId): ResponseInterface
     {
         return $this->updateAppointment($appointmentId, true);
@@ -909,21 +985,38 @@ class Records extends BaseController
 
     private function availabilityError(int $doctorId, string $date, string $time): ?string
     {
+        if ($date < date('Y-m-d') || ($date === date('Y-m-d') && $time <= date('H:i:s'))) {
+            return 'Appointment time cannot be in the past.';
+        }
+
+        if ((int) date('i', strtotime($time)) % 15 !== 0) {
+            return 'Appointment time must use 15-minute increments.';
+        }
+
         $day = (int) date('N', strtotime($date));
-        $scheduleQuery = db_connect()->table('doctor_schedules')
+        $slotStart = new \DateTimeImmutable($date . ' ' . $time);
+        $slotEnd = $slotStart->modify('+15 minutes')->format('H:i:s');
+        $schedules = db_connect()->table('doctor_schedules')
             ->where('doctor_id', $doctorId)
             ->where('day_of_week', $day)
             ->where('status', 1)
-            ->where('start_time <=', $time)
-            ->where('end_time >=', $time)
-            ->groupStart()
-            ->where('break_start_time', null)
-            ->orWhere('break_end_time', null)
-            ->orWhere('break_start_time >', $time)
-            ->orWhere('break_end_time <=', $time)
-            ->groupEnd();
+            ->get()->getResultArray();
+        $scheduleValid = false;
 
-        if ($scheduleQuery->countAllResults() < 1) {
+        foreach ($schedules as $schedule) {
+            $start = substr((string) $schedule['start_time'], 0, 8);
+            $end = substr((string) $schedule['end_time'], 0, 8);
+            $breakStart = substr((string) ($schedule['break_start_time'] ?? ''), 0, 8);
+            $breakEnd = substr((string) ($schedule['break_end_time'] ?? ''), 0, 8);
+            $breaks = $breakStart !== '' && $breakEnd !== '' && $time < $breakEnd && $slotEnd > $breakStart;
+
+            if ($start <= $time && $slotEnd <= $end && ! $breaks) {
+                $scheduleValid = true;
+                break;
+            }
+        }
+
+        if (! $scheduleValid) {
             return 'The selected time is outside the doctor availability.';
         }
         $leaveQuery = db_connect()->table('doctor_leaves')
@@ -941,6 +1034,13 @@ class Records extends BaseController
             ->groupEnd();
 
         return $leaveQuery->countAllResults() > 0 ? 'The doctor is unavailable on the selected date.' : null;
+    }
+
+    private function timeToMinutes(string $time): int
+    {
+        [$hours, $minutes] = array_pad(array_map('intval', explode(':', $time)), 2, 0);
+
+        return max(0, min(1439, $hours * 60 + $minutes));
     }
 
     private function normalizeDisplayDate(string $value): ?string

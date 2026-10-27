@@ -36,6 +36,11 @@ class PatientRegistrationService
         if (!in_array($sourceType, ['self', 'shopify'], true)) {
             throw new InvalidArgumentException('Patient source is invalid.');
         }
+        // Shopify registration may omit non-essential profile fields. Keep
+        // database-compatible values without turning them into validation
+        // requirements for the minimum identity workflow.
+        $patientData['last_name'] = trim((string) ($patientData['last_name'] ?? ''));
+        $patientData['gender'] = trim((string) ($patientData['gender'] ?? '')) ?: null;
         $patientData['mobile_number'] = self::normalizeRequiredMobileNumber($patientData['mobile_number'] ?? null);
         // The deployed patients schema requires a non-null DATE. Validate and
         // normalize before starting the transaction so callers receive a
@@ -70,7 +75,7 @@ class PatientRegistrationService
                 $duplicate = $duplicateQuery->get()->getRowArray();
 
                 if ($duplicate !== null) {
-                    throw new InvalidArgumentException('A patient with this mobile number already exists in the clinic.');
+                    throw new InvalidArgumentException('A patient with this mobile number already exists.');
                 }
             }
             $patientData = array_merge($patientData, (new LocationService())->resolvePatientLocation($patientData));

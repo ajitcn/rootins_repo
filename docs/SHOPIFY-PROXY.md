@@ -115,7 +115,8 @@ Patient registration uses the signed App Proxy identity and a validated
 `patient` object. The signed `logged_in_customer_id` is authoritative;
 `patient.shopify_customer_id`, when present, must match it exactly after string
 normalization and is never used as the link key. An empty JSON body (`{}`) is
-invalid because the patient fields are required for this registration flow.
+invalid because the minimum patient identity fields are required for this
+registration flow.
 The browser must not submit a patient database ID or use a customer ID to
 override the signed identity. A successful response is
 `data.booking_enabled: true` with only the safe `patient_reference`:
@@ -155,8 +156,10 @@ The signed request context is mandatory: `shop`/store domain,
 Proxy signature, and an active Core API Proxy configuration. Missing login
 context returns `SHOPIFY_CUSTOMER_LOGIN_REQUIRED`; an ID mismatch returns HTTP
 403 `SHOPIFY_CUSTOMER_ID_MISMATCH`; and invalid patient fields return HTTP 422
-`PATIENT_DATA_INVALID` with safe field-level errors. The required patient
-fields are `first_name`, `last_name`, `mobile` or `mobile_number`,
-`country_code`, `gender`, and `booking_for` (`self` is currently supported).
-Optional email is validated when supplied. Cross-store and inactive-link
-checks remain enforced, and error responses include a safe correlation ID.
+`PATIENT_DATA_INVALID` with safe field-level errors. The minimum patient
+identity fields are `first_name`, `mobile` or `mobile_number`, and
+`country_code`. `last_name`, `gender`, and `booking_for` may be omitted or
+empty; when supplied, `gender` must be `male`, `female`, or `other`, and
+`booking_for` must be `self`. Optional email is validated when supplied.
+Cross-store and inactive-link checks remain enforced, and error responses
+include a safe correlation ID.

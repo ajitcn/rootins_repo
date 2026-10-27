@@ -96,9 +96,10 @@ only authoritative Shopify identity. A submitted `patient.shopify_customer_id`
 is optional for compatibility, but if present it must match that signed value
 and is never used as the link key.
 
-Required patient fields are `first_name`, `last_name`, `mobile` or
-`mobile_number`, `country_code`, `gender`, and `booking_for`. Currently
-`booking_for: "self"` is supported. Optional fields include `name`, `age`,
+The minimum patient identity fields are `first_name`, `mobile` or
+`mobile_number`, and `country_code`. `last_name`, `gender`, and `booking_for`
+may be omitted or empty. When supplied, `gender` must be `male`, `female`, or
+`other`; `booking_for: "self"` is currently supported. Optional fields include `name`, `age`,
 `guardian_name`, `email`, `date_of_birth`, and `address`. Names and strings are
 trimmed; phone and country code are normalized; optional email is validated
 when present. The browser must not submit a ROOTINS patient ID, store domain,
@@ -127,7 +128,7 @@ Example request body:
 
 Identity is scoped exactly by `store_domain + logged_in_customer_id`. An
 existing active link is reused idempotently; otherwise ROOTINS applies its
-clinic-scoped duplicate checks, creates a patient only when needed, and then
+global patient duplicate checks, creates a patient only when needed, and then
 creates the identity link. Internal database IDs, Shopify payloads, tokens,
 and secrets are never returned.
 
