@@ -34,7 +34,8 @@ final class ShopifyPatientRegistrationOptionalFieldsTest extends TestCase
     {
         $proxy = $this->proxy();
 
-        self::assertStringContainsString('$lastName !== \'\' && $this->invalidPatientName($lastName)', $proxy);
+        self::assertStringContainsString("\$lastName = \$lastName !== '' ? \$lastName : null", $proxy);
+        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $proxy);
         self::assertStringContainsString('$gender !== \'\' && ! in_array($gender', $proxy);
         self::assertStringContainsString('$bookingFor !== \'\' && $bookingFor !== \'self\'', $proxy);
         self::assertStringContainsString("'gender' => \$gender !== '' ? \$gender : null", $proxy);
@@ -44,8 +45,45 @@ final class ShopifyPatientRegistrationOptionalFieldsTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Modules/Admin/Services/PatientRegistrationService.php');
 
-        self::assertStringContainsString("\$patientData['last_name'] = trim((string) (\$patientData['last_name'] ?? ''))", $service);
+        self::assertStringContainsString("\$patientData['last_name'] = trim((string) (\$patientData['last_name'] ?? '')) ?: null", $service);
         self::assertStringContainsString("\$patientData['gender'] = trim((string) (\$patientData['gender'] ?? '')) ?: null", $service);
+    }
+
+    public function testLastNameOmittedIsNormalizedToNull(): void
+    {
+        $proxy = $this->proxy();
+
+        self::assertStringContainsString("\$patient['last_name'] ?? null", $proxy);
+        self::assertStringContainsString("\$lastName !== '' ? \$lastName : null", $proxy);
+    }
+
+    public function testNullEmptyAndWhitespaceLastNamesAreTrimmedBeforeValidation(): void
+    {
+        $proxy = $this->proxy();
+        $service = file_get_contents(ROOTPATH . 'app/Modules/Admin/Services/PatientRegistrationService.php');
+
+        self::assertStringContainsString("\$this->patientString(\$patient['last_name'] ?? null)", $proxy);
+        self::assertStringContainsString("\$patientData['last_name'] ?? ''", $service);
+        self::assertStringNotContainsString("\$lastName = 'N/A'", $proxy);
+    }
+
+    public function testValidLastNameIsRetained(): void
+    {
+        self::assertStringContainsString("'last_name' => \$lastName", $this->proxy());
+        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $this->proxy());
+    }
+
+    public function testLastNameLongerThanOneHundredCharactersIsRejected(): void
+    {
+        self::assertStringContainsString('mb_strlen($value) > 100', $this->proxy());
+        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $this->proxy());
+    }
+
+    public function testPatientSchemaAllowsNullLastName(): void
+    {
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-27-140000_MakeShopifyPatientLastNameOptional.php');
+
+        self::assertStringContainsString("'last_name' => ['type' => 'VARCHAR', 'constraint' => 100, 'null' => true]", $migration);
     }
 
     public function testInvalidProvidedGenderAndBookingSubjectRemainRejected(): void

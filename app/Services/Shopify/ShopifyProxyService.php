@@ -362,8 +362,9 @@ final class ShopifyProxyService
         $errors = [];
         $firstName = $this->patientString($patient['first_name'] ?? null);
         $lastName = $this->patientString($patient['last_name'] ?? null);
+        $lastName = $lastName !== '' ? $lastName : null;
         if ($this->invalidPatientName($firstName)) $errors['first_name'] = 'First name is required and must be 1–100 characters.';
-        if ($lastName !== '' && $this->invalidPatientName($lastName)) $errors['last_name'] = 'Last name must be 1–100 characters.';
+        if ($lastName !== null && $this->invalidPatientName($lastName)) $errors['last_name'] = 'Last name must be 1–100 characters.';
 
         $gender = strtolower($this->patientString($patient['gender'] ?? null));
         if ($gender !== '' && ! in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Select a valid gender.';
