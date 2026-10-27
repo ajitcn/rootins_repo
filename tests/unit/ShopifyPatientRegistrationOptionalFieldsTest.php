@@ -35,7 +35,7 @@ final class ShopifyPatientRegistrationOptionalFieldsTest extends TestCase
         $proxy = $this->proxy();
 
         self::assertStringContainsString("\$lastName = \$lastName !== '' ? \$lastName : null", $proxy);
-        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $proxy);
+        self::assertStringContainsString("\$lastName !== null && mb_strlen(\$lastName) > 100", $proxy);
         self::assertStringContainsString('$gender !== \'\' && ! in_array($gender', $proxy);
         self::assertStringContainsString('$bookingFor !== \'\' && $bookingFor !== \'self\'', $proxy);
         self::assertStringContainsString("'gender' => \$gender !== '' ? \$gender : null", $proxy);
@@ -47,6 +47,17 @@ final class ShopifyPatientRegistrationOptionalFieldsTest extends TestCase
 
         self::assertStringContainsString("\$patientData['last_name'] = trim((string) (\$patientData['last_name'] ?? '')) ?: null", $service);
         self::assertStringContainsString("\$patientData['gender'] = trim((string) (\$patientData['gender'] ?? '')) ?: null", $service);
+    }
+
+    public function testGeneratedRegistrationPayloadDoesNotDeclareLastNameRequired(): void
+    {
+        $proxy = $this->proxy();
+        $start = strpos($proxy, 'private function requiredCustomerDataFields(');
+        $end = strpos($proxy, 'private function isPlaceholderValue(', $start);
+        $schema = substr($proxy, $start, $end - $start);
+
+        self::assertStringNotContainsString("['first_name', 'last_name']", $schema);
+        self::assertStringNotContainsString("'last_name' => 'required'", $schema);
     }
 
     public function testLastNameOmittedIsNormalizedToNull(): void
@@ -70,13 +81,13 @@ final class ShopifyPatientRegistrationOptionalFieldsTest extends TestCase
     public function testValidLastNameIsRetained(): void
     {
         self::assertStringContainsString("'last_name' => \$lastName", $this->proxy());
-        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $this->proxy());
+        self::assertStringContainsString("\$lastName !== null && mb_strlen(\$lastName) > 100", $this->proxy());
     }
 
     public function testLastNameLongerThanOneHundredCharactersIsRejected(): void
     {
         self::assertStringContainsString('mb_strlen($value) > 100', $this->proxy());
-        self::assertStringContainsString("\$lastName !== null && \$this->invalidPatientName(\$lastName)", $this->proxy());
+        self::assertStringContainsString("\$lastName !== null && mb_strlen(\$lastName) > 100", $this->proxy());
     }
 
     public function testPatientSchemaAllowsNullLastName(): void
