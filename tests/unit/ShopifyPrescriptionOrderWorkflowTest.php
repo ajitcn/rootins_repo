@@ -124,7 +124,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         foreach (['patient_reference', 'duration_days', 'medicine_id', 'shopify_variant_id', 'excluded_items'] as $marker) {
             self::assertStringContainsString($marker, $active);
         }
-        foreach (['/apps/rootins/prescriptions/active', '/cart.js', '/cart/add.js', 'prescription_reference', 'variant_id', 'quantity'] as $marker) {
+        foreach (['/apps/rootins/prescriptions/active', '/apps/rootins/prescriptions/cart-pushed', '/cart.js', '/cart/add.js', 'prescription_reference', 'variant_id', 'quantity', 'Pushed to cart'] as $marker) {
             self::assertStringContainsString($marker, $storefront);
         }
     }

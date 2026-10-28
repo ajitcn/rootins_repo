@@ -11,6 +11,7 @@ use App\Services\Shopify\ShopifyWebhookEventService;
 use App\Services\Shopify\ShopifyWebhookVerifier;
 use App\Services\Shopify\ShopifyAppointmentIntentService;
 use App\Services\Shopify\ShopifyCustomerPatientSyncException;
+use App\Services\Shopify\ShopifyPrescriptionCartPushService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 final class Webhook extends BaseController
@@ -172,11 +173,13 @@ final class Webhook extends BaseController
         if ($topic === 'orders/paid' && $result['id'] !== null) {
             $failureResponse = $this->processPaidEvent((int) $result['id'], $eventId, $shopDomain);
             if ($failureResponse !== null) return $failureResponse;
+            $this->reconcilePrescriptionCartPush((int) $result['id'], $topic, $shopDomain);
         }
 
         if (in_array($topic, ['refunds/create', 'fulfillments/create', 'fulfillments/update'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyOrderImportService())->processExternalEvent((int) $result['id'], $topic, $this->requestCorrelationId);
+                $this->reconcilePrescriptionCartPush((int) $result['id'], $topic, $shopDomain);
             } catch (\Throwable $exception) {
                 $failure = ShopifyOrderImportFailure::fromException($exception, $topic);
                 (new ShopifyOrderImportService())->markFailureForEvent((int) $result['id'], $failure->category);
@@ -192,6 +195,7 @@ final class Webhook extends BaseController
         } elseif (in_array($topic, ['orders/create', 'orders/updated', 'orders/cancelled', 'orders/fulfilled'], true) && $result['id'] !== null) {
             try {
                 (new ShopifyOrderImportService())->processEvent((int) $result['id'], false, $this->requestCorrelationId);
+                $this->reconcilePrescriptionCartPush((int) $result['id'], $topic, $shopDomain);
                 $payloadForDiagnostic = json_decode($rawBody, true);
                 $orderIdForDiagnostic = is_array($payloadForDiagnostic)
                     ? (string) ($payloadForDiagnostic['id'] ?? $payloadForDiagnostic['order_id'] ?? '')
@@ -263,6 +267,15 @@ final class Webhook extends BaseController
             'processing_stage' => $stage,
             'failure_category' => $category,
         ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function reconcilePrescriptionCartPush(int $eventId, string $topic, string $storeDomain): void
+    {
+        try {
+            (new ShopifyPrescriptionCartPushService())->reconcileWebhookEvent($eventId, $topic, $storeDomain);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify prescription cart state reconciliation failed safely: ' . get_class($exception));
+        }
     }
 
     /** @return list<string> */

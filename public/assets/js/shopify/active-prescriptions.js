@@ -68,7 +68,8 @@
                 button.type = 'button';
                 button.className = 'button rootins-add-prescription';
                 button.setAttribute('data-prescription', JSON.stringify(prescription));
-                button.appendChild(text('Add mapped medicines to cart'));
+                button.setAttribute('data-prescription-reference', prescription.prescription_reference || '');
+                button.appendChild(text(prescription.cart_status ? 'Pushed to cart' : 'Add mapped medicines to cart'));
                 card.appendChild(button);
             }
             list.appendChild(card);
@@ -86,8 +87,43 @@
             .then(function (response) { if (!response.ok) throw new Error('Shopify cart request failed.'); return response.json(); });
     }
 
+    function updateCartAttributes(cart, prescription) {
+        var attributes = Object.assign({}, cart.attributes || {});
+        var references = String(attributes.rootins_prescription_references || '').split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+        var reference = String(prescription.prescription_reference || '').trim();
+        if (reference && references.indexOf(reference) === -1) references.push(reference);
+        if (!references.length) return Promise.resolve(cart);
+        attributes.rootins_prescription_references = references.join(',');
+        attributes.rootins_prescription_reference = reference;
+        return cartJson('/cart/update.js', { method: 'POST', body: JSON.stringify({ attributes: attributes }) }).catch(function () { return cart; });
+    }
+
+    function acknowledgeCartPush(prescription, variantIds) {
+        var ackEndpoint = root.getAttribute('data-ack-endpoint') || '/apps/rootins/prescriptions/cart-pushed';
+        return fetch(ackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ prescription_reference: prescription.prescription_reference || '', variant_ids: variantIds })
+        }).then(function (response) {
+            return response.json().then(function (body) {
+                if (!response.ok || !body.status) throw new Error(body.code || 'Cart push acknowledgement failed.');
+                return body;
+            });
+        });
+    }
+
+    function markPushed(button, prescription) {
+        prescription.cart_status = 'cart_pushed';
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Pushed to cart';
+        }
+        message('Pushed to cart. Review your cart before payment.');
+        diagnostic('cart_push_recorded', { prescription_reference: prescription.prescription_reference || '' });
+    }
+
     function addPrescription(prescription, button) {
-        button.disabled = true;
+        if (button) button.disabled = true;
         message('Checking your cart...');
         return cartJson('/cart.js', { method: 'GET' })
             .then(function (cart) {
@@ -95,10 +131,13 @@
                 (cart.items || []).forEach(function (item) { existing[cartVariantId(item.variant_id || item.id)] = true; });
                 var pending = {};
                 var pendingDetails = {};
+                var mappedVariantIds = {};
                 (prescription.items || []).forEach(function (item) {
                     var variantId = cartVariantId(item.variant_id || item.shopify_variant_id);
                     var quantity = Number(item.quantity);
-                    if (!variantId || existing[variantId] || quantity <= 0) return;
+                    if (!variantId || quantity <= 0) return;
+                    mappedVariantIds[variantId] = true;
+                    if (existing[variantId]) return;
                     pending[variantId] = (pending[variantId] || 0) + quantity;
                     pendingDetails[variantId] = item;
                 });
@@ -112,22 +151,39 @@
                         'ROOTINS duration': item.duration || ''
                     } };
                 });
+                var eligibleVariantIds = Object.keys(mappedVariantIds);
                 if (!items.length) {
-                    message('All mapped medicines from this prescription are already in your cart.');
                     diagnostic('cart_duplicates_skipped', { prescription_reference: prescription.prescription_reference || '' });
-                    return null;
+                    return updateCartAttributes(cart, prescription).then(function () {
+                        return acknowledgeCartPush(prescription, eligibleVariantIds).then(function () { markPushed(button, prescription); });
+                    });
                 }
                 diagnostic('cart_add_started', { item_count: items.length });
-                return cartJson('/cart/add.js', { method: 'POST', body: JSON.stringify({ items: items }) });
+                return updateCartAttributes(cart, prescription).then(function () {
+                    return cartJson('/cart/add.js', { method: 'POST', body: JSON.stringify({ items: items }) });
+                }).then(function () {
+                    return acknowledgeCartPush(prescription, eligibleVariantIds).then(function () { markPushed(button, prescription); });
+                });
             })
-            .then(function (result) { if (result) { message('Mapped medicines were added. Review your cart before payment.'); diagnostic('cart_add_completed', { prescription_reference: prescription.prescription_reference || '' }); } })
             .catch(function () { message('The prescription could not be added to your cart. Please try again.', true); diagnostic('cart_add_failed'); })
-            .finally(function () { button.disabled = false; });
+            .finally(function () { if (button) button.disabled = false; });
     }
 
     fetch(endpoint, { headers: { 'Accept': 'application/json' } })
         .then(function (response) { return response.json().then(function (body) { if (!response.ok || !body.status) { var error = new Error(body.code || 'Prescription request failed.'); error.code = body.code || ''; throw error; } return body; }); })
-        .then(function (response) { render(response.data || {}); })
+        .then(function (response) {
+            var data = response.data || {};
+            render(data);
+            if (!list) return;
+            (data.prescriptions || []).forEach(function (prescription) {
+                if (!prescription.cart_status && Array.isArray(prescription.items) && prescription.items.length) {
+                    var button = Array.prototype.slice.call(list.querySelectorAll('.rootins-add-prescription')).find(function (candidate) {
+                        return candidate.getAttribute('data-prescription-reference') === (prescription.prescription_reference || '');
+                    }) || null;
+                    addPrescription(prescription, button);
+                }
+            });
+        })
         .catch(function (error) {
             var messages = {
                 SHOPIFY_CUSTOMER_UNLINKED: 'Sign in and complete ROOTINS patient registration before viewing prescriptions.',

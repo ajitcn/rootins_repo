@@ -19,6 +19,14 @@ line properties, and never mutates the cart from the ROOTINS server. Include it
 on a theme section containing `[data-rootins-active-prescriptions]` with
 `[data-prescription-status]` and `[data-prescription-list]` elements.
 
+After the cart operation, the helper posts the prescription reference and
+numeric variant IDs to the signed App Proxy endpoint
+`POST /apps/rootins/prescriptions/cart-pushed`. ROOTINS records `cart_pushed`
+idempotently for the store/customer/prescription and does not mark the
+prescription ordered. Verified `orders/create`, `orders/paid`,
+`orders/cancelled`, and `refunds/create` webhook events advance the recorded
+cart state to `order_created`, `ordered`, `cancelled`, or `refunded`.
+
 The Core API App Proxy endpoint is `POST /rootins-proxy/prescriptions/upload`.
 It accepts a multipart `file` plus an `Idempotency-Key`. Shopify must send
 the signed App Proxy query parameters, including `logged_in_customer_id`.

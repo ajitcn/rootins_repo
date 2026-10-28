@@ -41,6 +41,26 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         }
     }
 
+    public function testSignedCartPushAcknowledgementAndWebhookStateTransitionsExist(): void
+    {
+        $routes = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Config/Routes.php');
+        $proxy = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyProxyService.php');
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/ActivePrescriptions.php');
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionCartPushService.php');
+        $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-28-130000_CreateShopifyPrescriptionCartPushes.php');
+
+        foreach (['apps/rootins/prescriptions/cart-pushed', 'prescriptions.cart_pushed', 'logged_in_customer_id'] as $marker) {
+            self::assertStringContainsString($marker, $routes . $proxy . $controller);
+        }
+        foreach (['cart_pushed', 'prescription_reference', 'variant_ids', 'idempotent', 'ordered', 'order_created', 'cancelled', 'refunded'] as $marker) {
+            self::assertStringContainsString($marker, $service . $migration);
+        }
+        foreach (['reconcilePrescriptionCartPush', 'orders/create', 'orders/paid', 'orders/cancelled', 'refunds/create'] as $marker) {
+            self::assertStringContainsString($marker, $webhook);
+        }
+    }
+
     public function testOrderImportDoesNotAcceptBrowserPrescriptionId(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyOrderImportService.php');

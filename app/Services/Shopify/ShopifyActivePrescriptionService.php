@@ -32,11 +32,16 @@ final class ShopifyActivePrescriptionService
         $result = [];
         foreach ($prescriptions as $prescription) {
             $items = $this->items($db, $storeDomain, (int) $prescription['id']);
+            $cartPush = $db->tableExists('shopify_prescription_cart_pushes')
+                ? $db->table('shopify_prescription_cart_pushes')->select('status, cart_pushed_at')->where('store_domain', ShopifyProxyConfigurationService::normalizeStoreDomain($storeDomain))->where('prescription_id', (int) $prescription['id'])->where('shopify_customer_id', $customerId)->get(1)->getRowArray()
+                : null;
             $result[] = [
                 'prescription_reference' => (string) $prescription['prescription_number'],
                 'patient_reference' => (string) ($prescription['patient_reference'] ?? ''),
                 'duration_days' => (int) ($prescription['duration_days'] ?? 0),
                 'valid_until' => (string) $prescription['valid_until'],
+                'cart_status' => $cartPush['status'] ?? null,
+                'cart_pushed_at' => $cartPush['cart_pushed_at'] ?? null,
                 'items' => $items['items'],
                 'excluded_items' => $items['excluded_items'],
             ];
