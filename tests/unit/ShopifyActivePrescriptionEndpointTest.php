@@ -104,4 +104,24 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         self::assertStringContainsString("->where('sm.status', 'active')->orderBy('sm.id', 'ASC')", $service);
         self::assertStringContainsString("'shopify_product_id'", $service);
     }
+
+    public function testCartSyncStateIsSeparateFromClinicalStatusAcrossUiAndStorage(): void
+    {
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-28-150000_AddPrescriptionCartSyncStatus.php');
+        $model = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Models/ShopifyPrescriptionCartPushModel.php');
+        $active = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyActivePrescriptionService.php');
+        $push = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionCartPushService.php');
+        $list = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/prescription/index.php');
+        $detail = file_get_contents(ROOTPATH . 'app/Modules/Admin/Views/pages/prescription/view.php');
+        $theme = file_get_contents(ROOTPATH . 'public/assets/js/shopify/active-prescriptions.js');
+        foreach (['not_synced', 'syncing', 'synced', 'already_in_cart', 'sync_failed', 'ordered', 'paid', 'expired', 'cancelled'] as $state) {
+            self::assertStringContainsString($state, $migration . $active . $push . $list . $detail . $theme);
+        }
+        self::assertStringContainsString('whereIn(\'p.status\', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)', $push);
+        self::assertStringContainsString("'cart_sync_status' => 'synced'", $push);
+        self::assertStringContainsString('cart_sync_status', $model);
+        self::assertStringContainsString('cart_sync_failure_reason', $push);
+        self::assertStringContainsString('shopify.prescription_cart_synced', $push);
+        self::assertStringContainsString('shopify.prescription_cart_sync_failed', $push);
+    }
 }

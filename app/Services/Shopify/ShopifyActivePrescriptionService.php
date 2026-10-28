@@ -22,7 +22,7 @@ final class ShopifyActivePrescriptionService
         $hasDurationDays = $db->fieldExists('duration_days', 'prescriptions');
         $durationSelect = $hasDurationDays ? 'p.duration_days' : 'NULL AS duration_days';
         $prescriptions = $db->table('prescriptions p')
-            ->select("p.id, p.prescription_number, p.patient_id, p.prescription_date, p.created_at, {$durationSelect}, p.valid_until, CONCAT_WS(' ', d.first_name, d.last_name) AS doctor_name", false)
+            ->select("p.id, p.prescription_number, p.patient_id, p.prescription_date, p.created_at, {$durationSelect}, p.valid_until, p.cart_sync_status, p.cart_pushed_at, CONCAT_WS(' ', d.first_name, d.last_name) AS doctor_name", false)
             ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
             ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
             ->where('p.patient_id', $patientId)
@@ -35,14 +35,16 @@ final class ShopifyActivePrescriptionService
         foreach ($prescriptions as $prescription) {
             $calculatedValidUntil = ShopifyPrescriptionEligibility::calculateValidUntil((string) ($prescription['created_at'] ?? ''), $prescription['duration_days'] ?? null);
             $validUntil = $calculatedValidUntil ?? $this->storedValidUntil($prescription['valid_until'] ?? null);
-            $cartPush = $this->cartPush($db, $store, (int) $prescription['id'], $customerId);
+            $cartPush = $this->cartPush($db, $store, (int) $prescription['id'], $customerId) ?? ['status' => (string) ($prescription['cart_sync_status'] ?? ''), 'cart_sync_status' => (string) ($prescription['cart_sync_status'] ?? ''), 'cart_pushed_at' => $prescription['cart_pushed_at'] ?? null];
             $cartStatus = $this->displayCartStatus($cartPush['status'] ?? null, $validUntil, $today);
+            $cartSyncStatus = $this->displayCartSyncStatus($cartPush, $validUntil, $today);
             $items = $this->items($db, $store, (int) $prescription['id'], (int) $prescription['patient_id'], (string) $prescription['prescription_number'], $cartStatus);
             foreach ($items['excluded_items'] as $excluded) $allExcluded[] = $excluded;
             $result[] = [
                 'reference' => (string) $prescription['prescription_number'],
                 'status' => 'completed',
                 'cart_status' => $cartStatus,
+                'cart_sync_status' => $cartSyncStatus,
                 'valid_until' => $validUntil,
                 'doctor_name' => trim((string) ($prescription['doctor_name'] ?? '')),
                 'prescribed_at' => (string) ($prescription['prescription_date'] ?? ''),
@@ -103,7 +105,7 @@ final class ShopifyActivePrescriptionService
     private function cartPush(BaseConnection $db, string $store, int $prescriptionId, string $customerId): ?array
     {
         if (! $db->tableExists('shopify_prescription_cart_pushes')) return null;
-        return $db->table('shopify_prescription_cart_pushes')->select('status, cart_pushed_at')->where('store_domain', $store)->where('prescription_id', $prescriptionId)->where('shopify_customer_id', $customerId)->get(1)->getRowArray() ?: null;
+        return $db->table('shopify_prescription_cart_pushes')->select('status, cart_sync_status, cart_pushed_at, cart_sync_failure_reason')->where('store_domain', $store)->where('prescription_id', $prescriptionId)->where('shopify_customer_id', $customerId)->get(1)->getRowArray() ?: null;
     }
 
     private function displayCartStatus(?string $status, ?string $validUntil, string $today): string
@@ -111,6 +113,17 @@ final class ShopifyActivePrescriptionService
         if (in_array($status, ['ordered', 'paid', 'cancelled'], true)) return $status;
         if ($validUntil === null || $validUntil < $today) return 'expired';
         return $status === 'cart_pushed' ? 'cart_pushed' : 'available';
+    }
+
+    private function displayCartSyncStatus(?array $cartPush, ?string $validUntil, string $today): string
+    {
+        $status = strtolower(trim((string) ($cartPush['cart_sync_status'] ?? '')));
+        if (in_array($status, ['not_synced', 'syncing', 'synced', 'already_in_cart', 'sync_failed', 'ordered', 'paid', 'expired', 'cancelled'], true)) return $status;
+        $legacyStatus = match (strtolower(trim((string) ($cartPush['status'] ?? '')))) {
+            'ordered' => 'ordered', 'paid' => 'paid', 'cancelled' => 'cancelled', 'cart_pushed' => 'synced', default => 'not_synced',
+        };
+        if (in_array($legacyStatus, ['ordered', 'paid', 'cancelled'], true)) return $legacyStatus;
+        return $validUntil === null || $validUntil < $today ? 'expired' : $legacyStatus;
     }
 
     private function cartVariantId(string $value): ?string

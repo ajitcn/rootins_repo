@@ -17,18 +17,19 @@ final class ShopifyPrescriptionCartPushService
         $reference = trim((string) ($payload['reference'] ?? $payload['prescription_reference'] ?? ''));
         $cartStatus = strtolower(trim((string) ($payload['cart_status'] ?? '')));
         $idempotencyKey = trim((string) ($payload['_idempotency_key'] ?? ''));
-        $items = $this->normalizeItems($payload['items'] ?? []);
+        $failureReason = trim((string) ($payload['failure_reason'] ?? ''));
+        $items = $cartStatus === 'pushed' ? $this->normalizeItems($payload['items'] ?? []) : (is_array($payload['items'] ?? null) ? $payload['items'] : []);
 
-        if ($store === '' || $customerId === '' || $patientId <= 0 || $reference === '' || $cartStatus !== 'pushed' || $items === [] || $idempotencyKey === '') {
+        if ($store === '' || $customerId === '' || $patientId <= 0 || $reference === '' || ! in_array($cartStatus, ['pushed', 'failed'], true) || ($cartStatus === 'pushed' && $items === []) || $idempotencyKey === '') {
             throw new RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_INVALID');
         }
 
-        $requestHash = hash('sha256', json_encode(['reference' => $reference, 'cart_status' => $cartStatus, 'items' => $items], JSON_UNESCAPED_SLASHES));
+        $requestHash = hash('sha256', json_encode(['reference' => $reference, 'cart_status' => $cartStatus, 'items' => $items, 'failure_reason' => $failureReason], JSON_UNESCAPED_SLASHES));
         $model = new ShopifyPrescriptionCartPushModel();
         $existingByKey = $model->where('store_domain', $store)->where('shopify_customer_id', $customerId)->where('idempotency_key', $idempotencyKey)->first();
         if ($existingByKey !== null) {
             if ((string) ($existingByKey['request_hash'] ?? '') !== $requestHash) throw new RuntimeException('SHOPIFY_IDEMPOTENCY_KEY_REUSED');
-            return ['reference' => (string) $existingByKey['prescription_reference'], 'cart_status' => 'cart_pushed', 'updated_items' => $this->storedItemCount($existingByKey)];
+            return ['reference' => (string) $existingByKey['prescription_reference'], 'cart_status' => (string) ($existingByKey['status'] ?? 'cart_pushed'), 'cart_sync_status' => (string) ($existingByKey['cart_sync_status'] ?? 'synced'), 'updated_items' => $this->storedItemCount($existingByKey)];
         }
 
         $db = db_connect();
@@ -44,8 +45,27 @@ final class ShopifyPrescriptionCartPushService
         }
 
         $existing = $model->where('store_domain', $store)->where('prescription_id', (int) $prescription['id'])->where('shopify_customer_id', $customerId)->first();
+        if ($cartStatus === 'failed') {
+            $state = ['cart_sync_status' => 'sync_failed', 'cart_sync_failure_reason' => $failureReason !== '' ? substr($failureReason, 0, 255) : 'SHOPIFY_CART_ADD_FAILED', 'updated_at' => date('Y-m-d H:i:s')];
+            if ($existing !== null) {
+                $model->update((int) $existing['id'], $state);
+            } else {
+                $now = date('Y-m-d H:i:s');
+                $model->insert(['store_domain' => $store, 'prescription_id' => (int) $prescription['id'], 'prescription_reference' => $reference, 'patient_id' => $patientId, 'shopify_customer_id' => $customerId, 'variant_ids_json' => '[]', 'items_json' => '[]', 'idempotency_key' => $idempotencyKey, 'request_hash' => $requestHash, 'cart_pushed_at' => null, 'status' => 'sync_failed'] + $state + ['created_at' => $now]);
+            }
+            $this->syncPrescriptionState((int) $prescription['id'], 'sync_failed', null, $failureReason);
+            $this->auditSync('shopify.prescription_cart_sync_failed', $store, $customerId, $reference, (int) $prescription['id'], $failureReason);
+            return ['reference' => $reference, 'cart_status' => 'sync_failed', 'cart_sync_status' => 'sync_failed', 'updated_items' => 0];
+        }
         if ($existing !== null && in_array((string) ($existing['status'] ?? ''), ['ordered', 'paid', 'cancelled', 'expired'], true)) {
             throw new RuntimeException('SHOPIFY_PRESCRIPTION_NOT_CART_ELIGIBLE');
+        }
+        if ($existing !== null && in_array((string) ($existing['cart_sync_status'] ?? ''), ['synced', 'already_in_cart'], true)) {
+            $now = date('Y-m-d H:i:s');
+            $model->update((int) $existing['id'], ['cart_sync_status' => 'already_in_cart', 'status' => 'cart_pushed', 'updated_at' => $now]);
+            $this->syncPrescriptionState((int) $prescription['id'], 'already_in_cart', $existing['cart_pushed_at'] ?? $now, null);
+            $this->auditSync('shopify.prescription_cart_already_in_cart', $store, $customerId, $reference, (int) $prescription['id']);
+            return ['reference' => $reference, 'cart_status' => 'already_in_cart', 'cart_sync_status' => 'already_in_cart', 'updated_items' => $this->storedItemCount($existing)];
         }
         $allowed = $this->allowedItems($db, $store, (int) $prescription['id'], $reference, $existing);
         foreach ($items as $item) {
@@ -59,9 +79,11 @@ final class ShopifyPrescriptionCartPushService
             $model->update((int) $existing['id'], [
                 'variant_ids_json' => json_encode(array_column($items, 'variant_id')),
                 'items_json' => json_encode($items), 'idempotency_key' => $idempotencyKey,
-                'request_hash' => $requestHash, 'cart_pushed_at' => $now, 'status' => 'cart_pushed', 'updated_at' => $now,
+                'request_hash' => $requestHash, 'cart_pushed_at' => $now, 'status' => 'cart_pushed', 'cart_sync_status' => 'synced', 'cart_sync_failure_reason' => null, 'updated_at' => $now,
             ]);
-            return ['reference' => $reference, 'cart_status' => 'cart_pushed', 'updated_items' => count($items)];
+            $this->syncPrescriptionState((int) $prescription['id'], 'synced', $now, null);
+            $this->auditSync('shopify.prescription_cart_synced', $store, $customerId, $reference, (int) $prescription['id']);
+            return ['reference' => $reference, 'cart_status' => 'cart_pushed', 'cart_sync_status' => 'synced', 'updated_items' => count($items)];
         }
 
         try {
@@ -70,15 +92,17 @@ final class ShopifyPrescriptionCartPushService
                 'patient_id' => $patientId, 'shopify_customer_id' => $customerId,
                 'variant_ids_json' => json_encode(array_column($items, 'variant_id')), 'items_json' => json_encode($items),
                 'idempotency_key' => $idempotencyKey, 'request_hash' => $requestHash,
-                'cart_pushed_at' => $now, 'status' => 'cart_pushed', 'created_at' => $now, 'updated_at' => $now,
+                'cart_pushed_at' => $now, 'status' => 'cart_pushed', 'cart_sync_status' => 'synced', 'cart_sync_failure_reason' => null, 'created_at' => $now, 'updated_at' => $now,
             ]);
         } catch (\Throwable $exception) {
             $raced = $model->where('store_domain', $store)->where('prescription_id', (int) $prescription['id'])->where('shopify_customer_id', $customerId)->first();
-            if ($raced !== null) return ['reference' => $reference, 'cart_status' => 'cart_pushed', 'updated_items' => $this->storedItemCount($raced)];
+            if ($raced !== null) return ['reference' => $reference, 'cart_status' => 'already_in_cart', 'cart_sync_status' => 'already_in_cart', 'updated_items' => $this->storedItemCount($raced)];
             throw $exception;
         }
         if (! $inserted) throw new RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_FAILED');
-        return ['reference' => $reference, 'cart_status' => 'cart_pushed', 'updated_items' => count($items)];
+        $this->syncPrescriptionState((int) $prescription['id'], 'synced', $now, null);
+        $this->auditSync('shopify.prescription_cart_synced', $store, $customerId, $reference, (int) $prescription['id']);
+        return ['reference' => $reference, 'cart_status' => 'cart_pushed', 'cart_sync_status' => 'synced', 'updated_items' => count($items)];
     }
 
     public function reconcileWebhookEvent(int $eventId, string $topic, string $store): void
@@ -97,9 +121,12 @@ final class ShopifyPrescriptionCartPushService
         };
         if ($status === null) return;
         $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
-        $changes = ['status' => $status, 'shopify_order_id' => (string) ($payload['id'] ?? $payload['order_id'] ?? ''), 'last_event_topic' => $topic, 'last_event_id' => $eventId, 'updated_at' => $now];
+        $changes = ['status' => $status, 'cart_sync_status' => $status, 'shopify_order_id' => (string) ($payload['id'] ?? $payload['order_id'] ?? ''), 'last_event_topic' => $topic, 'last_event_id' => $eventId, 'updated_at' => $now];
         if ($status === 'paid') $changes['ordered_at'] = $now;
-        db_connect()->table('shopify_prescription_cart_pushes')->where('store_domain', ShopifyProxyConfigurationService::normalizeStoreDomain($store))->where('prescription_reference', $reference)->update($changes);
+        $db = db_connect();
+        $db->table('shopify_prescription_cart_pushes')->where('store_domain', ShopifyProxyConfigurationService::normalizeStoreDomain($store))->where('prescription_reference', $reference)->update($changes);
+        $db->table('prescriptions')->where('prescription_number', $reference)->update(['cart_sync_status' => $status, 'cart_pushed_at' => $status === 'paid' || $status === 'ordered' ? $now : null, 'cart_sync_failure_reason' => null, 'updated_at' => $now]);
+        $this->auditSync('shopify.prescription_cart_sync_webhook', ShopifyProxyConfigurationService::normalizeStoreDomain($store), '', $reference, 0, $topic . ':' . $status);
     }
 
     /** @return array<string,array{quantity_remaining:int}> */
@@ -151,6 +178,18 @@ final class ShopifyPrescriptionCartPushService
     {
         $items = json_decode((string) ($row['items_json'] ?? ''), true);
         return is_array($items) ? count($items) : count((array) json_decode((string) ($row['variant_ids_json'] ?? '[]'), true));
+    }
+
+    private function syncPrescriptionState(int $prescriptionId, string $status, ?string $pushedAt, ?string $failureReason): void
+    {
+        $data = ['cart_sync_status' => $status, 'cart_sync_failure_reason' => $failureReason !== null && trim($failureReason) !== '' ? substr(trim($failureReason), 0, 255) : null, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($pushedAt !== null) $data['cart_pushed_at'] = $pushedAt;
+        db_connect()->table('prescriptions')->where('id', $prescriptionId)->update($data);
+    }
+
+    private function auditSync(string $event, string $store, string $customerId, string $reference, int $prescriptionId, ?string $reason = null): void
+    {
+        service('audit')->record($event, ['store_domain' => $store, 'shopify_customer_id' => $customerId, 'prescription_reference' => $reference, 'prescription_id' => $prescriptionId, 'reason' => $reason]);
     }
 
     private function cartVariantId(string $value): ?string

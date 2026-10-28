@@ -263,6 +263,9 @@ h1, h2, h3, h4, h5, h6,
     --ri-status-charcoal-text: #313438;
     --ri-status-charcoal-bg: #e8e9ea;
     --ri-status-charcoal-border: #c9cccf;
+    --ri-status-teal-text: #176a68;
+    --ri-status-teal-bg: #e1f3f1;
+    --ri-status-teal-border: #acd8d4;
 }
 
 .ri-status,
@@ -286,6 +289,7 @@ h1, h2, h3, h4, h5, h6,
 .ri-status--purple { color: var(--ri-status-purple-text) !important; background: var(--ri-status-purple-bg) !important; border-color: var(--ri-status-purple-border) !important; }
 .ri-status--indigo { color: var(--ri-status-indigo-text) !important; background: var(--ri-status-indigo-bg) !important; border-color: var(--ri-status-indigo-border) !important; }
 .ri-status--charcoal { color: var(--ri-status-charcoal-text) !important; background: var(--ri-status-charcoal-bg) !important; border-color: var(--ri-status-charcoal-border) !important; }
+.ri-status--teal { color: var(--ri-status-teal-text) !important; background: var(--ri-status-teal-bg) !important; border-color: var(--ri-status-teal-border) !important; }
 
 .ri-status-dot { display: inline-flex; align-items: center; gap: .35rem; }
 .ri-status-dot::before { width: .42rem; height: .42rem; flex: 0 0 .42rem; border-radius: 50%; background: currentColor; content: ""; }
