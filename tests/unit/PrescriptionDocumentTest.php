@@ -44,6 +44,17 @@ final class PrescriptionDocumentTest extends TestCase
         self::assertStringNotContainsString('null', strtolower($pdf));
     }
 
+    public function testModalUsesTheCanonicalPrescriptionTemplateContract(): void
+    {
+        $template = file_get_contents(ROOTPATH . 'app/Views/templates/prescription_document.php');
+        self::assertIsString($template);
+        foreach (['rootins-prescription-letterhead', 'rootins-prescription-identity', 'rootins-prescription-medicines', 'Strength/Form', 'Doctor signature'] as $marker) {
+            self::assertStringContainsString($marker, $template);
+        }
+        self::assertStringNotContainsString('cart_sync_status', $template);
+        self::assertStringNotContainsString('variant_id', $template);
+    }
+
     private function prescription(): array
     {
         return [

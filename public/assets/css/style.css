@@ -1340,6 +1340,56 @@ body > .modal .modal-dialog,
 }
 
 .doctor-prescription-legacy-table { display: none; }
+.doctor-prescription-legacy-document { display: none; }
+.rootins-prescription-document { box-sizing: border-box; width: 100%; max-width: 190mm; margin: 0 auto; padding: 15mm 16mm; color: #20242b; background: #fff; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; }
+.rootins-prescription-letterhead { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.rootins-prescription-brand { display: flex; align-items: center; gap: 3mm; min-width: 0; }
+.rootins-prescription-brand img { width: 18mm; height: 18mm; object-fit: contain; }
+.rootins-prescription-brand strong { display: block; color: #1f4e79; font-size: 21pt; letter-spacing: .04em; line-height: 1; }
+.rootins-prescription-brand span, .rootins-prescription-clinic span { display: block; color: #5c626b; font-size: 9pt; }
+.rootins-prescription-clinic { max-width: 55%; text-align: right; }
+.rootins-prescription-clinic strong { display: block; color: #1f4e79; font-size: 12pt; }
+.rootins-prescription-divider { height: 2px; margin: 5mm 0; background: #1f4e79; }
+.rootins-prescription-doctor-patient { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5mm; }
+.rootins-prescription-panel { padding: 4mm; border: 1px solid #d5dfe8; border-radius: 2mm; }
+.rootins-prescription-panel h2, .rootins-prescription-clinical-section h2, .rootins-prescription-medicines h2 { margin: 0 0 2mm; color: #1f4e79; font-size: 11pt; }
+.rootins-prescription-panel strong, .rootins-prescription-panel span { display: block; overflow-wrap: anywhere; }
+.rootins-prescription-panel strong { font-size: 11pt; }
+.rootins-prescription-panel span { color: #5c626b; font-size: 9.5pt; }
+.rootins-prescription-identity { display: flex; align-items: center; gap: 4mm; margin: 6mm 0; padding: 4mm; border: 1px solid #abc9dc; background: #edf6fb; }
+.rootins-prescription-rx { color: #1f4e79; font-size: 25pt; font-weight: 800; line-height: 1; }
+.rootins-prescription-identity h1 { margin: 0; color: #1f4e79; font-size: 16pt; }
+.rootins-prescription-identity > div > span { color: #5c626b; font-size: 9pt; }
+.rootins-prescription-identity dl { display: flex; flex-wrap: wrap; gap: 3mm 6mm; margin: 0 0 0 auto; }
+.rootins-prescription-identity dt { color: #5c626b; font-size: 8pt; font-weight: 700; }
+.rootins-prescription-identity dd { margin: 0; font-size: 9.5pt; }
+.rootins-prescription-clinical-section { margin: 4mm 0; }
+.rootins-prescription-clinical-section p { margin: 0; white-space: normal; overflow-wrap: anywhere; }
+.rootins-prescription-medicines { margin-top: 5mm; }
+.rootins-prescription-medicines .table-responsive { overflow-x: auto; }
+.rootins-prescription-medicines table { width: 100%; min-width: 175mm; table-layout: fixed; border-collapse: collapse; }
+.rootins-prescription-medicines th, .rootins-prescription-medicines td { padding: 2mm 1.5mm; border: 1px solid #b8bdc5; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: normal; white-space: normal; }
+.rootins-prescription-medicines th { color: #1f4e79; background: #edf5fa; font-size: 8.5pt; }
+.rootins-prescription-medicines td { font-size: 9.5pt; }
+.rootins-prescription-medicines th:nth-child(1) { width: 5%; } .rootins-prescription-medicines th:nth-child(2) { width: 22%; } .rootins-prescription-medicines th:nth-child(3) { width: 13%; } .rootins-prescription-medicines th:nth-child(4) { width: 11%; } .rootins-prescription-medicines th:nth-child(5) { width: 9%; } .rootins-prescription-medicines th:nth-child(6) { width: 13%; } .rootins-prescription-medicines th:nth-child(7) { width: 10%; } .rootins-prescription-medicines th:nth-child(8) { width: 7%; } .rootins-prescription-medicines th:nth-child(9) { width: 10%; }
+.rootins-prescription-footer { display: flex; justify-content: space-between; gap: 2rem; margin-top: 12mm; padding-top: 4mm; border-top: 1px solid #9aa7b5; color: #5c626b; font-size: 9pt; }
+.rootins-prescription-signature { display: flex; min-width: 60mm; flex-direction: column; gap: 1mm; }
+.rootins-prescription-signature span { display: block; width: 55mm; height: 10mm; border-bottom: 1px solid #555; }
+.rootins-prescription-signature strong { color: #20242b; }
+.rootins-prescription-signature small { font-size: 8.5pt; }
+.doctor-prescription-detail-modal .modal-dialog { max-width: 1100px; }
+.doctor-prescription-detail-modal .modal-body { max-height: calc(100vh - 180px); overflow-y: auto; background: #eef1f5; padding: 0 !important; }
+.doctor-prescription-detail-modal .rootins-prescription-document { min-height: 267mm; box-shadow: 0 2px 12px rgba(32, 36, 43, .12); }
+@media (max-width: 767.98px) {
+  .doctor-prescription-detail-modal .modal-dialog { max-width: none; margin: .5rem; }
+  .doctor-prescription-detail-modal .modal-body { max-height: calc(100vh - 150px); }
+  .rootins-prescription-document { padding: 8mm 6mm; }
+  .rootins-prescription-letterhead, .rootins-prescription-identity, .rootins-prescription-footer { align-items: flex-start; flex-direction: column; }
+  .rootins-prescription-clinic { max-width: 100%; text-align: left; }
+  .rootins-prescription-doctor-patient { grid-template-columns: 1fr; }
+  .rootins-prescription-identity dl { margin-left: 0; }
+  .rootins-prescription-medicines table { min-width: 175mm; }
+}
 .doctor-prescription-clinical-table { font-size: 10pt; table-layout: fixed; width: 100%; }
 .doctor-prescription-clinical-table th, .doctor-prescription-clinical-table td { overflow-wrap: anywhere; vertical-align: top; }
 .doctor-prescription-clinical-table th:nth-child(1) { width: 5%; }

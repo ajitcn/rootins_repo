@@ -25,15 +25,41 @@ class Access extends BaseAdminController
     public function users(): string
     {
         $db = db_connect();
-        $usersQuery = $db->table('users')->select("users.id, users.username, users.email, users.mobile, users.status, users.doctor_id, users.telephone_country_code_id, telephone_country_codes.normalized_code AS telephone_country_code, COALESCE(countries.name, telephone_country_codes.label) AS telephone_country_name, GROUP_CONCAT(DISTINCT roles.role_name ORDER BY roles.role_name SEPARATOR ', ') AS role_names, GROUP_CONCAT(DISTINCT user_roles.role_id) AS role_ids")->join('user_roles', 'user_roles.user_id = users.id', 'left')->join('roles', 'roles.id = user_roles.role_id', 'left')->join('telephone_country_codes', 'telephone_country_codes.id = users.telephone_country_code_id', 'left')->join('countries', 'countries.id = telephone_country_codes.country_id', 'left')->groupBy('users.id')->orderBy('users.username');
+        $usersQuery = $db->table('users')->select("users.id, users.username, users.email, users.mobile, users.status, users.deleted_at, users.doctor_id, users.telephone_country_code_id, telephone_country_codes.normalized_code AS telephone_country_code, COALESCE(countries.name, telephone_country_codes.label) AS telephone_country_name, GROUP_CONCAT(DISTINCT roles.role_name ORDER BY roles.role_name SEPARATOR ', ') AS role_names, GROUP_CONCAT(DISTINCT user_roles.role_id) AS role_ids", false)
+            ->join('user_roles', 'user_roles.user_id = users.id', 'left')
+            ->join('roles', 'roles.id = user_roles.role_id', 'left')
+            ->join('telephone_country_codes', 'telephone_country_codes.id = users.telephone_country_code_id', 'left')
+            ->join('countries', 'countries.id = telephone_country_codes.country_id', 'left')
+            ->where('users.status', 1)
+            ->where('users.deleted_at IS NULL', null, false)
+            ->groupBy('users.id')
+            ->orderBy('users.username');
         $clinicId = (int) (($this->user['clinic_id'] ?? 0 ?: session('clinic_id')) ?: 0);
 
         if ($clinicId > 0) {
             $doctorIds = array_column($db->table('doctors')->select('id')->where('clinic_id', $clinicId)->get()->getResultArray(), 'id');
             $patientUserIds = array_column($db->table('patients')->select('user_id')->where('clinic_id', $clinicId)->where('user_id IS NOT NULL', null, false)->get()->getResultArray(), 'user_id');
-            $usersQuery->groupStart()->whereIn('users.doctor_id', $doctorIds ?: [0])->orWhereIn('users.id', $patientUserIds ?: [0])->groupEnd();
+            $usersQuery->groupStart()
+                ->whereIn('users.doctor_id', $doctorIds ?: [0])
+                ->orWhereIn('users.id', $patientUserIds ?: [0])
+                ->orWhere('users.doctor_id', 0)
+                ->orWhere('users.doctor_id IS NULL', null, false)
+                ->groupEnd();
         }
         $users = $usersQuery->get()->getResultArray();
+
+        foreach ($users as $listedUser) {
+            log_message('debug', 'Access user list diagnostic: ' . json_encode([
+                'user_id' => (int) ($listedUser['id'] ?? 0),
+                'username' => (string) ($listedUser['username'] ?? ''),
+                'email' => (string) ($listedUser['email'] ?? ''),
+                'active_status' => (int) ($listedUser['status'] ?? 0),
+                'deleted_status' => trim((string) ($listedUser['deleted_at'] ?? '')) === '' ? 'not_deleted' : 'deleted',
+                'role_mapping' => trim((string) ($listedUser['role_ids'] ?? '')) !== '' ? 'present' : 'not_present',
+                'clinic_mapping' => (int) ($listedUser['doctor_id'] ?? 0) > 0 || in_array((int) ($listedUser['id'] ?? 0), $patientUserIds ?? [], true) ? 'present' : 'not_present',
+                'list_query_result' => 'included',
+            ], JSON_UNESCAPED_SLASHES));
+        }
 
         return view(ADMIN_VIEW . 'pages/access/users', ['users' => $users, 'telephoneCodes' => (new TelephoneCountryCode())->dropdown(), 'roles' => (new Role())->where('status', 1)->orderBy('role_name')->findAll(), 'allRoles' => (new Role())->orderBy('role_name')->findAll(), 'permissions' => (new Permission())->orderBy('module')->orderBy('permission_key')->findAll(), 'rolePermissions' => $db->table('role_permissions')->select('role_id, permission_id')->get()->getResultArray(), 'doctors' => $this->scopedDoctors(), 'canCreateUser' => $this->hasPermission('user.create'), 'canEditUser' => $this->hasPermission('user.edit'), 'canDeleteUser' => $this->hasPermission('user.delete')]);
     }

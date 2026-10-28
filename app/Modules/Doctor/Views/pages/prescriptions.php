@@ -225,13 +225,8 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                 <div class="modal-header">
                     <div class="doctor-prescription-modal-heading">
                         <h2 class="modal-title h5" id="<?= esc($detailId) ?>-title">
-                            Prescription <?= esc($item['prescription_number']) ?>
+                            Prescription details
                         </h2>
-                        <div class="doctor-prescription-modal-context" aria-label="Prescription summary">
-                            <span><strong>Patient:</strong> <?= esc($patientName) ?></span>
-                            <span><strong>Patient number:</strong> <?= esc($patientReference) ?></span>
-                            <span><strong>Date:</strong> <?= esc($displayPrescriptionDate) ?></span>
-                        </div>
                     </div>
                     <button
                         type="button"
@@ -245,6 +240,8 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                 </div>
                 <div class="modal-body" role="document">
                     <div class="doctor-prescription-print-area" id="<?= esc($printId) ?>">
+                        <?= view('templates/prescription_document', ['prescription' => $item, 'items' => $items[$prescriptionId] ?? []]) ?>
+                        <div class="doctor-prescription-legacy-document" aria-hidden="true">
                         <?php if (trim((string) ($item['clinic_name'] ?? '')) !== '' || trim((string) ($item['clinic_address'] ?? '')) !== '' || trim((string) ($item['clinic_mobile'] ?? '')) !== ''): ?>
                             <div class="doctor-prescription-clinic-header">
                                 <div class="doctor-prescription-brand" aria-label="ROOTINS">ROOTINS<span>Healthcare and Pharmacy</span></div>
@@ -402,6 +399,7 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                         <div class="doctor-prescription-print-footer">
                             <div class="doctor-prescription-signature"><span></span><strong>Doctor signature</strong><small>Digitally generated prescription</small></div>
                             <div class="doctor-prescription-confidential">Confidential medical document<br><?= esc($item['prescription_number'] ?? '') ?></div>
+                        </div>
                         </div>
                     </div>
                 </div>
