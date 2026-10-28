@@ -2,11 +2,15 @@
 <?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/admin/dashboard.css?v=20261027-dashboard1') ?>"><?= $this->endSection() ?>
 <?= $this->section('main-content') ?>
 <?php
+use Admin\Services\DashboardService;
+
 $dashboardPermissions = session('permissions') ?? [];
 $canDashboard = static fn (string $permission): bool => in_array($permission, $dashboardPermissions, true);
 $metricItems = [['clinics', 'Active clinics', 'bi-hospital', 'admin/clinics'], ['doctors', 'Active doctors', 'bi-person-badge', 'admin/doctors'], ['patients', 'Active patients', 'bi-people', 'admin/patients'], ['appointments', 'Appointments', 'bi-calendar-check', 'admin/appointments'], ['payments', 'Paid invoices', 'bi-credit-card', 'admin/billing'], ['orders', 'Medicine orders', 'bi-box-seam', 'pharmacy'], ['audit_alerts', 'Audit alerts', 'bi-shield-exclamation', 'admin/audit']];
-$days = $charts['appointments_by_day'] ?? [];
-$maxDay = max(1, ...array_map(static fn (array $row): int => (int) ($row['total'] ?? 0), $days));
+$days = is_array($charts['appointments_by_day'] ?? null) ? $charts['appointments_by_day'] : [];
+$maxDay = max(1, (int) ($chart_maxima['appointments_by_day'] ?? DashboardService::maximumNumericValue(
+    array_map(static fn (mixed $row): mixed => is_array($row) ? ($row['total'] ?? null) : null, $days)
+)));
 ?>
 <main class="dashboard-container admin-dashboard" aria-labelledby="admin-dashboard-title">
     <div class="page-heading admin-dashboard-heading"><div><div class="page-eyebrow">Administration / operations</div><h1 id="admin-dashboard-title" class="h3 mb-1">Admin dashboard</h1><p class="text-muted mb-0">Live operational summary for the permitted system scope.</p></div><a class="btn btn-primary" href="<?= base_url('admin/appointments') ?>"><i class="bi bi-calendar-plus mr-1" aria-hidden="true"></i>Open appointments</a></div>

@@ -104,6 +104,44 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         self::assertStringContainsString('Finalized prescriptions cannot be modified', $clinical);
     }
 
+    public function testDoctorCompletionUsesCompletedStatusAndCreatedAtDuration(): void
+    {
+        $clinical = $this->source('app/Modules/Doctor/Controllers/Clinical.php');
+        $eligibility = $this->source('app/Services/Shopify/ShopifyPrescriptionEligibility.php');
+        $migration = $this->source('app/Database/Migrations/2026-10-28-120000_AddPrescriptionDurationDays.php');
+
+        foreach (['duration_days', 'calculateValidUntil', "'completed'", 'normalizeMedicineDuration'] as $marker) {
+            self::assertStringContainsString($marker, $clinical . $eligibility . $migration);
+        }
+        self::assertStringNotContainsString("'submitted' ? 'submitted'", $clinical);
+    }
+
+    public function testActivePayloadContainsOrderDetailsAndStorefrontUsesCartApi(): void
+    {
+        $active = $this->source('app/Services/Shopify/ShopifyActivePrescriptionService.php');
+        $storefront = $this->source('public/assets/js/shopify/active-prescriptions.js');
+
+        foreach (['patient_reference', 'duration_days', 'medicine_id', 'shopify_variant_id', 'excluded_items'] as $marker) {
+            self::assertStringContainsString($marker, $active);
+        }
+        foreach (['/apps/rootins/prescriptions/active', '/cart.js', '/cart/add.js', 'prescription_reference', 'quantity'] as $marker) {
+            self::assertStringContainsString($marker, $storefront);
+        }
+    }
+
+    public function testCompletionAndCartPathsAreIdempotentAndKeepOrderLinkage(): void
+    {
+        $active = $this->source('app/Services/Shopify/ShopifyActivePrescriptionService.php');
+        $storefront = $this->source('public/assets/js/shopify/active-prescriptions.js');
+        $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');
+
+        self::assertStringNotContainsString('->insert(', $active);
+        self::assertStringContainsString('!existing[String(item.shopify_variant_id)]', $storefront);
+        foreach (['linkOrderPrescription', 'ensurePharmacyOrderForImport', 'prescriptionIdForReference'] as $marker) {
+            self::assertStringContainsString($marker, $import);
+        }
+    }
+
     public function testNotificationOutboxTypesAndLineIdempotencyContractsArePresent(): void
     {
         $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');

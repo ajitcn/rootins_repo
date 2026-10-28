@@ -328,7 +328,7 @@ final class ShopifyOrderImportService
         }
         $this->stage($event, $orderId, 'mapping_resolved', null, 'shopify_order_import_lines', 'internal_import_id', true);
         $this->stage($event, $orderId, 'prescription_resolved', null, 'shopify_order_imports', 'internal_import_id', true);
-        if ($prescriptionRequired && ($prescriptionId === null || !$this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
+        if ($prescriptionRequired && ($prescriptionId === null || !$this->orderablePrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $this->setImportState($importId, 'quarantined', ShopifyOrderImportFailure::PRESCRIPTION_MISSING, $eventId, $patientId, $clinicId);
             $events->markFailed($eventId, ShopifyOrderImportFailure::PRESCRIPTION_MISSING);
             $this->queueNotification($importId, 'new_prescription_required');
@@ -1194,7 +1194,7 @@ GRAPHQL, ['id' => $orderGid]);
     {
         if ($reference === '' || $patientId <= 0 || $clinicId <= 0) return null;
         return db_connect()->table('prescriptions p')
-            ->select('p.id, p.valid_until, p.status')
+            ->select('p.id, p.valid_until, p.duration_days, p.status')
             ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
             ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
             ->where('p.prescription_number', $reference)
@@ -1227,7 +1227,7 @@ GRAPHQL, ['id' => $orderGid]);
         return $ordered !== [];
     }
 
-    private function approvedPrescriptionMatches(int $prescriptionId, int $patientId, int $clinicId): bool
+    private function orderablePrescriptionMatches(int $prescriptionId, int $patientId, int $clinicId): bool
     {
         $row = db_connect()->table('prescriptions p')
             ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
@@ -1236,6 +1236,7 @@ GRAPHQL, ['id' => $orderGid]);
             ->where('p.patient_id', $patientId)
             ->where('p.clinic_id', $clinicId)
             ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)
+            ->where('p.duration_days >', 0)
             ->where('p.valid_until IS NOT NULL', null, false)
             ->where('p.valid_until >=', ShopifyPrescriptionEligibility::today())
             ->get(1)
@@ -1467,9 +1468,9 @@ GRAPHQL, ['id' => $orderGid]);
             $db->transRollback();
             return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PATIENT_NOT_FOUND, 'The linked ROOTINS patient was not found.', ['prescription_status' => $prescriptionRequired ? 'required' : 'not_required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
         }
-        if ($prescriptionRequired && ($prescriptionId === null || $prescriptionId <= 0 || ! $this->approvedPrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
+        if ($prescriptionRequired && ($prescriptionId === null || $prescriptionId <= 0 || ! $this->orderablePrescriptionMatches($prescriptionId, $patientId, $clinicId))) {
             $db->transRollback();
-            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PHARMACY_ORDER_PRESCRIPTION_REQUIRED, 'A valid approved prescription is required for this medicine order.', ['prescription_status' => 'required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
+            return $this->pharmacyOrderFailure($event, $importId, $shopifyOrderId, ShopifyOrderImportFailure::PHARMACY_ORDER_PRESCRIPTION_REQUIRED, 'A valid completed prescription is required for this medicine order.', ['prescription_status' => 'required', 'prescription_id' => $prescriptionId, 'patient_id' => $patientId, 'clinic_id' => $clinicId]);
         }
         $existing = $db->query('SELECT id FROM medicine_orders WHERE idempotency_key = ? AND clinic_id = ? LIMIT 1 FOR UPDATE', ['shopify-import:' . $importId, $clinicId])->getRowArray();
         if ($existing === null) {

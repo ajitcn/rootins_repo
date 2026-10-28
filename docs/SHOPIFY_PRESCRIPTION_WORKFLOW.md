@@ -1,5 +1,24 @@
 # Shopify prescription-to-order contract
 
+## Doctor-created prescriptions
+
+Doctor-created prescriptions remain private while they are drafts. When the
+doctor completes a prescription, ROOTINS validates its patient, active
+medicines, and store mappings, then exposes only the mapped lines through the
+signed `GET /apps/rootins/prescriptions/active` App Proxy endpoint. The
+prescription stores `duration_days`; `valid_until` is calculated from the
+prescription's original `created_at` plus that duration. The completed status is
+orderable through the end of that validity date. There is no separate approved
+status requirement.
+
+The optional storefront helper at
+`/assets/js/shopify/active-prescriptions.js` renders the endpoint response and
+uses Shopify's `/cart.js` and `/cart/add.js` APIs. It skips variants already in
+the browser cart, preserves the prescribed quantity and medicine details as
+line properties, and never mutates the cart from the ROOTINS server. Include it
+on a theme section containing `[data-rootins-active-prescriptions]` with
+`[data-prescription-status]` and `[data-prescription-list]` elements.
+
 The Core API App Proxy endpoint is `POST /rootins-proxy/prescriptions/upload`.
 It accepts a multipart `file` plus an `Idempotency-Key`. Shopify must send
 the signed App Proxy query parameters, including `logged_in_customer_id`.

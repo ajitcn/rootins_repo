@@ -1803,7 +1803,7 @@ $(function () {
             return;
         }
         const consultationStatus = String($('#clinical-consultation-status').val() || 'draft');
-        $('#clinical-prescription-status').val(consultationStatus === 'completed' ? 'submitted' : 'draft');
+        $('#clinical-prescription-status').val(consultationStatus === 'completed' ? 'completed' : 'draft');
         $('#clinical-prescription-present').val(nonEmptyPrescriptionRows.length ? '1' : '0');
         button.prop('disabled', true).attr('aria-busy', 'true');
         ajaxRequest({

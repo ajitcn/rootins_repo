@@ -10,7 +10,29 @@ final class ShopifyPrescriptionEligibility
     public const REASON = 'PRESCRIPTION_NOT_ORDERABLE';
 
     /** @var list<string> */
-    public const ORDERABLE_STATUSES = ['approved', 'finalized'];
+    public const ORDERABLE_STATUSES = ['completed'];
+
+    public static function isValidDurationDays(mixed $durationDays): bool
+    {
+        return (is_int($durationDays) || (is_string($durationDays) && ctype_digit(trim($durationDays))))
+            && (int) $durationDays > 0;
+    }
+
+    public static function calculateValidUntil(string $createdAt, mixed $durationDays): ?string
+    {
+        if (! self::isValidDurationDays($durationDays)) {
+            return null;
+        }
+
+        try {
+            $timezone = new DateTimeZone((string) (config('App')->appTimezone ?? date_default_timezone_get()));
+            $created = new DateTimeImmutable($createdAt, $timezone);
+
+            return $created->modify('+' . (int) $durationDays . ' days')->format('Y-m-d');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
 
     public static function today(): string
     {
@@ -30,7 +52,7 @@ final class ShopifyPrescriptionEligibility
         $validUntil = trim((string) ($prescription['valid_until'] ?? ''));
         $today ??= self::today();
 
-        if (! in_array($status, self::ORDERABLE_STATUSES, true) || $validUntil === '') {
+        if (! in_array($status, self::ORDERABLE_STATUSES, true) || ! self::isValidDurationDays($prescription['duration_days'] ?? null) || $validUntil === '') {
             return false;
         }
 

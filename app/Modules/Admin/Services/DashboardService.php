@@ -31,6 +31,32 @@ class DashboardService
         return self::RANGES;
     }
 
+    /**
+     * Normalize a dashboard value collection before aggregate operations.
+     *
+     * Dashboard data can be empty, scalar, or an array depending on the
+     * query/result shape. Keep only numeric values so callers never pass an
+     * invalid value (or a scalar as the sole max() argument) to max().
+     */
+    public static function normalizeNumericValues(mixed $values): array
+    {
+        if ($values === null) {
+            return [];
+        }
+
+        $values = is_array($values) ? $values : [$values];
+        $values = array_filter($values, static fn (mixed $value): bool => is_numeric($value));
+
+        return array_values(array_map(static fn (mixed $value): int => (int) $value, $values));
+    }
+
+    public static function maximumNumericValue(mixed $values, int $default = 0): int
+    {
+        $normalized = self::normalizeNumericValues($values);
+
+        return $normalized === [] ? $default : max($normalized);
+    }
+
     public function normalizeRange(?string $requested, ?string $from = null, ?string $to = null): array
     {
         $key = strtolower(trim((string) $requested));
@@ -96,6 +122,10 @@ class DashboardService
         $appointmentsByDay = $db->table('appointments')->select('appointment_date day, COUNT(*) total')
             ->where('appointment_date >=', $from)->where('appointment_date <=', $to)
             ->groupBy('appointment_date')->orderBy('appointment_date', 'ASC')->get()->getResultArray();
+        $appointmentTotals = array_map(
+            static fn (array $row): mixed => $row['total'] ?? null,
+            $appointmentsByDay
+        );
         $statuses = $db->table('appointments')->select('status, COUNT(*) total')
             ->where('appointment_date >=', $from)->where('appointment_date <=', $to)
             ->groupBy('status')->get()->getResultArray();
@@ -120,6 +150,7 @@ class DashboardService
                 'audit_alerts' => (int) $db->table('audit_logs')->where('occurred_at >=', $fromDateTime)->where('occurred_at <=', $toDateTime)->groupStart()->like('action', 'failed')->orLike('action', 'denied')->groupEnd()->countAllResults(),
             ],
             'charts' => ['appointments_by_day' => $appointmentsByDay, 'appointment_statuses' => $appointmentStatuses],
+            'chart_maxima' => ['appointments_by_day' => max(1, self::maximumNumericValue($appointmentTotals))],
             'summaries' => ['total_appointments' => array_sum($appointmentStatuses), 'completed_appointments' => $appointmentStatuses['completed'] ?? 0, 'cancelled_appointments' => $appointmentStatuses['cancelled'] ?? 0],
             'tables' => ['recent_activity' => $activity],
         ];

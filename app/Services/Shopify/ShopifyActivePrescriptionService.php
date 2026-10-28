@@ -16,11 +16,13 @@ final class ShopifyActivePrescriptionService
         $db = db_connect();
         $today = ShopifyPrescriptionEligibility::today();
         $prescriptions = $db->table('prescriptions p')
-            ->select('p.id, p.prescription_number, p.prescription_date, p.valid_until')
+            ->select('p.id, p.prescription_number, p.prescription_date, p.duration_days, p.valid_until, p.patient_id, patients.registration_number AS patient_reference')
             ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
             ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
+            ->join('patients', 'patients.id = p.patient_id AND patients.status = 1')
             ->where('p.patient_id', $patientId)
             ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)
+            ->where('p.duration_days >', 0)
             ->where('p.valid_until IS NOT NULL', null, false)
             ->where('p.valid_until >=', $today)
             ->orderBy('p.prescription_date', 'DESC')
@@ -32,6 +34,8 @@ final class ShopifyActivePrescriptionService
             $items = $this->items($db, $storeDomain, (int) $prescription['id']);
             $result[] = [
                 'prescription_reference' => (string) $prescription['prescription_number'],
+                'patient_reference' => (string) ($prescription['patient_reference'] ?? ''),
+                'duration_days' => (int) ($prescription['duration_days'] ?? 0),
                 'valid_until' => (string) $prescription['valid_until'],
                 'items' => $items['items'],
                 'excluded_items' => $items['excluded_items'],
@@ -62,6 +66,7 @@ final class ShopifyActivePrescriptionService
                 ? 'MEDICINE_INACTIVE'
                 : ($mapping === null || (int) ($mapping['variant_active'] ?? 0) !== 1 ? 'SHOPIFY_MEDICINE_MAPPING_REQUIRED' : null);
             $base = [
+                'medicine_id' => (int) ($row['medicine_id'] ?? 0),
                 'medicine_reference' => (string) ($row['medicine_code'] ?: sprintf('MED-%05d', (int) $row['medicine_id'])),
                 'medicine_name' => (string) ($row['medicine_name'] ?? ''),
                 'quantity' => (int) ($row['quantity'] ?? 0),

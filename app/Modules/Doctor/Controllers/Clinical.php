@@ -13,6 +13,7 @@ use Admin\Services\MedicineLookupService;
 use Admin\Models\User;
 use App\Controllers\BaseController;
 use App\Services\Common\PrescriptionSnapshotService;
+use App\Services\Shopify\ShopifyPrescriptionEligibility;
 use App\Services\AppointmentConsultationEligibility;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -570,8 +571,11 @@ class Clinical extends BaseController
         $context = $this->context();
         $consultationId = (int) $this->request->getPost('consultation_id');
         $status = strtolower(trim((string) $this->request->getPost('status')));
+        $medicineDurationInput = trim((string) $this->request->getPost('medicine_duration'));
+        $durationErrors = [];
+        $medicineDuration = $this->normalizeMedicineDuration($medicineDurationInput, $durationErrors);
 
-        if ($context === null || $consultationId <= 0 || $this->prescriptionOptions->activeByCode(PrescriptionOptionModel::TYPES['status'], $status, $context['clinic_id']) === null) {
+        if ($context === null || $consultationId <= 0 || ($status !== 'completed' && $this->prescriptionOptions->activeByCode(PrescriptionOptionModel::TYPES['status'], $status, $context['clinic_id']) === null)) {
             return $this->json(422, false, 'Consultation and prescription status are required.');
         }
         $consultation = $this->consultations->where('id', $consultationId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->first();
@@ -585,11 +589,17 @@ class Clinical extends BaseController
         }
         $errors = [];
         $items = $this->normalizePrescriptionItems($this->request->getPost('items'), $errors, $context['clinic_id']);
+        $errors = array_merge($errors, $durationErrors);
+        $this->validatePrescriptionRequirements($items !== [], $medicineDurationInput, $medicineDuration, $errors);
 
         if ($errors !== []) {
             return $this->validation($errors);
         }
         $existing = $this->prescriptions->where('consultation_id', $consultationId)->where('doctor_id', $context['doctor_id'])->where('clinic_id', $context['clinic_id'])->first();
+
+        if ($existing !== null && $status === 'completed' && (string) ($existing['status'] ?? '') === 'completed') {
+            return $this->json(200, true, 'Prescription is already completed and available for Shopify ordering.', ['prescription_id' => (int) $existing['id']]);
+        }
 
         if ($existing !== null && in_array((string) $existing['status'], ['active', 'approved', 'completed', 'finalized'], true)) {
             return $this->json(409, false, 'Finalized prescriptions cannot be modified.');
@@ -600,7 +610,8 @@ class Clinical extends BaseController
             $db->transBegin();
             $now = date('Y-m-d H:i:s');
             $prescriptionDate = trim((string) $this->request->getPost('prescription_date')) ?: date('Y-m-d');
-            $data = ['consultation_id' => $consultationId, 'patient_id' => (int) $consultation['patient_id'], 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id'], 'prescription_date' => $prescriptionDate, 'valid_until' => $this->prescriptionValidUntil($status, $prescriptionDate), 'notes' => $this->nullable('notes'), 'status' => $status, 'updated_at' => $now];
+            $createdAt = $existing['created_at'] ?? $now;
+            $data = ['consultation_id' => $consultationId, 'patient_id' => (int) $consultation['patient_id'], 'doctor_id' => $context['doctor_id'], 'clinic_id' => $context['clinic_id'], 'prescription_date' => $prescriptionDate, 'duration_days' => $status === 'completed' ? $medicineDuration : null, 'valid_until' => $status === 'completed' ? ShopifyPrescriptionEligibility::calculateValidUntil((string) $createdAt, $medicineDuration) : null, 'notes' => $this->nullable('notes'), 'status' => $status, 'updated_at' => $now];
 
             if ($existing === null) {
                 $data['prescription_number'] = 'TMP-RX-' . bin2hex(random_bytes(8));
@@ -636,11 +647,17 @@ class Clinical extends BaseController
             return $this->json(500, false, 'Prescription could not be saved safely.');
         }
         $this->audit('doctor.prescription_saved', $context, ['prescription_id' => $id, 'consultation_id' => $consultationId, 'status' => $status]);
-        if (in_array($status, ['active', 'approved', 'completed', 'finalized'], true)) {
+        if ($status === 'completed') {
             try { (new PrescriptionSnapshotService())->createIfFinalized((int) $id); } catch (Throwable $e) { log_message('error', 'Doctor prescription PDF snapshot failed safely: ' . get_class($e)); }
         }
 
-        return $this->json(200, true, $status === 'submitted' ? 'Prescription submitted for review.' : 'Prescription draft saved.', ['prescription_id' => $id]);
+        $message = match ($status) {
+            'completed' => 'Prescription completed and available for Shopify ordering.',
+            'submitted' => 'Prescription submitted for review.',
+            default => 'Prescription draft saved.',
+        };
+
+        return $this->json(200, true, $message, ['prescription_id' => $id]);
     }
 
     public function saveWorkspace(): ResponseInterface
@@ -672,7 +689,7 @@ class Clinical extends BaseController
             $errors['consultation_status'] = 'Choose a valid consultation status.';
         }
 
-        if ($hasPrescriptionRows && $this->prescriptionOptions->activeByCode(PrescriptionOptionModel::TYPES['status'], $prescriptionStatus, $context['clinic_id']) === null) {
+        if ($hasPrescriptionRows && $prescriptionStatus !== 'completed' && $this->prescriptionOptions->activeByCode(PrescriptionOptionModel::TYPES['status'], $prescriptionStatus, $context['clinic_id']) === null) {
             $errors['prescription_status'] = 'Choose a valid prescription status.';
         }
 
@@ -745,6 +762,17 @@ class Clinical extends BaseController
                 ->first();
 
             if ($existingConsultation !== null && $existingConsultation['status'] === 'completed') {
+                $completedPrescription = $this->prescriptions
+                    ->where('consultation_id', (int) $existingConsultation['id'])
+                    ->where('doctor_id', $context['doctor_id'])
+                    ->where('clinic_id', $context['clinic_id'])
+                    ->where('status', 'completed')
+                    ->first();
+
+                if ($prescriptionStatus === 'completed' && $completedPrescription !== null) {
+                    return $this->json(200, true, 'Prescription is already completed and available for Shopify ordering.', ['consultation_id' => (int) $existingConsultation['id'], 'prescription_id' => (int) $completedPrescription['id']]);
+                }
+
                 return $this->json(409, false, 'Completed consultations cannot be modified.');
             }
         }
@@ -767,8 +795,8 @@ class Clinical extends BaseController
                 }
             }
 
-            if ($prescriptionStatus === 'submitted' && $consultationStatus !== 'completed') {
-                $errors['prescription_status'] = 'Complete the consultation before submitting the prescription.';
+            if (in_array($prescriptionStatus, ['submitted', 'completed'], true) && $consultationStatus !== 'completed') {
+                $errors['prescription_status'] = 'Complete the consultation before completing the prescription.';
             }
         }
         $this->validatePrescriptionRequirements($hasPrescriptionRows, $medicineDurationInput, $medicineDuration, $errors);
@@ -840,7 +868,8 @@ class Clinical extends BaseController
                     'doctor_id' => $context['doctor_id'],
                     'clinic_id' => $context['clinic_id'],
                     'prescription_date' => date('Y-m-d'),
-                    'valid_until' => $this->prescriptionValidUntil($prescriptionStatus, date('Y-m-d')),
+                    'duration_days' => $prescriptionStatus === 'completed' ? $medicineDuration : null,
+                    'valid_until' => $prescriptionStatus === 'completed' ? ShopifyPrescriptionEligibility::calculateValidUntil((string) ($existingPrescription['created_at'] ?? $now), $medicineDuration) : null,
                     'notes' => $this->nullable('notes'),
                     'status' => $prescriptionStatus,
                     'updated_at' => $now,
@@ -1103,20 +1132,6 @@ class Clinical extends BaseController
         if (! $hasRows && $durationInput !== '') {
             $errors['items'] = 'Add at least one medicine or clear the duration.';
         }
-    }
-
-    private function prescriptionValidUntil(string $status, string $prescriptionDate): ?string
-    {
-        if (! in_array($status, ['submitted', 'completed', 'approved', 'active', 'finalized'], true)) {
-            return null;
-        }
-
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $prescriptionDate);
-        if ($date === false) {
-            $date = new \DateTimeImmutable('today');
-        }
-
-        return $date->modify('+30 days')->format('Y-m-d');
     }
 
     private function normalizePrescriptionItems(mixed $posted, array &$errors, int $clinicId): array
