@@ -124,7 +124,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         foreach (['patient_reference', 'duration_days', 'medicine_id', 'shopify_variant_id', 'excluded_items'] as $marker) {
             self::assertStringContainsString($marker, $active);
         }
-        foreach (['/apps/rootins/prescriptions/active', '/cart.js', '/cart/add.js', 'prescription_reference', 'quantity'] as $marker) {
+        foreach (['/apps/rootins/prescriptions/active', '/cart.js', '/cart/add.js', 'prescription_reference', 'variant_id', 'quantity'] as $marker) {
             self::assertStringContainsString($marker, $storefront);
         }
     }
@@ -136,7 +136,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');
 
         self::assertStringNotContainsString('->insert(', $active);
-        self::assertStringContainsString('!existing[String(item.shopify_variant_id)]', $storefront);
+        self::assertStringContainsString('existing[variantId]', $storefront);
         foreach (['linkOrderPrescription', 'ensurePharmacyOrderForImport', 'prescriptionIdForReference'] as $marker) {
             self::assertStringContainsString($marker, $import);
         }

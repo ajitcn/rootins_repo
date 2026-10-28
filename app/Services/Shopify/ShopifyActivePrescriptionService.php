@@ -10,7 +10,7 @@ final class ShopifyActivePrescriptionService
     public function forCustomer(string $storeDomain, string $customerId, int $patientId): array
     {
         if ($patientId <= 0 || trim($customerId) === '') {
-            return ['prescriptions' => []];
+            return ['prescriptions' => [], 'availability_message' => 'Sign in and complete ROOTINS patient registration to view prescriptions.'];
         }
 
         $db = db_connect();
@@ -42,7 +42,21 @@ final class ShopifyActivePrescriptionService
             ];
         }
 
-        return ['prescriptions' => $result];
+        if ($result !== []) {
+            return ['prescriptions' => $result, 'availability_message' => null];
+        }
+
+        $completed = $db->table('prescriptions p')
+            ->where('p.patient_id', $patientId)
+            ->where('p.status', 'completed')
+            ->countAllResults();
+
+        return [
+            'prescriptions' => [],
+            'availability_message' => $completed > 0
+                ? 'Your completed ROOTINS prescriptions are expired or not yet eligible for ordering.'
+                : 'No completed active prescriptions are available.',
+        ];
     }
 
     /** @return array{items:list<array<string,mixed>>,excluded_items:list<array<string,mixed>>} */
@@ -79,9 +93,29 @@ final class ShopifyActivePrescriptionService
                 $excluded[] = $base;
                 continue;
             }
-            $base['shopify_variant_id'] = (string) $mapping['shopify_variant_id'];
+            $rawVariantId = (string) $mapping['shopify_variant_id'];
+            $variantId = $this->cartVariantId($rawVariantId);
+            if ($variantId === null) {
+                $base['reason'] = 'SHOPIFY_VARIANT_INVALID';
+                $excluded[] = $base;
+                continue;
+            }
+            $base['shopify_variant_id'] = $rawVariantId;
+            $base['variant_id'] = $variantId;
             $items[] = $base;
         }
         return ['items' => $items, 'excluded_items' => $excluded];
+    }
+
+    private function cartVariantId(string $value): ?string
+    {
+        $value = trim($value);
+        if (ctype_digit($value) && (int) $value > 0) {
+            return $value;
+        }
+        if (preg_match('#^gid://shopify/ProductVariant/(\d+)$#i', $value, $matches) === 1) {
+            return $matches[1];
+        }
+        return null;
     }
 }
