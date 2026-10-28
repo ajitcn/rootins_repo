@@ -982,6 +982,46 @@ body > .modal .modal-dialog,
   .doctor-prescriptions-page .doctor-prescription-list-actions .doctor-prescription-action-group { flex-wrap: wrap; justify-content: flex-end; }
 }
 
+/* Keep prescription controls readable without changing controls in the rest
+ * of the clinical workflow. Bootstrap-select needs the visible toggle and
+ * its filter text styled alongside the original select. */
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .form-control,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .btSelect,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription input,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription select,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription textarea,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select > .dropdown-toggle,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .filter-option,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .filter-option-inner,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .filter-option-inner-inner {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  caret-color: #0f172a !important;
+}
+
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription input::placeholder,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription textarea::placeholder,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .filter-option-inner-inner {
+  color: #475569 !important;
+  opacity: 1;
+}
+
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .dropdown-menu,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .dropdown-menu .dropdown-item,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .dropdown-menu .no-results,
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .bootstrap-select .dropdown-menu .bs-searchbox input {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-prescription-header {
+  background-color: var(--ri-clinical-header);
+}
+
+main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-prescription-header h2 {
+  color: #ffffff !important;
+}
+
 .doctor-prescriptions-page .doctor-prescription-action-group {
   display: flex;
   align-items: center;
