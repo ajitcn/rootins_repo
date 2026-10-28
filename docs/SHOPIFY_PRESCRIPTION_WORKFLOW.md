@@ -42,6 +42,12 @@ Verified `orders/create`, `orders/paid`, `orders/cancelled`, and `refunds/create
 webhook events update the recorded state, and only order webhooks mark the
 prescription order/paid.
 
+Enable `prescriptions.cart_status` separately under the Core API App Proxy
+operation catalog at `/admin/integrations/shopify/proxy-setup`. The backend
+alias is `POST /public/rootins-proxy/prescriptions/cart-status`; it uses the
+signed Core API App Proxy request and never the Webhooks / Order Integration
+credentials.
+
 The Core API App Proxy endpoint is `POST /rootins-proxy/prescriptions/upload`.
 It accepts a multipart `file` plus an `Idempotency-Key`. Shopify must send
 the signed App Proxy query parameters, including `logged_in_customer_id`.

@@ -3,6 +3,7 @@
 namespace App\Services\Shopify;
 
 use App\Modules\Shopify\Models\ShopifyPrescriptionCartPushModel;
+use App\Modules\CoreApi\Services\CoreApiException;
 use DateTimeImmutable;
 use RuntimeException;
 
@@ -21,7 +22,7 @@ final class ShopifyPrescriptionCartPushService
         $items = $cartStatus === 'pushed' ? $this->normalizeItems($payload['items'] ?? []) : (is_array($payload['items'] ?? null) ? $payload['items'] : []);
 
         if ($store === '' || $customerId === '' || $patientId <= 0 || $reference === '' || ! in_array($cartStatus, ['pushed', 'failed'], true) || ($cartStatus === 'pushed' && $items === []) || $idempotencyKey === '') {
-            throw new RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_INVALID');
+            throw new CoreApiException(422, 'PRESCRIPTION_NOT_AVAILABLE', 'The prescription cart request is not valid.');
         }
 
         $requestHash = hash('sha256', json_encode(['reference' => $reference, 'cart_status' => $cartStatus, 'items' => $items, 'failure_reason' => $failureReason], JSON_UNESCAPED_SLASHES));
@@ -39,9 +40,25 @@ final class ShopifyPrescriptionCartPushService
             ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
             ->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)
             ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->get(1)->getRowArray();
-        $validUntil = $prescription === null ? null : ShopifyPrescriptionEligibility::calculateValidUntil((string) ($prescription['created_at'] ?? ''), $prescription['duration_days'] ?? null);
-        if ($prescription === null || $validUntil === null || $validUntil < ShopifyPrescriptionEligibility::today()) {
-            throw new RuntimeException(ShopifyPrescriptionEligibility::REASON);
+        if ($prescription === null) {
+            $prescription = $db->table('prescriptions p')
+                ->select('p.id, p.prescription_number, p.patient_id, p.status, p.created_at, p.duration_days')
+                ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
+                ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
+                ->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)->get(1)->getRowArray();
+            if ($prescription === null) {
+                throw new CoreApiException(404, 'PRESCRIPTION_NOT_FOUND', 'The prescription was not found for this customer.');
+            }
+        }
+        if (strtolower(trim((string) ($prescription['status'] ?? ''))) !== 'completed') {
+            throw new CoreApiException(422, 'PRESCRIPTION_NOT_AVAILABLE', 'Only completed prescriptions can be added to the cart.');
+        }
+        $validUntil = ShopifyPrescriptionEligibility::calculateValidUntil((string) ($prescription['created_at'] ?? ''), $prescription['duration_days'] ?? null);
+        if ($validUntil === null) {
+            throw new CoreApiException(422, 'PRESCRIPTION_NOT_AVAILABLE', 'The prescription validity could not be verified.');
+        }
+        if ($validUntil < ShopifyPrescriptionEligibility::today()) {
+            throw new CoreApiException(422, 'PRESCRIPTION_EXPIRED', 'The prescription has expired.');
         }
 
         $existing = $model->where('store_domain', $store)->where('prescription_id', (int) $prescription['id'])->where('shopify_customer_id', $customerId)->first();
@@ -70,8 +87,8 @@ final class ShopifyPrescriptionCartPushService
         $allowed = $this->allowedItems($db, $store, (int) $prescription['id'], $reference, $existing);
         foreach ($items as $item) {
             $variant = $item['variant_id'];
-            if (! isset($allowed[$variant])) throw new RuntimeException('SHOPIFY_PRESCRIPTION_VARIANT_INVALID');
-            if ($item['quantity'] > $allowed[$variant]['quantity_remaining']) throw new RuntimeException('SHOPIFY_PRESCRIPTION_QUANTITY_EXCEEDED');
+            if (! isset($allowed[$variant])) throw new CoreApiException(422, 'PRESCRIPTION_VARIANT_INVALID', 'The submitted variant is not mapped to this prescription.');
+            if ($item['quantity'] > $allowed[$variant]['quantity_remaining']) throw new CoreApiException(422, 'PRESCRIPTION_QUANTITY_INVALID', 'The submitted quantity exceeds the remaining prescribed quantity.');
         }
 
         $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
@@ -165,7 +182,8 @@ final class ShopifyPrescriptionCartPushService
             if (! is_array($item)) continue;
             $variant = $this->cartVariantId((string) ($item['variant_id'] ?? ''));
             $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            if ($variant === null || $quantity === false) throw new RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_ITEM_INVALID');
+            if ($variant === null) throw new CoreApiException(422, 'PRESCRIPTION_VARIANT_INVALID', 'The submitted variant is invalid.');
+            if ($quantity === false) throw new CoreApiException(422, 'PRESCRIPTION_QUANTITY_INVALID', 'Quantity must be a positive integer.');
             $normalized[$variant] = ($normalized[$variant] ?? 0) + (int) $quantity;
         }
         $result = [];

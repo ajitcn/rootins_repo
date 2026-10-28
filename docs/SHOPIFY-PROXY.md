@@ -20,6 +20,35 @@ Routes:
 - `POST /rootins-proxy/appointments/book`
 - `POST /rootins-proxy/patients/register`
 - `POST /rootins-proxy/prescriptions/upload`
+- `POST /rootins-proxy/prescriptions/cart-status`
+
+The `prescriptions.cart_status` operation is independently enabled in the
+Allowed Core API operations list. It uses only the signed Core API App Proxy
+context (`shop`, `timestamp`, `signature`, and `logged_in_customer_id`) and
+the Core API proxy configuration; it never uses Webhooks / Order Integration
+credentials. The matching storefront URL is
+`POST /apps/rootins/prescriptions/cart-status` and the direct backend alias is
+`POST /public/rootins-proxy/prescriptions/cart-status`.
+
+Send JSON with `Accept: application/json`, `Content-Type: application/json`,
+and a unique UUID `Idempotency-Key`:
+
+```json
+{
+  "reference": "RXP-000005",
+  "cart_status": "pushed",
+  "items": [{"variant_id": "123456789", "quantity": 1}]
+}
+```
+
+ROOTINS verifies the signed customer owns the completed, non-expired
+prescription, that every variant is mapped to it, and that quantities do not
+exceed the remaining prescribed quantity. Reusing the same idempotency key
+returns the previously stored successful result without creating another cart
+record. Safe failures include `SHOPIFY_PROXY_OPERATION_DISABLED`,
+`PRESCRIPTION_NOT_FOUND`, `PRESCRIPTION_NOT_AVAILABLE`,
+`PRESCRIPTION_EXPIRED`, `PRESCRIPTION_VARIANT_INVALID`,
+`PRESCRIPTION_QUANTITY_INVALID`, and `IDEMPOTENCY_KEY_REQUIRED`.
 
 Availability without date filters returns only today and tomorrow in the
 application timezone. Storefront clients may provide an explicit `date`,

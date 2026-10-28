@@ -37,8 +37,11 @@ final class ActivePrescriptions extends BaseController
             if (! str_contains($accept, 'application/json') || ! str_contains($contentType, 'application/json')) {
                 throw new \RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_HEADERS_INVALID');
             }
+            if ($idempotencyKey === '') {
+                throw new \RuntimeException('IDEMPOTENCY_KEY_REQUIRED');
+            }
             if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $idempotencyKey) !== 1) {
-                throw new \RuntimeException('SHOPIFY_IDEMPOTENCY_KEY_INVALID');
+                throw new \RuntimeException('IDEMPOTENCY_KEY_REQUIRED');
             }
             $query = $this->request->getGet();
             $query = is_array($query) ? $query : [];
@@ -52,7 +55,7 @@ final class ActivePrescriptions extends BaseController
             log_message('warning', 'Shopify prescription cart acknowledgement denied: ' . get_class($e));
             $status = (int) ($e->httpStatus ?? 422);
             $messageCode = (string) $e->getMessage();
-            $code = isset($e->errorCode) ? (string) $e->errorCode : (str_starts_with($messageCode, 'SHOPIFY_') ? $messageCode : 'SHOPIFY_PRESCRIPTION_CART_PUSH_FAILED');
+            $code = isset($e->errorCode) ? (string) $e->errorCode : (in_array($messageCode, ['IDEMPOTENCY_KEY_REQUIRED', 'PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_NOT_AVAILABLE', 'PRESCRIPTION_EXPIRED', 'PRESCRIPTION_VARIANT_INVALID', 'PRESCRIPTION_QUANTITY_INVALID'], true) ? $messageCode : 'SHOPIFY_PRESCRIPTION_CART_PUSH_FAILED');
             return $this->response->setStatusCode($status >= 400 && $status < 600 ? $status : 422)->setJSON(['status' => false, 'code' => $code]);
         }
     }
