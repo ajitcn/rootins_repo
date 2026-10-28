@@ -8,6 +8,7 @@ use Admin\Models\ConsultationModel;
 use Admin\Models\Doctor\DoctorModel;
 use Admin\Models\PatientModel;
 use App\Controllers\BaseAdminController;
+use App\Services\ConsultationAmendmentService;
 
 class Consultation extends BaseAdminController
 {
@@ -204,6 +205,21 @@ class Consultation extends BaseAdminController
         }
 
         return $this->response->setJSON(['status' => true, 'msg' => 'Consultation updated successfully.']);
+    }
+
+    public function amend(int $id)
+    {
+        if (! $this->isAjaxMethod('POST')) return $this->invalidRequest();
+        $reason = trim((string) $this->request->getPost('amendment_reason'));
+        if ($reason === '') return $this->validationFailure(['amendment_reason' => 'An amendment reason is required.']);
+        $consultation = $this->consultation->find($id);
+        if ($consultation === null) return $this->failure('Consultation not found.');
+        try {
+            $result = (new ConsultationAmendmentService())->amend($id, $reason, $this->request->getPost(), ['doctor_id' => (int) $consultation['doctor_id'], 'clinic_id' => (int) $consultation['clinic_id'], 'admin_amendment' => true]);
+            return $this->response->setJSON(['status' => true, 'msg' => $result['order_review_required'] ? 'Amendment saved and sent for pharmacist/admin order review.' : 'Consultation amendment saved.', 'data' => $result]);
+        } catch (\Throwable $exception) {
+            return $this->response->setStatusCode(409)->setJSON(['status' => false, 'msg' => 'Consultation amendment could not be saved safely.']);
+        }
     }
 
     public function delete(int $id)

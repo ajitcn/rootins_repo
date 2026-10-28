@@ -46,5 +46,6 @@ $routes->group('doctor', ['namespace' => 'Doctor\Controllers', 'filter' => 'auth
     $routes->post('appointments/queue/(:num)', 'Clinical::queue/$1', ['filter' => 'permission:appointment.edit']);
     $routes->post('consultations/save', 'Clinical::saveConsultation', ['filter' => 'permission:consultation.edit']);
     $routes->post('clinical/save', 'Clinical::saveWorkspace', ['filter' => 'permission:consultation.edit']);
+    $routes->post('clinical/amend', 'Clinical::amendConsultation', ['filter' => 'permission:consultation.edit']);
     $routes->post('prescriptions/save', 'Clinical::savePrescription', ['filter' => 'permission:prescription.create']);
 });

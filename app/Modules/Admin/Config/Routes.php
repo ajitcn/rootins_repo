@@ -241,6 +241,7 @@ $routes->group('admin/consultations', ['namespace' => 'Admin\Controllers\Consult
     $routes->get('edit/(:num)', 'Consultation::edit/$1', ['filter' => 'permission:consultation.edit']);
     $routes->post('save', 'Consultation::save', ['filter' => 'permission:consultation.create']);
     $routes->post('update/(:num)', 'Consultation::update/$1', ['filter' => 'permission:consultation.edit']);
+    $routes->post('amend/(:num)', 'Consultation::amend/$1', ['filter' => 'permission:consultation.edit']);
     $routes->post('delete/(:num)', 'Consultation::delete/$1', ['filter' => 'permission:consultation.delete']);
 });
 /*=====  End of Consultation Routes  ======*/

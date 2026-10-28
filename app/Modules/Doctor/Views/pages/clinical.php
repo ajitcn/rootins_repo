@@ -334,6 +334,7 @@ $clinicalActionContext = [
     <form id="clinical-workspace-form" class="clinical-workspace-form" method="post" action="<?= base_url('doctor/clinical/save') ?>" novalidate data-appointment-id="<?= $selectedAppointment !== null ? (int) $selectedAppointment['id'] : 0 ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="appointment_id" value="<?= $selectedAppointment !== null ? (int) $selectedAppointment['id'] : 0 ?>">
+        <input type="hidden" name="consultation_id" value="<?= (int) ($selectedAppointment['consultation_id'] ?? 0) ?>">
         <input type="hidden" name="prescription_status" id="clinical-prescription-status" value="<?= esc($prescriptionStatusDefault) ?>">
         <input type="hidden" name="prescription_present" id="clinical-prescription-present" value="<?= $selectedPrescription !== null ? '1' : '0' ?>">
         <div class="clinical-main-grid">
@@ -687,9 +688,15 @@ $clinicalActionContext = [
         </div>
         <button class="btn btn-light clinical-cancel" type="button" <?= $selectedAppointment === null ? 'disabled' : '' ?>>Cancel</button>
         <button id="clinical-save-workspace" class="btn btn-primary" type="submit" <?= $selectedAppointment === null ? 'disabled' : '' ?>><i class="bi bi-save mr-1" aria-hidden="true"></i>Save Consultation</button>
+        <?php if (($selectedAppointment['consultation_status'] ?? '') === 'completed' && $can('consultation.edit')): ?><button id="clinical-amend-consultation" class="btn btn-warning" type="button"><i class="bi bi-pencil-square mr-1" aria-hidden="true"></i>Amend consultation</button><?php endif; ?>
     </div>
     </form>
     </div>
+    <?php if (($selectedAppointment['consultation_status'] ?? '') === 'completed' && $can('consultation.edit')): ?>
+    <div class="modal fade" id="clinical-amendment-modal" tabindex="-1" role="dialog" aria-labelledby="clinical-amendment-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="clinical-amendment-title">Amend completed consultation</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><p class="small text-muted">The original consultation and prescription remain preserved. Explain why this correction is required.</p><label for="clinical-amendment-reason">Amendment reason <span class="text-danger">*</span></label><textarea id="clinical-amendment-reason" class="form-control" rows="4" maxlength="2000" required></textarea><div class="validation-error" id="clinical-amendment-reasonErr"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button type="button" class="btn btn-warning" id="clinical-confirm-amendment">Continue amendment</button></div></div></div>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
 </main>
 <?= $this->endSection() ?>
@@ -698,6 +705,24 @@ $clinicalActionContext = [
 <script>
 $(function () {
     const clinicalActionModal = $('#clinical-action-modal');
+    const amendmentButton = $('#clinical-amend-consultation');
+    const workspaceForm = $('#clinical-workspace-form');
+    if (amendmentButton.length && workspaceForm.length) {
+        workspaceForm.find(':input').not('[type="hidden"]').prop('disabled', true);
+        $('#clinical-save-workspace, #clinical-workspace-form .clinical-cancel').prop('disabled', true).hide();
+        amendmentButton.on('click', function () { $('#clinical-amendment-modal').modal('show'); });
+        $('#clinical-confirm-amendment').on('click', function () {
+            const reason = String($('#clinical-amendment-reason').val() || '').trim();
+            $('#clinical-amendment-reasonErr').text('');
+            if (!reason) { $('#clinical-amendment-reasonErr').text('An amendment reason is required.'); return; }
+            workspaceForm.find(':input').prop('disabled', false);
+            workspaceForm.find('input[name="amendment_reason"]').remove();
+            $('<input>', {type: 'hidden', name: 'amendment_reason', value: reason}).appendTo(workspaceForm);
+            workspaceForm.attr('action', '<?= base_url('doctor/clinical/amend') ?>').attr('data-amendment-mode', '1');
+            $('#clinical-amendment-modal').modal('hide');
+            $('#clinical-save-workspace').show().prop('disabled', false).trigger('click');
+        });
+    }
     const clinicalActionBody = $('#clinical-action-modal-body');
     const clinicalActionTitle = $('#clinical-action-modal-title');
     const clinicalActionPrimary = $('#clinical-action-modal-primary');
@@ -1820,7 +1845,7 @@ $(function () {
         $('#clinical-prescription-present').val(nonEmptyPrescriptionRows.length ? '1' : '0');
         button.prop('disabled', true).attr('aria-busy', 'true');
         ajaxRequest({
-            url: '<?= base_url('doctor/clinical/save') ?>',
+            url: form.attr('action') || '<?= base_url('doctor/clinical/save') ?>',
             method: 'POST',
             data: form.serialize(),
             success: function (response) {

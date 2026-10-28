@@ -13,6 +13,7 @@ use Admin\Services\MedicineLookupService;
 use Admin\Models\User;
 use App\Controllers\BaseController;
 use App\Services\Common\PrescriptionSnapshotService;
+use App\Services\ConsultationAmendmentService;
 use App\Services\Shopify\ShopifyPrescriptionEligibility;
 use App\Services\AppointmentConsultationEligibility;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -923,6 +924,23 @@ class Clinical extends BaseController
         $this->audit('doctor.consultation_workspace_saved', $context, $auditData);
 
         return $this->json(200, true, 'Consultation saved.', ['consultation_id' => $consultationId, 'prescription_id' => $prescriptionId]);
+    }
+
+    public function amendConsultation(): ResponseInterface
+    {
+        if (! $this->isAjaxPost()) return $this->json(405, false, 'Invalid request.');
+        $context = $this->context();
+        if ($context === null) return $this->json(403, false, 'Doctor scope is invalid.');
+        $reason = trim((string) $this->request->getPost('amendment_reason'));
+        if ($reason === '') return $this->validation(['amendment_reason' => 'An amendment reason is required.']);
+        try {
+            $result = (new ConsultationAmendmentService())->amend((int) $this->request->getPost('consultation_id'), $reason, $this->request->getPost(), $context);
+            return $this->json(200, true, $result['order_review_required'] ? 'Amendment saved and sent for pharmacist/admin order review.' : 'Consultation amendment saved.', $result);
+        } catch (Throwable $exception) {
+            $code = $exception->getMessage();
+            $status = in_array($code, ['AMENDMENT_REASON_REQUIRED', 'AMENDMENT_REASON_TOO_LONG'], true) ? 422 : 409;
+            return $this->json($status, false, $code === 'COMPLETED_CONSULTATION_REQUIRED' ? 'Only a completed consultation can be amended.' : 'Consultation amendment could not be saved safely.');
+        }
     }
 
     private function context(): ?array
