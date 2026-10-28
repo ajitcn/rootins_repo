@@ -2277,4 +2277,24 @@ final class DoctorWorkflowTest extends TestCase
         }
         self::assertStringContainsString('Quantity is required and must be at least 1.', $adminController);
     }
+
+    public function testDoctorPrescriptionListAndDetailExposeSeparateCartSyncStatusSafely(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Controllers/Records.php');
+        $page = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Views/pages/prescriptions.php');
+        $list = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Views/pages/prescriptions_list.php');
+        $grid = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Views/pages/prescriptions_grid.php');
+        $styles = file_get_contents(ROOTPATH . 'public/assets/css/rootins-monochrome.css');
+        foreach (['cart_sync_status', 'cart_pushed_at', 'cart_sync_failure_reason', 'fieldExists', 'not_synced'] as $marker) {
+            self::assertStringContainsString($marker, $controller . $page);
+        }
+        foreach (['Cart Sync', 'doctor-prescription-cart-sync-badge', 'Not synced', 'Synced', 'Sync failed'] as $marker) {
+            self::assertStringContainsString($marker, $page . $list . $grid);
+        }
+        foreach (['doctor-prescription-cart-sync-not-synced', 'doctor-prescription-cart-sync-synced', 'doctor-prescription-cart-sync-sync-failed', 'doctor-prescription-cart-sync-already-in-cart'] as $marker) {
+            self::assertStringContainsString($marker, $styles);
+        }
+        self::assertStringContainsString("where('prescriptions.doctor_id', \$context['doctor_id'])", $controller);
+        self::assertStringContainsString("where('prescriptions.clinic_id', \$context['clinic_id'])", $controller);
+    }
 }

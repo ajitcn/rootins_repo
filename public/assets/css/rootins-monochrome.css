@@ -342,6 +342,12 @@ h1, h2, h3, h4, h5, h6,
 .status-shopify, .status-external { color: var(--ri-status-purple-text) !important; background: var(--ri-status-purple-bg) !important; border-color: var(--ri-status-purple-border) !important; }
 .source-badge.self, .source-badge.internal, .source-self, .source-internal,
 .status-self, .status-internal { color: var(--ri-status-charcoal-text) !important; background: var(--ri-status-charcoal-bg) !important; border-color: var(--ri-status-charcoal-border) !important; }
+.doctor-prescription-cart-sync-not-synced, .doctor-prescription-cart-sync-expired { color: var(--ri-status-gray-text) !important; background: var(--ri-status-gray-bg) !important; border-color: var(--ri-status-gray-border) !important; }
+.doctor-prescription-cart-sync-syncing { color: var(--ri-status-blue-text) !important; background: var(--ri-status-blue-bg) !important; border-color: var(--ri-status-blue-border) !important; }
+.doctor-prescription-cart-sync-synced { color: var(--ri-status-green-text) !important; background: var(--ri-status-green-bg) !important; border-color: var(--ri-status-green-border) !important; }
+.doctor-prescription-cart-sync-already-in-cart { color: var(--ri-status-teal-text) !important; background: var(--ri-status-teal-bg) !important; border-color: var(--ri-status-teal-border) !important; }
+.doctor-prescription-cart-sync-sync-failed, .doctor-prescription-cart-sync-cancelled { color: var(--ri-status-red-text) !important; background: var(--ri-status-red-bg) !important; border-color: var(--ri-status-red-border) !important; }
+.doctor-prescription-cart-sync-ordered, .doctor-prescription-cart-sync-paid { color: var(--ri-status-purple-text) !important; background: var(--ri-status-purple-bg) !important; border-color: var(--ri-status-purple-border) !important; }
 
 /* Replace pharmacy's legacy payment/delivery tone defaults. */
 .payment-status-badge, .delivery-status-badge, .billing-payment-badge,

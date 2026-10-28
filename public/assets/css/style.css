@@ -890,8 +890,9 @@ body > .modal .modal-dialog,
 .doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-patient { width: 32%; }
 .doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-date { width: 17%; }
 .doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-medicines { width: 14%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-status { width: 15%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-actions { width: 22%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-status { width: 12%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-cart-sync { width: 15%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-actions { width: 19%; }
 
 .doctor-prescriptions-page .doctor-prescription-list-table th,
 .doctor-prescriptions-page .doctor-prescription-list-table td {

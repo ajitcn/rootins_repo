@@ -618,7 +618,11 @@ class Records extends BaseController
             return redirect()->to(base_url('permission-denied'));
         }
         $filters = $this->prescriptionFilters();
-        $query = db_connect()->table('prescriptions')->select('prescriptions.*, patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.logo AS clinic_logo, (SELECT COUNT(*) FROM prescription_items AS prescription_item_count WHERE prescription_item_count.prescription_id = prescriptions.id) AS medicine_count', false)->join('patients', 'patients.id = prescriptions.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('clinics', 'clinics.id = prescriptions.clinic_id AND clinics.status = 1', 'left')->where('prescriptions.doctor_id', $context['doctor_id'])->where('prescriptions.clinic_id', $context['clinic_id']);
+        $db = db_connect();
+        $cartSyncFields = $db->fieldExists('cart_sync_status', 'prescriptions')
+            ? ', prescriptions.cart_sync_status, prescriptions.cart_pushed_at, prescriptions.cart_sync_failure_reason'
+            : '';
+        $query = $db->table('prescriptions')->select('prescriptions.*' . $cartSyncFields . ', patients.first_name AS patient_first_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.mobile_number AS patient_mobile_number, patients.mobile_normalized AS patient_mobile_normalized, patients.country_code AS patient_legacy_country_code, telephone_country_codes.normalized_code AS patient_telephone_country_code, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.logo AS clinic_logo, (SELECT COUNT(*) FROM prescription_items AS prescription_item_count WHERE prescription_item_count.prescription_id = prescriptions.id) AS medicine_count', false)->join('patients', 'patients.id = prescriptions.patient_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('clinics', 'clinics.id = prescriptions.clinic_id AND clinics.status = 1', 'left')->where('prescriptions.doctor_id', $context['doctor_id'])->where('prescriptions.clinic_id', $context['clinic_id']);
         $this->applySearch($query, $filters['search'], ['prescriptions.prescription_number', 'patients.first_name', 'patients.last_name', 'patients.registration_number', 'patients.mobile_number', 'patients.mobile_normalized', 'prescriptions.status']);
 
         if ($filters['status'] !== '') {
@@ -650,6 +654,9 @@ class Records extends BaseController
                 }
             }
             $prescription['patient_mobile_display'] = service('telephoneContact')->formatDisplay($prescription['patient_telephone_country_code'] ?? null, $prescription['patient_mobile_normalized'] ?? $prescription['patient_mobile_number'] ?? null, $prescription['patient_legacy_country_code'] ?? null);
+            $prescription['cart_sync_status'] = in_array(($prescription['cart_sync_status'] ?? ''), ['not_synced', 'syncing', 'synced', 'already_in_cart', 'sync_failed', 'ordered', 'paid', 'expired', 'cancelled'], true) ? (string) $prescription['cart_sync_status'] : 'not_synced';
+            $prescription['cart_pushed_at'] = $prescription['cart_pushed_at'] ?? null;
+            $prescription['cart_sync_failure_reason'] = $prescription['cart_sync_failure_reason'] ?? null;
         }
         unset($prescription);
         $items = [];

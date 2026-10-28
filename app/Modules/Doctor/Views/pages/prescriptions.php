@@ -12,7 +12,8 @@ $formatPrescriptionDateTime = static function ($value): string {
 };
 $requestedPrescriptionView = (string) ($filters['view'] ?? 'list');
 $prescriptionView = in_array($requestedPrescriptionView, ['list', 'grid'], true) ? $requestedPrescriptionView : 'list';
-$prescriptionContext = static function (array $item): array {
+$cartSyncLabels = ['not_synced' => 'Not synced', 'syncing' => 'Syncing', 'synced' => 'Synced', 'already_in_cart' => 'Already in cart', 'sync_failed' => 'Sync failed', 'ordered' => 'Ordered', 'paid' => 'Paid', 'expired' => 'Expired', 'cancelled' => 'Cancelled'];
+$prescriptionContext = static function (array $item) use ($cartSyncLabels): array {
     $prescriptionId = max(0, (int) ($item['id'] ?? 0));
     $patientId = max(0, (int) ($item['patient_id'] ?? 0));
     $patientName = trim((string) ($item['patient_first_name'] ?? '') . ' ' . (string) ($item['patient_last_name'] ?? '')) ?: 'Unknown patient';
@@ -25,6 +26,9 @@ $prescriptionContext = static function (array $item): array {
         $date = $timestamp !== false ? date('d-m-Y', $timestamp) : '—';
     }
     $status = trim((string) ($item['status'] ?? '')) ?: 'unknown';
+    $cartSyncStatus = in_array(($item['cart_sync_status'] ?? ''), ['not_synced', 'syncing', 'synced', 'already_in_cart', 'sync_failed', 'ordered', 'paid', 'expired', 'cancelled'], true) ? (string) $item['cart_sync_status'] : 'not_synced';
+    $cartSyncStatusLabel = ucwords(str_replace('_', ' ', $cartSyncStatus));
+    $cartSyncStatusClass = match ($cartSyncStatus) { 'syncing' => 'syncing', 'synced' => 'synced', 'already_in_cart' => 'already-in-cart', 'sync_failed' => 'sync-failed', 'ordered' => 'ordered', 'paid' => 'paid', 'expired' => 'expired', 'cancelled' => 'cancelled', default => 'not-synced' };
 
     return [
         'prescriptionId' => $prescriptionId,
@@ -38,6 +42,9 @@ $prescriptionContext = static function (array $item): array {
         'medicineCount' => max(0, (int) ($item['medicine_count'] ?? 0)),
         'statusClass' => preg_replace('/[^a-z0-9-]+/', '-', strtolower(str_replace('_', '-', $status))) ?: 'unknown',
         'statusLabel' => ucwords(str_replace('_', ' ', $status)),
+        'cartSyncStatus' => $cartSyncStatus,
+        'cartSyncStatusLabel' => $cartSyncLabels[$cartSyncStatus] ?? 'Not synced',
+        'cartSyncStatusClass' => $cartSyncStatusClass,
         'detailId' => 'doctor-prescription-details-' . $prescriptionId,
         'createdAt' => trim((string) ($item['created_at'] ?? '')) ?: '—',
         'updatedAt' => trim((string) ($item['updated_at'] ?? '')) ?: '—',
@@ -181,6 +188,9 @@ $prescriptionContext = static function (array $item): array {
     <?php $prescriptionStatus = trim((string) ($item['status'] ?? '')) ?: 'unknown'; ?>
     <?php $prescriptionStatusLabel = ucwords(str_replace('_', ' ', $prescriptionStatus)); ?>
     <?php $prescriptionStatusClass = preg_replace('/[^a-z0-9-]+/', '-', strtolower(str_replace('_', '-', $prescriptionStatus))) ?: 'unknown'; ?>
+    <?php $cartSyncStatus = in_array(($item['cart_sync_status'] ?? ''), ['not_synced', 'syncing', 'synced', 'already_in_cart', 'sync_failed', 'ordered', 'paid', 'expired', 'cancelled'], true) ? (string) $item['cart_sync_status'] : 'not_synced'; ?>
+    <?php $cartSyncStatusLabel = $cartSyncLabels[$cartSyncStatus] ?? 'Not synced'; ?>
+    <?php $cartSyncStatusClass = match ($cartSyncStatus) { 'syncing' => 'syncing', 'synced' => 'synced', 'already_in_cart' => 'already-in-cart', 'sync_failed' => 'sync-failed', 'ordered' => 'ordered', 'paid' => 'paid', 'expired' => 'expired', 'cancelled' => 'cancelled', default => 'not-synced' }; ?>
     <?php $prescriptionNotes = trim((string) ($item['notes'] ?? '')); ?>
     <?php $followUpDate = trim((string) ($item['follow_up_date'] ?? '')); ?>
     <?php $followUpTime = trim((string) ($item['follow_up_time'] ?? '')); ?>
@@ -286,6 +296,10 @@ $prescriptionContext = static function (array $item): array {
                             <div class="doctor-prescription-meta-item">
                                 <dt>Status</dt>
                                 <dd><span class="badge doctor-prescription-status-badge doctor-prescription-status-<?= esc($prescriptionStatusClass) ?>"><?= esc($prescriptionStatusLabel) ?></span></dd>
+                            </div>
+                            <div class="doctor-prescription-meta-item">
+                                <dt>Cart Sync</dt>
+                                <dd><span class="badge doctor-prescription-cart-sync-badge doctor-prescription-cart-sync-<?= esc($cartSyncStatusClass) ?>"><?= esc($cartSyncStatusLabel) ?></span><?php if (!empty($item['cart_sync_failure_reason'])): ?><small class="d-block text-danger"><?= esc($item['cart_sync_failure_reason']) ?></small><?php endif; ?></dd>
                             </div>
                             <div class="doctor-prescription-meta-item">
                                 <dt>Created</dt>
