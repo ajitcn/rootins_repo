@@ -1215,7 +1215,9 @@ GRAPHQL, ['id' => $orderGid]);
         foreach (db_connect()->table('prescription_items')->select('medicine_id, quantity')->where('prescription_id', $prescriptionId)->get()->getResultArray() as $item) {
             $medicineId = (int) ($item['medicine_id'] ?? 0);
             if ($medicineId <= 0) return false;
-            $prescribed[$medicineId] = ($prescribed[$medicineId] ?? 0) + (float) ($item['quantity'] ?? 0);
+            $quantity = ShopifyPrescriptionQuantity::normalize($item['quantity'] ?? null);
+            if ($quantity === null || $quantity < 1) return false;
+            $prescribed[$medicineId] = ($prescribed[$medicineId] ?? 0) + $quantity;
         }
         $ordered = [];
         foreach (db_connect()->table('shopify_order_import_lines')->select('medicine_id, quantity, status')->where('import_id', $importId)->get()->getResultArray() as $line) {

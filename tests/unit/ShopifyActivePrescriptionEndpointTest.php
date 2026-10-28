@@ -77,9 +77,31 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         foreach (['PRESCRIPTION_ITEM_QUANTITY_INVALID', 'PRESCRIPTION_ITEM_MEDICINE_INVALID', 'ROOTINS_MEDICINE_INACTIVE', 'SHOPIFY_MEDICINE_MAPPING_REQUIRED'] as $reason) {
             self::assertStringContainsString($reason, $service);
         }
-        foreach (['stored_quantity', 'normalized_quantity', 'prescription_reference', 'prescription_id', 'patient_id', 'prescription_item_id', 'medicine_id', 'mapping_result'] as $diagnostic) {
+        foreach (['stored_quantity', 'normalized_quantity', 'prescription_reference', 'prescription_id', 'patient_id', 'prescription_item_id', 'medicine_id', 'mapping_result', 'shopify_product_id', 'shopify_variant_id'] as $diagnostic) {
             self::assertStringContainsString($diagnostic, $service);
         }
         self::assertStringNotContainsString('max(0, (int) ($row[\'quantity\']', $service);
+    }
+
+    public function testPrescriptionQuantityNormalizationAcceptsOnlyWholeNumbers(): void
+    {
+        $normalizer = new \ReflectionClass(\App\Services\Shopify\ShopifyPrescriptionQuantity::class);
+        $method = $normalizer->getMethod('normalize');
+        $method->setAccessible(true);
+        foreach ([['1.00', 1], ['2.00', 2], [1, 1], [2, 2]] as [$input, $expected]) {
+            self::assertSame($expected, $method->invoke(null, $input));
+        }
+        foreach (['1.5', '1.50', 1.5, 0, '0', null, '', '-1', 'abc'] as $input) {
+            $normalized = $method->invoke(null, $input);
+            self::assertTrue($normalized === null || $normalized < 1);
+        }
+    }
+
+    public function testCancelledPrescriptionsAreNotOrderableAndMappingSelectionIsDeterministic(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyActivePrescriptionService.php');
+        self::assertStringContainsString("whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)", $service);
+        self::assertStringContainsString("->where('sm.status', 'active')->orderBy('sm.id', 'ASC')", $service);
+        self::assertStringContainsString("'shopify_product_id'", $service);
     }
 }

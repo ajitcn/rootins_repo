@@ -78,7 +78,8 @@ final class ShopifyOrderReviewService
         $prescription = db_connect()->table('prescriptions p')->select('p.id, p.status, p.valid_until')->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')->where('p.prescription_number', $reference)->where('p.patient_id', (int) ($import['patient_id'] ?? 0))->where('p.clinic_id', (int) ($import['clinic_id'] ?? 0))->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->where('p.valid_until IS NOT NULL', null, false)->where('p.valid_until >=', ShopifyPrescriptionEligibility::today())->get(1)->getRowArray();
         if ($prescription === null || ! ShopifyPrescriptionEligibility::isOrderable($prescription)) throw new InvalidArgumentException(ShopifyPrescriptionEligibility::REASON);
         $item = db_connect()->table('prescription_items')->select('quantity')->where('prescription_id', (int) $prescription['id'])->where('medicine_id', (int) ($line['medicine_id'] ?? 0))->get(1)->getRowArray();
-        if ($item === null || $quantity > (int) ($item['quantity'] ?? 0)) throw new InvalidArgumentException('Approved quantity cannot exceed the prescribed quantity.');
+        $prescribedQuantity = $item === null ? null : ShopifyPrescriptionQuantity::normalize($item['quantity'] ?? null);
+        if ($prescribedQuantity === null || $prescribedQuantity < 1 || $quantity > $prescribedQuantity) throw new InvalidArgumentException('Approved quantity cannot exceed the prescribed quantity.');
     }
 
     private function recomputeOrder(int $importId, array $import, int $actorId): void

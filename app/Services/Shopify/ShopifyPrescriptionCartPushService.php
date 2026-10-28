@@ -120,7 +120,9 @@ final class ShopifyPrescriptionCartPushService
         foreach ($rows as $row) {
             $variant = $this->cartVariantId((string) $row['shopify_variant_id']);
             if ($variant === null) continue;
-            $remaining = max(0, (int) $row['quantity'] - (int) ($ordered[$variant] ?? 0));
+            $prescribedQuantity = ShopifyPrescriptionQuantity::normalize($row['quantity']);
+            if ($prescribedQuantity === null || $prescribedQuantity < 1) continue;
+            $remaining = max(0, $prescribedQuantity - (int) ($ordered[$variant] ?? 0));
             if ($existing !== null && in_array((string) ($existing['status'] ?? ''), ['ordered', 'paid'], true)) $remaining = 0;
             $result[$variant] = ['quantity_remaining' => $remaining];
         }

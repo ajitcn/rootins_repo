@@ -64,9 +64,9 @@ final class ShopifyActivePrescriptionService
         $excluded = [];
         foreach ($rows as $row) {
             $mapping = $db->table('shopify_medicine_mappings sm')
-                ->select('sm.shopify_variant_id, v.is_active AS variant_active')
+                ->select('sm.shopify_product_id, sm.shopify_variant_id, v.shopify_product_id AS catalogue_product_id, v.is_active AS variant_active')
                 ->join('shopify_variant_catalogue v', 'v.store_domain = sm.store_domain AND v.shopify_variant_id = sm.shopify_variant_id', 'left')
-                ->where('sm.store_domain', $store)->where('sm.medicine_id', (int) ($row['medicine_id'] ?? 0))->where('sm.status', 'active')->get(1)->getRowArray();
+                ->where('sm.store_domain', $store)->where('sm.medicine_id', (int) ($row['medicine_id'] ?? 0))->where('sm.status', 'active')->orderBy('sm.id', 'ASC')->get(1)->getRowArray();
             $base = [
                 'prescription_item_id' => (string) ($row['prescription_item_id'] ?? ''),
                 'medicine_name' => (string) ($row['medicine_name'] ?? ''),
@@ -75,7 +75,7 @@ final class ShopifyActivePrescriptionService
                 'duration' => trim((string) ($row['duration'] ?? '') . ' ' . (string) ($row['duration_unit'] ?? '')),
             ];
             $storedQuantity = $row['quantity'] ?? null;
-            $normalizedQuantity = $this->normalizeQuantity($storedQuantity);
+            $normalizedQuantity = ShopifyPrescriptionQuantity::normalize($storedQuantity);
             $reason = $this->itemExclusionReason($row, $mapping, $normalizedQuantity);
             $variantId = $mapping === null ? null : $this->cartVariantId((string) ($mapping['shopify_variant_id'] ?? ''));
             if ($variantId === null && $reason === null) $reason = 'SHOPIFY_MEDICINE_MAPPING_REQUIRED';
@@ -90,6 +90,7 @@ final class ShopifyActivePrescriptionService
             }
             $quantity = $normalizedQuantity;
             $base['variant_id'] = $variantId;
+            $base['normalized_quantity'] = $quantity;
             $base['quantity'] = $quantity;
             $base['quantity_remaining'] = in_array($cartStatus, ['ordered', 'paid', 'cancelled', 'expired'], true) ? 0 : $quantity;
             $base['cart_property'] = ['_rx_reference' => $reference];
@@ -128,14 +129,6 @@ final class ShopifyActivePrescriptionService
         return $date !== false && $date->format('Y-m-d') === $value ? $value : null;
     }
 
-    private function normalizeQuantity(mixed $value): ?int
-    {
-        if ($value === null || (is_string($value) && trim($value) === '')) return null;
-        if (is_int($value) || (is_string($value) && preg_match('/^\s*\d+\s*$/', $value) === 1)) return (int) $value;
-        if (is_float($value) && floor($value) === $value) return (int) $value;
-        return null;
-    }
-
     /** @param array<string,mixed> $row @param array<string,mixed>|null $mapping */
     private function itemExclusionReason(array $row, ?array $mapping, ?int $quantity): ?string
     {
@@ -157,6 +150,8 @@ final class ShopifyActivePrescriptionService
             'medicine_id' => $row['medicine_id'] ?? null,
             'stored_quantity' => $storedQuantity,
             'normalized_quantity' => $normalizedQuantity,
+            'shopify_product_id' => $mapping['shopify_product_id'] ?? null,
+            'shopify_variant_id' => $mapping['shopify_variant_id'] ?? null,
             'mapping_result' => $mapping === null ? 'missing' : ((int) ($mapping['variant_active'] ?? 0) === 1 ? 'active' : 'inactive'),
             'reason' => $reason,
         ], JSON_UNESCAPED_SLASHES));
