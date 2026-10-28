@@ -1198,8 +1198,8 @@ class Clinical extends BaseController
             }
             $quantity = trim((string) ($item['quantity'] ?? ''));
 
-            if ($quantity !== '' && (! ctype_digit($quantity) || (int) $quantity <= 0)) {
-                $errors["items.{$index}.quantity"] = 'Quantity must be a positive whole number.';
+            if ($quantity === '' || ! ctype_digit($quantity) || (int) $quantity < 1) {
+                $errors["items.{$index}.quantity"] = 'Quantity is required and must be at least 1.';
             }
             $items[] = [
                 'medicine_id' => $medicineId,

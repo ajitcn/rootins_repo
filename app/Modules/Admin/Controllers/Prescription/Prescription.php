@@ -328,8 +328,8 @@ class Prescription extends BaseAdminController
                 $errors["items.{$index}.medicine_name"] = 'Medicine name cannot exceed 255 characters.';
             }
 
-            if ($quantity !== '' && (!is_numeric($quantity) || (float) $quantity < 0 || !preg_match('/^\d{1,8}(?:\.\d{1,2})?$/', $quantity))) {
-                $errors["items.{$index}.quantity"] = 'Quantity must be a non-negative number with up to 8 whole digits and 2 decimals.';
+            if ($quantity === '' || !preg_match('/^\d+$/', $quantity) || (int) $quantity < 1) {
+                $errors["items.{$index}.quantity"] = 'Quantity is required and must be at least 1.';
             }
             $items[] = ['medicine_name' => $medicineName, 'dosage' => $this->itemString($item, 'dosage', 100, $errors, $index), 'frequency' => $this->itemString($item, 'frequency', 100, $errors, $index), 'duration' => $this->itemString($item, 'duration', 50, $errors, $index), 'duration_unit' => $this->itemString($item, 'duration_unit', 30, $errors, $index), 'instructions' => $this->itemText($item, 'instructions', $errors, $index), 'quantity' => $quantity === '' ? null : $quantity, 'notes' => $this->itemText($item, 'notes', $errors, $index)];
         }

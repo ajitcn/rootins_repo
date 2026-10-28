@@ -2262,4 +2262,19 @@ final class DoctorWorkflowTest extends TestCase
         }
         self::assertStringNotContainsString('DataTable(', $view . $script);
     }
+
+    public function testPrescriptionQuantityIsRequiredAsAWholePositiveIntegerAcrossDoctorWorkflow(): void
+    {
+        $controller = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Controllers/Clinical.php');
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Views/pages/clinical.php');
+        $adminController = file_get_contents(ROOTPATH . 'app/Modules/Admin/Controllers/Prescription/Prescription.php');
+
+        foreach (['Quantity is required and must be at least 1.', "! ctype_digit(\$quantity)", "(int) \$quantity < 1", 'transBegin', 'transCommit'] as $marker) {
+            self::assertStringContainsString($marker, $controller);
+        }
+        foreach (['type="number"', 'name="items[__INDEX__][quantity]"', 'min="1"', 'step="1"', 'clinical-prescription-quantity', 'quantityErr'] as $marker) {
+            self::assertStringContainsString($marker, $view);
+        }
+        self::assertStringContainsString('Quantity is required and must be at least 1.', $adminController);
+    }
 }

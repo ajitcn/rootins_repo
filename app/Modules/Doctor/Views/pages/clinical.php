@@ -492,6 +492,7 @@ $clinicalActionContext = [
                                 <tr>
                                     <th scope="col">Medicine</th>
                                     <th scope="col">Duration</th>
+                                    <th scope="col">Quantity</th>
                                     <th scope="col">Frequency</th>
                                     <th scope="col">Dose</th>
                                     <th scope="col">Intake</th>
@@ -539,8 +540,12 @@ $clinicalActionContext = [
                                                 <?php foreach ($prescriptionOptionSets['duration'] as $option): ?><option value="<?= (int) $option['id'] ?>" <?= $durationOptionId === (string) $option['id'] ? 'selected' : '' ?>><?= esc($option['name']) ?></option><?php endforeach; ?>
                                             </select>
                                             <input type="hidden" name="items[<?= (int) $index ?>][duration_unit]" value="days">
-                                            <input type="hidden" name="items[<?= (int) $index ?>][quantity]" value="<?= esc($quantity) ?>">
                                             <div class="validation-error" id="items_<?= (int) $index ?>_durationErr" data-error-for="items.<?= (int) $index ?>.duration"></div>
+                                        </td>
+                                        <td data-label="Quantity">
+                                            <label class="clinical-prescription-field-label" for="clinical-quantity-<?= $appointmentId ?>-<?= (int) $index ?>">Quantity</label>
+                                            <input id="clinical-quantity-<?= $appointmentId ?>-<?= (int) $index ?>" class="form-control clinical-prescription-quantity" type="number" name="items[<?= (int) $index ?>][quantity]" min="1" step="1" inputmode="numeric" value="<?= esc($quantity) ?>" aria-describedby="items_<?= (int) $index ?>_quantityErr">
+                                            <div class="validation-error" id="items_<?= (int) $index ?>_quantityErr" data-error-for="items.<?= (int) $index ?>.quantity"></div>
                                         </td>
                                         <td data-label="Frequency">
                                             <label class="clinical-prescription-field-label" for="clinical-frequency-<?= $appointmentId ?>-<?= (int) $index ?>">Frequency</label>
@@ -585,7 +590,8 @@ $clinicalActionContext = [
                     <template id="clinical-medicine-row-template">
                         <tr class="clinical-medicine-row" data-row-index="__INDEX__">
                             <td data-label="Medicine"><div class="clinical-medicine-field"><button class="btn btn-sm btn-outline-danger clinical-remove-medicine" type="button" aria-label="Remove medicine row" title="Remove medicine row"><i class="bi bi-trash" aria-hidden="true"></i><span class="sr-only">Remove</span></button><div class="clinical-medicine-control"><label class="sr-only" for="clinical-medicine-<?= $appointmentId ?>-__INDEX__">Medicine</label><select id="clinical-medicine-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect clinical-medicine-select" name="items[__INDEX__][medicine_id]" data-live-search="true" data-search-url="<?= base_url('doctor/clinical/medicines/search') ?>" data-autofill-url="<?= base_url('doctor/clinical/medicines') ?>" title="Search item..." aria-describedby="items___INDEX___medicine_idErr"><option value="">Search item...</option></select></div></div><div class="validation-error" id="items___INDEX___medicine_idErr" data-error-for="items.__INDEX__.medicine_id"></div></td>
-                            <td data-label="Duration"><label class="sr-only" for="clinical-duration-<?= $appointmentId ?>-__INDEX__">Duration</label><select id="clinical-duration-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect" name="items[__INDEX__][duration]" aria-describedby="items___INDEX___durationErr" title="Select duration"><option value="">Select duration</option><?php foreach ($prescriptionOptionSets['duration'] as $option): ?><option value="<?= (int) $option['id'] ?>"><?= esc($option['name']) ?></option><?php endforeach; ?></select><input type="hidden" name="items[__INDEX__][duration_unit]" value="days"><input type="hidden" name="items[__INDEX__][quantity]" value=""><div class="validation-error" id="items___INDEX___durationErr" data-error-for="items.__INDEX__.duration"></div></td>
+                            <td data-label="Duration"><label class="sr-only" for="clinical-duration-<?= $appointmentId ?>-__INDEX__">Duration</label><select id="clinical-duration-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect" name="items[__INDEX__][duration]" aria-describedby="items___INDEX___durationErr" title="Select duration"><option value="">Select duration</option><?php foreach ($prescriptionOptionSets['duration'] as $option): ?><option value="<?= (int) $option['id'] ?>"><?= esc($option['name']) ?></option><?php endforeach; ?></select><input type="hidden" name="items[__INDEX__][duration_unit]" value="days"><div class="validation-error" id="items___INDEX___durationErr" data-error-for="items.__INDEX__.duration"></div></td>
+                            <td data-label="Quantity"><label class="sr-only" for="clinical-quantity-<?= $appointmentId ?>-__INDEX__">Quantity</label><input id="clinical-quantity-<?= $appointmentId ?>-__INDEX__" class="form-control clinical-prescription-quantity" type="number" name="items[__INDEX__][quantity]" min="1" step="1" inputmode="numeric" value="" aria-describedby="items___INDEX___quantityErr"><div class="validation-error" id="items___INDEX___quantityErr" data-error-for="items.__INDEX__.quantity"></div></td>
                             <td data-label="Frequency"><label class="sr-only" for="clinical-frequency-<?= $appointmentId ?>-__INDEX__">Frequency</label><select id="clinical-frequency-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect" name="items[__INDEX__][frequency]" aria-describedby="items___INDEX___frequencyErr" title="Select frequency"><option value="">Select frequency</option><?php foreach ($prescriptionOptionSets['frequency'] as $option): ?><option value="<?= (int) $option['id'] ?>"><?= esc($option['name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="items___INDEX___frequencyErr" data-error-for="items.__INDEX__.frequency"></div></td>
                             <td data-label="Dose"><label class="sr-only" for="clinical-dose-<?= $appointmentId ?>-__INDEX__">Dose</label><select id="clinical-dose-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect" name="items[__INDEX__][dosage]" aria-describedby="items___INDEX___dosageErr" title="Select dose"><option value="">Select dose</option><?php foreach ($prescriptionOptionSets['dose'] as $option): ?><option value="<?= (int) $option['id'] ?>"><?= esc($option['name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="items___INDEX___dosageErr" data-error-for="items.__INDEX__.dosage"></div></td>
                             <td data-label="Intake"><label class="sr-only" for="clinical-intake-<?= $appointmentId ?>-__INDEX__">Intake</label><select id="clinical-intake-<?= $appointmentId ?>-__INDEX__" class="form-control btSelect" name="items[__INDEX__][intake]" aria-describedby="items___INDEX___intakeErr" title="Select intake"><option value="">Select intake</option><?php foreach ($prescriptionOptionSets['intake'] as $option): ?><option value="<?= (int) $option['id'] ?>" <?= (string) $option['id'] === $defaultIntakeOptionId ? 'selected' : '' ?>><?= esc($option['name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="items___INDEX___intakeErr" data-error-for="items.__INDEX__.intake"></div></td>
@@ -1563,6 +1569,8 @@ $(function () {
     }
     $(document).off('change.clinicalMedicineAutofill', '#clinical-prescription-items .clinical-medicine-select')
         .on('change.clinicalMedicineAutofill', '#clinical-prescription-items .clinical-medicine-select', function () {
+            const quantity = $(this).closest('.clinical-medicine-row').find('.clinical-prescription-quantity').first();
+            if (quantity.length && String(quantity.val() || '').trim() === '') quantity.val('1');
             loadClinicalMedicineAutofill($(this), $(this).val());
         });
     const clinicalMedicineModal = $('#clinical-medicine-modal');
@@ -1795,6 +1803,11 @@ $(function () {
             const medicine = row.find('[name*="[medicine_id]"]').first();
             if (!String(medicine.val() || '').trim()) {
                 prescriptionErrors['items.' + row.data('row-index') + '.medicine_id'] = 'Medicine is required.';
+            }
+            const quantity = row.find('.clinical-prescription-quantity').first();
+            const quantityValue = String(quantity.val() || '').trim();
+            if (quantityValue === '' || !/^\d+$/.test(quantityValue) || Number(quantityValue) < 1) {
+                prescriptionErrors['items.' + row.data('row-index') + '.quantity'] = 'Quantity is required and must be at least 1.';
             }
         });
         if (Object.keys(prescriptionErrors).length) {
