@@ -136,7 +136,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $import = $this->source('app/Services/Shopify/ShopifyOrderImportService.php');
 
         self::assertStringNotContainsString('->insert(', $active);
-        self::assertStringContainsString('existing[variantId]', $storefront);
+        self::assertStringContainsString('existing[cartLineKey(lineReference, variantId)]', $storefront);
         foreach (['linkOrderPrescription', 'ensurePharmacyOrderForImport', 'prescriptionIdForReference'] as $marker) {
             self::assertStringContainsString($marker, $import);
         }

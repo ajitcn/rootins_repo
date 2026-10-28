@@ -38,8 +38,7 @@ final class ShopifyPrescriptionCartPushService
             ->select('p.id, p.prescription_number, p.patient_id, p.status, p.created_at, p.duration_days')
             ->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')
             ->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')
-            ->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)
-            ->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->get(1)->getRowArray();
+            ->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->get(1)->getRowArray();
         if ($prescription === null) {
             $prescription = $db->table('prescriptions p')
                 ->select('p.id, p.prescription_number, p.patient_id, p.status, p.created_at, p.duration_days')
