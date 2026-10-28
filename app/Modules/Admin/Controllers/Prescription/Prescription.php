@@ -47,6 +47,8 @@ class Prescription extends BaseAdminController
                 consultations.consultation_time,
                 patients.registration_number,
                 patients.mobile_number AS patient_mobile,
+                patients.date_of_birth AS patient_date_of_birth,
+                patients.gender AS patient_gender,
                 patients.source_type AS patient_source,
                 patients.first_name AS patient_first_name,
                 patients.middle_name AS patient_middle_name,
@@ -126,8 +128,10 @@ class Prescription extends BaseAdminController
         $items = $this->prescriptionItem->where('prescription_id', $id)->orderBy('id', 'ASC')->findAll();
         $pdf = $this->prescriptionPdf->generate($prescription, $items);
         $fileName = preg_replace('/[^A-Za-z0-9_-]/', '-', (string) $prescription['prescription_number']);
+        $this->audit->record('admin.prescription_pdf_downloaded', ['prescription_id' => $id, 'patient_id' => (int) $prescription['patient_id']]);
+        $disposition = $this->request->getGet('download') === '1' ? 'attachment' : 'inline';
 
-        return $this->response->setHeader('Content-Type', 'application/pdf')->setHeader('Content-Disposition', 'inline; filename="' . $fileName . '.pdf"')->setBody($pdf);
+        return $this->response->setHeader('Content-Type', 'application/pdf')->setHeader('Content-Disposition', $disposition . '; filename="ROOTINS-Prescription-' . $fileName . '.pdf"')->setBody($pdf);
     }
 
     public function edit(int $id)
@@ -389,6 +393,8 @@ class Prescription extends BaseAdminController
                 patients.email AS patient_email,
                 patients.source_type AS patient_source,
                 patients.mobile_number AS patient_mobile,
+                patients.date_of_birth AS patient_date_of_birth,
+                patients.gender AS patient_gender,
                 patients.first_name AS patient_first_name,
                 patients.middle_name AS patient_middle_name,
                 patients.last_name AS patient_last_name,

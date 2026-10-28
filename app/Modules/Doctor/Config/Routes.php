@@ -26,6 +26,7 @@ $routes->group('doctor', ['namespace' => 'Doctor\Controllers', 'filter' => 'auth
     $routes->post('follow-ups/update/(:num)', 'Records::updateFollowUp/$1', ['filter' => 'permission:consultation.edit']);
     $routes->get('billing', 'Records::billing', ['filter' => 'permission:billing.view']);
     $routes->get('prescriptions', 'Records::prescriptions', ['filter' => 'permission:prescription.view']);
+    $routes->get('prescriptions/pdf/(:num)', 'Records::prescriptionPdf/$1', ['filter' => 'permission:prescription.view']);
     $routes->get('video/(:num)', 'VideoConsultation::view/$1', ['filter' => 'permission:appointment.view']);
     $routes->post('video/(:num)/start', 'VideoConsultation::start/$1', ['filter' => 'permission:consultation.edit']);
     $routes->get('video/(:num)/status', 'VideoConsultation::status/$1', ['filter' => 'permission:consultation.edit']);

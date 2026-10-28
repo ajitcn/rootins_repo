@@ -9,6 +9,7 @@ use Admin\Models\User;
 use App\Controllers\BaseController;
 use App\Services\AppointmentConsultationEligibility;
 use App\Services\Shopify\ShopifyConfiguration;
+use App\Services\Common\PrescriptionPdfService;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Doctor\Models\FollowUpStatusModel;
@@ -669,6 +670,43 @@ class Records extends BaseController
         $statusOptions = array_values(array_filter((new PrescriptionOptionModel())->activeOptions(PrescriptionOptionModel::TYPES['status'], $context['clinic_id']), static fn (array $option): bool => trim((string) ($option['code'] ?? '')) !== ''));
 
         return view(DOCTOR_VIEW . 'pages/prescriptions', ['prescriptions' => $prescriptions, 'items' => $items, 'filters' => $filters, 'pagination' => $pagination, 'statusOptions' => $statusOptions]);
+    }
+
+    public function prescriptionPdf(int $id): ResponseInterface
+    {
+        $context = $this->context();
+        if ($context === null) {
+            return $this->response->setStatusCode(403)->setBody('Doctor scope is unavailable.');
+        }
+
+        $db = db_connect();
+        $prescription = $db->table('prescriptions')
+            ->select('prescriptions.*, consultations.consultation_number, patients.registration_number, patients.email AS patient_email, patients.mobile_number AS patient_mobile, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, patients.date_of_birth AS patient_date_of_birth, patients.gender AS patient_gender, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name, doctors.qualification, doctors.registration_number AS doctor_registration_number, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.email AS clinic_email, clinics.pincode AS clinic_pincode, appointments.appointment_number')
+            ->join('consultations', 'consultations.id = prescriptions.consultation_id')
+            ->join('patients', 'patients.id = prescriptions.patient_id')
+            ->join('doctors', 'doctors.id = prescriptions.doctor_id')
+            ->join('clinics', 'clinics.id = prescriptions.clinic_id')
+            ->join('appointments', 'appointments.id = consultations.appointment_id', 'left')
+            ->where('prescriptions.id', $id)
+            ->where('prescriptions.doctor_id', $context['doctor_id'])
+            ->where('prescriptions.clinic_id', $context['clinic_id'])
+            ->where('doctors.id', $context['doctor_id'])
+            ->where('doctors.clinic_id', $context['clinic_id'])
+            ->get(1)->getRowArray();
+
+        if ($prescription === null) {
+            return $this->response->setStatusCode(404)->setBody('Prescription not found.');
+        }
+        if ((string) ($prescription['status'] ?? '') !== 'completed') {
+            return $this->response->setStatusCode(403)->setBody('Only completed prescriptions can be printed.');
+        }
+
+        $items = $db->table('prescription_items')->select('prescription_items.*, medicines.medicine_name AS medicine_catalog_name')->join('medicines', 'medicines.id = prescription_items.medicine_id', 'left')->where('prescription_id', $id)->orderBy('prescription_items.id')->get()->getResultArray();
+        $pdf = (new PrescriptionPdfService())->generate($prescription, $items);
+        $reference = preg_replace('/[^A-Za-z0-9_-]/', '-', (string) ($prescription['prescription_number'] ?? $id)) ?: (string) $id;
+        $this->audit('doctor.prescription_pdf_downloaded', $context, ['prescription_id' => $id, 'patient_id' => (int) $prescription['patient_id']]);
+
+        return $this->response->setHeader('Content-Type', 'application/pdf')->setHeader('Content-Disposition', 'attachment; filename="ROOTINS-Prescription-' . $reference . '.pdf"')->setBody($pdf);
     }
 
     private function prescriptionFilters(): array

@@ -247,6 +247,7 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                     <div class="doctor-prescription-print-area" id="<?= esc($printId) ?>">
                         <?php if (trim((string) ($item['clinic_name'] ?? '')) !== '' || trim((string) ($item['clinic_address'] ?? '')) !== '' || trim((string) ($item['clinic_mobile'] ?? '')) !== ''): ?>
                             <div class="doctor-prescription-clinic-header">
+                                <div class="doctor-prescription-brand" aria-label="ROOTINS">ROOTINS<span>Healthcare and Pharmacy</span></div>
                                 <?php if (trim((string) ($item['clinic_logo'] ?? '')) !== ''): ?>
                                     <img src="<?= esc(base_url((string) $item['clinic_logo'])) ?>" alt="<?= esc($item['clinic_name'] ?? 'Clinic') ?> logo" class="doctor-prescription-clinic-logo">
                                 <?php endif; ?>
@@ -254,6 +255,7 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                                     <?php if (trim((string) ($item['clinic_name'] ?? '')) !== ''): ?><strong><?= esc($item['clinic_name']) ?></strong><?php endif; ?>
                                     <?php if (trim((string) ($item['clinic_address'] ?? '')) !== ''): ?><div><?= nl2br(esc($item['clinic_address'])) ?></div><?php endif; ?>
                                     <?php if (trim((string) ($item['clinic_mobile'] ?? '')) !== ''): ?><div><?= esc($item['clinic_mobile']) ?></div><?php endif; ?>
+                                    <?php if (trim((string) ($item['clinic_email'] ?? '')) !== ''): ?><div><?= esc($item['clinic_email']) ?></div><?php endif; ?>
                                 </div>
                             </div>
                         <?php endif; ?>
@@ -302,6 +304,10 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                                 <dd><span class="badge doctor-prescription-cart-sync-badge doctor-prescription-cart-sync-<?= esc($cartSyncStatusClass) ?>"><?= esc($cartSyncStatusLabel) ?></span><?php if (!empty($item['cart_sync_failure_reason'])): ?><small class="d-block text-danger"><?= esc($item['cart_sync_failure_reason']) ?></small><?php endif; ?></dd>
                             </div>
                             <div class="doctor-prescription-meta-item">
+                                <dt>Valid until</dt>
+                                <dd><?= esc($formatPrescriptionDateTime($item['valid_until'] ?? '')) ?></dd>
+                            </div>
+                            <div class="doctor-prescription-meta-item">
                                 <dt>Created</dt>
                                 <dd><?= esc($formatPrescriptionDateTime($item['created_at'] ?? '')) ?></dd>
                             </div>
@@ -316,6 +322,9 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                             <strong>Authoring doctor</strong>
                             <div class="text-muted small mt-1"><?= esc(trim((string) ($item['doctor_name'] ?? '')) ?: 'This prescription is in your clinic and doctor scope.') ?></div>
                         </div>
+
+                        <h3 class="doctor-prescription-section-title">Doctor Instructions</h3>
+                        <div class="doctor-prescription-empty-section mb-2" role="status"><?= esc(trim((string) ($item['instructions'] ?? '')) ?: 'No doctor instructions recorded.') ?></div>
 
                         <h3 class="doctor-prescription-section-title">Notes</h3>
                         <div class="doctor-prescription-empty-section mb-2" role="status"><?= esc($prescriptionNotes !== '' ? $prescriptionNotes : 'No prescription notes recorded.') ?></div>
@@ -341,7 +350,7 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                                 <tbody>
                                     <?php if (($items[$prescriptionId] ?? []) === []): ?>
                                         <tr>
-                                            <td colspan="7" class="text-muted">No medicine items recorded.</td>
+                                            <td colspan="7" class="text-muted">No prescription medicines.</td>
                                         </tr>
                                     <?php else: ?>
                                         <?php foreach ($items[$prescriptionId] as $lineNumber => $line): ?>
@@ -378,6 +387,11 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                         <i class="bi bi-printer mr-1" aria-hidden="true"></i>
                         Print
                     </button>
+                    <?php if ($prescriptionStatus === 'completed'): ?>
+                        <a class="btn btn-primary doctor-prescription-pdf-download" href="<?= esc(base_url('doctor/prescriptions/pdf/' . $prescriptionId)) ?>" target="_blank" rel="noopener" aria-label="Download PDF for <?= esc($item['prescription_number']) ?>">
+                            <i class="bi bi-file-earmark-pdf mr-1" aria-hidden="true"></i>Download PDF
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

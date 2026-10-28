@@ -2,120 +2,187 @@
 
 namespace App\Services\Common;
 
+/** Shared A4 prescription document generator for already-authorized requests. */
 class PrescriptionPdfService
 {
     private const PAGE_WIDTH = 595;
-
     private const PAGE_HEIGHT = 842;
-
-    private const LEFT = 42;
-
-    private const RIGHT = 553;
+    private const LEFT = 38;
+    private const RIGHT = 557;
+    private const CONTENT_BOTTOM = 768;
 
     public function generate(array $prescription, array $items): string
     {
         $pages = [];
         $page = [];
-        $y = 52;
+        $y = 42;
         $this->startPage($page, $prescription, $y);
-        $this->line($page, self::LEFT, $y, self::RIGHT, $y, [190, 190, 190]);
-        $y += 22;
-        $this->text($page, self::LEFT, $y, 'PRESCRIPTION', 16, true, [31, 78, 121]);
-        $this->text($page, 390, $y, 'No. ' . ($prescription['prescription_number'] ?? ''), 10, true);
-        $y += 25;
-        $this->box($page, self::LEFT, $y, self::RIGHT, 86, [245, 248, 251], [210, 218, 226]);
-        $this->text($page, 54, $y + 18, 'PATIENT', 8, true, [90, 90, 90]);
-        $patientName = $this->fullName($prescription, 'patient_');
-        $this->text($page, 54, $y + 34, $patientName, 11, true);
-        $this->text($page, 54, $y + 54, 'Registration No.: ' . ($prescription['registration_number'] ?? '—'), 9);
-        $this->text($page, 340, $y + 18, 'DOCTOR', 8, true, [90, 90, 90]);
-        $doctorName = $this->fullName($prescription, 'doctor_');
-        $this->text($page, 340, $y + 34, $doctorName, 11, true);
-        $doctorMeta = array_filter([$prescription['qualification'] ?? null, !empty($prescription['doctor_code']) ? 'Code: ' . $prescription['doctor_code'] : null]);
-        $this->text($page, 340, $y + 52, implode(' | ', $doctorMeta) ?: '—', 9);
-        $this->text($page, 340, $y + 68, 'Date: ' . ($prescription['prescription_date'] ?? '—'), 9);
-        $y += 110;
-        $this->text($page, self::LEFT, $y, 'MEDICINES', 10, true, [31, 78, 121]);
-        $y += 17;
-
-        foreach ($items as $number => $item) {
-            $lines = $this->itemLines($item, $number + 1);
-            $height = 18 + count($lines) * 14 + 10;
-
-            if ($y + $height > 770) {
-                $pages[] = $page;
-                $page = [];
-                $y = 52;
-                $this->startPage($page, $prescription, $y);
-                $this->text($page, self::LEFT, $y, 'MEDICINES (CONTINUED)', 10, true, [31, 78, 121]);
-                $y += 20;
-            }
-            $this->box($page, self::LEFT, $y, self::RIGHT, $height, [255, 255, 255], [222, 226, 230]);
-            $this->text($page, 54, $y + 17, $lines[0], 10, true);
-
-            foreach (array_slice($lines, 1) as $offset => $line) {
-                $this->text($page, 54, $y + 34 + $offset * 14, $line, 9);
-            }
-            $y += $height + 9;
-        }
-
-        if (!empty($prescription['notes'])) {
-            if ($y + 48 > 770) {
-                $pages[] = $page;
-                $page = [];
-                $y = 52;
-                $this->startPage($page, $prescription, $y);
-            }
-            $this->text($page, self::LEFT, $y, 'PRESCRIPTION NOTES', 10, true, [31, 78, 121]);
-            $y += 17;
-
-            foreach ($this->wrap((string) $prescription['notes'], 92) as $line) {
-                $this->text($page, self::LEFT, $y, $line, 9);
-                $y += 13;
+        $this->section($page, 'PRESCRIPTION DETAILS', $y);
+        $this->fields($page, $y, [
+            ['Prescription reference', $this->value($prescription['prescription_number'] ?? null)],
+            ['Status', PrintFormatter::label($this->value($prescription['status'] ?? null))],
+            ['Prescription date', $this->date($prescription['prescription_date'] ?? null)],
+            ['Valid until', $this->date($prescription['valid_until'] ?? null)],
+            ['Consultation', $this->value($prescription['consultation_number'] ?? null)],
+            ['Appointment', $this->value($prescription['appointment_number'] ?? null)],
+        ]);
+        $this->section($page, 'PATIENT', $y);
+        $this->fields($page, $y, [
+            ['Name', $this->fullName($prescription, 'patient_')],
+            ['Patient reference', $this->value($prescription['registration_number'] ?? null)],
+            ['Age / Gender', $this->patientAgeGender($prescription)],
+            ['Contact', $this->value($prescription['patient_mobile'] ?? $prescription['mobile_number'] ?? null)],
+        ]);
+        $this->section($page, 'MEDICINES', $y);
+        $headers = ['S.No.', 'Medicine', 'Strength', 'Dosage', 'Frequency', 'Duration', 'Quantity', 'Instructions'];
+        $widths = [30, 105, 52, 60, 65, 58, 42, 107];
+        $this->tableHeader($page, $y, $headers, $widths);
+        if ($items === []) {
+            $this->tableRow($page, $y, ['-', 'No prescription medicines', '', '', '', '', '', ''], $widths, true);
+        } else {
+            foreach ($items as $number => $item) {
+                $row = [
+                    (string) ($number + 1),
+                    $this->value($item['medicine_name'] ?? $item['medicine_catalog_name'] ?? null),
+                    $this->value($item['strength'] ?? null),
+                    $this->value($item['dosage'] ?? null),
+                    $this->value($item['frequency'] ?? null),
+                    trim($this->value($item['duration'] ?? null) . ' ' . $this->value($item['duration_unit'] ?? null)),
+                    $this->value($item['quantity'] ?? null),
+                    $this->value($item['instructions'] ?? $item['notes'] ?? null),
+                ];
+                $height = max(24, count($this->rowLines($row, $widths)) * 11 + 8);
+                if ($y + $height > self::CONTENT_BOTTOM) {
+                    $pages[] = $page;
+                    $page = [];
+                    $y = 42;
+                    $this->startPage($page, $prescription, $y);
+                    $this->section($page, 'MEDICINES (CONTINUED)', $y);
+                    $this->tableHeader($page, $y, $headers, $widths);
+                }
+                $this->tableRow($page, $y, $row, $widths);
             }
         }
-        $this->footer($page);
+        $this->textSection($page, $y, 'DOCTOR INSTRUCTIONS', $prescription['instructions'] ?? null);
+        $this->textSection($page, $y, 'DOCTOR NOTES', $prescription['notes'] ?? null);
+        $followUp = trim(implode(' ', array_filter([$this->date($prescription['follow_up_date'] ?? null), $this->time($prescription['follow_up_time'] ?? null), $this->value($prescription['follow_up_remarks'] ?? null)], static fn ($value): bool => $value !== '-')));
+        $this->textSection($page, $y, 'FOLLOW-UP', $followUp !== '' ? $followUp : null);
+        if ($y + 58 > self::CONTENT_BOTTOM) {
+            $pages[] = $page;
+            $page = [];
+            $y = 42;
+            $this->startPage($page, $prescription, $y);
+        }
+        $this->line($page, 390, $y + 35, self::RIGHT, $y + 35, [170, 170, 170]);
+        $this->text($page, 390, $y + 50, 'Doctor signature', 8, false, [95, 95, 95]);
         $pages[] = $page;
-
+        $total = count($pages);
+        foreach ($pages as $index => &$commands) {
+            $this->footer($commands, $index + 1, $total);
+        }
+        unset($commands);
         return $this->buildPdf($pages);
     }
 
     private function startPage(array &$page, array $prescription, int &$y): void
     {
-        $clinic = $prescription['clinic_name'] ?? 'ROOTINS Clinic';
-        $this->text($page, self::LEFT, $y, $clinic, 16, true, [31, 78, 121]);
-        $y += 19;
-        $clinicLine = array_filter([$prescription['clinic_address'] ?? null, !empty($prescription['clinic_pincode']) ? 'PIN: ' . $prescription['clinic_pincode'] : null]);
-        $this->text($page, self::LEFT, $y, implode(' | ', $clinicLine) ?: '—', 8);
+        $this->text($page, self::LEFT, $y, 'ROOTINS', 22, true, [31, 78, 121]);
+        $this->text($page, 150, $y, 'Healthcare and Pharmacy', 10, false, [85, 85, 85]);
+        $y += 18;
+        $this->text($page, self::LEFT, $y, $this->value($prescription['clinic_name'] ?? null), 11, true, [31, 78, 121]);
+        $y += 14;
+        $address = implode(' | ', array_filter([$this->value($prescription['clinic_address'] ?? null), $this->value($prescription['clinic_pincode'] ?? null) !== '-' ? 'PIN: ' . $this->value($prescription['clinic_pincode']) : null]));
+        $contact = implode(' | ', array_filter([$this->value($prescription['clinic_mobile'] ?? null) !== '-' ? 'Tel: ' . $this->value($prescription['clinic_mobile']) : null, $this->value($prescription['clinic_email'] ?? null) !== '-' ? $this->value($prescription['clinic_email']) : null]));
+        $this->text($page, self::LEFT, $y, $address !== '' ? $address : '-', 8);
+        $y += 11;
+        $this->text($page, self::LEFT, $y, $contact !== '' ? $contact : '-', 8);
         $y += 13;
-        $contact = array_filter([!empty($prescription['clinic_mobile']) ? 'Tel: ' . $prescription['clinic_mobile'] : null, !empty($prescription['clinic_email']) ? $prescription['clinic_email'] : null]);
-        $this->text($page, self::LEFT, $y, implode(' | ', $contact), 8);
-        $y += 16;
+        $doctorMeta = implode(' | ', array_filter([$this->value($prescription['qualification'] ?? null) !== '-' ? $this->value($prescription['qualification']) : null, $this->value($prescription['doctor_registration_number'] ?? null) !== '-' ? 'Reg. No.: ' . $this->value($prescription['doctor_registration_number']) : null]));
+        $this->text($page, self::LEFT, $y, 'Dr. ' . $this->fullName($prescription, 'doctor_'), 9, true);
+        $this->text($page, 250, $y, $doctorMeta !== '' ? $doctorMeta : '-', 8);
+        $y += 12;
+        $this->line($page, self::LEFT, $y, self::RIGHT, $y, [190, 190, 190]);
+        $y += 12;
     }
 
-    private function itemLines(array $item, int $number): array
+    private function section(array &$page, string $title, int &$y): void
     {
-        $duration = trim(($item['duration'] ?? '') . ' ' . ($item['duration_unit'] ?? ''));
-        $lines = [$number . '. ' . ($item['medicine_name'] ?? ''), 'Dosage: ' . ($item['dosage'] ?: '—') . '    Frequency: ' . ($item['frequency'] ?: '—'), 'Duration: ' . ($duration ?: '—') . '    Quantity: ' . ($item['quantity'] ?? '—')];
+        $this->text($page, self::LEFT, $y, $title, 9, true, [31, 78, 121]);
+        $y += 14;
+    }
 
-        foreach ($this->wrap('Instructions: ' . ($item['instructions'] ?: '—'), 92) as $line) {
-            $lines[] = $line;
+    private function fields(array &$page, int &$y, array $fields): void
+    {
+        $height = (int) ceil(count($fields) / 2) * 31;
+        $this->box($page, self::LEFT, $y - 3, self::RIGHT, $height, [247, 249, 251], [220, 225, 230]);
+        $columnWidth = (self::RIGHT - self::LEFT) / 2;
+        foreach ($fields as $index => [$label, $value]) {
+            $x = (int) (self::LEFT + ($index % 2) * $columnWidth + 9);
+            $rowY = $y + (int) floor($index / 2) * 31;
+            $this->text($page, $x, $rowY + 8, $label, 7, true, [95, 95, 95]);
+            $this->text($page, $x, $rowY + 21, $this->truncate($value, 44), 9);
         }
+        $y += $height + 8;
+    }
 
-        if (!empty($item['notes'])) {
-            foreach ($this->wrap('Notes: ' . $item['notes'], 92) as $line) {
-                $lines[] = $line;
+    private function tableHeader(array &$page, int &$y, array $headers, array $widths): void
+    {
+        $x = self::LEFT;
+        $this->box($page, $x, $y, self::RIGHT, 22, [31, 78, 121], [31, 78, 121]);
+        foreach ($headers as $index => $header) {
+            $this->text($page, $x + 4, $y + 15, $header, 7, true, [255, 255, 255]);
+            $x += $widths[$index];
+        }
+        $y += 22;
+    }
+
+    private function tableRow(array &$page, int &$y, array $row, array $widths, bool $muted = false): void
+    {
+        $lines = $this->rowLines($row, $widths);
+        $height = max(24, count($lines) * 11 + 8);
+        $this->box($page, self::LEFT, $y, self::RIGHT, $height, [255, 255, 255], [220, 225, 230]);
+        $x = self::LEFT;
+        foreach ($row as $index => $value) {
+            foreach ($lines[$index] as $lineIndex => $line) {
+                $this->text($page, $x + 4, $y + 14 + ($lineIndex * 11), $line, 7, false, $muted ? [110, 110, 110] : [35, 35, 35]);
             }
+            $x += $widths[$index];
         }
-
-        return $lines;
+        $y += $height;
     }
 
-    private function footer(array &$page): void
+    private function rowLines(array $row, array $widths): array
     {
-        $this->line($page, self::LEFT, 790, self::RIGHT, 790, [210, 210, 210]);
-        $this->text($page, self::LEFT, 808, 'Generated by ROOTINS', 8, false, [110, 110, 110]);
-        $this->text($page, 445, 808, 'For clinical use', 8, false, [110, 110, 110]);
+        $result = [];
+        foreach ($row as $index => $value) {
+            $result[] = $this->wrap($this->value($value), max(5, (int) floor($widths[$index] / 4.2)));
+        }
+        return $result;
+    }
+
+    private function textSection(array &$page, int &$y, string $title, mixed $value): void
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return;
+        }
+        $lines = $this->wrap($text, 105);
+        if ($y + 20 + count($lines) * 11 > self::CONTENT_BOTTOM) {
+            return;
+        }
+        $this->section($page, $title, $y);
+        foreach ($lines as $line) {
+            $this->text($page, self::LEFT, $y, $line, 8);
+            $y += 11;
+        }
+        $y += 5;
+    }
+
+    private function footer(array &$page, int $pageNumber, int $total): void
+    {
+        $this->line($page, self::LEFT, 785, self::RIGHT, 785, [205, 205, 205]);
+        $this->text($page, self::LEFT, 802, 'Confidential medical document - ROOTINS', 7, false, [105, 105, 105]);
+        $this->text($page, 485, 802, 'Page ' . $pageNumber . ' of ' . $total, 7, false, [105, 105, 105]);
     }
 
     private function box(array &$page, int $x1, int $yTop, int $x2, int $height, array $fill, array $stroke): void
@@ -144,12 +211,19 @@ class PrescriptionPdfService
 
     private function wrap(string $value, int $width): array
     {
-        $value = preg_replace('/\s+/u', ' ', trim($value)) ?: '—';
-        $words = preg_split('/\s+/u', $value) ?: [];
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?: '');
+        if ($value === '') return ['-'];
         $lines = [];
         $line = '';
-
-        foreach ($words as $word) {
+        foreach (preg_split('/\s+/u', $value) ?: [] as $word) {
+            while (mb_strlen($word) > $width) {
+                if ($line !== '') {
+                    $lines[] = $line;
+                    $line = '';
+                }
+                $lines[] = mb_substr($word, 0, $width);
+                $word = mb_substr($word, $width);
+            }
             if ($line !== '' && mb_strlen($line . ' ' . $word) > $width) {
                 $lines[] = $line;
                 $line = $word;
@@ -157,36 +231,41 @@ class PrescriptionPdfService
                 $line = $line === '' ? $word : $line . ' ' . $word;
             }
         }
-
-        if ($line !== '') {
-            $lines[] = $line;
-        }
-
-        return $lines ?: ['—'];
+        if ($line !== '') $lines[] = $line;
+        return $lines ?: ['-'];
     }
 
     private function fullName(array $data, string $prefix): string
     {
-        return trim(implode(' ', array_filter([$data[$prefix . 'first_name'] ?? '', $data[$prefix . 'middle_name'] ?? '', $data[$prefix . 'last_name'] ?? ''], static fn ($part) => $part !== null && $part !== ''))) ?: '—';
+        return $this->value(trim(implode(' ', array_filter([$data[$prefix . 'first_name'] ?? '', $data[$prefix . 'middle_name'] ?? '', $data[$prefix . 'last_name'] ?? ''], static fn ($part): bool => trim((string) $part) !== ''))));
     }
+
+    private function patientAgeGender(array $record): string
+    {
+        $age = '-';
+        if (!empty($record['patient_date_of_birth'])) {
+            try { $age = (string) (new \DateTimeImmutable((string) $record['patient_date_of_birth']))->diff(new \DateTimeImmutable('today'))->y; } catch (\Throwable) { $age = '-'; }
+        }
+        $gender = $this->value($record['patient_gender'] ?? $record['gender'] ?? null);
+        return $age . ($gender !== '-' ? ' / ' . PrintFormatter::label($gender) : '');
+    }
+
+    private function date(mixed $value): string { return PrintFormatter::date($value !== null ? (string) $value : null) ?: '-'; }
+    private function time(mixed $value): string { return PrintFormatter::time($value !== null ? (string) $value : null) ?: '-'; }
+    private function value(mixed $value): string { $value = trim((string) $value); return $value === '' ? '-' : $value; }
+    private function truncate(string $value, int $length): string { return mb_strlen($value) > $length ? mb_substr($value, 0, $length - 1) . '...' : $value; }
 
     private function pdfString(string $value): string
     {
         $value = str_replace(['—', '–', '’', '“', '”'], ['-', '-', "'", '"', '"'], $value);
         $value = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $value) ?: $value;
-
-        return str_replace(['\\', '(', ')', "\r", "\n"], ['\\\\', '\(', '\)', '', ' '], $value);
+        return str_replace(['\\', '(', ')', "\r", "\n"], ['\\\\', '\\(', '\\)', '', ' '], $value);
     }
 
     private function buildPdf(array $pages): string
     {
-        $objects = [];
-        $objects[] = '<< /Type /Catalog /Pages 2 0 R >>';
+        $objects = ['<< /Type /Catalog /Pages 2 0 R >>', 'PLACEHOLDER', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'];
         $kids = [];
-        $objects[] = 'PLACEHOLDER';
-        $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-        $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
-
         foreach ($pages as $commands) {
             $content = implode("\n", $commands);
             $contentObject = count($objects) + 1;
@@ -198,19 +277,10 @@ class PrescriptionPdfService
         $objects[1] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . count($kids) . ' >>';
         $pdf = "%PDF-1.4\n%\xe2\xe3\xcf\xd3\n";
         $offsets = [0];
-
-        foreach ($objects as $number => $object) {
-            $offsets[] = strlen($pdf);
-            $pdf .= $number + 1 . " 0 obj\n" . $object . "\nendobj\n";
-        }
+        foreach ($objects as $number => $object) { $offsets[] = strlen($pdf); $pdf .= $number + 1 . " 0 obj\n" . $object . "\nendobj\n"; }
         $xref = strlen($pdf);
         $pdf .= "xref\n0 " . (count($objects) + 1) . "\n0000000000 65535 f \n";
-
-        for ($i = 1; $i <= count($objects); $i++) {
-            $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
-        }
-        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF";
-
-        return $pdf;
+        for ($i = 1; $i <= count($objects); $i++) $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+        return $pdf . "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF";
     }
 }

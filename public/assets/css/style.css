@@ -1321,6 +1321,24 @@ body > .modal .modal-dialog,
   overflow-wrap: anywhere;
 }
 
+.doctor-prescription-brand {
+  color: #1f4e79;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1.1;
+  min-width: 9rem;
+}
+
+.doctor-prescription-brand span {
+  color: #657184;
+  display: block;
+  font-size: .62rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-top: .2rem;
+}
+
 .doctor-prescription-detail-modal .doctor-prescription-clinic-logo {
   width: auto;
   max-width: 4rem;
