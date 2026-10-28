@@ -27,7 +27,7 @@
 .doctor-prescription-signature span { display: block; width: 55mm; height: 10mm; border-bottom: 1px solid #555; }
 .doctor-prescription-signature small, .doctor-prescription-confidential { color: #5c626b; font-size: 9pt; }
 .doctor-prescription-clinical-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10pt; }
-.doctor-prescription-clinical-table th, .doctor-prescription-clinical-table td { padding: 2.5mm 2mm; border: 1px solid #b8bdc5; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: normal; white-space: normal; }
+.doctor-prescription-clinical-table th, .doctor-prescription-clinical-table td { padding: 1.8mm 1.5mm; border: 1px solid #b8bdc5; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: normal; white-space: normal; }
 .doctor-prescription-clinical-table th { background: #edf5fa; color: #1f4e79; }
 .doctor-prescription-clinical-table tr { break-inside: avoid; page-break-inside: avoid; }
 

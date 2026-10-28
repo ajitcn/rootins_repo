@@ -412,6 +412,7 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                         type="button"
                         data-prescription-id="<?= esc($prescriptionId) ?>"
                         data-print-target="<?= esc($printId) ?>"
+                        data-pdf-url="<?= $prescriptionStatus === 'completed' ? esc(base_url('doctor/prescriptions/pdf/' . $prescriptionId)) : '' ?>"
                         aria-label="Print prescription <?= esc($item['prescription_number']) ?>"
                         title="Print prescription"
                     >
@@ -529,6 +530,11 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
 
         $(document).on('click.doctorPrescriptionPrint', '.doctor-prescription-print-trigger', function () {
             const button = this;
+            const canonicalPdfUrl = button.getAttribute('data-pdf-url');
+            if (canonicalPdfUrl) {
+                window.open(canonicalPdfUrl, '_blank', 'noopener');
+                return;
+            }
             const modal = $(button).closest('.doctor-prescription-print-modal');
             const printId = button.getAttribute('data-print-target');
             const prescriptionId = button.getAttribute('data-prescription-id') || '';

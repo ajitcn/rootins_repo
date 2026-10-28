@@ -31,10 +31,12 @@ final class Pdf extends BaseController
 
         $db = db_connect();
         $record = $db->table('prescriptions')
-            ->select('prescriptions.*, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name, doctors.qualification, doctors.registration_number AS doctor_registration_number, (SELECT GROUP_CONCAT(ds.specialization_name ORDER BY ds.specialization_name SEPARATOR \' , \') FROM doctor_specialization_map dsm JOIN doctor_specializations ds ON ds.id = dsm.specialization_id WHERE dsm.doctor_id = doctors.id AND ds.status = 1) AS doctor_specializations, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.email AS clinic_email, clinics.pincode AS clinic_pincode, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.gender AS patient_gender, patients.address AS patient_address, patients.mobile_number AS patient_mobile')
+            ->select('prescriptions.*, consultations.consultation_number, consultations.consultation_date, appointments.appointment_number, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name, doctors.qualification, doctors.registration_number AS doctor_registration_number, (SELECT GROUP_CONCAT(ds.specialization_name ORDER BY ds.specialization_name SEPARATOR \' , \') FROM doctor_specialization_map dsm JOIN doctor_specializations ds ON ds.id = dsm.specialization_id WHERE dsm.doctor_id = doctors.id AND ds.status = 1) AS doctor_specializations, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.email AS clinic_email, clinics.pincode AS clinic_pincode, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, patients.registration_number, patients.date_of_birth AS patient_date_of_birth, patients.gender AS patient_gender, patients.address AS patient_address, patients.mobile_number AS patient_mobile')
+            ->join('consultations', 'consultations.id = prescriptions.consultation_id')
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
             ->join('clinics', 'clinics.id = prescriptions.clinic_id')
             ->join('patients', 'patients.id = prescriptions.patient_id')
+            ->join('appointments', 'appointments.id = consultations.appointment_id', 'left')
             ->where('prescriptions.prescription_number', $reference)
             ->where('prescriptions.patient_id', $context['patient_id'])
             ->where('prescriptions.clinic_id', $context['clinic_id'])

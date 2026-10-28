@@ -1340,17 +1340,17 @@ body > .modal .modal-dialog,
 }
 
 .doctor-prescription-legacy-table { display: none; }
-.doctor-prescription-clinical-table { font-size: 10pt; table-layout: fixed; }
+.doctor-prescription-clinical-table { font-size: 10pt; table-layout: fixed; width: 100%; }
 .doctor-prescription-clinical-table th, .doctor-prescription-clinical-table td { overflow-wrap: anywhere; vertical-align: top; }
-.doctor-prescription-clinical-table th:nth-child(1) { width: 4%; }
-.doctor-prescription-clinical-table th:nth-child(2) { width: 19%; }
+.doctor-prescription-clinical-table th:nth-child(1) { width: 5%; }
+.doctor-prescription-clinical-table th:nth-child(2) { width: 22%; }
 .doctor-prescription-clinical-table th:nth-child(3) { width: 13%; }
-.doctor-prescription-clinical-table th:nth-child(4) { width: 10%; }
-.doctor-prescription-clinical-table th:nth-child(5) { width: 8%; }
-.doctor-prescription-clinical-table th:nth-child(6) { width: 12%; }
+.doctor-prescription-clinical-table th:nth-child(4) { width: 11%; }
+.doctor-prescription-clinical-table th:nth-child(5) { width: 9%; }
+.doctor-prescription-clinical-table th:nth-child(6) { width: 13%; }
 .doctor-prescription-clinical-table th:nth-child(7) { width: 10%; }
-.doctor-prescription-clinical-table th:nth-child(8) { width: 8%; }
-.doctor-prescription-clinical-table th:nth-child(9) { width: 16%; }
+.doctor-prescription-clinical-table th:nth-child(8) { width: 7%; }
+.doctor-prescription-clinical-table th:nth-child(9) { width: 10%; }
 
 .doctor-prescription-detail-modal .doctor-prescription-clinic-logo {
   width: auto;

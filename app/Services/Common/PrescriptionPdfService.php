@@ -35,7 +35,7 @@ class PrescriptionPdfService
         ]);
         $this->section($page, 'MEDICINES', $y);
         $headers = ['No.', 'Medicine name', 'Strength / form', 'Dose', 'Route', 'Frequency', 'Duration', 'Qty', 'Instructions'];
-        $widths = [24, 125, 54, 48, 45, 45, 52, 40, 86];
+        $widths = [26, 114, 67, 57, 47, 67, 52, 36, 53];
         $this->tableHeader($page, $y, $headers, $widths);
         if ($items === []) {
             $this->tableRow($page, $y, ['', 'No prescription medicines', '', '', '', '', '', '', ''], $widths, true);

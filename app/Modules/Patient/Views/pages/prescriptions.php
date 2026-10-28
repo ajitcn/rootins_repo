@@ -76,6 +76,12 @@
         $('#patient-prescription-print').on('click', function () {
             if (! activePrescription) return;
 
+            var canonicalPdfUrl = window.rootinsPatientPdfBase + '/prescriptions/' + encodeURIComponent(activePrescription.prescription_number || '') + '/pdf';
+            if (activePrescription.prescription_number && window.open) {
+                window.open(canonicalPdfUrl, '_blank', 'noopener');
+                return;
+            }
+
             var rows = (activePrescription.items || []).map(function (item) { return '<tr><td>' + escapeHtml(item.medicine_name || 'Medicine unavailable') + '</td><td>' + escapeHtml([item.duration || '', item.duration_unit || ''].join(' ').trim() || '—') + '</td><td>' + escapeHtml(item.frequency || '—') + '</td><td>' + escapeHtml(item.dosage || '—') + '</td><td>' + escapeHtml(item.instructions || '—') + '</td><td>' + escapeHtml(item.notes || item.instructions || '—') + '</td></tr>'; }).join('');
             var printWindow = window.open('', '_blank', 'width=980,height=760');
 
