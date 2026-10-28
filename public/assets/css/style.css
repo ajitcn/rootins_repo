@@ -8,6 +8,7 @@
 @media (max-width: 575.98px) {
   .doctor-schedule-modal .modal-dialog { height: calc(100vh - 1rem); max-height: calc(100vh - 1rem); margin: .5rem; }
 }
+
 .action-btn-container{
 	text-align: right;
 	margin-bottom: 10px;
@@ -887,17 +888,17 @@ body > .modal .modal-dialog,
   font-size: .76rem;
 }
 
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-patient { width: 32%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-patient { width: 28%; }
 .doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-date { width: 17%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-medicines { width: 14%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-status { width: 12%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-cart-sync { width: 15%; }
-.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-actions { width: 19%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-medicines { width: 12%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-status { width: 14%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-cart-sync { width: 14%; }
+.doctor-prescriptions-page .doctor-prescription-list-table .prescription-col-actions { width: 15%; }
 
 .doctor-prescriptions-page .doctor-prescription-list-table th,
 .doctor-prescriptions-page .doctor-prescription-list-table td {
   min-width: 0;
-  padding: .7rem .75rem;
+  padding: .45rem .6rem;
   border-bottom: 1px solid #edf1f5;
   text-align: left;
   vertical-align: middle;
@@ -910,6 +911,9 @@ body > .modal .modal-dialog,
   font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .doctor-prescriptions-page .doctor-prescription-list-table tbody tr:last-child td { border-bottom: 0; }
@@ -929,6 +933,9 @@ body > .modal .modal-dialog,
 .doctor-prescriptions-page .doctor-prescription-list-number { color: var(--ri-muted); font-size: .69rem; }
 .doctor-prescriptions-page .doctor-prescription-list-table td:nth-child(2) strong { display: block; white-space: nowrap; }
 .doctor-prescriptions-page .doctor-prescription-list-table .doctor-prescription-count { white-space: nowrap; }
+.doctor-prescriptions-page .doctor-prescription-list-table td:nth-child(5),
+.doctor-prescriptions-page .doctor-prescription-list-table th:nth-child(5) { width: 130px; min-width: 130px; white-space: nowrap; word-break: normal; overflow-wrap: normal; }
+.doctor-prescriptions-page .doctor-prescription-cart-sync-badge { display: inline-flex; min-width: 130px; max-width: 130px; justify-content: center; white-space: nowrap; word-break: normal; overflow-wrap: normal; }
 .doctor-prescriptions-page .doctor-prescription-list-table .doctor-prescription-status-badge,
 .doctor-prescriptions-page .doctor-prescription-card-status .doctor-prescription-status-badge {
   display: inline-flex;
@@ -943,7 +950,7 @@ body > .modal .modal-dialog,
 }
 .doctor-prescriptions-page .doctor-prescription-status-submitted { color: #0b7285 !important; border-color: #6cc5d2 !important; background: #eefafd; }
 .doctor-prescriptions-page .doctor-prescription-list-actions { overflow: visible; text-align: right !important; }
-.doctor-prescriptions-page .doctor-prescription-list-actions .doctor-prescription-action-group { flex-wrap: nowrap; }
+.doctor-prescriptions-page .doctor-prescription-list-actions .doctor-prescription-action-group { flex-wrap: nowrap; white-space: nowrap; }
 .doctor-prescriptions-page .doctor-prescription-list-actions .doctor-prescription-actions { min-width: 0; }
 
 .doctor-prescriptions-page .doctor-prescription-action-group .dropdown-menu {
@@ -8207,4 +8214,17 @@ body.modal-open { padding-right: 0 !important; overflow: hidden; }
     .patient-filter-form .patient-filter-actions, .patient-filter-form .patient-view-toggle { justify-content: flex-start; }
     .patient-order-modal .modal-dialog { width: auto; max-width: calc(100vw - 1rem); margin: .5rem; }
     .patient-order-modal .modal-body { max-height: calc(100vh - 10rem); }
+}
+
+/* Keep the prescription list scrollable and tabular on small screens. */
+@media (max-width: 991.98px) {
+  .doctor-prescriptions-page .doctor-prescription-table-wrap { overflow-x: auto; }
+  .doctor-prescriptions-page .doctor-prescription-list-table { display: table; min-width: 900px; table-layout: fixed; }
+  .doctor-prescriptions-page .doctor-prescription-list-table thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: nowrap; }
+  .doctor-prescriptions-page .doctor-prescription-list-table tbody { display: table-row-group; }
+  .doctor-prescriptions-page .doctor-prescription-list-table tr { display: table-row; padding: 0; }
+  .doctor-prescriptions-page .doctor-prescription-list-table td { display: table-cell; width: auto; padding: .45rem .6rem; text-align: left; }
+  .doctor-prescriptions-page .doctor-prescription-list-table td::before { display: none; }
+  .doctor-prescriptions-page .doctor-prescription-list-table td > * { max-width: 100%; }
+  .doctor-prescriptions-page .doctor-prescription-list-actions { padding-top: .45rem !important; border-top: 0 !important; text-align: right !important; }
 }
