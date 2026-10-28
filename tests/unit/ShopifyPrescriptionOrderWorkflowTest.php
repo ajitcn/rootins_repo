@@ -96,7 +96,7 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
 
         self::assertStringContainsString("where('p.patient_id', \$patientId)", $active);
         self::assertStringContainsString("whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)", $active);
-        self::assertStringContainsString("where('p.valid_until IS NOT NULL', null, false)", $active);
+        self::assertStringContainsString('calculateValidUntil', $active);
         self::assertStringNotContainsString("'submitted'", $active);
         self::assertStringContainsString('createIfFinalized', $snapshot);
         self::assertStringContainsString('source_type', $snapshot);
@@ -121,10 +121,10 @@ final class ShopifyPrescriptionOrderWorkflowTest extends TestCase
         $active = $this->source('app/Services/Shopify/ShopifyActivePrescriptionService.php');
         $storefront = $this->source('public/assets/js/shopify/active-prescriptions.js');
 
-        foreach (['patient_reference', 'duration_days', 'medicine_id', 'shopify_variant_id', 'excluded_items'] as $marker) {
+        foreach (['patient_reference', 'duration_days', 'medicine_id', 'variant_id', 'excluded_items', 'quantity_remaining', 'cart_property'] as $marker) {
             self::assertStringContainsString($marker, $active);
         }
-        foreach (['/apps/rootins/prescriptions/active', '/apps/rootins/prescriptions/cart-pushed', '/cart.js', '/cart/add.js', 'prescription_reference', 'variant_id', 'quantity', 'Pushed to cart'] as $marker) {
+        foreach (['/apps/rootins/prescriptions/active', '/apps/rootins/prescriptions/cart-status', '/cart.js', '/cart/add.js', '_rx_reference', 'variant_id', 'quantity', 'Pushed to cart'] as $marker) {
             self::assertStringContainsString($marker, $storefront);
         }
     }

@@ -25,13 +25,28 @@ final class ActivePrescriptions extends BaseController
 
     public function cartPushed(): ResponseInterface
     {
+        return $this->cartStatus();
+    }
+
+    public function cartStatus(): ResponseInterface
+    {
         try {
+            $accept = strtolower($this->request->getHeaderLine('Accept'));
+            $contentType = strtolower($this->request->getHeaderLine('Content-Type'));
+            $idempotencyKey = trim($this->request->getHeaderLine('Idempotency-Key'));
+            if (! str_contains($accept, 'application/json') || ! str_contains($contentType, 'application/json')) {
+                throw new \RuntimeException('SHOPIFY_PRESCRIPTION_CART_STATUS_HEADERS_INVALID');
+            }
+            if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $idempotencyKey) !== 1) {
+                throw new \RuntimeException('SHOPIFY_IDEMPOTENCY_KEY_INVALID');
+            }
             $query = $this->request->getGet();
             $query = is_array($query) ? $query : [];
-            $context = (new ShopifyProxyService())->verify('prescriptions.cart_pushed', $query, (string) $this->request->getUri()->getQuery());
+            $context = (new ShopifyProxyService())->verify('prescriptions.cart_status', $query, (string) $this->request->getUri()->getQuery());
             $payload = $this->request->getJSON(true);
             $payload = is_array($payload) ? $payload : [];
-            $data = (new ShopifyProxyService())->execute('prescriptions.cart_pushed', $context, $payload);
+            $payload['_idempotency_key'] = $idempotencyKey;
+            $data = (new ShopifyProxyService())->execute('prescriptions.cart_status', $context, $payload);
             return $this->response->setJSON(['status' => true, 'data' => $data]);
         } catch (\Throwable $e) {
             log_message('warning', 'Shopify prescription cart acknowledgement denied: ' . get_class($e));

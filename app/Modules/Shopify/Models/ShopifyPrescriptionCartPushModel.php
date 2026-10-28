@@ -12,6 +12,7 @@ final class ShopifyPrescriptionCartPushModel extends Model
     protected $allowedFields = [
         'store_domain', 'prescription_id', 'prescription_reference', 'patient_id',
         'shopify_customer_id', 'variant_ids_json', 'cart_pushed_at', 'status',
+        'items_json', 'idempotency_key', 'request_hash',
         'shopify_order_id', 'last_event_topic', 'last_event_id', 'ordered_at',
         'created_at', 'updated_at',
     ];

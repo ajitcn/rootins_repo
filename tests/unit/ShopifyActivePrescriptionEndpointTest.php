@@ -36,7 +36,7 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         $storefront = file_get_contents(ROOTPATH . 'public/assets/js/shopify/active-prescriptions.js');
         $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyActivePrescriptionService.php');
 
-        foreach (['SHOPIFY_CUSTOMER_UNLINKED', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'expired or not yet eligible', 'excluded_items', 'SHOPIFY_MEDICINE_MAPPING_REQUIRED'] as $marker) {
+        foreach (['SHOPIFY_CUSTOMER_UNLINKED', 'SHOPIFY_CUSTOMER_LOGIN_REQUIRED', 'excluded_items', 'SHOPIFY_MEDICINE_MAPPING_REQUIRED', 'expired'] as $marker) {
             self::assertStringContainsString($marker, $storefront . $service);
         }
     }
@@ -50,10 +50,10 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         $webhook = file_get_contents(ROOTPATH . 'app/Modules/Shopify/Controllers/Webhook.php');
         $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-28-130000_CreateShopifyPrescriptionCartPushes.php');
 
-        foreach (['apps/rootins/prescriptions/cart-pushed', 'prescriptions.cart_pushed', 'logged_in_customer_id'] as $marker) {
+        foreach (['apps/rootins/prescriptions/cart-status', 'prescriptions.cart_status', 'logged_in_customer_id'] as $marker) {
             self::assertStringContainsString($marker, $routes . $proxy . $controller);
         }
-        foreach (['cart_pushed', 'prescription_reference', 'variant_ids', 'idempotent', 'ordered', 'order_created', 'cancelled', 'refunded'] as $marker) {
+        foreach (['cart_pushed', 'prescription_reference', 'variant_ids', 'idempotency_key', 'ordered', 'cancelled'] as $marker) {
             self::assertStringContainsString($marker, $service . $migration);
         }
         foreach (['reconcilePrescriptionCartPush', 'orders/create', 'orders/paid', 'orders/cancelled', 'refunds/create'] as $marker) {

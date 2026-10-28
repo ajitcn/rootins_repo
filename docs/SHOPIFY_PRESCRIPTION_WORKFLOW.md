@@ -19,13 +19,28 @@ line properties, and never mutates the cart from the ROOTINS server. Include it
 on a theme section containing `[data-rootins-active-prescriptions]` with
 `[data-prescription-status]` and `[data-prescription-list]` elements.
 
-After the cart operation, the helper posts the prescription reference and
-numeric variant IDs to the signed App Proxy endpoint
-`POST /apps/rootins/prescriptions/cart-pushed`. ROOTINS records `cart_pushed`
-idempotently for the store/customer/prescription and does not mark the
-prescription ordered. Verified `orders/create`, `orders/paid`,
-`orders/cancelled`, and `refunds/create` webhook events advance the recorded
-cart state to `order_created`, `ordered`, `cancelled`, or `refunded`.
+After the cart operation, the helper posts JSON to the signed App Proxy
+endpoint `POST /apps/rootins/prescriptions/cart-status`. The request must
+include `Accept: application/json`, `Content-Type: application/json`, and a
+unique UUID `Idempotency-Key` header:
+
+```json
+{
+  "reference": "RXP-...",
+  "cart_status": "pushed",
+  "items": [{"variant_id": "123", "quantity": 1}]
+}
+```
+
+ROOTINS verifies customer ownership, active variant mappings, and remaining
+quantities, then records `cart_pushed` idempotently for the
+store/customer/prescription. The helper writes `_rx_reference` on every cart
+line and `rootins_prescription_reference` as a cart attribute; it never sends
+prices or changes the cart from the ROOTINS server. The supported states are
+`available`, `cart_pushed`, `ordered`, `paid`, `cancelled`, and `expired`.
+Verified `orders/create`, `orders/paid`, `orders/cancelled`, and `refunds/create`
+webhook events update the recorded state, and only order webhooks mark the
+prescription order/paid.
 
 The Core API App Proxy endpoint is `POST /rootins-proxy/prescriptions/upload`.
 It accepts a multipart `file` plus an `Idempotency-Key`. Shopify must send
