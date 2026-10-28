@@ -69,4 +69,17 @@ final class ShopifyActivePrescriptionEndpointTest extends TestCase
         self::assertStringContainsString('PRESCRIPTION_NOT_ORDERABLE', file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyPrescriptionEligibility.php'));
         self::assertStringNotContainsString('$prescriptionId = $this->candidatePrescriptionId($payload);', $service);
     }
+
+    public function testActivePrescriptionItemFailuresHavePreciseReasonsAndSafeDiagnostics(): void
+    {
+        $service = file_get_contents(ROOTPATH . 'app/Services/Shopify/ShopifyActivePrescriptionService.php');
+
+        foreach (['PRESCRIPTION_ITEM_QUANTITY_INVALID', 'PRESCRIPTION_ITEM_MEDICINE_INVALID', 'ROOTINS_MEDICINE_INACTIVE', 'SHOPIFY_MEDICINE_MAPPING_REQUIRED'] as $reason) {
+            self::assertStringContainsString($reason, $service);
+        }
+        foreach (['stored_quantity', 'normalized_quantity', 'prescription_reference', 'prescription_id', 'patient_id', 'prescription_item_id', 'medicine_id', 'mapping_result'] as $diagnostic) {
+            self::assertStringContainsString($diagnostic, $service);
+        }
+        self::assertStringNotContainsString('max(0, (int) ($row[\'quantity\']', $service);
+    }
 }
