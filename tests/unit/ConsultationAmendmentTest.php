@@ -22,7 +22,7 @@ final class ConsultationAmendmentTest extends TestCase
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/ConsultationAmendmentService.php');
         $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-28-140000_CreateConsultationAmendments.php');
-        foreach (['AMENDMENT_REASON_REQUIRED', 'consultation.amendment_requested', 'consultation.amendment_created', 'original_consultation_id', 'revision_number', 'revision_json', 'amendment_reason', 'transBegin', 'transCommit'] as $marker) {
+        foreach (['AMENDMENT_REASON_REQUIRED', 'consultation.amendment_requested', 'consultation.amendment_created', 'original_consultation_id', 'revision_number', 'revision_json', 'original_consultation', 'original_items', 'amendment_reason', 'transBegin', 'transCommit'] as $marker) {
             self::assertStringContainsString($marker, $service . $migration);
         }
         self::assertStringContainsString("where('status', 'completed')", $service);
@@ -32,10 +32,12 @@ final class ConsultationAmendmentTest extends TestCase
     public function testAmendmentInvalidatesOldOfferAndDoesNotUpdateExistingOrders(): void
     {
         $service = file_get_contents(ROOTPATH . 'app/Services/ConsultationAmendmentService.php');
-        foreach (['shopify_prescription_cart_pushes', 'whereIn(\'status\', [\'available\', \'cart_pushed\'])', "'status' => 'cancelled'", 'hasExistingOrder', 'pending_order_review', 'medicine_orders', 'shopify_order_imports'] as $marker) {
+        foreach (['shopify_prescription_cart_pushes', 'whereIn(\'status\', [\'available\', \'cart_pushed\'])', "'status' => 'cancelled'", 'hasExistingOrder', 'AMENDMENT_ORDER_LOCKED', 'medicine_orders', 'shopify_order_imports'] as $marker) {
             self::assertStringContainsString($marker, $service);
         }
         self::assertStringNotContainsString("->where('status', 'paid')->update", $service);
+        self::assertStringContainsString('prescriptionChanged', $service);
+        self::assertStringContainsString('consultationUpdate', $service);
     }
 
     public function testNewPrescriptionReferenceAndValidityAreRecalculated(): void
@@ -56,5 +58,13 @@ final class ConsultationAmendmentTest extends TestCase
         }
         self::assertStringContainsString("'revision_number' => ['type' => 'INT'", $migration);
         self::assertStringContainsString("'default' => 1", $migration);
+    }
+
+    public function testDoctorAmendmentModalUsesExistingAjaxFormAndCleansUp(): void
+    {
+        $view = file_get_contents(ROOTPATH . 'app/Modules/Doctor/Views/pages/clinical.php');
+        foreach (['clinical-amend-consultation', 'clinical-amendment-modal', 'clinical-amendment-reason', 'doctor/clinical/amend', 'workspaceForm.attr', 'ajaxRequest', 'reload_page', 'complete: function'] as $marker) {
+            self::assertStringContainsString($marker, $view);
+        }
     }
 }

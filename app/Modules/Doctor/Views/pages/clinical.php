@@ -716,6 +716,7 @@ $(function () {
             $('#clinical-amendment-reasonErr').text('');
             if (!reason) { $('#clinical-amendment-reasonErr').text('An amendment reason is required.'); return; }
             workspaceForm.find(':input').prop('disabled', false);
+            workspaceForm.find('select.btSelect').selectpicker('refresh');
             workspaceForm.find('input[name="amendment_reason"]').remove();
             $('<input>', {type: 'hidden', name: 'amendment_reason', value: reason}).appendTo(workspaceForm);
             workspaceForm.attr('action', '<?= base_url('doctor/clinical/amend') ?>').attr('data-amendment-mode', '1');
@@ -1852,6 +1853,9 @@ $(function () {
                 if (response.status) {
                     $('#clinical-feedback').text(response.msg);
                     showSuccess(response.msg);
+                    if (String(form.attr('action') || '').indexOf('/clinical/amend') !== -1) {
+                        reload_page(500);
+                    }
                     return;
                 }
                 bindWorkspaceErrors(form, response.errors || {});

@@ -75,6 +75,7 @@ const ROUTES = {
         edit   : BASE_URL + 'admin/consultations/edit/',
         save   : BASE_URL + 'admin/consultations/save',
         update : BASE_URL + 'admin/consultations/update/',
+        amend  : BASE_URL + 'admin/consultations/amend/',
         delete : BASE_URL + 'admin/consultations/delete/',
     },
 

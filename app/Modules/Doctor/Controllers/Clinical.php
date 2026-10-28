@@ -939,7 +939,12 @@ class Clinical extends BaseController
         } catch (Throwable $exception) {
             $code = $exception->getMessage();
             $status = in_array($code, ['AMENDMENT_REASON_REQUIRED', 'AMENDMENT_REASON_TOO_LONG'], true) ? 422 : 409;
-            return $this->json($status, false, $code === 'COMPLETED_CONSULTATION_REQUIRED' ? 'Only a completed consultation can be amended.' : 'Consultation amendment could not be saved safely.');
+            $message = match ($code) {
+                'COMPLETED_CONSULTATION_REQUIRED' => 'Only a completed consultation can be amended.',
+                'AMENDMENT_ORDER_LOCKED' => 'This consultation cannot be amended because an order or payment already exists. Ask a pharmacist or administrator to review it.',
+                default => 'Consultation amendment could not be saved safely.',
+            };
+            return $this->json($status, false, $message);
         }
     }
 

@@ -218,7 +218,10 @@ class Consultation extends BaseAdminController
             $result = (new ConsultationAmendmentService())->amend($id, $reason, $this->request->getPost(), ['doctor_id' => (int) $consultation['doctor_id'], 'clinic_id' => (int) $consultation['clinic_id'], 'admin_amendment' => true]);
             return $this->response->setJSON(['status' => true, 'msg' => $result['order_review_required'] ? 'Amendment saved and sent for pharmacist/admin order review.' : 'Consultation amendment saved.', 'data' => $result]);
         } catch (\Throwable $exception) {
-            return $this->response->setStatusCode(409)->setJSON(['status' => false, 'msg' => 'Consultation amendment could not be saved safely.']);
+            $message = $exception->getMessage() === 'AMENDMENT_ORDER_LOCKED'
+                ? 'This consultation cannot be amended because an order or payment already exists. Ask a pharmacist or administrator to review it.'
+                : 'Consultation amendment could not be saved safely.';
+            return $this->response->setStatusCode(409)->setJSON(['status' => false, 'msg' => $message]);
         }
     }
 
