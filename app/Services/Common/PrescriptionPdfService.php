@@ -17,10 +17,9 @@ class PrescriptionPdfService
         $page = [];
         $y = 42;
         $this->startPage($page, $prescription, $y);
-        $this->section($page, 'PRESCRIPTION DETAILS', $y);
+        $this->rxIdentity($page, $prescription, $y);
         $this->fields($page, $y, [
             ['Prescription reference', $this->value($prescription['prescription_number'] ?? null)],
-            ['Status', PrintFormatter::label($this->value($prescription['status'] ?? null))],
             ['Prescription date', $this->date($prescription['prescription_date'] ?? null)],
             ['Valid until', $this->date($prescription['valid_until'] ?? null)],
             ['Consultation', $this->value($prescription['consultation_number'] ?? null)],
@@ -32,20 +31,22 @@ class PrescriptionPdfService
             ['Patient reference', $this->value($prescription['registration_number'] ?? null)],
             ['Age / Gender', $this->patientAgeGender($prescription)],
             ['Contact', $this->value($prescription['patient_mobile'] ?? $prescription['mobile_number'] ?? null)],
+            ['Address', $this->value($prescription['patient_address'] ?? null)],
         ]);
         $this->section($page, 'MEDICINES', $y);
-        $headers = ['S.No.', 'Medicine', 'Strength', 'Dosage', 'Frequency', 'Duration', 'Quantity', 'Instructions'];
-        $widths = [30, 105, 52, 60, 65, 58, 42, 107];
+        $headers = ['No.', 'Medicine name', 'Strength / form', 'Dose', 'Route', 'Frequency', 'Duration', 'Qty', 'Instructions'];
+        $widths = [24, 125, 54, 48, 45, 45, 52, 40, 86];
         $this->tableHeader($page, $y, $headers, $widths);
         if ($items === []) {
-            $this->tableRow($page, $y, ['-', 'No prescription medicines', '', '', '', '', '', ''], $widths, true);
+            $this->tableRow($page, $y, ['', 'No prescription medicines', '', '', '', '', '', '', ''], $widths, true);
         } else {
             foreach ($items as $number => $item) {
                 $row = [
                     (string) ($number + 1),
                     $this->value($item['medicine_name'] ?? $item['medicine_catalog_name'] ?? null),
-                    $this->value($item['strength'] ?? null),
+                    trim($this->value($item['strength'] ?? $item['medicine_strength'] ?? null) . ' ' . $this->value($item['dosage_form'] ?? $item['medicine_form'] ?? $item['form'] ?? null)),
                     $this->value($item['dosage'] ?? null),
+                    $this->value($item['route'] ?? null),
                     $this->value($item['frequency'] ?? null),
                     trim($this->value($item['duration'] ?? null) . ' ' . $this->value($item['duration_unit'] ?? null)),
                     $this->value($item['quantity'] ?? null),
@@ -65,7 +66,7 @@ class PrescriptionPdfService
         }
         $this->textSection($page, $y, 'DOCTOR INSTRUCTIONS', $prescription['instructions'] ?? null);
         $this->textSection($page, $y, 'DOCTOR NOTES', $prescription['notes'] ?? null);
-        $followUp = trim(implode(' ', array_filter([$this->date($prescription['follow_up_date'] ?? null), $this->time($prescription['follow_up_time'] ?? null), $this->value($prescription['follow_up_remarks'] ?? null)], static fn ($value): bool => $value !== '-')));
+        $followUp = trim(implode(' ', array_filter([$this->date($prescription['follow_up_date'] ?? null), $this->time($prescription['follow_up_time'] ?? null), $this->value($prescription['follow_up_remarks'] ?? null)], static fn ($value): bool => $value !== '')));
         $this->textSection($page, $y, 'FOLLOW-UP', $followUp !== '' ? $followUp : null);
         if ($y + 58 > self::CONTENT_BOTTOM) {
             $pages[] = $page;
@@ -86,29 +87,42 @@ class PrescriptionPdfService
 
     private function startPage(array &$page, array $prescription, int &$y): void
     {
-        $this->text($page, self::LEFT, $y, 'ROOTINS', 22, true, [31, 78, 121]);
-        $this->text($page, 150, $y, 'Healthcare and Pharmacy', 10, false, [85, 85, 85]);
-        $y += 18;
-        $this->text($page, self::LEFT, $y, $this->value($prescription['clinic_name'] ?? null), 11, true, [31, 78, 121]);
+        $this->box($page, self::LEFT, $y - 20, self::LEFT + 30, 30, [31, 78, 121], [31, 78, 121]);
+        $this->text($page, self::LEFT + 8, $y + 1, 'R', 19, true, [255, 255, 255]);
+        $this->text($page, 78, $y, 'ROOTINS', 27, true, [31, 78, 121]);
+        $this->text($page, 225, $y - 1, 'Healthcare and Pharmacy', 13, true, [55, 65, 78]);
+        $y += 22;
+        $this->text($page, self::LEFT, $y, $this->value($prescription['clinic_name'] ?? null), 13, true, [31, 78, 121]);
         $y += 14;
-        $address = implode(' | ', array_filter([$this->value($prescription['clinic_address'] ?? null), $this->value($prescription['clinic_pincode'] ?? null) !== '-' ? 'PIN: ' . $this->value($prescription['clinic_pincode']) : null]));
-        $contact = implode(' | ', array_filter([$this->value($prescription['clinic_mobile'] ?? null) !== '-' ? 'Tel: ' . $this->value($prescription['clinic_mobile']) : null, $this->value($prescription['clinic_email'] ?? null) !== '-' ? $this->value($prescription['clinic_email']) : null]));
-        $this->text($page, self::LEFT, $y, $address !== '' ? $address : '-', 8);
-        $y += 11;
-        $this->text($page, self::LEFT, $y, $contact !== '' ? $contact : '-', 8);
-        $y += 13;
-        $doctorMeta = implode(' | ', array_filter([$this->value($prescription['qualification'] ?? null) !== '-' ? $this->value($prescription['qualification']) : null, $this->value($prescription['doctor_registration_number'] ?? null) !== '-' ? 'Reg. No.: ' . $this->value($prescription['doctor_registration_number']) : null]));
-        $this->text($page, self::LEFT, $y, 'Dr. ' . $this->fullName($prescription, 'doctor_'), 9, true);
-        $this->text($page, 250, $y, $doctorMeta !== '' ? $doctorMeta : '-', 8);
-        $y += 12;
+        $address = implode(' | ', array_filter([$this->value($prescription['clinic_address'] ?? null), $this->value($prescription['clinic_pincode'] ?? null) !== '' ? 'PIN: ' . $this->value($prescription['clinic_pincode']) : null]));
+        $contact = implode(' | ', array_filter([$this->value($prescription['clinic_mobile'] ?? null) !== '' ? 'Tel: ' . $this->value($prescription['clinic_mobile']) : null, $this->value($prescription['clinic_email'] ?? null) !== '' ? $this->value($prescription['clinic_email']) : null]));
+        if ($address !== '') { $this->text($page, self::LEFT, $y, $address, 10); $y += 14; }
+        if ($contact !== '') { $this->text($page, self::LEFT, $y, $contact, 10); $y += 14; }
+        $doctorMeta = implode(' | ', array_filter([$this->value($prescription['qualification'] ?? null), $this->value($prescription['doctor_specializations'] ?? null), $this->value($prescription['doctor_registration_number'] ?? null) !== '' ? 'Reg. No.: ' . $this->value($prescription['doctor_registration_number']) : null, $this->value($prescription['consultation_date'] ?? null) !== '' ? 'Consultation: ' . $this->date($prescription['consultation_date']) : null]));
+        $doctorLine = 'Dr. ' . $this->fullName($prescription, 'doctor_') . ($doctorMeta !== '' ? '  |  ' . $doctorMeta : '');
+        $this->text($page, self::LEFT, $y, $doctorLine, 10, true);
+        $y += 16;
         $this->line($page, self::LEFT, $y, self::RIGHT, $y, [190, 190, 190]);
         $y += 12;
     }
 
+    private function rxIdentity(array &$page, array $prescription, int &$y): void
+    {
+        $this->box($page, self::LEFT, $y, self::RIGHT, 64, [239, 247, 252], [171, 204, 222]);
+        $this->text($page, self::LEFT + 12, $y + 27, 'Rx', 25, true, [31, 78, 121]);
+        $this->text($page, self::LEFT + 55, $y + 19, $this->value($prescription['prescription_number'] ?? null), 15, true, [31, 78, 121]);
+        $this->text($page, self::LEFT + 55, $y + 39, 'Prescription', 9, false, [80, 95, 110]);
+        $this->text($page, 310, $y + 18, 'Date', 8, true, [80, 95, 110]);
+        $this->text($page, 350, $y + 18, $this->date($prescription['prescription_date'] ?? null), 10);
+        $this->text($page, 310, $y + 39, 'Valid until', 8, true, [80, 95, 110]);
+        $this->text($page, 350, $y + 39, $this->date($prescription['valid_until'] ?? null), 10);
+        $y += 78;
+    }
+
     private function section(array &$page, string $title, int &$y): void
     {
-        $this->text($page, self::LEFT, $y, $title, 9, true, [31, 78, 121]);
-        $y += 14;
+        $this->text($page, self::LEFT, $y, $title, 11, true, [31, 78, 121]);
+        $y += 17;
     }
 
     private function fields(array &$page, int &$y, array $fields): void
@@ -119,8 +133,8 @@ class PrescriptionPdfService
         foreach ($fields as $index => [$label, $value]) {
             $x = (int) (self::LEFT + ($index % 2) * $columnWidth + 9);
             $rowY = $y + (int) floor($index / 2) * 31;
-            $this->text($page, $x, $rowY + 8, $label, 7, true, [95, 95, 95]);
-            $this->text($page, $x, $rowY + 21, $this->truncate($value, 44), 9);
+            $this->text($page, $x, $rowY + 9, $label, 8, true, [95, 95, 95]);
+            $this->text($page, $x, $rowY + 24, $this->truncate($value, 44), 10);
         }
         $y += $height + 8;
     }
@@ -130,7 +144,7 @@ class PrescriptionPdfService
         $x = self::LEFT;
         $this->box($page, $x, $y, self::RIGHT, 22, [31, 78, 121], [31, 78, 121]);
         foreach ($headers as $index => $header) {
-            $this->text($page, $x + 4, $y + 15, $header, 7, true, [255, 255, 255]);
+            $this->text($page, $x + 4, $y + 15, $header, 8, true, [255, 255, 255]);
             $x += $widths[$index];
         }
         $y += 22;
@@ -144,7 +158,7 @@ class PrescriptionPdfService
         $x = self::LEFT;
         foreach ($row as $index => $value) {
             foreach ($lines[$index] as $lineIndex => $line) {
-                $this->text($page, $x + 4, $y + 14 + ($lineIndex * 11), $line, 7, false, $muted ? [110, 110, 110] : [35, 35, 35]);
+                $this->text($page, $x + 4, $y + 15 + ($lineIndex * 13), $line, 9, $index === 1 && !$muted, $muted ? [110, 110, 110] : [35, 35, 35]);
             }
             $x += $widths[$index];
         }
@@ -181,8 +195,8 @@ class PrescriptionPdfService
     private function footer(array &$page, int $pageNumber, int $total): void
     {
         $this->line($page, self::LEFT, 785, self::RIGHT, 785, [205, 205, 205]);
-        $this->text($page, self::LEFT, 802, 'Confidential medical document - ROOTINS', 7, false, [105, 105, 105]);
-        $this->text($page, 485, 802, 'Page ' . $pageNumber . ' of ' . $total, 7, false, [105, 105, 105]);
+        $this->text($page, self::LEFT, 802, 'Digitally generated prescription | Confidential medical document | ROOTINS', 8, false, [105, 105, 105]);
+        $this->text($page, 485, 802, 'Page ' . $pageNumber . ' of ' . $total, 8, false, [105, 105, 105]);
     }
 
     private function box(array &$page, int $x1, int $yTop, int $x2, int $height, array $fill, array $stroke): void
@@ -212,7 +226,7 @@ class PrescriptionPdfService
     private function wrap(string $value, int $width): array
     {
         $value = trim(preg_replace('/\s+/u', ' ', $value) ?: '');
-        if ($value === '') return ['-'];
+        if ($value === '') return [''];
         $lines = [];
         $line = '';
         foreach (preg_split('/\s+/u', $value) ?: [] as $word) {
@@ -232,7 +246,7 @@ class PrescriptionPdfService
             }
         }
         if ($line !== '') $lines[] = $line;
-        return $lines ?: ['-'];
+        return $lines ?: [''];
     }
 
     private function fullName(array $data, string $prefix): string
@@ -242,17 +256,17 @@ class PrescriptionPdfService
 
     private function patientAgeGender(array $record): string
     {
-        $age = '-';
+        $age = '';
         if (!empty($record['patient_date_of_birth'])) {
-            try { $age = (string) (new \DateTimeImmutable((string) $record['patient_date_of_birth']))->diff(new \DateTimeImmutable('today'))->y; } catch (\Throwable) { $age = '-'; }
+            try { $age = (string) (new \DateTimeImmutable((string) $record['patient_date_of_birth']))->diff(new \DateTimeImmutable('today'))->y; } catch (\Throwable) { $age = ''; }
         }
         $gender = $this->value($record['patient_gender'] ?? $record['gender'] ?? null);
-        return $age . ($gender !== '-' ? ' / ' . PrintFormatter::label($gender) : '');
+        return $age . ($gender !== '' ? ($age !== '' ? ' / ' : '') . PrintFormatter::label($gender) : '');
     }
 
-    private function date(mixed $value): string { return PrintFormatter::date($value !== null ? (string) $value : null) ?: '-'; }
-    private function time(mixed $value): string { return PrintFormatter::time($value !== null ? (string) $value : null) ?: '-'; }
-    private function value(mixed $value): string { $value = trim((string) $value); return $value === '' ? '-' : $value; }
+    private function date(mixed $value): string { return PrintFormatter::date($value !== null ? (string) $value : null); }
+    private function time(mixed $value): string { return PrintFormatter::time($value !== null ? (string) $value : null); }
+    private function value(mixed $value): string { return trim((string) $value); }
     private function truncate(string $value, int $length): string { return mb_strlen($value) > $length ? mb_substr($value, 0, $length - 1) . '...' : $value; }
 
     private function pdfString(string $value): string

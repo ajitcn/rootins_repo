@@ -300,8 +300,8 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
                                 <dd><span class="badge doctor-prescription-status-badge doctor-prescription-status-<?= esc($prescriptionStatusClass) ?>"><?= esc($prescriptionStatusLabel) ?></span></dd>
                             </div>
                             <div class="doctor-prescription-meta-item">
-                                <dt>Cart Sync</dt>
-                                <dd><span class="badge doctor-prescription-cart-sync-badge doctor-prescription-cart-sync-<?= esc($cartSyncStatusClass) ?>"><?= esc($cartSyncStatusLabel) ?></span><?php if (!empty($item['cart_sync_failure_reason'])): ?><small class="d-block text-danger"><?= esc($item['cart_sync_failure_reason']) ?></small><?php endif; ?></dd>
+                                <dt class="doctor-prescription-screen-only">Cart Sync</dt>
+                                <dd class="doctor-prescription-screen-only"><span class="badge doctor-prescription-cart-sync-badge doctor-prescription-cart-sync-<?= esc($cartSyncStatusClass) ?>"><?= esc($cartSyncStatusLabel) ?></span><?php if (!empty($item['cart_sync_failure_reason'])): ?><small class="d-block text-danger"><?= esc($item['cart_sync_failure_reason']) ?></small><?php endif; ?></dd>
                             </div>
                             <div class="doctor-prescription-meta-item">
                                 <dt>Valid until</dt>
@@ -334,7 +334,34 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
 
                         <h3 class="doctor-prescription-section-title">Prescribed Medicines<?= $medicineDuration !== '' ? ' (for ' . esc($medicineDuration) . ')' : '' ?></h3>
                         <div class="table-responsive doctor-prescription-table-wrap">
-                            <table class="table table-bordered table-sm doctor-prescription-table mb-0">
+                            <table class="table table-bordered doctor-prescription-clinical-table mb-0">
+                                <caption class="sr-only">Clinical medicine items for prescription <?= esc($item['prescription_number']) ?></caption>
+                                <thead><tr><th>No.</th><th>Medicine name</th><th>Strength / form</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Duration</th><th>Quantity</th><th>Instructions</th></tr></thead>
+                                <tbody>
+                                <?php if (($items[$prescriptionId] ?? []) === []): ?>
+                                    <tr><td colspan="9" class="text-muted">No prescription medicines.</td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($items[$prescriptionId] as $lineNumber => $line): ?>
+                                        <?php $duration = trim((string) ($line['duration'] ?? '') . ' ' . (string) ($line['duration_unit'] ?? '')); ?>
+                                        <tr>
+                                            <td><?= (int) $lineNumber + 1 ?></td>
+                                            <td><strong><?= esc($line['medicine_catalog_name'] ?: ($line['medicine_name'] ?? '')) ?></strong></td>
+                                            <td><?= esc(trim((string) ($line['strength'] ?? $line['medicine_strength'] ?? '') . ' ' . (string) ($line['dosage_form'] ?? $line['medicine_form'] ?? ($line['form'] ?? '')))) ?></td>
+                                            <td><?= esc($line['dosage'] ?? '') ?></td>
+                                            <td><?= esc($line['route'] ?? '') ?></td>
+                                            <td><?= esc($line['frequency'] ?? '') ?></td>
+                                            <td><?= esc($duration) ?></td>
+                                            <td><?= esc($line['quantity'] ?? '') ?></td>
+                                            <td><?= nl2br(esc($line['instructions'] ?? '')) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="table-responsive doctor-prescription-table-wrap">
+                            <table class="table table-bordered table-sm doctor-prescription-table doctor-prescription-legacy-table mb-0" aria-hidden="true">
                                 <caption class="sr-only">Medicine items for prescription <?= esc($item['prescription_number']) ?></caption>
                                 <thead>
                                     <tr>
@@ -372,6 +399,10 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
 
                         <h3 class="doctor-prescription-section-title">Attachments</h3>
                         <div class="doctor-prescription-empty-section mb-2" role="status">No attachments recorded for this prescription.</div>
+                        <div class="doctor-prescription-print-footer">
+                            <div class="doctor-prescription-signature"><span></span><strong>Doctor signature</strong><small>Digitally generated prescription</small></div>
+                            <div class="doctor-prescription-confidential">Confidential medical document<br><?= esc($item['prescription_number'] ?? '') ?></div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

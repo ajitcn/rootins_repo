@@ -17,6 +17,8 @@ final class PrescriptionDocumentTest extends TestCase
         self::assertStringContainsString('PAT-TEST-0001', $pdf);
         self::assertStringContainsString('Paracetamol', $pdf);
         self::assertStringContainsString('Page 1 of 1', $pdf);
+        self::assertStringNotContainsString('Cart Sync', $pdf);
+        self::assertStringNotContainsString('variant_id', $pdf);
     }
 
     public function testLongPrescriptionCreatesNumberedMultiplePages(): void

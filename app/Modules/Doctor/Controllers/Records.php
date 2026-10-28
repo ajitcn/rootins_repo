@@ -663,7 +663,7 @@ class Records extends BaseController
         $items = [];
 
         if ($prescriptions !== []) {
-            foreach (db_connect()->table('prescription_items')->select('prescription_items.*, medicines.medicine_name AS medicine_catalog_name')->join('medicines', 'medicines.id = prescription_items.medicine_id', 'left')->whereIn('prescription_items.prescription_id', array_column($prescriptions, 'id'))->orderBy('prescription_items.id')->get()->getResultArray() as $item) {
+            foreach (db_connect()->table('prescription_items')->select('prescription_items.*, medicines.medicine_name AS medicine_catalog_name, medicines.strength AS medicine_strength, medicines.dosage_form AS medicine_form')->join('medicines', 'medicines.id = prescription_items.medicine_id', 'left')->whereIn('prescription_items.prescription_id', array_column($prescriptions, 'id'))->orderBy('prescription_items.id')->get()->getResultArray() as $item) {
                 $items[(int) $item['prescription_id']][] = $item;
             }
         }
@@ -681,7 +681,7 @@ class Records extends BaseController
 
         $db = db_connect();
         $prescription = $db->table('prescriptions')
-            ->select('prescriptions.*, consultations.consultation_number, patients.registration_number, patients.email AS patient_email, patients.mobile_number AS patient_mobile, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, patients.date_of_birth AS patient_date_of_birth, patients.gender AS patient_gender, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name, doctors.qualification, doctors.registration_number AS doctor_registration_number, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.email AS clinic_email, clinics.pincode AS clinic_pincode, appointments.appointment_number')
+            ->select('prescriptions.*, consultations.consultation_number, consultations.consultation_date, patients.registration_number, patients.email AS patient_email, patients.mobile_number AS patient_mobile, patients.first_name AS patient_first_name, patients.middle_name AS patient_middle_name, patients.last_name AS patient_last_name, patients.date_of_birth AS patient_date_of_birth, patients.gender AS patient_gender, patients.address AS patient_address, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name, doctors.qualification, doctors.registration_number AS doctor_registration_number, (SELECT GROUP_CONCAT(ds.specialization_name ORDER BY ds.specialization_name SEPARATOR \' , \') FROM doctor_specialization_map dsm JOIN doctor_specializations ds ON ds.id = dsm.specialization_id WHERE dsm.doctor_id = doctors.id AND ds.status = 1) AS doctor_specializations, clinics.clinic_name, clinics.address AS clinic_address, clinics.mobile AS clinic_mobile, clinics.email AS clinic_email, clinics.pincode AS clinic_pincode, appointments.appointment_number')
             ->join('consultations', 'consultations.id = prescriptions.consultation_id')
             ->join('patients', 'patients.id = prescriptions.patient_id')
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
@@ -701,7 +701,7 @@ class Records extends BaseController
             return $this->response->setStatusCode(403)->setBody('Only completed prescriptions can be printed.');
         }
 
-        $items = $db->table('prescription_items')->select('prescription_items.*, medicines.medicine_name AS medicine_catalog_name')->join('medicines', 'medicines.id = prescription_items.medicine_id', 'left')->where('prescription_id', $id)->orderBy('prescription_items.id')->get()->getResultArray();
+        $items = $db->table('prescription_items')->select('prescription_items.*, medicines.medicine_name AS medicine_catalog_name, medicines.strength AS medicine_strength, medicines.dosage_form AS medicine_form')->join('medicines', 'medicines.id = prescription_items.medicine_id', 'left')->where('prescription_id', $id)->orderBy('prescription_items.id')->get()->getResultArray();
         $pdf = (new PrescriptionPdfService())->generate($prescription, $items);
         $reference = preg_replace('/[^A-Za-z0-9_-]/', '-', (string) ($prescription['prescription_number'] ?? $id)) ?: (string) $id;
         $this->audit('doctor.prescription_pdf_downloaded', $context, ['prescription_id' => $id, 'patient_id' => (int) $prescription['patient_id']]);
