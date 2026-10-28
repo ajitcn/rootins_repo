@@ -45,4 +45,16 @@ final class ConsultationAmendmentTest extends TestCase
             self::assertStringContainsString($marker, $service);
         }
     }
+
+    public function testAmendmentMigrationHasOneAutoColumnAndScopedForeignKeys(): void
+    {
+        $migration = file_get_contents(ROOTPATH . 'app/Database/Migrations/2026-10-28-140000_CreateConsultationAmendments.php');
+        self::assertSame(1, substr_count($migration, "'auto_increment' => true"));
+        self::assertStringContainsString('$this->forge->addPrimaryKey(\'id\')', $migration);
+        foreach (['consultations', 'appointments', 'prescriptions', 'doctors', 'clinics', 'users'] as $table) {
+            self::assertStringContainsString("'$table'", $migration);
+        }
+        self::assertStringContainsString("'revision_number' => ['type' => 'INT'", $migration);
+        self::assertStringContainsString("'default' => 1", $migration);
+    }
 }
