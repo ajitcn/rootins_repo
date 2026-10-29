@@ -196,5 +196,13 @@ final class PharmacyBillingTest extends CIUnitTestCase
         self::assertNull($missing['amount']);
         self::assertSame('Not available', $missing['amount_display']);
         self::assertSame('invoice.total', $missing['amount_source_type']);
+
+        $shopifyPaid = $method->invoke($service, $base + ['invoice_id' => null, 'invoice_total' => null, 'shopify_order_total' => '1000.00', 'shopify_currency' => 'INR']);
+        self::assertSame('INR 1,000.00', $shopifyPaid['amount_display']);
+        self::assertSame('shopify.order.total', $shopifyPaid['amount_source_type']);
+
+        $shopifyPayment = $method->invoke($service, $base + ['invoice_id' => null, 'invoice_total' => null, 'shopify_order_total' => null, 'shopify_currency' => 'INR', 'shopify_payment_payload_json' => '{"amount":"875.25"}']);
+        self::assertSame(875.25, $shopifyPayment['amount']);
+        self::assertSame('shopify.payment.total', $shopifyPayment['amount_source_type']);
     }
 }
