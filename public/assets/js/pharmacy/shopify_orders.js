@@ -219,6 +219,9 @@
         $row.find('.shopify-review-action').addClass('shopify-review-line-actions');
         $row.find('td[data-label="Medicine"] small, td[data-label="Shopify product / variant"] small').addClass('shopify-review-id');
     });
+    $('.shopify-review-workspace').addClass('pharmacist-review-section');
+    $('.shopify-review-workspace .shopify-review-table tbody').addClass('pharmacist-review-list');
+    $('.shopify-review-workspace .shopify-review-row').addClass('pharmacist-review-item');
 
     $('.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form')
         .addClass('shopify-order-operation-action-form')
