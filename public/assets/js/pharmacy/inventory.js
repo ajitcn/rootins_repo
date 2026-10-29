@@ -69,8 +69,18 @@
             }});
         });
         $('#pharmacy-inventory-create').on('shown.bs.modal', function () {
-            const select = $(this).find('.btSelect');
-            if (select.length && select.data('selectpicker')) select.selectpicker('refresh');
+            const select = $(this).find('#inventory-create-medicine');
+            if (!select.length || typeof select.selectpicker !== 'function') return;
+            if (select.data('selectpicker')) select.selectpicker('destroy');
+            select.selectpicker({
+                liveSearch: true,
+                dropupAuto: false,
+                container: 'body',
+                noneSelectedText: 'Select an option',
+                liveSearchPlaceholder: 'Type to search...'
+            });
+            const picker = select.data('selectpicker');
+            if (picker && picker.$menu) picker.$menu.addClass('pharmacy-inventory-medicine-dropdown');
         });
     });
 })(jQuery);
