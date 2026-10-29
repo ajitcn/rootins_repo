@@ -96,3 +96,30 @@ body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-detail
 @media (max-width: 767.98px) { .shopify-label-value-grid { grid-template-columns: 1fr; gap: 12px; } .shopify-detail-lines { min-width: 620px; } .shopify-process-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .shopify-process-modal .modal-content { max-height: calc(100vh - 16px); } .shopify-process-modal .modal-body { padding: 16px; } }
 @media (max-width: 767.98px) { .shopify-review-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.shopify-review-heading { display: block; }.shopify-review-table-wrap { overflow: visible; }.shopify-review-table { min-width: 0; }.shopify-review-table thead { display: none; }.shopify-review-table, .shopify-review-table tbody, .shopify-review-table tr, .shopify-review-table td { display: block; width: 100%; }.shopify-review-table tr { padding: 12px 0; border-bottom: 1px solid var(--shopify-border); }.shopify-review-table td { display: grid; grid-template-columns: 40% minmax(0, 1fr); gap: 10px; min-width: 0; padding: 8px 0; border: 0; }.shopify-review-table td::before { color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }.shopify-review-action { min-width: 0; }.shopify-review-controls { grid-template-columns: 1fr; }.shopify-history-panel { max-height: 300px; } }
 @media (max-width: 380px) { .pharmacy-shopify-summary-card .summary-icon { display: none; } .pharmacy-shopify-summary-card .summary-copy span { font-size: 10px; } .pharmacy-shopify-filters { grid-template-columns: 1fr; } .filter-search, .pharmacy-shopify-filter-actions { grid-column: auto; } }
+
+/* Detail review cards: keep the existing table/form contract while removing horizontal scrolling. */
+.shopify-history-panel { display: block; max-height: 360px; overflow: auto; }
+.shopify-history-panel[hidden] { display: none !important; }
+.shopify-history-panel.is-open { display: block; }
+.shopify-review-table-wrap { overflow: visible; }
+.shopify-review-table { display: block; min-width: 0; }
+.shopify-review-table thead { display: none; }
+.shopify-review-table tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.shopify-review-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--shopify-border); border-radius: 10px; background: #fff; box-shadow: 0 4px 14px rgba(31, 41, 55, .04); }
+.shopify-review-table tbody tr > td { display: flex; min-width: 0; flex-direction: column; gap: 5px; padding: 0; border: 0; overflow-wrap: anywhere; }
+.shopify-review-table tbody tr > td::before { color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.shopify-review-table tbody tr > td:last-child { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid var(--shopify-border); }
+.shopify-review-table .shopify-review-action { min-width: 0; }
+.shopify-review-table .shopify-review-controls { grid-template-columns: minmax(150px, .8fr) minmax(160px, 1.2fr) auto; align-items: stretch; }
+.shopify-review-table .shopify-review-controls .btn { min-width: 74px; }
+.shopify-review-table .shopify-status-chip { white-space: normal; overflow-wrap: anywhere; }
+
+@media (max-width: 767.98px) {
+    .shopify-review-table tbody { grid-template-columns: 1fr; gap: 10px; }
+    .shopify-review-table tbody tr { grid-template-columns: 1fr; padding: 12px; }
+    .shopify-review-table tbody tr > td:last-child { grid-column: auto; }
+    .shopify-review-table .shopify-review-controls { grid-template-columns: 1fr; width: 100%; }
+    .shopify-review-table .shopify-review-controls select,
+    .shopify-review-table .shopify-review-controls input,
+    .shopify-review-table .shopify-review-controls .btn { width: 100%; min-width: 0; }
+}

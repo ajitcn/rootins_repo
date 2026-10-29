@@ -259,9 +259,11 @@
     });
 
     $(document).off('click.shopifyHistory', '.shopify-history-toggle').on('click.shopifyHistory', '.shopify-history-toggle', function () {
-        var $button = $(this), panel = document.getElementById($button.attr('aria-controls')), expanded = $button.attr('aria-expanded') === 'true';
+        var $button = $(this), panel = document.getElementById($button.attr('aria-controls')), expanded = $button.attr('aria-expanded') === 'true', nextExpanded = !expanded, $panel = $(panel);
         if (!panel) return;
-        $button.attr('aria-expanded', expanded ? 'false' : 'true');
-        panel.hidden = expanded;
+        $button.attr('aria-expanded', nextExpanded ? 'true' : 'false').toggleClass('is-open', nextExpanded);
+        panel.hidden = !nextExpanded;
+        $panel.toggleClass('is-open', nextExpanded).css('display', nextExpanded ? '' : 'none');
+        $button.find('.shopify-history-chevron').toggleClass('bi-chevron-down', !nextExpanded).toggleClass('bi-chevron-up', nextExpanded);
     });
 }(window.jQuery));
