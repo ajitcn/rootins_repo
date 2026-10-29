@@ -136,6 +136,29 @@
         if (typeof window[isError ? 'showError' : 'showSuccess'] === 'function') window[isError ? 'showError' : 'showSuccess'](message || (isError ? 'The action could not be completed.' : 'Updated.'));
     }
 
+    function lineFeedback($row, message, isError) {
+        var $feedback = $row.find('.shopify-review-line-feedback');
+        if (!$feedback.length) $feedback = $('<small>', { 'class': 'shopify-review-line-feedback' }).appendTo($row.find('.shopify-review-line-actions').first());
+        $feedback.removeClass('is-success is-error').addClass(isError ? 'is-error' : 'is-success').text(message || (isError ? 'The line could not be saved.' : 'Line saved.'));
+    }
+
+    function setLineReviewLoading(form, loading) {
+        var $form = $(form), $row = $form.closest('.shopify-review-line-card'), $button = $form.find('button[type="submit"]');
+        if (!$row.length) return;
+        $row.toggleClass('is-saving', loading);
+        $form.find('select, input, button').each(function () {
+            var $control = $(this);
+            if (loading) $control.data('review-was-disabled', $control.prop('disabled')).prop('disabled', true);
+            else $control.prop('disabled', Boolean($control.data('review-was-disabled'))).removeData('review-was-disabled');
+        });
+        $button.attr('aria-busy', loading ? 'true' : 'false');
+        if (loading) {
+            $button.data('original-label', $button.text()).html('<span class="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>Saving');
+        } else {
+            $button.text($button.data('original-label') || 'Save').removeAttr('aria-busy');
+        }
+    }
+
     async function handle(form) {
         var $form = $(form), $button = $form.find('[type="submit"]');
         if ($button.prop('disabled')) return false;
@@ -189,6 +212,13 @@
         history.forEach(function (item) { html += '<tr><td>' + escapeHtml(item.created_at) + '</td><td>' + escapeHtml(item.action) + '</td><td>' + escapeHtml((item.from_status || '') + ' → ' + (item.to_status || '')) + '</td><td>' + escapeHtml(item.reason || item.error_message || '—') + '</td></tr>'; });
         return html + '</tbody></table></div>';
     }
+
+    $('.shopify-review-row').each(function () {
+        var $row = $(this);
+        $row.addClass('shopify-review-line-card shopify-review-line-grid');
+        $row.find('.shopify-review-action').addClass('shopify-review-line-actions');
+        $row.find('td[data-label="Medicine"] small, td[data-label="Shopify product / variant"] small').addClass('shopify-review-id');
+    });
 
     $('.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form')
         .addClass('shopify-order-operation-action-form')
@@ -245,16 +275,18 @@
         var form = this;
         if ($(form).data('busy')) return false;
         $(form).data('busy', true);
+        var $form = $(form), isLine = $form.hasClass('shopify-line-review-form'), $row = $form.closest('.shopify-review-line-card');
+        if (isLine) setLineReviewLoading(form, true);
         try {
             var body = new FormData(form);
             if (window.RootinsCsrf) window.RootinsCsrf.formData(body);
             var response = await fetchWithTimeout(form.action, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
             var payload = await parseJsonResponse(response);
-            feedback(payload.message || payload.msg || 'Review saved.', false);
+            if (isLine) lineFeedback($row, payload.message || payload.msg || 'Review saved.', false); else feedback(payload.message || payload.msg || 'Review saved.', false);
             if ($(form).hasClass('shopify-line-review-form')) await refreshReviewLine($(form).find('[name="line_id"]').val());
             else window.location.reload();
-        } catch (error) { feedback(error && error.message ? error.message : 'Review could not be saved safely.', true); }
-        finally { $(form).data('busy', false); clearStaleLoadingState(); }
+        } catch (error) { if (isLine) lineFeedback($row, error && error.message ? error.message : 'Review could not be saved safely.', true); else feedback(error && error.message ? error.message : 'Review could not be saved safely.', true); }
+        finally { if (isLine) setLineReviewLoading(form, false); $(form).data('busy', false); clearStaleLoadingState(); }
         return false;
     });
 

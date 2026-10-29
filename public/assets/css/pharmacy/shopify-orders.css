@@ -113,6 +113,19 @@ body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-detail
 .shopify-review-table .shopify-review-controls { grid-template-columns: minmax(150px, .8fr) minmax(160px, 1.2fr) auto; align-items: stretch; }
 .shopify-review-table .shopify-review-controls .btn { min-width: 74px; }
 .shopify-review-table .shopify-status-chip { white-space: normal; overflow-wrap: anywhere; }
+.shopify-review-workspace .shopify-review-line-card { min-width: 0; }
+.shopify-review-workspace .shopify-review-line-grid { display: grid; }
+.shopify-review-workspace .shopify-review-line-actions { min-width: 0; }
+.shopify-review-workspace .shopify-review-line-card > td { overflow-wrap: normal; word-break: normal; }
+.shopify-review-workspace .shopify-review-id { overflow-wrap: anywhere; word-break: break-word; user-select: text; }
+.shopify-review-workspace .shopify-review-line-card.is-saving { opacity: .78; }
+.shopify-review-workspace .shopify-review-line-feedback { display: block; font-weight: 700; }
+.shopify-review-workspace .shopify-review-line-feedback.is-success { color: #17603a; }
+.shopify-review-workspace .shopify-review-line-feedback.is-error { color: #9b2c2c; }
+.shopify-review-workspace .shopify-review-summary .shopify-review-metric:nth-child(1) { order: 1; }
+.shopify-review-workspace .shopify-review-summary .shopify-review-metric:nth-child(4) { order: 2; }
+.shopify-review-workspace .shopify-review-summary .shopify-review-metric:nth-child(2) { order: 3; }
+.shopify-review-workspace .shopify-review-summary .shopify-review-metric:nth-child(3) { order: 4; }
 
 @media (max-width: 767.98px) {
     .shopify-review-table tbody { grid-template-columns: 1fr; gap: 10px; }
