@@ -171,4 +171,30 @@ final class PharmacyBillingTest extends CIUnitTestCase
         self::assertStringContainsString('Duplicate refunds are not allowed.', $service);
         self::assertStringContainsString('$db->transBegin()', $service);
     }
+
+    public function testAmountUsesInvoiceTotalAndPreservesPendingUnavailableAndZeroStates(): void
+    {
+        $service = new BillingService(new PharmacyScope());
+        $method = (new ReflectionClass($service))->getMethod('normalize');
+        $method->setAccessible(true);
+        $base = ['id' => 77, 'order_number' => 'ORD-77', 'invoice_number' => 'INV-77', 'currency' => 'INR', 'subtotal' => 1234.5, 'tax' => 0, 'discount' => 0, 'payment_status' => 'paid', 'medicine_count' => 1, 'order_total' => 9999];
+
+        $withTotal = $method->invoke($service, $base + ['invoice_id' => 11, 'invoice_total' => '1234.50']);
+        self::assertSame(1234.5, $withTotal['amount']);
+        self::assertSame('INR 1,234.50', $withTotal['amount_display']);
+        self::assertSame('invoice.total', $withTotal['amount_source_type']);
+
+        $zero = $method->invoke($service, $base + ['invoice_id' => 12, 'invoice_total' => '0.00']);
+        self::assertSame(0.0, $zero['amount']);
+        self::assertSame('INR 0.00', $zero['amount_display']);
+
+        $pending = $method->invoke($service, $base + ['invoice_id' => null, 'invoice_total' => null]);
+        self::assertNull($pending['amount']);
+        self::assertSame('Pending', $pending['amount_display']);
+
+        $missing = $method->invoke($service, $base + ['invoice_id' => 13, 'invoice_total' => null]);
+        self::assertNull($missing['amount']);
+        self::assertSame('Not available', $missing['amount_display']);
+        self::assertSame('invoice.total', $missing['amount_source_type']);
+    }
 }
