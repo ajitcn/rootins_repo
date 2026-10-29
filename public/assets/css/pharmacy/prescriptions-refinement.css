@@ -5,6 +5,9 @@
 .pharmacy-review-page .pharmacy-review-card,
 .pharmacy-review-page .pharmacy-review-grid { min-width: 0; }
 .pharmacy-review-page .pharmacy-page-header { align-items: flex-start; padding-bottom: 4px; }
+.pharmacy-prescription-status-filter { display: flex; align-items: end; gap: 8px; max-width: 420px; margin-bottom: 12px; }
+.pharmacy-prescription-status-filter label { margin: 0; color: var(--ri-color-muted); font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.pharmacy-prescription-status-filter select { min-width: 150px; }
 .pharmacy-review-page .pharmacy-page-count { margin-top: 8px; }
 .pharmacy-review-page .pharmacy-filter-card { align-items: flex-end; }
 .pharmacy-review-page .pharmacy-filter-card .form-group { min-width: 0; }
@@ -71,6 +74,9 @@ body:has(.pharmacy-prescription-modal) .modal-backdrop { z-index: var(--ri-z-mod
 }
 
 @media (max-width: 575.98px) {
+    .pharmacy-prescription-status-filter { max-width: none; align-items: stretch; flex-wrap: wrap; }
+    .pharmacy-prescription-status-filter label { width: 100%; }
+    .pharmacy-prescription-status-filter select { flex: 1 1 150px; }
     .pharmacy-review-page .pharmacy-filter-card { display: block; }
     .pharmacy-review-page .pharmacy-filter-card .form-group,
     .pharmacy-review-page .pharmacy-filter-actions { width: 100%; margin-bottom: 8px; }

@@ -98,6 +98,35 @@
         $(form).attr('aria-busy', loading ? 'true' : 'false');
     }
 
+    function reviewBlocking(line) {
+        var state = String(line.review_status || line.status || 'awaiting_review').toLowerCase();
+        if (!Number(line.medicine_id || 0) || state === 'unmapped') return 'Unmapped medicine';
+        if (state === 'inactive') return 'Inactive medicine';
+        if (state === 'out_of_stock') return 'Out of stock';
+        if (state === 'prescription_missing') return 'Prescription missing';
+        if (state === 'prescription_invalid') return 'Prescription invalid';
+        if (state === 'rejected') return 'Pharmacist rejected';
+        if (line.prescription_required && ['approved', 'substituted', 'fulfilled'].indexOf(state) === -1) return 'Prescription required';
+        return '';
+    }
+
+    async function refreshReviewLine(lineId) {
+        var $page = $('#shopifyOrderDetailPage'), url = $page.data('details-url');
+        if (!$page.length || !url) return;
+        var response = await fetchWithTimeout(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }, 15000);
+        var payload = await parseJsonResponse(response), data = payload.data && payload.data.import ? payload.data.import : null;
+        if (!data) return;
+        var lines = data.lines || [], line = lines.find(function (item) { return Number(item.id) === Number(lineId); }), $row = $('.shopify-review-row[data-line-id="' + lineId + '"]');
+        if (!line || !$row.length) return;
+        var state = String(line.review_status || line.status || 'awaiting_review').replace(/_/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }), blocking = reviewBlocking(line), approved = ['approved', 'substituted', 'fulfilled'].indexOf(String(line.review_status || line.status || '').toLowerCase()) !== -1;
+        $row.find('[data-line-decision]').text(state).removeClass('is-approved is-awaiting is-blocked').addClass(approved ? 'is-approved' : (blocking ? 'is-blocked' : 'is-awaiting'));
+        $row.find('[data-line-blocking]').remove();
+        if (blocking) $('<small>', { 'class': 'shopify-blocking-reason', 'data-line-blocking': '', text: blocking }).appendTo($row.find('.shopify-review-action').first());
+        $row.find('select[name="action"] option[value="approve"]').prop('disabled', Boolean(blocking));
+        var $metrics = $('.shopify-review-metric strong'), approvedCount = lines.filter(function (item) { return ['approved', 'substituted', 'fulfilled'].indexOf(String(item.review_status || item.status || '').toLowerCase()) !== -1; }).length, blockedCount = lines.filter(function (item) { return reviewBlocking(item) !== ''; }).length;
+        if ($metrics.length >= 4) { $metrics.eq(0).text(lines.length); $metrics.eq(1).text(approvedCount); $metrics.eq(2).text(blockedCount); $metrics.eq(3).text(Math.max(0, lines.length - approvedCount - blockedCount)); }
+    }
+
     function showToast(message) { feedback(message, false); }
     function showErrorToast(message) { feedback(message, true); }
 
@@ -222,9 +251,17 @@
             var response = await fetchWithTimeout(form.action, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
             var payload = await parseJsonResponse(response);
             feedback(payload.message || payload.msg || 'Review saved.', false);
-            window.location.reload();
+            if ($(form).hasClass('shopify-line-review-form')) await refreshReviewLine($(form).find('[name="line_id"]').val());
+            else window.location.reload();
         } catch (error) { feedback(error && error.message ? error.message : 'Review could not be saved safely.', true); }
-        finally { $(form).data('busy', false); }
+        finally { $(form).data('busy', false); clearStaleLoadingState(); }
         return false;
+    });
+
+    $(document).off('click.shopifyHistory', '.shopify-history-toggle').on('click.shopifyHistory', '.shopify-history-toggle', function () {
+        var $button = $(this), panel = document.getElementById($button.attr('aria-controls')), expanded = $button.attr('aria-expanded') === 'true';
+        if (!panel) return;
+        $button.attr('aria-expanded', expanded ? 'false' : 'true');
+        panel.hidden = expanded;
     });
 }(window.jQuery));

@@ -3,6 +3,7 @@ $current = $_GET ?? [];
 $listQuery = http_build_query(array_merge($current, ['view' => 'list', 'page' => 1]));
 $gridQuery = http_build_query(array_merge($current, ['view' => 'grid', 'page' => 1]));
 ?>
+<form class="pharmacy-prescription-status-filter" method="get" action="<?= base_url('pharmacy/prescriptions') ?>"><input type="hidden" name="view" value="<?= esc($view ?? 'list') ?>"><input type="hidden" name="search" value="<?= esc($filters['search'] ?? '') ?>"><label for="pharmacy-prescription-status">Status</label><select class="form-control form-control-sm" id="pharmacy-prescription-status" name="status"><option value="">All</option><?php foreach (['completed' => 'Completed', 'draft' => 'Draft', 'expired' => 'Expired', 'cancelled' => 'Cancelled', 'cart_synced' => 'Cart synced', 'ordered' => 'Ordered', 'awaiting_review' => 'Awaiting review'] as $filterStatus => $filterLabel): ?><option value="<?= esc($filterStatus) ?>" <?= ($filters['status'] ?? '') === $filterStatus ? 'selected' : '' ?>><?= esc($filterLabel) ?></option><?php endforeach; ?></select><button class="btn btn-sm btn-outline-primary" type="submit">Apply</button></form>
 <?php $this->setData([
     'eyebrow' => 'Operations / clinical fulfilment',
     'title' => 'Prescription review',

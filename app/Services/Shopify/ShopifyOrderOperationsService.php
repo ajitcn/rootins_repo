@@ -649,10 +649,12 @@ GRAPHQL;
         unset($import);
         $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $imports)));
         if ($ids === []) return $imports;
-        $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, l.status, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
+        $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, l.status, l.review_status, v.prescription_required, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->join('shopify_order_imports oi', 'oi.id = l.import_id', 'inner')->join('shopify_variant_catalogue v', 'v.store_domain = oi.store_domain AND v.shopify_variant_id = l.shopify_variant_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();
         $summaries = [];
+        $linesByImport = [];
         foreach ($lineRows as $line) {
             $importId = (int) $line['import_id'];
+            $linesByImport[$importId][] = $line;
             $name = trim((string) ($line['medicine_name'] ?? '')) ?: trim((string) ($line['title_snapshot'] ?? '')) ?: 'Unmapped medicine';
             $summaries[$importId]['count'] = ($summaries[$importId]['count'] ?? 0) + 1;
             $summaries[$importId]['names'][] = $name;
@@ -680,6 +682,7 @@ GRAPHQL;
                 $import['mapping_status'] = 'mapped';
                 if (($import['status'] ?? '') === 'pending_mapping') $import['status'] = 'ready_to_import';
             }
+            $this->decoratePrescriptionReferences($import, $linesByImport[(int) $import['id']] ?? []);
         }
         unset($import);
         return $imports;
@@ -705,6 +708,84 @@ GRAPHQL;
 
         $import['prescription_document_id'] = $document['id'] ?? null;
         if ($document !== null && $status === '') $import['prescription_required'] = true;
+
+        $this->decoratePrescriptionReferences($import, []);
+    }
+
+    /**
+     * Read-only display enrichment for Pharmacy. This deliberately resolves
+     * existing linkage; it does not create or repair import records.
+     * @param array<string,mixed> $import
+     * @param array<int,array<string,mixed>> $lines
+     */
+    private function decoratePrescriptionReferences(array &$import, array $lines): void
+    {
+        $db = db_connect();
+        $candidates = [];
+        $add = static function (array &$items, mixed $id, mixed $reference): void {
+            $id = (int) $id; $reference = trim((string) $reference);
+            if ($id > 0 || $reference !== '') $items[] = ['id' => $id, 'reference' => $reference];
+        };
+        foreach (preg_split('/\s*[,|]\s*/', trim((string) ($import['prescription_reference'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $legacyReference) $add($candidates, 0, $legacyReference);
+        if ($db->tableExists('shopify_prescription_order_links')) {
+            foreach ($db->table('shopify_prescription_order_links')
+                ->where('import_id', (int) ($import['id'] ?? 0))
+                ->where('store_domain', (string) ($import['store_domain'] ?? ''))
+                ->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))
+                ->where('clinic_id', (int) ($import['clinic_id'] ?? 0))
+                ->where('patient_id', (int) ($import['patient_id'] ?? 0))
+                ->get()->getResultArray() as $link) {
+                foreach (preg_split('/\s*[,|]\s*/', trim((string) ($link['prescription_reference'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [''] as $linkReference) $add($candidates, $link['prescription_id'] ?? 0, $linkReference);
+            }
+        }
+        if ((int) ($import['last_event_id'] ?? 0) > 0) {
+            $event = (new ShopifyWebhookEventService())->find((int) $import['last_event_id']);
+            $payload = is_array($event) ? json_decode((string) ($event['payload_json'] ?? ''), true) : null;
+            $collectReferences = static function (mixed $value) use (&$collectReferences, &$candidates, $add): void {
+                if (is_array($value)) { foreach ($value as $key => $child) { if (in_array(strtolower((string) $key), ['prescription_reference', 'rootins_prescription_reference', 'rootins_prescription_references'], true)) foreach (preg_split('/\s*[,|]\s*/', (string) $child, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $reference) if (preg_match('/^RX[PN]-[A-Z0-9-]{6,191}$/', trim($reference))) $add($candidates, 0, trim($reference)); $collectReferences($child); } }
+            };
+            $collectReferences($payload);
+        }
+        if ((int) ($import['rootins_order_id'] ?? 0) > 0 && $db->tableExists('medicine_orders')) {
+            foreach ($db->table('medicine_orders')->select('prescription_id')->where('id', (int) $import['rootins_order_id'])->where('clinic_id', (int) $import['clinic_id'])->get()->getResultArray() as $row) $add($candidates, $row['prescription_id'] ?? 0, '');
+        }
+        if ($lines !== [] && $db->tableExists('medicine_order_items') && $db->tableExists('medicine_orders')) {
+            foreach ($lines as $line) if ((int) ($line['rootins_order_item_id'] ?? 0) > 0) {
+                $row = $db->table('medicine_order_items moi')->select('mo.prescription_id')->join('medicine_orders mo', 'mo.id = moi.order_id', 'inner')->where('moi.id', (int) $line['rootins_order_item_id'])->where('mo.clinic_id', (int) ($import['clinic_id'] ?? 0))->get(1)->getRowArray();
+                if ($row !== null) $add($candidates, $row['prescription_id'] ?? 0, '');
+            }
+        }
+        foreach ($candidates as $candidate) {
+            $query = $db->table('prescriptions p')->select('p.id, p.prescription_number, p.status')->join('patients pt', 'pt.id = p.patient_id', 'inner')->where('p.clinic_id', (int) ($import['clinic_id'] ?? 0))->where('p.patient_id', (int) ($import['patient_id'] ?? 0));
+            if ($candidate['id'] > 0) $query->where('p.id', $candidate['id']);
+            elseif ($candidate['reference'] !== '') $query->where('p.prescription_number', $candidate['reference']);
+            else continue;
+            $prescription = $query->get(1)->getRowArray();
+            if ($prescription === null) continue;
+            $key = (int) $prescription['id'];
+            $import['_prescription_candidates'][$key] = $prescription;
+        }
+        $references = [];
+        foreach (($import['_prescription_candidates'] ?? []) as $prescription) {
+            $medicineIds = array_map('intval', array_column($db->table('prescription_items')->select('medicine_id')->where('prescription_id', (int) $prescription['id'])->get()->getResultArray(), 'medicine_id'));
+            $count = 0; $names = [];
+            foreach ($lines as $line) if ((int) ($line['medicine_id'] ?? 0) > 0 && in_array((int) $line['medicine_id'], $medicineIds, true)) { $count++; $names[] = (string) ($line['medicine_name'] ?? $line['title_snapshot'] ?? 'Medicine'); }
+            $references[] = ['id' => (int) $prescription['id'], 'reference' => (string) $prescription['prescription_number'], 'status' => (string) ($prescription['status'] ?? ''), 'medicine_count' => $count, 'medicine_names' => array_values(array_unique($names)), 'url' => base_url('admin/prescriptions/view/' . (int) $prescription['id'])];
+        }
+        usort($references, static fn (array $a, array $b): int => strcmp($a['reference'], $b['reference']));
+        unset($import['_prescription_candidates']);
+        $import['prescription_references'] = $references;
+        $import['prescription_reference_count'] = count($references);
+        $import['prescription_display_status'] = $references !== [] ? 'linked' : $this->displayPrescriptionState($import, $lines);
+    }
+
+    /** @param array<string,mixed> $import @param array<int,array<string,mixed>> $lines */
+    private function displayPrescriptionState(array $import, array $lines): string
+    {
+        $status = strtolower(trim((string) ($import['prescription_status'] ?? '')));
+        if (! empty($import['prescription_document_id'])) return in_array($status, ['rejected', 'invalid'], true) ? 'rejected' : ($status === 'awaiting_review' ? 'awaiting_review' : 'uploaded');
+        foreach ($lines as $line) if (! empty($line['prescription_required']) || in_array((string) ($line['review_status'] ?? ''), ['prescription_required', 'prescription_missing'], true)) return in_array((string) ($line['review_status'] ?? ''), ['prescription_invalid', 'rejected'], true) ? 'rejected' : 'missing';
+        return $status === 'invalid' ? 'rejected' : ($status === 'awaiting_review' ? 'awaiting_review' : 'not_required');
     }
 
     public function counters(?int $clinicId = null): array
@@ -743,6 +824,7 @@ GRAPHQL;
         else $prescriptionQuery->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
         $prescription = $prescriptionQuery->get(1)->getRowArray();
         $import['prescription_document_id'] = $prescription['id'] ?? null;
+        $this->decoratePrescriptionReferences($import, $lines);
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
         $import['intent_present'] = $this->appointmentIntentPresent($event);
         $latestHistory = $history[0] ?? [];

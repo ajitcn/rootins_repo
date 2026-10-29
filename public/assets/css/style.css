@@ -8349,3 +8349,67 @@ body.modal-open { padding-right: 0 !important; overflow: hidden; }
   .doctor-prescriptions-page .doctor-prescription-list-table td > * { max-width: 100%; }
   .doctor-prescriptions-page .doctor-prescription-list-actions { padding-top: .45rem !important; border-top: 0 !important; text-align: right !important; }
 }
+
+/* Final prescription-pane cascade: this intentionally follows the responsive
+ * rules and is scoped so no other clinical section inherits these colors. */
+#clinical-pane-prescription .form-control,
+#clinical-pane-prescription .btSelect,
+#clinical-pane-prescription input,
+#clinical-pane-prescription select,
+#clinical-pane-prescription textarea,
+#clinical-pane-prescription .bootstrap-select,
+#clinical-pane-prescription .bootstrap-select > .dropdown-toggle,
+#clinical-pane-prescription .bootstrap-select .filter-option,
+#clinical-pane-prescription .bootstrap-select .filter-option-inner,
+#clinical-pane-prescription .bootstrap-select .filter-option-inner-inner {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  caret-color: #0f172a !important;
+}
+
+#clinical-pane-prescription input::placeholder,
+#clinical-pane-prescription textarea::placeholder,
+#clinical-pane-prescription .bootstrap-select .filter-option-inner-inner,
+#clinical-pane-prescription .validation-error {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+#clinical-pane-prescription .validation-error {
+  color: #b91c1c !important;
+}
+
+#clinical-pane-prescription svg {
+  color: #334155 !important;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+#clinical-pane-prescription .dropdown-toggle::after {
+  border-top-color: #334155 !important;
+}
+
+#clinical-pane-prescription button,
+#clinical-pane-prescription button i,
+#clinical-pane-prescription button svg,
+#clinical-pane-prescription .fa,
+#clinical-pane-prescription .bi {
+  color: #334155 !important;
+}
+
+#clinical-pane-prescription .clinical-prescription-header {
+  background-color: var(--ri-clinical-header, #1f2937) !important;
+}
+
+#clinical-pane-prescription .clinical-prescription-header h2 {
+  color: #ffffff !important;
+}
+
+#clinical-pane-prescription .clinical-prescription-header button,
+#clinical-pane-prescription .clinical-prescription-header button i,
+#clinical-pane-prescription .clinical-prescription-header button svg {
+  color: #334155 !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
