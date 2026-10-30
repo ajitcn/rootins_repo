@@ -47,7 +47,7 @@
 
     function bindPublication(publication, container, participantSid, muted) {
         if (!publication) return;
-        if (publication.isSubscribed && publication.track) attach(publication.track, container, participantSid, muted);
+        if (publication.track && (muted || publication.isSubscribed)) attach(publication.track, container, participantSid, muted);
         publication.on('subscribed', function (track) { attach(track, container, participantSid, muted); });
         publication.on('unsubscribed', removeTrack);
     }
