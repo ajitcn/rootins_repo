@@ -1147,6 +1147,9 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .patient-video-stage .twilio-video-track { min-height: 0 !important; width: 100% !important; height: 100% !important; object-fit: contain !important; background: #050914 !important; }
 .patient-video-stage:has(.twilio-video-track) .video-empty-label { display: none !important; }
 .patient-video-stage .patient-video-local:not(:has(.twilio-video-track)) { display: none !important; }
+.patient-video-stage:fullscreen { width: 100vw !important; height: 100vh !important; max-height: none !important; aspect-ratio: auto !important; border-radius: 0 !important; }
+.patient-video-stage:fullscreen .patient-video-local { width: 14rem !important; height: 8.75rem !important; }
+.patient-video-stage:fullscreen.is-local-main .patient-video-remote { width: 14rem !important; height: 8.75rem !important; }
 @media (min-width: 768px) {
   .patient-video-stage { height: min(70vh, 34rem) !important; aspect-ratio: 16 / 9 !important; }
   .patient-video-stage .patient-video-local { inset: auto .8rem .8rem auto !important; width: 10rem !important; height: 6.25rem !important; }
