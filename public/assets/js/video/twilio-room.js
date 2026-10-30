@@ -24,6 +24,8 @@
         if (participantSid) element.setAttribute('data-participant', participantSid);
         element.muted = !!muted;
         container.appendChild(element);
+        container.classList.add('has-track');
+        if (track.kind === 'video') container.classList.add('has-video');
         var root = container.closest('[data-appointment-id]') || container.closest('main');
         if (root) {
             root.classList.add('is-video-connected');

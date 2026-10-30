@@ -383,6 +383,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
 <?= $this->section('scripts') ?>
 <script src="https://sdk.twilio.com/js/video/releases/2.29.0/twilio-video.min.js"></script>
 <script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.5') ?>"></script>
+<script src="<?= base_url('assets/js/video/video-ui.js?v=20261030.1') ?>"></script>
 <script>
 $(function () {
     const createForm = $('#doctor-appointment-create-form');
@@ -463,6 +464,7 @@ $(function () {
                 panel.find('.doctor-video-stage').addClass('is-connected');
                 panel.find('.doctor-video-stage-title').text('Connected');
                 panel.find('.doctor-video-connection').text('You are connected to the secure consultation room.');
+                panel.find('.js-video-join, .js-video-mute, .js-video-camera, .js-video-end').prop('disabled', false);
                 const stage = panel.find('.doctor-video-stage')[0];
                 if (stage) {
                     stage.addEventListener('rootins:video:reconnecting', function () { panel.find('.doctor-video-connection').text('Connection interrupted. Reconnecting automatically…'); });

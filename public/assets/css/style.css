@@ -1104,14 +1104,20 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .doctor-video-provider-alert strong, .doctor-video-provider-alert span { display: block; }
 .doctor-video-provider-alert span { margin-top: .1rem; color: #806d3a; font-size: .72rem; }
 .doctor-video-stage { min-height: 15rem; margin: .25rem 0 1rem; padding: 2.25rem 1.25rem; border: 1px solid rgba(31, 41, 64, .12); border-radius: .7rem; background: #242424; color: #f8f9fa; }
-.doctor-video-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; width: min(100%, 42rem); margin-top: 1rem; }
-.doctor-video-local, .doctor-video-remote { min-height: 8rem; border-radius: .55rem; overflow: hidden; background: #182235; }
-.doctor-video-media-grid:has(.doctor-video-local:empty) .doctor-video-local, .doctor-video-media-grid:has(.doctor-video-remote:empty) .doctor-video-remote { display: none; }
-.doctor-video-media-grid video { display: block; width: 100%; height: 100%; min-height: 8rem; object-fit: cover; }
+.doctor-video-media-grid { position: relative; width: min(100%, 48rem); min-height: 22rem; margin-top: 1rem; border-radius: .7rem; overflow: hidden; background: #111827; }
+.doctor-video-local, .doctor-video-remote { position: absolute; inset: 0; min-height: 0; border-radius: .55rem; overflow: hidden; background: #182235; }
+.doctor-video-local:not(.has-video), .patient-video-local:not(.has-video) { display: none; }
+.doctor-video-local { z-index: 2; top: auto; right: .8rem; bottom: .8rem; left: auto; width: 10rem; height: 6.25rem; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 .4rem 1rem rgba(0,0,0,.35); }
+.doctor-video-remote { z-index: 1; }
+.doctor-video-media-grid.is-local-main .doctor-video-local { inset: 0; z-index: 1; width: auto; height: auto; border: 0; box-shadow: none; }
+.doctor-video-media-grid.is-local-main .doctor-video-remote { top: auto; right: .8rem; bottom: .8rem; left: auto; z-index: 2; width: 10rem; height: 6.25rem; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 .4rem 1rem rgba(0,0,0,.35); }
+.doctor-video-media-grid video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
 .doctor-video-stage.is-connected { border-color: #4d9b74; background: #263d36; }
 .doctor-video-stage-orb { display: inline-flex; width: 3.35rem; height: 3.35rem; align-items: center; justify-content: center; margin-bottom: .75rem; border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .1); font-size: 1.35rem; }
 .doctor-video-stage-orb.is-hidden { display: none; }
-.doctor-video-media-grid .twilio-video-track { display: block; width: 100%; height: 100%; min-height: 8rem; object-fit: cover; background: #111827; }
+.doctor-video-media-grid .twilio-video-track { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; background: #111827; }
+.video-empty-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: .75rem; color: #b9c7da; font-size: .78rem; text-align: center; pointer-events: none; }
+.doctor-video-local.has-video .video-empty-label, .doctor-video-remote.has-video .video-empty-label, .patient-video-local.has-video .video-empty-label, .patient-video-remote.has-video .video-empty-label { display: none; }
 .doctor-video-stage-title { color: #fff; font-size: 1rem; }
 .doctor-video-stage .doctor-video-connection { max-width: 34rem; margin-top: .3rem; color: #b9c8dc; font-size: .78rem; text-align: center; }
 .doctor-video-provider-chip { display: inline-block; margin-top: .9rem; padding: .28rem .55rem; border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; color: #c9d6e9; font-size: .66rem; }
@@ -1121,6 +1127,17 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .doctor-video-controls .btn-video-icon.active, .doctor-video-controls .btn-video-icon[aria-pressed="true"] { color: #fff; background: #1f2940; }
 .doctor-video-panel-note { display: flex; align-items: flex-start; gap: .35rem; margin-top: .75rem; padding-top: .7rem; border-top: 1px solid rgba(31, 41, 64, .1); color: var(--ri-muted); font-size: .68rem; line-height: 1.45; }
 .doctor-video-panel-note i { color: #13795b; }
+.patient-video-stage { position: relative; display: block !important; min-height: 32rem; padding: 0 !important; background: #111827 !important; }
+.patient-video-stage .patient-video-remote, .patient-video-stage .patient-video-local { position: absolute; inset: 0; min-height: 0; border: 0; border-radius: 0; background: #182235; }
+.patient-video-stage .patient-video-local { z-index: 2; top: auto; right: 1rem; bottom: 1rem; left: auto; width: 12rem; height: 7.5rem; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 .5rem 1.2rem rgba(0,0,0,.4); }
+.patient-video-stage .patient-video-remote { z-index: 1; }
+.patient-video-stage.is-local-main .patient-video-local { inset: 0; z-index: 1; width: auto; height: auto; border: 0; box-shadow: none; }
+.patient-video-stage.is-local-main .patient-video-remote { top: auto; right: 1rem; bottom: 1rem; left: auto; z-index: 2; width: 12rem; height: 7.5rem; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 .5rem 1.2rem rgba(0,0,0,.4); }
+.patient-video-stage .twilio-video-track { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; background: #111827; }
+.patient-video-stage .patient-video-placeholder { z-index: 3; }
+.patient-video-stage .patient-video-local:before, .patient-video-stage .patient-video-remote:before { z-index: 4; }
+.patient-video-stage .video-empty-label { z-index: 1; }
+.patient-video-stage .patient-video-local.has-video .video-empty-label, .patient-video-stage .patient-video-remote.has-video .video-empty-label { display: none; }
 .doctor-video-consultation-modal .modal-content { overflow: hidden; border: 0; border-radius: .8rem; box-shadow: 0 1rem 2.5rem rgba(18, 29, 49, .22); }
 .doctor-video-consultation-modal .modal-header, #doctor-video-consultation-modal .modal-header { min-height: 3.5rem; color: #fff; border-bottom: 0; background: #1f2940; }
 .doctor-video-consultation-modal .modal-title, #doctor-video-consultation-modal .modal-title { font-size: .95rem; font-weight: 800; }
@@ -1134,9 +1151,12 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
   .doctor-video-context { grid-template-columns: 1fr; gap: .55rem; }
   .doctor-video-context-item { padding: .45rem 0 0 0; border-top: 1px solid rgba(31, 41, 64, .1); border-left: 0; }
   .doctor-video-stage { min-height: 12rem; padding: 1.5rem 1rem; }
-  .doctor-video-media-grid { grid-template-columns: 1fr; }
+  .doctor-video-media-grid { min-height: 16rem; }
+  .doctor-video-local, .doctor-video-media-grid.is-local-main .doctor-video-remote { width: 7.5rem; height: 4.75rem; right: .55rem; bottom: .55rem; }
   .doctor-video-controls { position: sticky; bottom: -.85rem; z-index: 2; margin: 0 -.85rem; padding: .75rem .85rem; background: rgba(255, 255, 255, .96); box-shadow: 0 -.4rem .9rem rgba(31, 41, 64, .08); }
   .doctor-video-controls .btn:not(.btn-video-icon) { flex: 1 1 calc(50% - .5rem); }
+  .patient-video-stage { min-height: 24rem; }
+  .patient-video-stage .patient-video-local, .patient-video-stage.is-local-main .patient-video-remote { width: 7.5rem; height: 4.75rem; right: .65rem; bottom: .65rem; }
 }
 @media (max-width: 767.98px) {
   .doctor-video-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
