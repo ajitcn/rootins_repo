@@ -47,11 +47,13 @@ class Portal extends BaseController
         $db = db_connect();
         $patientId = $context['patient']['id'];
         $clinicId = $context['patient']['clinic_id'];
+        $isGlobalPatient = (int) $clinicId <= 0;
         $pageSize = (int) ($this->request->getGet('page_size') ?? 15);
         $pageSize = in_array($pageSize, [10, 15, 25, 50], true) ? $pageSize : 15;
         $search = trim((string) $this->request->getGet('search'));
         $appointmentStatus = trim((string) $this->request->getGet('appointment_status'));
-        $appointmentQuery = $db->table('appointments')->select('appointments.*, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')->join('doctors', 'doctors.id = appointments.doctor_id')->where('appointments.patient_id', $patientId)->where('appointments.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
+        $appointmentQuery = $db->table('appointments')->select('appointments.*, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')->join('doctors', 'doctors.id = appointments.doctor_id')->where('appointments.patient_id', $patientId)->where('doctors.status', 1);
+        if (!$isGlobalPatient) $appointmentQuery->where('appointments.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
 
         if ($search !== '') {
             $appointmentQuery->groupStart()->like('appointments.appointment_number', $search)->orLike('doctors.first_name', $search)->orLike('doctors.last_name', $search)->orLike('appointments.appointment_type', $search)->groupEnd();
@@ -64,8 +66,11 @@ class Portal extends BaseController
         $appointmentPages = max(1, (int) ceil($appointmentTotal / $pageSize));
         $appointmentPage = min(max(1, (int) ($this->request->getGet('appointments_page') ?? 1)), $appointmentPages);
         $appointments = $appointmentQuery->orderBy('appointments.appointment_date', 'DESC')->orderBy('appointments.appointment_time', 'DESC')->limit($pageSize, ($appointmentPage - 1) * $pageSize)->get()->getResultArray();
-        $doctors = $db->table('doctors')->select('id, first_name, last_name, doctor_code, qualification, online_booking')->where('clinic_id', $clinicId)->where('status', 1)->where('online_booking', 1)->orderBy('display_order')->orderBy('first_name')->get()->getResultArray();
-        $visitQuery = $db->table('consultations')->select('consultations.consultation_number, consultations.consultation_date, consultations.consultation_time, consultations.chief_complaint, consultations.clinical_notes, consultations.diagnosis, consultations.treatment_plan, consultations.follow_up_date, consultations.status, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')->join('doctors', 'doctors.id = consultations.doctor_id')->where('consultations.patient_id', $patientId)->where('consultations.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
+        $doctors = $db->table('doctors')->select('id, first_name, last_name, doctor_code, qualification, online_booking')->where('status', 1)->where('online_booking', 1)->orderBy('display_order')->orderBy('first_name');
+        if (!$isGlobalPatient) $doctors->where('clinic_id', $clinicId);
+        $doctors = $doctors->get()->getResultArray();
+        $visitQuery = $db->table('consultations')->select('consultations.consultation_number, consultations.consultation_date, consultations.consultation_time, consultations.chief_complaint, consultations.clinical_notes, consultations.diagnosis, consultations.treatment_plan, consultations.follow_up_date, consultations.status, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')->join('doctors', 'doctors.id = consultations.doctor_id')->where('consultations.patient_id', $patientId)->where('doctors.status', 1);
+        if (!$isGlobalPatient) $visitQuery->where('consultations.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
 
         if ($search !== '') {
             $visitQuery->groupStart()->like('consultations.consultation_number', $search)->orLike('doctors.first_name', $search)->orLike('doctors.last_name', $search)->groupEnd();
@@ -74,7 +79,8 @@ class Portal extends BaseController
         $visitPages = max(1, (int) ceil($visitTotal / $pageSize));
         $visitPage = min(max(1, (int) ($this->request->getGet('visits_page') ?? 1)), $visitPages);
         $visits = $visitQuery->orderBy('consultations.consultation_date', 'DESC')->limit($pageSize, ($visitPage - 1) * $pageSize)->get()->getResultArray();
-        $prescriptionQuery = $db->table('prescriptions')->select('prescriptions.id, prescriptions.prescription_number, prescriptions.prescription_date, prescriptions.notes, prescriptions.status')->where('patient_id', $patientId)->where('clinic_id', $clinicId);
+        $prescriptionQuery = $db->table('prescriptions')->select('prescriptions.id, prescriptions.prescription_number, prescriptions.prescription_date, prescriptions.notes, prescriptions.status')->where('patient_id', $patientId);
+        if (!$isGlobalPatient) $prescriptionQuery->where('clinic_id', $clinicId);
 
         if ($search !== '') {
             $prescriptionQuery->groupStart()->like('prescription_number', $search)->orLike('status', $search)->groupEnd();
@@ -88,7 +94,8 @@ class Portal extends BaseController
         foreach ($prescriptions as $prescription) {
             $items[(int) $prescription['id']] = $db->table('prescription_items')->where('prescription_id', $prescription['id'])->orderBy('id')->get()->getResultArray();
         }
-        $invoiceQuery = $db->table('invoices')->select('invoice_number, currency, total, status, payment_status, created_at')->where('patient_id', $patientId)->where('clinic_id', $clinicId);
+        $invoiceQuery = $db->table('invoices')->select('invoice_number, currency, total, status, payment_status, created_at')->where('patient_id', $patientId);
+        if (!$isGlobalPatient) $invoiceQuery->where('clinic_id', $clinicId);
 
         if ($search !== '') {
             $invoiceQuery->groupStart()->like('invoice_number', $search)->orLike('status', $search)->orLike('payment_status', $search)->groupEnd();
@@ -100,7 +107,8 @@ class Portal extends BaseController
         $orderStatus = trim((string) $this->request->getGet('order_status'));
         $paymentStatus = trim((string) $this->request->getGet('payment_status'));
         $deliveryStatus = trim((string) $this->request->getGet('delivery_status'));
-        $orderQuery = $db->table('medicine_orders AS orders')->select('orders.id, orders.order_number, orders.status, orders.payment_status, orders.delivery_status, orders.payment_provider, orders.payment_reference, orders.tracking_reference, orders.dispatched_at, orders.delivered_at, orders.created_at, orders.updated_at, prescriptions.prescription_number, prescriptions.prescription_date')->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')->where('orders.patient_id', $patientId)->where('orders.clinic_id', $clinicId)->groupStart()->where('prescriptions.patient_id', $patientId)->where('prescriptions.clinic_id', $clinicId)->orWhere('prescriptions.id', null)->groupEnd();
+        $orderQuery = $db->table('medicine_orders AS orders')->select('orders.id, orders.order_number, orders.status, orders.payment_status, orders.delivery_status, orders.payment_provider, orders.payment_reference, orders.tracking_reference, orders.dispatched_at, orders.delivered_at, orders.created_at, orders.updated_at, prescriptions.prescription_number, prescriptions.prescription_date')->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')->where('orders.patient_id', $patientId)->groupStart()->where('prescriptions.patient_id', $patientId)->orWhere('prescriptions.id', null)->groupEnd();
+        if (!$isGlobalPatient) $orderQuery->where('orders.clinic_id', $clinicId)->where('prescriptions.clinic_id', $clinicId);
 
         if ($search !== '') {
             $orderQuery->groupStart()->like('orders.order_number', $search)->orLike('prescriptions.prescription_number', $search)->orLike('orders.payment_status', $search)->orLike('orders.delivery_status', $search)->orLike('orders.status', $search)->orLike('orders.tracking_reference', $search)->groupEnd();
@@ -135,7 +143,9 @@ class Portal extends BaseController
         $documentPages = max(1, (int) ceil($documentTotal / $pageSize));
         $documentPage = min(max(1, (int) ($this->request->getGet('documents_page') ?? 1)), $documentPages);
         $documents = $documentQuery->orderBy('created_at', 'DESC')->findAll($pageSize, ($documentPage - 1) * $pageSize);
-        $unreadNotifications = $db->table('patient_notifications')->where('patient_id', $patientId)->where('clinic_id', $clinicId)->where('status', 'unread')->countAllResults();
+        $notificationQuery = $db->table('patient_notifications')->where('patient_id', $patientId)->where('status', 'unread');
+        if (!$isGlobalPatient) $notificationQuery->where('clinic_id', $clinicId);
+        $unreadNotifications = $notificationQuery->countAllResults();
 
         return view(PATIENT_VIEW . 'pages/portal', ['patient' => $context['patient'], 'appointments' => $appointments, 'doctors' => $doctors, 'visits' => $visits, 'prescriptions' => $prescriptions, 'prescriptionItems' => $items, 'orders' => $orders, 'orderItems' => $orderItems, 'documents' => $documents, 'invoices' => $invoices, 'unreadNotifications' => $unreadNotifications, 'telephoneCodes' => (new TelephoneCountryCode())->dropdown(), 'filters' => ['search' => $search, 'appointment_status' => $appointmentStatus, 'order_status' => $orderStatus, 'payment_status' => $paymentStatus, 'delivery_status' => $deliveryStatus], 'pagination' => ['appointments' => ['page' => $appointmentPage, 'pages' => $appointmentPages, 'total' => $appointmentTotal], 'visits' => ['page' => $visitPage, 'pages' => $visitPages, 'total' => $visitTotal], 'prescriptions' => ['page' => $prescriptionPage, 'pages' => $prescriptionPages, 'total' => $prescriptionTotal], 'invoices' => ['page' => $invoicePage, 'pages' => $invoicePages, 'total' => $invoiceTotal], 'orders' => ['page' => $orderPage, 'pages' => $orderPages, 'total' => $orderTotal], 'documents' => ['page' => $documentPage, 'pages' => $documentPages, 'total' => $documentTotal]], 'pageSize' => $pageSize]);
     }
@@ -355,7 +365,7 @@ class Portal extends BaseController
             return $this->validation($errors);
         }
         $db = db_connect();
-        $doctor = $db->table('doctors')->where('id', $doctorId)->where('clinic_id', $context['patient']['clinic_id'])->where('status', 1)->where('online_booking', 1)->get()->getRowArray();
+        $doctor = $db->table('doctors')->where('id', $doctorId)->where('status', 1)->where('online_booking', 1)->get()->getRowArray();
 
         if ($doctor === null) {
             return $this->json(422, false, 'Doctor is not available for booking.');
@@ -366,7 +376,7 @@ class Portal extends BaseController
         if ($schedule === null || (new DoctorLeaveModel())->isOnLeave($doctorId, $date)) {
             return $this->json(409, false, 'Doctor is not available at the selected time.');
         }
-        $conflict = $db->table('appointments')->groupStart()->where('doctor_id', $doctorId)->orWhere('patient_id', $context['patient']['id'])->groupEnd()->where('clinic_id', $context['patient']['clinic_id'])->where('appointment_date', $date)->where('appointment_time', $time)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
+        $conflict = $db->table('appointments')->groupStart()->where('doctor_id', $doctorId)->orWhere('patient_id', $context['patient']['id'])->groupEnd()->where('appointment_date', $date)->where('appointment_time', $time)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
 
         if ($conflict > 0) {
             return $this->json(409, false, 'The selected time is already booked.');
@@ -375,7 +385,7 @@ class Portal extends BaseController
         $db->transBegin();
 
         try {
-            $id = $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => $context['patient']['id'], 'doctor_id' => $doctorId, 'clinic_id' => $context['patient']['clinic_id'], 'appointment_date' => $date, 'appointment_time' => $time, 'duration_minutes' => (int) ($schedule['slot_duration'] ?? 15), 'appointment_type' => $type, 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => $context['user_id'], 'booking_source' => 'patient', 'reason_for_visit' => $this->nullable('reason_for_visit'), 'created_at' => $now, 'updated_at' => $now]);
+            $id = $db->table('appointments')->insert(['appointment_number' => 'TMP-' . bin2hex(random_bytes(8)), 'patient_id' => $context['patient']['id'], 'doctor_id' => $doctorId, 'clinic_id' => (int) $doctor['clinic_id'], 'appointment_date' => $date, 'appointment_time' => $time, 'duration_minutes' => (int) ($schedule['slot_duration'] ?? 15), 'appointment_type' => $type, 'status' => 'scheduled', 'created_by_type' => 'patient', 'created_by_id' => $context['user_id'], 'booking_source' => 'patient', 'reason_for_visit' => $this->nullable('reason_for_visit'), 'created_at' => $now, 'updated_at' => $now]);
 
             if (!$id || !$db->table('appointments')->where('id', $id)->update(['appointment_number' => sprintf('APT-%06d', $id), 'updated_at' => $now]) || !$db->transCommit()) {
                 throw new \RuntimeException('Booking transaction failed.');
@@ -421,7 +431,7 @@ class Portal extends BaseController
             return $this->validation($errors);
         }
         $db = db_connect();
-        $appointment = $db->table('appointments')->where('id', $appointmentId)->where('patient_id', $context['patient']['id'])->where('clinic_id', $context['patient']['clinic_id'])->get()->getRowArray();
+        $appointment = $db->table('appointments')->where('id', $appointmentId)->where('patient_id', $context['patient']['id'])->get()->getRowArray();
 
         if ($appointment === null) {
             return $this->json(404, false, 'Appointment not found.');
@@ -441,7 +451,7 @@ class Portal extends BaseController
         if ($schedule === null || (new DoctorLeaveModel())->isOnLeave($doctorId, $date)) {
             return $this->json(409, false, 'Doctor is not available at the selected time.');
         }
-        $conflict = $db->table('appointments')->groupStart()->where('doctor_id', $doctorId)->orWhere('patient_id', $context['patient']['id'])->groupEnd()->where('clinic_id', $context['patient']['clinic_id'])->where('appointment_date', $date)->where('appointment_time', $time)->where('id !=', $appointmentId)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
+        $conflict = $db->table('appointments')->groupStart()->where('doctor_id', $doctorId)->orWhere('patient_id', $context['patient']['id'])->groupEnd()->where('appointment_date', $date)->where('appointment_time', $time)->where('id !=', $appointmentId)->whereNotIn('status', ['cancelled', 'no_show'])->countAllResults();
 
         if ($conflict > 0) {
             return $this->json(409, false, 'The selected time is already booked.');
@@ -466,7 +476,7 @@ class Portal extends BaseController
             return $this->json(403, false, 'Patient scope is unavailable.');
         }
         $db = db_connect();
-        $appointment = $db->table('appointments')->where('id', $appointmentId)->where('patient_id', $context['patient']['id'])->where('clinic_id', $context['patient']['clinic_id'])->get()->getRowArray();
+        $appointment = $db->table('appointments')->where('id', $appointmentId)->where('patient_id', $context['patient']['id'])->get()->getRowArray();
 
         if ($appointment === null) {
             return $this->json(404, false, 'Appointment not found.');
@@ -543,7 +553,9 @@ class Portal extends BaseController
         if ($context === null) {
             return redirect()->to(base_url('permission-denied'));
         }
-        $document = $this->documents->where('id', $documentId)->where('patient_id', $context['patient']['id'])->where('clinic_id', $context['patient']['clinic_id'])->first();
+        $documentQuery = $this->documents->where('id', $documentId)->where('patient_id', $context['patient']['id']);
+        if ((int) ($context['patient']['clinic_id'] ?? 0) > 0) $documentQuery->where('clinic_id', $context['patient']['clinic_id']);
+        $document = $documentQuery->first();
 
         if ($document === null || empty($document['file_path'])) {
             return redirect()->back()->with('error', 'Document not found.');
@@ -561,7 +573,11 @@ class Portal extends BaseController
             return null;
         }
 
-        $patient = $this->patients->select('patients.*, clinics.clinic_name, COALESCE(telephone_code_countries.name, telephone_country_codes.label) AS telephone_country_name')->join('clinics', 'clinics.id = patients.clinic_id')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('countries AS telephone_code_countries', 'telephone_code_countries.id = telephone_country_codes.country_id', 'left')->where('patients.id', $context['patient_id'])->where('patients.clinic_id', $context['patient']['clinic_id'])->where('patients.status', 1)->where('clinics.status', 1)->first();
+        $patientQuery = $this->patients->select('patients.*, clinics.clinic_name, COALESCE(telephone_code_countries.name, telephone_country_codes.label) AS telephone_country_name')->join('clinics', 'clinics.id = patients.clinic_id', 'left')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')->join('countries AS telephone_code_countries', 'telephone_code_countries.id = telephone_country_codes.country_id', 'left')->where('patients.id', $context['patient_id'])->where('patients.status', 1);
+        if ((int) ($context['patient']['clinic_id'] ?? 0) > 0) {
+            $patientQuery->where('patients.clinic_id', $context['patient']['clinic_id'])->where('clinics.status', 1);
+        }
+        $patient = $patientQuery->first();
 
         return $patient !== null ? ['user_id' => $context['user_id'], 'patient' => $patient] : null;
     }

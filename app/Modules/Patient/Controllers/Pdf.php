@@ -39,11 +39,11 @@ final class Pdf extends BaseController
             ->join('appointments', 'appointments.id = consultations.appointment_id', 'left')
             ->where('prescriptions.prescription_number', $reference)
             ->where('prescriptions.patient_id', $context['patient_id'])
-            ->where('prescriptions.clinic_id', $context['clinic_id'])
-            ->where('doctors.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1)
-            ->get(1)->getRowArray();
+            ->where('doctors.status', 1);
+        if ((int) $context['clinic_id'] > 0) {
+            $record->where('prescriptions.clinic_id', $context['clinic_id'])->where('doctors.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
+        $record = $record->get(1)->getRowArray();
 
         if ($record === null) {
             return $this->error(404, 'Prescription not found.');
@@ -79,12 +79,11 @@ final class Pdf extends BaseController
             ->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')
             ->where('orders.order_number', $reference)
             ->where('orders.patient_id', $context['patient_id'])
-            ->where('orders.clinic_id', $context['clinic_id'])
-            ->where('prescriptions.patient_id', $context['patient_id'])
-            ->where('prescriptions.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1)
-            ->get(1)->getRowArray();
+            ->where('prescriptions.patient_id', $context['patient_id']);
+        if ((int) $context['clinic_id'] > 0) {
+            $order->where('orders.clinic_id', $context['clinic_id'])->where('prescriptions.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
+        $order = $order->get(1)->getRowArray();
 
         if ($order === null) {
             return $this->error(404, 'Order not found.');
@@ -130,11 +129,11 @@ final class Pdf extends BaseController
             ->join('patients', 'patients.id = appointments.patient_id')
             ->where('appointments.appointment_number', $reference)
             ->where('appointments.patient_id', $context['patient_id'])
-            ->where('appointments.clinic_id', $context['clinic_id'])
-            ->where('doctors.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1)
-            ->get(1)->getRowArray();
+            ->where('doctors.status', 1);
+        if ((int) $context['clinic_id'] > 0) {
+            $appointment->where('appointments.clinic_id', $context['clinic_id'])->where('doctors.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
+        $appointment = $appointment->get(1)->getRowArray();
 
         if ($appointment === null) {
             return $this->error(404, 'Appointment not found.');
@@ -171,11 +170,11 @@ final class Pdf extends BaseController
             ->join('medicine_orders orders', 'orders.id = invoices.order_id AND orders.patient_id = invoices.patient_id AND orders.clinic_id = invoices.clinic_id', 'left')
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id AND prescriptions.patient_id = invoices.patient_id AND prescriptions.clinic_id = invoices.clinic_id', 'left')
             ->where('invoices.invoice_number', $reference)
-            ->where('invoices.patient_id', $context['patient_id'])
-            ->where('invoices.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1)
-            ->get(1)->getRowArray();
+            ->where('invoices.patient_id', $context['patient_id']);
+        if ((int) $context['clinic_id'] > 0) {
+            $invoice->where('invoices.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
+        $invoice = $invoice->get(1)->getRowArray();
 
         if ($invoice === null) {
             return $this->error(404, 'Invoice not found.');

@@ -1,8 +1,13 @@
 <?php
 $statusBadge = static function (string $status): string {
-    return in_array($status, ['confirmed', 'checked_in', 'in_queue', 'in_consultation'], true)
-        ? 'badge-success'
-        : ($status === 'cancelled' || $status === 'no_show' ? 'badge-secondary' : 'badge-light');
+    return match ($status) {
+        'confirmed' => 'badge-success',
+        'checked_in', 'in_queue' => 'badge-warning',
+        'in_consultation' => 'badge-info',
+        'completed' => 'badge-dark',
+        'cancelled', 'no_show' => 'badge-danger',
+        default => 'badge-primary',
+    };
 };
 ?>
 <div class="patient-appointments-grid">

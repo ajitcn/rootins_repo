@@ -29,18 +29,23 @@ final class Pages extends BaseController
                 . 'states.name AS state_name, cities.name AS city_name, '
                 . 'localities.name AS locality_name, telephone_country_codes.normalized_code AS telephone_code',
             )
-            ->join('clinics', 'clinics.id = patients.clinic_id')
+            ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
             ->join('countries', 'countries.id = patients.country_id', 'left')
             ->join('states', 'states.id = patients.state_id', 'left')
             ->join('cities', 'cities.id = patients.city_id', 'left')
             ->join('localities', 'localities.id = patients.locality_id', 'left')
             ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
             ->where('patients.id', $context['patient_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
             ->where('patients.status', 1)
-            ->where('clinics.status', 1)
             ->get(1)
             ->getRowArray();
+        if ((int) $context['clinic_id'] > 0) {
+            $patient = db_connect()->table('patients')
+                ->select('patients.*, clinics.clinic_name, countries.name AS country_name, states.name AS state_name, cities.name AS city_name, localities.name AS locality_name, telephone_country_codes.normalized_code AS telephone_code')
+                ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
+                ->join('countries', 'countries.id = patients.country_id', 'left')->join('states', 'states.id = patients.state_id', 'left')->join('cities', 'cities.id = patients.city_id', 'left')->join('localities', 'localities.id = patients.locality_id', 'left')->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
+                ->where('patients.id', $context['patient_id'])->where('patients.clinic_id', $context['clinic_id'])->where('patients.status', 1)->where('clinics.status', 1)->get(1)->getRowArray();
+        }
 
         if ($patient === null) {
             return redirect()->to(base_url('permission-denied'));
@@ -76,6 +81,7 @@ final class Pages extends BaseController
         $dateFrom = $this->parsePatientDate($dateFromInput);
         $dateTo = $this->parsePatientDate($dateToInput);
         $allowedStatuses = ['scheduled', 'confirmed', 'checked_in', 'in_queue', 'in_consultation', 'completed', 'cancelled', 'no_show'];
+        $isGlobalPatient = (int) $context['clinic_id'] <= 0;
         $query = $db->table('appointments')
             ->select(
                 'appointments.id, appointments.appointment_number, appointments.appointment_date, '
@@ -88,9 +94,10 @@ final class Pages extends BaseController
             ->join('doctors', 'doctors.id = appointments.doctor_id')
             ->join('patients', 'patients.id = appointments.patient_id')
             ->where('appointments.patient_id', $context['patient_id'])
-            ->where('appointments.clinic_id', $context['clinic_id'])
-            ->where('doctors.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id']);
+            ->where('doctors.status', 1);
+        if (!$isGlobalPatient) {
+            $query->where('appointments.clinic_id', $context['clinic_id'])->where('doctors.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id']);
+        }
 
         if ($search !== '') {
             $query->groupStart()
@@ -162,51 +169,55 @@ final class Pages extends BaseController
                 ->select('prescriptions.id')
                 ->join('consultations', 'consultations.id = prescriptions.consultation_id')
                 ->where('consultations.appointment_id', (int) $record['id'])
-                ->where('prescriptions.patient_id', $context['patient_id'])
-                ->where('prescriptions.clinic_id', $context['clinic_id'])
-                ->get(1)
-                ->getRowArray();
+                ->where('prescriptions.patient_id', $context['patient_id']);
+            if (!$isGlobalPatient) {
+                $linkedPrescription->where('prescriptions.clinic_id', $context['clinic_id']);
+            }
+            $linkedPrescription = $linkedPrescription->get(1)->getRowArray();
 
             if ($linkedPrescription !== null) {
                 $record['prescription_id'] = (int) $linkedPrescription['id'];
                 $linkedOrder = $db->table('medicine_orders')
                     ->select('id')
                     ->where('prescription_id', $record['prescription_id'])
-                    ->where('patient_id', $context['patient_id'])
-                    ->where('clinic_id', $context['clinic_id'])
-                    ->get(1)
-                    ->getRowArray();
+                    ->where('patient_id', $context['patient_id']);
+                if (!$isGlobalPatient) $linkedOrder->where('clinic_id', $context['clinic_id']);
+                $linkedOrder = $linkedOrder->get(1)->getRowArray();
                 $record['order_id'] = (int) ($linkedOrder['id'] ?? 0);
             }
 
             $linkedInvoice = $db->table('invoices')
                 ->select('id')
                 ->where('appointment_id', (int) $record['id'])
-                ->where('patient_id', $context['patient_id'])
-                ->where('clinic_id', $context['clinic_id'])
-                ->get(1)
-                ->getRowArray();
+                ->where('patient_id', $context['patient_id']);
+            if (!$isGlobalPatient) $linkedInvoice->where('clinic_id', $context['clinic_id']);
+            $linkedInvoice = $linkedInvoice->get(1)->getRowArray();
             $record['invoice_id'] = (int) ($linkedInvoice['id'] ?? 0);
         }
         unset($record);
 
         $doctors = $db->table('doctors')
             ->select('id, first_name, last_name')
-            ->where('clinic_id', $context['clinic_id'])
             ->where('status', 1)
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get()
             ->getResultArray();
+        if (!$isGlobalPatient) {
+            $doctorQuery = $db->table('doctors')->select('id, first_name, last_name')->where('clinic_id', $context['clinic_id'])->where('status', 1)->orderBy('first_name')->orderBy('last_name');
+            $doctors = $doctorQuery->get()->getResultArray();
+        }
         $services = $db->table('appointments')
             ->distinct()
             ->select('service_name')
             ->where('patient_id', $context['patient_id'])
-            ->where('clinic_id', $context['clinic_id'])
             ->where('service_name !=', '')
             ->orderBy('service_name')
             ->get()
             ->getResultArray();
+        if (!$isGlobalPatient) {
+            $services = $db->table('appointments')->distinct()->select('service_name')->where('patient_id', $context['patient_id'])->where('clinic_id', $context['clinic_id'])->where('service_name !=', '')->orderBy('service_name')->get()->getResultArray();
+        }
 
         return view(PATIENT_VIEW . 'pages/appointments', [
             'patient' => $context['patient'],
@@ -267,10 +278,11 @@ final class Pages extends BaseController
             ->join('clinics', 'clinics.id = prescriptions.clinic_id')
             ->join('patients', 'patients.id = prescriptions.patient_id')
             ->where('prescriptions.patient_id', $context['patient_id'])
-            ->where('prescriptions.clinic_id', $context['clinic_id'])
-            ->where('doctors.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1);
+            ->where('doctors.status', 1);
+        $isGlobalPatient = (int) $context['clinic_id'] <= 0;
+        if (!$isGlobalPatient) {
+            $query->where('prescriptions.clinic_id', $context['clinic_id'])->where('doctors.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
 
         if ($search !== '') {
             $safeSearch = $db->escapeLikeString($search);
@@ -340,12 +352,14 @@ final class Pages extends BaseController
 
         $doctors = $db->table('doctors')
             ->select('id, first_name, last_name')
-            ->where('clinic_id', $context['clinic_id'])
             ->where('status', 1)
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get()
             ->getResultArray();
+        if (!$isGlobalPatient) {
+            $doctors = $db->table('doctors')->select('id, first_name, last_name')->where('clinic_id', $context['clinic_id'])->where('status', 1)->orderBy('first_name')->orderBy('last_name')->get()->getResultArray();
+        }
         $clinic = $db->table('clinics')
             ->select('clinic_name, mobile, email, address')
             ->where('id', $context['clinic_id'])
@@ -414,13 +428,14 @@ final class Pages extends BaseController
             ->join('patients', 'patients.id = orders.patient_id')
             ->join('delivery_providers providers', 'providers.id = orders.delivery_provider_id', 'left')
             ->where('orders.patient_id', $context['patient_id'])
-            ->where('orders.clinic_id', $context['clinic_id'])
             ->groupStart()
                 ->where('prescriptions.patient_id', $context['patient_id'])
-                ->where('prescriptions.clinic_id', $context['clinic_id'])
                 ->orWhere('prescriptions.id', null)
-            ->groupEnd()
-            ->where('patients.clinic_id', $context['clinic_id']);
+            ->groupEnd();
+        $isGlobalPatient = (int) $context['clinic_id'] <= 0;
+        if (!$isGlobalPatient) {
+            $query->where('orders.clinic_id', $context['clinic_id'])->where('prescriptions.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id']);
+        }
 
         if ($search !== '') {
             $safeSearch = $db->escapeLikeString($search);
@@ -498,10 +513,9 @@ final class Pages extends BaseController
             $invoice = $db->table('invoices')
                 ->select('id, invoice_number, currency, total, payment_status')
                 ->where('order_id', (int) $order['id'])
-                ->where('patient_id', $context['patient_id'])
-                ->where('clinic_id', $context['clinic_id'])
-                ->get(1)
-                ->getRowArray();
+                ->where('patient_id', $context['patient_id']);
+            if (!$isGlobalPatient) $invoice->where('clinic_id', $context['clinic_id']);
+            $invoice = $invoice->get(1)->getRowArray();
             $order['invoice_id'] = $invoice['id'] ?? 0;
             $order['invoice_number'] = $invoice['invoice_number'] ?? '';
             $order['total_amount'] = $invoice !== null ? (float) ($invoice['total'] ?? 0) : (float) ($order['order_total'] ?? 0);
@@ -562,11 +576,13 @@ final class Pages extends BaseController
             ->join('medicine_orders AS orders', 'orders.id = invoices.order_id AND orders.patient_id = invoices.patient_id AND orders.clinic_id = invoices.clinic_id', 'left')
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id AND prescriptions.patient_id = invoices.patient_id AND prescriptions.clinic_id = invoices.clinic_id', 'left')
             ->join('patients', 'patients.id = invoices.patient_id')
-            ->join('clinics', 'clinics.id = invoices.clinic_id')
+            ->join('clinics', 'clinics.id = invoices.clinic_id', 'left')
             ->where('invoices.patient_id', $context['patient_id'])
-            ->where('invoices.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1);
+            ;
+        $isGlobalPatient = (int) $context['clinic_id'] <= 0;
+        if (!$isGlobalPatient) {
+            $query->where('invoices.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
 
         if ($search !== '') {
             $safeSearch = $db->escapeLikeString($search);
@@ -690,10 +706,11 @@ final class Pages extends BaseController
             ->join('patients', 'patients.id = consultations.patient_id')
             ->join('clinics', 'clinics.id = consultations.clinic_id')
             ->where('consultations.patient_id', $context['patient_id'])
-            ->where('consultations.clinic_id', $context['clinic_id'])
-            ->where('doctors.clinic_id', $context['clinic_id'])
-            ->where('patients.clinic_id', $context['clinic_id'])
-            ->where('clinics.status', 1);
+            ->where('doctors.status', 1);
+        $isGlobalPatient = (int) $context['clinic_id'] <= 0;
+        if (!$isGlobalPatient) {
+            $query->where('consultations.clinic_id', $context['clinic_id'])->where('doctors.clinic_id', $context['clinic_id'])->where('patients.clinic_id', $context['clinic_id'])->where('clinics.status', 1);
+        }
 
         if ($search !== '') {
             $query->groupStart()
@@ -853,9 +870,10 @@ final class Pages extends BaseController
         $pageSize = $this->pageSize();
         $page = $this->page();
         $search = trim((string) $this->request->getGet('search'));
+        $isGlobalPatient = (int) ($context['clinic_id'] ?? 0) <= 0;
         $builder = db_connect()->table($table)->where($table . '.patient_id', $context['patient_id']);
 
-        if (in_array($table, ['patient_documents', 'medicine_orders', 'invoices', 'consultations', 'prescriptions'], true)) {
+        if (!$isGlobalPatient && in_array($table, ['patient_documents', 'medicine_orders', 'invoices', 'consultations', 'prescriptions'], true)) {
             $builder->where($table . '.clinic_id', $context['clinic_id']);
         }
 
@@ -864,15 +882,16 @@ final class Pages extends BaseController
                 ->join('prescriptions', 'prescriptions.id = medicine_orders.prescription_id', 'left')
                 ->groupStart()
                     ->where('prescriptions.patient_id', $context['patient_id'])
-                    ->where('prescriptions.clinic_id', $context['clinic_id'])
                     ->orWhere('prescriptions.id', null)
                 ->groupEnd();
+            if (!$isGlobalPatient) $builder->where('prescriptions.clinic_id', $context['clinic_id']);
         }
 
         if ($table === 'consultations') {
             $builder->select('consultations.*, doctors.first_name AS doctor_first_name, doctors.last_name AS doctor_last_name')
                 ->join('doctors', 'doctors.id = consultations.doctor_id')
-                ->where('doctors.clinic_id', $context['clinic_id']);
+                ->where('doctors.status', 1);
+            if (!$isGlobalPatient) $builder->where('doctors.clinic_id', $context['clinic_id']);
         }
 
         $searchColumns = [

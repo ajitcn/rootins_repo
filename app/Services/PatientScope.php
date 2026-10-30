@@ -17,9 +17,12 @@ final class PatientScope
 
         $query = (new PatientModel())
             ->select('patients.*, clinics.clinic_name')
-            ->join('clinics', 'clinics.id = patients.clinic_id')
+            ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
             ->where('patients.status', 1)
-            ->where('clinics.status', 1);
+            ->groupStart()
+            ->where('clinics.id IS NULL', null, false)
+            ->orWhere('clinics.status', 1)
+            ->groupEnd();
 
         if ($patientId > 0) {
             $query->where('patients.id', $patientId);
@@ -41,7 +44,7 @@ final class PatientScope
 
         $patient = $query->first();
 
-        if ($patient === null || (int) ($patient['clinic_id'] ?? 0) <= 0) {
+        if ($patient === null) {
             return null;
         }
 

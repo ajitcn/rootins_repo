@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/notifications.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/more_actions.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/theme.css?v=' . $pharmacyAssetVersion) ?>">
-<link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shopify-orders.css?v=20261023-shopify2') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shopify-orders.css?v=20261029-shopify4') ?>">
 <?= $this->endSection() ?>
 
 <?= $this->section('side-menu') ?>

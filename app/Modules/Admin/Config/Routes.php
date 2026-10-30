@@ -284,3 +284,8 @@ $routes->group('admin/integrations/core-api', ['namespace' => 'Admin\Controllers
     $routes->post('(:num)/rotate', 'CoreApi::rotate/$1', ['filter' => 'permission:core_api.manage']);
     $routes->post('(:num)/test', 'CoreApi::test/$1', ['filter' => 'permission:core_api.manage']);
 });
+$routes->group('admin/integrations/video', ['namespace' => 'Admin\Controllers\Integration', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'Video::index', ['filter' => 'permission:settings.manage']);
+    $routes->post('save', 'Video::save', ['filter' => 'permission:settings.manage']);
+    $routes->post('test', 'Video::test', ['filter' => 'permission:settings.manage']);
+});

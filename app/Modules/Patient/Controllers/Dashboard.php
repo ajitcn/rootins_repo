@@ -18,6 +18,7 @@ final class Dashboard extends BaseController
 
         $patientId = (int) $context['patient_id'];
         $clinicId = (int) $context['clinic_id'];
+        $isGlobalPatient = $clinicId <= 0;
         $today = (new \DateTimeImmutable('now', new \DateTimeZone((string) config('App')->appTimezone)))->format('Y-m-d');
         $db = db_connect();
 
@@ -27,15 +28,13 @@ final class Dashboard extends BaseController
                 . 'countries.name AS country_name, states.name AS state_name, cities.name AS city_name, '
                 . 'telephone_country_codes.normalized_code AS telephone_code',
             )
-            ->join('clinics', 'clinics.id = patients.clinic_id')
+            ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
             ->join('countries', 'countries.id = patients.country_id', 'left')
             ->join('states', 'states.id = patients.state_id', 'left')
             ->join('cities', 'cities.id = patients.city_id', 'left')
             ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
             ->where('patients.id', $patientId)
-            ->where('patients.clinic_id', $clinicId)
             ->where('patients.status', 1)
-            ->where('clinics.status', 1)
             ->get(1)
             ->getRowArray() ?? $context['patient'];
 
@@ -47,10 +46,12 @@ final class Dashboard extends BaseController
             )
             ->join('doctors', 'doctors.id = appointments.doctor_id')
             ->where('appointments.patient_id', $patientId)
-            ->where('appointments.clinic_id', $clinicId)
-            ->where('doctors.clinic_id', $clinicId)
+            ->where('doctors.status', 1)
             ->where('appointments.appointment_date >=', $today)
             ->whereNotIn('appointments.status', ['cancelled', 'no_show']);
+        if (!$isGlobalPatient) {
+            $appointmentQuery->where('appointments.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
+        }
 
         $upcomingAppointmentsCount = (clone $appointmentQuery)->countAllResults();
         $appointments = $appointmentQuery
@@ -68,8 +69,10 @@ final class Dashboard extends BaseController
             )
             ->join('doctors', 'doctors.id = prescriptions.doctor_id')
             ->where('prescriptions.patient_id', $patientId)
-            ->where('prescriptions.clinic_id', $clinicId)
-            ->where('doctors.clinic_id', $clinicId);
+            ->where('doctors.status', 1);
+        if (!$isGlobalPatient) {
+            $prescriptionQuery->where('prescriptions.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
+        }
 
         $pendingPrescriptionsCount = (clone $prescriptionQuery)
             ->whereIn('prescriptions.status', ['draft', 'submitted', 'clarification_requested'])
@@ -90,12 +93,14 @@ final class Dashboard extends BaseController
             )
             ->join('prescriptions', 'prescriptions.id = orders.prescription_id', 'left')
             ->where('orders.patient_id', $patientId)
-            ->where('orders.clinic_id', $clinicId)
             ->groupStart()
                 ->where('prescriptions.patient_id', $patientId)
-                ->where('prescriptions.clinic_id', $clinicId)
                 ->orWhere('prescriptions.id', null)
             ->groupEnd();
+        if (!$isGlobalPatient) {
+            $orderQuery->where('orders.clinic_id', $clinicId)
+                ->groupStart()->where('prescriptions.clinic_id', $clinicId)->orWhere('prescriptions.id', null)->groupEnd();
+        }
 
         $activeOrdersCount = (clone $orderQuery)
             ->where('orders.status !=', 'cancelled')
@@ -108,8 +113,10 @@ final class Dashboard extends BaseController
 
         $invoiceQuery = $db->table('invoices')
             ->select('invoices.id, invoices.invoice_number, invoices.currency, invoices.total, invoices.status, invoices.payment_status, invoices.created_at, invoices.updated_at')
-            ->where('invoices.patient_id', $patientId)
-            ->where('invoices.clinic_id', $clinicId);
+            ->where('invoices.patient_id', $patientId);
+        if (!$isGlobalPatient) {
+            $invoiceQuery->where('invoices.clinic_id', $clinicId);
+        }
         $pendingPaymentsCount = (clone $invoiceQuery)
             ->whereIn('payment_status', ['pending', 'authorized'])
             ->countAllResults();
@@ -128,17 +135,21 @@ final class Dashboard extends BaseController
             ->join('doctors', 'doctors.id = visits.doctor_id')
             ->join('appointments', 'appointments.id = visits.appointment_id', 'left')
             ->where('visits.patient_id', $patientId)
-            ->where('visits.clinic_id', $clinicId)
-            ->where('doctors.clinic_id', $clinicId)
+            ->where('doctors.status', 1)
             ->orderBy('visits.consultation_date', 'DESC')
             ->orderBy('visits.consultation_time', 'DESC');
+        if (!$isGlobalPatient) {
+            $visitQuery->where('visits.clinic_id', $clinicId)->where('doctors.clinic_id', $clinicId);
+        }
         $visitCount = (clone $visitQuery)->countAllResults();
         $visits = $visitQuery->limit(5)->get()->getResultArray();
 
         $notificationQuery = $db->table('patient_notifications')
             ->select('id, title, message, status, read_at, created_at, related_entity_type, related_entity_id')
-            ->where('patient_id', $patientId)
-            ->where('clinic_id', $clinicId);
+            ->where('patient_id', $patientId);
+        if (!$isGlobalPatient) {
+            $notificationQuery->where('clinic_id', $clinicId);
+        }
         $unreadNotificationsCount = (clone $notificationQuery)
             ->where('status', 'unread')
             ->countAllResults();

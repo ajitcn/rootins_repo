@@ -69,10 +69,6 @@ final class Auth extends BaseController
                 ->with('error', 'Invalid email/mobile number or password.');
         }
 
-        if ($patient === null || (int) ($patient['clinic_id'] ?? 0) <= 0) {
-            return redirect()->back()->withInput()->with('error', 'This account is not enabled for the patient portal.');
-        }
-
         session()->regenerate(true);
         session()->set([
             'patient_login_attempts' => 0,
@@ -109,9 +105,12 @@ final class Auth extends BaseController
         $model = new PatientModel();
         $query = $model
             ->select('patients.*')
-            ->join('clinics', 'clinics.id = patients.clinic_id')
+            ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
             ->where('patients.status', 1)
-            ->where('clinics.status', 1);
+            ->groupStart()
+            ->where('clinics.id IS NULL', null, false)
+            ->orWhere('clinics.status', 1)
+            ->groupEnd();
 
         if (str_contains($identifier, '@')) {
             $patients = $query
@@ -236,7 +235,7 @@ final class Auth extends BaseController
 
         $patients = (new PatientModel())
             ->select('patients.*')
-            ->join('clinics', 'clinics.id = patients.clinic_id')
+            ->join('clinics', 'clinics.id = patients.clinic_id', 'left')
             ->join('telephone_country_codes', 'telephone_country_codes.id = patients.telephone_country_code_id', 'left')
             ->where('patients.mobile_normalized', $normalizedMobile)
             ->groupStart()
@@ -244,7 +243,10 @@ final class Auth extends BaseController
             ->orWhere('patients.country_code', $countryCode)
             ->groupEnd()
             ->where('patients.status', 1)
-            ->where('clinics.status', 1)
+            ->groupStart()
+            ->where('clinics.id IS NULL', null, false)
+            ->orWhere('clinics.status', 1)
+            ->groupEnd()
             ->findAll();
 
         if ($patients === []) {

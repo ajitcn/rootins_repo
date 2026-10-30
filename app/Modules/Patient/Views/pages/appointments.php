@@ -19,7 +19,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
         <div>
             <span class="patient-eyebrow">Patient portal / schedule</span>
             <h1 id="patient-appointments-title">My appointments</h1>
-            <p class="text-muted mb-0">Review your appointments and manage eligible bookings.</p>
+            <p class="text-muted mb-1">Review your schedule, join video consultations, and manage eligible bookings.</p>
             <span class="small text-muted">Patient: <?= esc(trim(($patient['first_name'] ?? '') . ' ' . ($patient['last_name'] ?? ''))) ?> · <?= esc($patient['registration_number'] ?? '—') ?> · <?= esc($patient['mobile_number'] ?? '—') ?></span>
         </div>
         <div class="patient-page-heading-actions">
@@ -78,7 +78,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
                 <h2 class="h5 mb-1">Appointment history</h2>
                 <span class="small text-muted">Patient number: <?= esc($patient['registration_number'] ?? '—') ?></span>
             </div>
-            <span class="small text-muted"><i class="fa-solid fa-circle-exclamation mr-1" aria-hidden="true"></i>Created and updated times are shown in your clinic timezone.</span>
+            <span class="small text-muted"><i class="bi bi-clock-history mr-1" aria-hidden="true"></i>Times are shown in your local clinic timezone.</span>
         </div>
         <?php if ($filters['view'] === 'grid'): ?>
             <?= view(PATIENT_VIEW . 'pages/appointments_grid', compact('appointments', 'formatDate', 'label', 'today')) ?>
@@ -208,6 +208,10 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
 
             if (Number(appointment.order_id || 0) > 0) {
                 actionMarkup += '<a class="btn btn-sm btn-outline-secondary" href="<?= base_url('patient/orders') ?>?order_id=' + Number(appointment.order_id) + '"><i class="bi bi-box-seam mr-1" aria-hidden="true"></i>Order / delivery</a>';
+            }
+
+            if (appointment.appointment_type === 'video' && ['scheduled', 'confirmed', 'checked_in', 'in_queue', 'in_consultation'].indexOf(appointment.status) !== -1) {
+                actionMarkup += '<a class="btn btn-sm btn-primary mr-2" href="<?= base_url('patient/video') ?>/' + Number(appointment.id) + '"><i class="bi bi-camera-video mr-1" aria-hidden="true"></i>Join video</a>';
             }
 
             $('#patient-appointment-detail-title').text('Appointment Details · ' + (appointment.appointment_number || '—'));

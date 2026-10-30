@@ -99,10 +99,22 @@
         var manualCodeInput = document.getElementById('patient-setup-manual-code');
         var countryCodeSelect = document.getElementById('patient-setup-country-code');
 
+        function refreshCountryCodeSelect() {
+            if (window.jQuery && countryCodeSelect && $(countryCodeSelect).data('selectpicker')) {
+                $(countryCodeSelect).selectpicker('refresh');
+            }
+        }
+
+        function syncCountryCodeSelect() {
+            if (!manualCodeToggle || !manualCodeInput || !countryCodeSelect) return;
+            manualCodeInput.disabled = !manualCodeToggle.checked;
+            countryCodeSelect.disabled = manualCodeToggle.checked;
+            refreshCountryCodeSelect();
+        }
+
         if (manualCodeToggle && manualCodeInput && countryCodeSelect) {
             manualCodeToggle.addEventListener('change', function () {
-                manualCodeInput.disabled = !manualCodeToggle.checked;
-                countryCodeSelect.disabled = manualCodeToggle.checked;
+                syncCountryCodeSelect();
             });
         }
 
@@ -131,8 +143,7 @@
             setupTab.classList.toggle('active', showSetup);
 
             if (showSetup && manualCodeToggle && manualCodeInput && countryCodeSelect) {
-                manualCodeInput.disabled = !manualCodeToggle.checked;
-                countryCodeSelect.disabled = manualCodeToggle.checked;
+                syncCountryCodeSelect();
             }
         }
 
@@ -145,6 +156,7 @@
         });
 
         setPatientAuthTab(<?= empty($setupErrors) ? "'login'" : "'setup'" ?>);
+        refreshCountryCodeSelect();
     }());
 </script>
 <?= $this->endSection() ?>

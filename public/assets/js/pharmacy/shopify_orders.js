@@ -301,4 +301,13 @@
         $panel.toggleClass('is-open', nextExpanded).css('display', nextExpanded ? '' : 'none');
         $button.find('.shopify-history-chevron').toggleClass('bi-chevron-down', !nextExpanded).toggleClass('bi-chevron-up', nextExpanded);
     });
+
+    $(document).off('click.shopifyProductDetails', '.shopify-product-details-toggle').on('click.shopifyProductDetails', '.shopify-product-details-toggle', function () {
+        var $button = $(this), panelId = $button.attr('aria-controls'), panel = panelId ? document.getElementById(panelId) : null;
+        if (!panel) return;
+        var nextExpanded = $button.attr('aria-expanded') !== 'true';
+        $button.attr('aria-expanded', nextExpanded ? 'true' : 'false').text(nextExpanded ? 'Hide Shopify details' : 'Show Shopify details');
+        panel.hidden = !nextExpanded;
+        $(panel).toggleClass('is-open', nextExpanded);
+    });
 }(window.jQuery));

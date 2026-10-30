@@ -1104,8 +1104,14 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .doctor-video-provider-alert strong, .doctor-video-provider-alert span { display: block; }
 .doctor-video-provider-alert span { margin-top: .1rem; color: #806d3a; font-size: .72rem; }
 .doctor-video-stage { min-height: 15rem; margin: .25rem 0 1rem; padding: 2.25rem 1.25rem; border: 1px solid rgba(31, 41, 64, .12); border-radius: .7rem; background: #242424; color: #f8f9fa; }
+.doctor-video-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; width: min(100%, 42rem); margin-top: 1rem; }
+.doctor-video-local, .doctor-video-remote { min-height: 8rem; border-radius: .55rem; overflow: hidden; background: #182235; }
+.doctor-video-media-grid:has(.doctor-video-local:empty) .doctor-video-local, .doctor-video-media-grid:has(.doctor-video-remote:empty) .doctor-video-remote { display: none; }
+.doctor-video-media-grid video { display: block; width: 100%; height: 100%; min-height: 8rem; object-fit: cover; }
 .doctor-video-stage.is-connected { border-color: #4d9b74; background: #263d36; }
 .doctor-video-stage-orb { display: inline-flex; width: 3.35rem; height: 3.35rem; align-items: center; justify-content: center; margin-bottom: .75rem; border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .1); font-size: 1.35rem; }
+.doctor-video-stage-orb.is-hidden { display: none; }
+.doctor-video-media-grid .twilio-video-track { display: block; width: 100%; height: 100%; min-height: 8rem; object-fit: cover; background: #111827; }
 .doctor-video-stage-title { color: #fff; font-size: 1rem; }
 .doctor-video-stage .doctor-video-connection { max-width: 34rem; margin-top: .3rem; color: #b9c8dc; font-size: .78rem; text-align: center; }
 .doctor-video-provider-chip { display: inline-block; margin-top: .9rem; padding: .28rem .55rem; border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; color: #c9d6e9; font-size: .66rem; }
@@ -1128,6 +1134,7 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
   .doctor-video-context { grid-template-columns: 1fr; gap: .55rem; }
   .doctor-video-context-item { padding: .45rem 0 0 0; border-top: 1px solid rgba(31, 41, 64, .1); border-left: 0; }
   .doctor-video-stage { min-height: 12rem; padding: 1.5rem 1rem; }
+  .doctor-video-media-grid { grid-template-columns: 1fr; }
   .doctor-video-controls { position: sticky; bottom: -.85rem; z-index: 2; margin: 0 -.85rem; padding: .75rem .85rem; background: rgba(255, 255, 255, .96); box-shadow: 0 -.4rem .9rem rgba(31, 41, 64, .08); }
   .doctor-video-controls .btn:not(.btn-video-icon) { flex: 1 1 calc(50% - .5rem); }
 }
@@ -7045,6 +7052,59 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .patient-appointments-page .patient-list-toolbar {
     margin-bottom: 1rem;
     padding: 1rem 1.1rem;
+    border: 1px solid #e4e9f1;
+    border-radius: .85rem;
+    background: #fff;
+    box-shadow: 0 .35rem 1rem rgba(31, 41, 64, .04);
+}
+
+.patient-appointments-page .patient-appointments-content {
+    overflow: visible;
+    border: 1px solid #e4e9f1;
+    border-radius: .85rem;
+    box-shadow: 0 .45rem 1.25rem rgba(31, 41, 64, .05);
+}
+
+.patient-appointments-page .patient-appointments-content .card-header {
+    min-height: 4.25rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e8edf3;
+    background: #fbfcfe;
+}
+
+.patient-appointments-page .patient-appointments-table thead th {
+    padding: .85rem .8rem;
+    color: #65728a;
+    background: #f6f8fb;
+    border-bottom: 1px solid #e0e6ee;
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.patient-appointments-page .patient-appointments-table tbody td {
+    padding: 1rem .8rem;
+    border-color: #edf1f5;
+}
+
+.patient-appointments-page .patient-appointments-table tbody tr:hover td {
+    background: #fbfcff;
+}
+
+.patient-appointments-page .patient-appointments-table .patient-status-badge,
+.patient-appointments-page .patient-appointment-card .patient-status-badge {
+    padding: .4rem .6rem;
+    border: 0;
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.patient-appointments-page .patient-appointments-actions .dropdown-toggle,
+.patient-appointments-page .patient-appointment-card-actions .dropdown-toggle {
+    min-width: 7.5rem;
+    border-radius: .45rem;
 }
 
 .patient-prescriptions-page .patient-list-toolbar {
@@ -7583,8 +7643,63 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
-    padding: 1rem;
+    padding: 1.25rem;
+    background: #fbfcfe;
 }
+
+/* Patient appointment list: structured rows stay readable without compressed table columns. */
+.patient-appointments-list {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    padding: 1rem 1.25rem 1.25rem;
+    background: #fbfcfe;
+}
+
+.patient-appointment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.1rem;
+    border: 1px solid #e3e9f1;
+    border-radius: .75rem;
+    background: #fff;
+    box-shadow: 0 .25rem .8rem rgba(31, 41, 64, .045);
+}
+
+.patient-appointment-row:hover {
+    border-color: #cbd8ea;
+    box-shadow: 0 .45rem 1.1rem rgba(31, 41, 64, .08);
+}
+
+.patient-appointment-row-main {
+    display: grid;
+    grid-template-columns: 1.35fr 1.2fr 1.1fr 1fr .55fr .85fr;
+    gap: 1rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.patient-appointment-row-main > div { min-width: 0; }
+.patient-appointment-row-identity { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.patient-appointment-row-icon { display: inline-grid; width: 2.35rem; height: 2.35rem; flex: 0 0 2.35rem; place-items: center; border-radius: .65rem; color: #315b9b; background: #edf4ff; font-size: 1.05rem; }
+.patient-appointment-row-kicker,
+.patient-appointment-row-label { display: block; color: #7a879b; font-size: .65rem; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
+.patient-appointment-row-number,
+.patient-appointment-row-doctor strong,
+.patient-appointment-row-service strong,
+.patient-appointment-row-date strong,
+.patient-appointment-row-queue strong { display: block; margin-top: .2rem; color: #1f2940; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.patient-appointment-row-created,
+.patient-appointment-row-doctor small,
+.patient-appointment-row-service small,
+.patient-appointment-row-date small { display: block; margin-top: .18rem; color: #78869b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.patient-appointment-row-date small i { color: #55719b; }
+.patient-appointment-row-status .patient-status-badge { display: inline-flex; margin-top: .35rem; padding: .38rem .55rem; border: 0; white-space: nowrap; }
+.patient-appointment-row-actions { position: relative; z-index: 4; }
+.patient-appointment-row-actions .dropdown-toggle { min-width: 6.7rem; border-radius: .45rem; }
+.patient-appointment-row-actions .dropdown-menu { z-index: 1080; }
 
 .patient-appointment-card {
     min-width: 0;
@@ -7592,7 +7707,138 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
     border: 1px solid #e7ebf1;
     border-radius: .65rem;
     background: #fff;
-    box-shadow: 0 .2rem .8rem rgba(31, 41, 64, .05);
+    box-shadow: 0 .35rem 1rem rgba(31, 41, 64, .06);
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.patient-appointment-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .65rem 1.35rem rgba(31, 41, 64, .1);
+}
+
+@media (max-width: 767.98px) {
+    .patient-appointments-page .patient-page-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .patient-appointments-page .patient-page-heading-actions,
+    .patient-appointments-page .patient-page-heading-actions .btn {
+        width: 100%;
+    }
+
+    .patient-appointments-page .patient-page-heading-actions {
+        justify-content: space-between;
+    }
+
+    .patient-appointments-page .patient-list-toolbar {
+        padding: .8rem;
+    }
+
+    .patient-appointments-page .patient-filter-form > .form-control,
+    .patient-appointments-page .patient-filter-search,
+    .patient-appointments-page .patient-filter-actions,
+    .patient-appointments-page .patient-view-toggle {
+        flex: 1 1 100%;
+        min-width: 100%;
+    }
+
+    .patient-appointments-page .patient-filter-actions,
+    .patient-appointments-page .patient-view-toggle {
+        display: flex;
+    }
+
+    .patient-appointments-page .patient-filter-actions .btn,
+    .patient-appointments-page .patient-view-toggle .btn {
+        flex: 1 1 0;
+    }
+
+    .patient-appointments-page .patient-appointments-content .card-header {
+        align-items: flex-start !important;
+        gap: .4rem;
+        flex-direction: column;
+        padding: .9rem 1rem;
+    }
+
+    .patient-appointments-page .patient-appointments-table,
+    .patient-appointments-page .patient-appointments-table thead,
+    .patient-appointments-page .patient-appointments-table tbody,
+    .patient-appointments-page .patient-appointments-table tr,
+    .patient-appointments-page .patient-appointments-table th,
+    .patient-appointments-page .patient-appointments-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .patient-appointments-page .patient-appointments-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+    }
+
+    .patient-appointments-page .patient-appointments-table tbody tr {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid #e7ecf2;
+    }
+
+    .patient-appointments-page .patient-appointments-table tbody td {
+        display: grid;
+        grid-template-columns: 6.75rem minmax(0, 1fr);
+        gap: .65rem;
+        padding: .45rem 0;
+        border: 0;
+        text-align: right;
+    }
+
+    .patient-appointments-page .patient-appointments-table tbody td::before {
+        color: #7a879b;
+        content: attr(data-label);
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-align: left;
+        text-transform: uppercase;
+    }
+
+    .patient-appointments-page .patient-appointments-table tbody td > * {
+        min-width: 0;
+    }
+
+    .patient-appointments-page .patient-appointments-actions {
+        justify-items: end;
+        padding-top: .75rem !important;
+        border-top: 1px solid #edf1f5 !important;
+    }
+
+    .patient-appointments-page .patient-appointments-actions .dropdown,
+    .patient-appointments-page .patient-appointments-actions .dropdown-toggle {
+        width: 100%;
+    }
+
+    .patient-appointments-page .patient-appointments-actions .dropdown-menu {
+        position: static !important;
+        width: 100%;
+        margin-top: .45rem;
+    }
+}
+
+@media (max-width: 1100px) and (min-width: 768px) {
+    .patient-appointment-row-main { grid-template-columns: 1.25fr 1.1fr 1fr 1fr .65fr; }
+    .patient-appointment-row-status { grid-column: 1 / 2; }
+}
+
+@media (max-width: 767.98px) {
+    .patient-appointments-list { padding: .8rem; }
+    .patient-appointment-row { grid-template-columns: minmax(0, 1fr); gap: .8rem; padding: .9rem; }
+    .patient-appointment-row-main { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem .7rem; }
+    .patient-appointment-row-identity { grid-column: 1 / -1; padding-bottom: .7rem; border-bottom: 1px solid #edf1f5; }
+    .patient-appointment-row-status { align-self: end; }
+    .patient-appointment-row-actions { padding-top: .75rem; border-top: 1px solid #edf1f5; }
+    .patient-appointment-row-actions .dropdown,
+    .patient-appointment-row-actions .dropdown-toggle { width: 100%; }
+    .patient-appointment-row-actions .dropdown-menu { position: static !important; width: 100%; margin-top: .45rem; }
 }
 
 .patient-appointment-card-head,

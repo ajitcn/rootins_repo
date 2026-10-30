@@ -381,6 +381,8 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
+<script src="https://sdk.twilio.com/js/video/releases/2.29.0/twilio-video.min.js"></script>
+<script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.5') ?>"></script>
 <script>
 $(function () {
     const createForm = $('#doctor-appointment-create-form');
@@ -438,6 +440,7 @@ $(function () {
                 panel.find('.doctor-video-connection').text('The secure room is waiting for you to join.');
                 panel.find('.js-video-join').prop('disabled', false);
                 button.remove();
+                window.setTimeout(function () { panel.find('.js-video-join').trigger('click'); }, 150);
             },
             error: function (xhr, status) { if (status !== 'abort') showError(status === 'timeout' ? 'Video consultation start timed out.' : 'Video consultation could not be started.'); },
             complete: function () { if (button.closest('body').length && !button.data('started')) button.prop('disabled', false); }
@@ -460,6 +463,21 @@ $(function () {
                 panel.find('.doctor-video-stage').addClass('is-connected');
                 panel.find('.doctor-video-stage-title').text('Connected');
                 panel.find('.doctor-video-connection').text('You are connected to the secure consultation room.');
+                const stage = panel.find('.doctor-video-stage')[0];
+                if (stage) {
+                    stage.addEventListener('rootins:video:reconnecting', function () { panel.find('.doctor-video-connection').text('Connection interrupted. Reconnecting automatically…'); });
+                    stage.addEventListener('rootins:video:reconnected', function () { panel.find('.doctor-video-connection').text('You are connected to the secure consultation room.'); });
+                    stage.addEventListener('rootins:video:disconnected', function () { panel.find('.doctor-video-connection').text('The video connection ended. You can join again if the consultation is still active.'); });
+                }
+                if (window.RootinsTwilioRoom) window.RootinsTwilioRoom.connect(response.data.token, panel[0]).catch(function (error) {
+                    const name = error && error.name ? error.name : '';
+                    const message = name === 'NotReadableError'
+                        ? 'The camera or microphone is busy. Close Microsoft Phone Link, Teams, Camera, or any other app using these devices, then try Join again.'
+                        : (name === 'NotAllowedError' || name === 'PermissionDeniedError'
+                            ? 'Camera or microphone access was denied. Allow access in the browser address-bar settings, then try Join again.'
+                            : (error && error.message ? 'Video connection failed: ' + error.message : 'Camera or microphone permission or connection failed.'));
+                    showError(message);
+                });
             },
             error: function (xhr, status) { if (status !== 'abort') showError(status === 'timeout' ? 'Video connection timed out.' : 'Video service is not available yet.'); },
             complete: function () { button.prop('disabled', false); }
@@ -483,6 +501,7 @@ $(function () {
                     panel.find('.doctor-video-stage-title').text('Consultation ended');
                     panel.find('.doctor-video-connection').text('This consultation has ended.');
                     panel.find('.js-video-end, .js-video-join, .js-video-mute, .js-video-camera').prop('disabled', true);
+                    if (window.RootinsTwilioRoom) window.RootinsTwilioRoom.disconnect();
                     button.data('ended', true);
                 } else showError(response.msg || 'Video consultation could not be ended.');
             },
@@ -497,6 +516,10 @@ $(function () {
         button.attr('aria-pressed', enabled ? 'true' : 'false').toggleClass('active', enabled);
         const label = enabled ? (button.hasClass('js-video-mute') ? 'Unmute microphone' : 'Enable camera') : (button.hasClass('js-video-mute') ? 'Mute microphone' : 'Disable camera');
         button.attr('aria-label', label).attr('title', label).find('.sr-only').text(label);
+        if (window.RootinsTwilioRoom) {
+            if (button.hasClass('js-video-mute')) enabled ? window.RootinsTwilioRoom.mute() : window.RootinsTwilioRoom.unmute();
+            if (button.hasClass('js-video-camera')) enabled ? window.RootinsTwilioRoom.cameraOff() : window.RootinsTwilioRoom.cameraOn();
+        }
     });
     let patientSearchRequest = 0;
     let patientSearchXhr = null;

@@ -10,6 +10,9 @@ $routes->group('patient', ['namespace' => 'Patient\Controllers', 'filter' => 'pa
     $routes->get('/', 'Dashboard::index');
     $routes->get('profile', 'Pages::profile');
     $routes->get('appointments', 'Pages::appointments');
+    $routes->get('video/(:num)', 'VideoConsultation::view/$1');
+    $routes->get('video/(:num)/status', 'VideoConsultation::status/$1');
+    $routes->post('video/(:num)/token', 'VideoConsultation::token/$1');
     $routes->get('prescriptions', 'Pages::prescriptions');
     $routes->get('orders', 'Pages::orders');
     $routes->get('invoices', 'Pages::invoices');
