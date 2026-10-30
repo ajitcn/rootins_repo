@@ -1,5 +1,7 @@
 <?= $this->extend('templates/theme1') ?>
 
+<link rel="stylesheet" href="<?= base_url('assets/css/video.css?v=20261030.2') ?>">
+
 <?= $this->section('side-menu') ?>
 <aside id="sidebar" class="p-3 app-sidebar" aria-label="Patient panel navigation">
     <?php $path = trim(uri_string(), '/'); ?>
