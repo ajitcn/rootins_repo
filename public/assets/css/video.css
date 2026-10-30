@@ -1,0 +1,120 @@
+/* Shared WhatsApp-style video layout. */
+.doctor-video-media-grid,
+.patient-video-stage {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: min(70vh, 34rem) !important;
+    aspect-ratio: 16 / 9 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: .8rem !important;
+    background: #0b1220 !important;
+}
+
+.doctor-video-media-grid .doctor-video-remote,
+.doctor-video-media-grid .doctor-video-local,
+.patient-video-stage .patient-video-remote,
+.patient-video-stage .patient-video-local {
+    position: absolute !important;
+    inset: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    background: #182235 !important;
+}
+
+.doctor-video-media-grid .doctor-video-remote,
+.patient-video-stage .patient-video-remote { z-index: 1 !important; }
+
+.doctor-video-media-grid .doctor-video-local,
+.patient-video-stage .patient-video-local {
+    inset: auto .8rem .8rem auto !important;
+    z-index: 4 !important;
+    width: 10rem !important;
+    height: 6.25rem !important;
+    border: 2px solid rgba(255,255,255,.9) !important;
+    border-radius: .65rem !important;
+    box-shadow: 0 .45rem 1.2rem rgba(0,0,0,.45) !important;
+}
+
+.doctor-video-media-grid.is-local-main .doctor-video-local,
+.patient-video-stage.is-local-main .patient-video-local {
+    inset: 0 !important;
+    z-index: 1 !important;
+    width: auto !important;
+    height: auto !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.doctor-video-media-grid.is-local-main .doctor-video-remote,
+.patient-video-stage.is-local-main .patient-video-remote {
+    inset: auto .8rem .8rem auto !important;
+    z-index: 4 !important;
+    width: 10rem !important;
+    height: 6.25rem !important;
+    border: 2px solid rgba(255,255,255,.9) !important;
+    border-radius: .65rem !important;
+    box-shadow: 0 .45rem 1.2rem rgba(0,0,0,.45) !important;
+}
+
+.doctor-video-media-grid .twilio-video-track,
+.patient-video-stage .twilio-video-track {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    object-fit: contain !important;
+    object-position: center !important;
+    background: #050914 !important;
+}
+
+.doctor-video-media-grid .video-empty-label,
+.patient-video-stage .video-empty-label {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    color: #dbe7f5 !important;
+    font-size: .8rem !important;
+    text-align: center !important;
+    pointer-events: none !important;
+}
+
+.doctor-video-media-grid .video-empty-label:has(~ .twilio-video-track),
+.patient-video-stage .video-empty-label:has(~ .twilio-video-track),
+.doctor-video-media-grid:has(.twilio-video-track) .video-empty-label,
+.patient-video-stage:has(.twilio-video-track) .video-empty-label { display: none !important; }
+
+.doctor-video-media-grid .doctor-video-local:not(:has(.twilio-video-track)),
+.patient-video-stage .patient-video-local:not(:has(.twilio-video-track)) { display: none !important; }
+
+.patient-video-stage .patient-video-placeholder { z-index: 6 !important; }
+.patient-video-stage.is-video-connected .patient-video-placeholder { opacity: 0 !important; pointer-events: none !important; }
+
+@media (max-width: 767.98px) {
+    .doctor-video-media-grid,
+    .patient-video-stage {
+        height: min(72vh, 38rem) !important;
+        aspect-ratio: 9 / 16 !important;
+    }
+
+    .doctor-video-media-grid .doctor-video-local,
+    .doctor-video-media-grid.is-local-main .doctor-video-remote,
+    .patient-video-stage .patient-video-local,
+    .patient-video-stage.is-local-main .patient-video-remote {
+        inset: auto .65rem .65rem auto !important;
+        width: 7.5rem !important;
+        height: 4.75rem !important;
+    }
+}

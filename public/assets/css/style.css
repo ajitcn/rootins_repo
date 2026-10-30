@@ -1138,6 +1138,20 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .patient-video-stage .patient-video-local:before, .patient-video-stage .patient-video-remote:before { z-index: 4; }
 .patient-video-stage .video-empty-label { z-index: 1; }
 .patient-video-stage .patient-video-local.has-video .video-empty-label, .patient-video-stage .patient-video-remote.has-video .video-empty-label { display: none; }
+.patient-video-stage { display: block !important; height: min(72vh, 38rem) !important; min-height: 0 !important; aspect-ratio: 9 / 16 !important; padding: 0 !important; background: #0b1220 !important; }
+.patient-video-stage .patient-video-remote, .patient-video-stage .patient-video-local { position: absolute !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; }
+.patient-video-stage .patient-video-local { inset: auto .65rem .65rem auto !important; z-index: 4 !important; width: 7.5rem !important; height: 4.75rem !important; border: 2px solid #fff !important; box-shadow: 0 .45rem 1rem rgba(0,0,0,.4) !important; }
+.patient-video-stage .patient-video-remote { z-index: 1 !important; }
+.patient-video-stage.is-local-main .patient-video-local { inset: 0 !important; z-index: 1 !important; width: auto !important; height: auto !important; border: 0 !important; box-shadow: none !important; }
+.patient-video-stage.is-local-main .patient-video-remote { inset: auto .65rem .65rem auto !important; z-index: 4 !important; width: 7.5rem !important; height: 4.75rem !important; border: 2px solid #fff !important; box-shadow: 0 .45rem 1rem rgba(0,0,0,.4) !important; }
+.patient-video-stage .twilio-video-track { min-height: 0 !important; width: 100% !important; height: 100% !important; object-fit: contain !important; background: #050914 !important; }
+.patient-video-stage:has(.twilio-video-track) .video-empty-label { display: none !important; }
+.patient-video-stage .patient-video-local:not(:has(.twilio-video-track)) { display: none !important; }
+@media (min-width: 768px) {
+  .patient-video-stage { height: min(70vh, 34rem) !important; aspect-ratio: 16 / 9 !important; }
+  .patient-video-stage .patient-video-local { inset: auto .8rem .8rem auto !important; width: 10rem !important; height: 6.25rem !important; }
+  .patient-video-stage.is-local-main .patient-video-remote { inset: auto .8rem .8rem auto !important; width: 10rem !important; height: 6.25rem !important; }
+}
 .doctor-video-consultation-modal .modal-content { overflow: hidden; border: 0; border-radius: .8rem; box-shadow: 0 1rem 2.5rem rgba(18, 29, 49, .22); }
 .doctor-video-consultation-modal .modal-header, #doctor-video-consultation-modal .modal-header { min-height: 3.5rem; color: #fff; border-bottom: 0; background: #1f2940; }
 .doctor-video-consultation-modal .modal-title, #doctor-video-consultation-modal .modal-title { font-size: .95rem; font-weight: 800; }

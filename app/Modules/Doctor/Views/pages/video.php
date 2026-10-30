@@ -16,6 +16,10 @@
 </main>
 <?= $this->endSection() ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('assets/css/video.css?v=20261030.1') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('scripts') ?>
 <script src="https://sdk.twilio.com/js/video/releases/2.29.0/twilio-video.min.js"></script>
 <script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.7') ?>"></script>
