@@ -18,7 +18,7 @@
 
 <?= $this->section('scripts') ?>
 <script src="https://sdk.twilio.com/js/video/releases/2.29.0/twilio-video.min.js"></script>
-<script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.6') ?>"></script>
-<script src="<?= base_url('assets/js/video/video-ui.js?v=20261030.2') ?>"></script>
+<script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.7') ?>"></script>
+<script src="<?= base_url('assets/js/video/video-ui.js?v=20261030.3') ?>"></script>
 <script src="<?= base_url('assets/js/video/doctor-video.js?v=20261030.1') ?>"></script>
 <?= $this->endSection() ?>
