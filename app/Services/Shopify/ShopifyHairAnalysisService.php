@@ -109,7 +109,7 @@ final class ShopifyHairAnalysisService
             }
             (new ShopifyHairAnalysisImageModel())->insertBatch($imageRows);
             $imagesPersisted = true;
-            $result = $this->analyze($config, $questionnaire, $files);
+            $result = $this->analyze($config, $questionnaire, $files, $leadReference);
             $leadModel->update((int) $leadId, ['status' => 'completed', 'result_json' => json_encode($result, JSON_UNESCAPED_SLASHES), 'processed_at' => $now, 'updated_at' => date('Y-m-d H:i:s')]);
             service('audit')->record('shopify.hair_analysis_completed', ['lead_reference' => $leadReference, 'configuration_version' => (int) $config['version']]);
         } catch (\Throwable $exception) {
@@ -118,7 +118,8 @@ final class ShopifyHairAnalysisService
                     log_message('warning', 'Shopify hair analysis object cleanup failed ' . json_encode(['lead_reference' => $leadReference, 'exception_class' => get_class($cleanupException)], JSON_UNESCAPED_SLASHES));
                 }
             }
-            $leadModel->update((int) $leadId, ['status' => 'failed', 'error_code' => $exception instanceof InvalidArgumentException ? 'VALIDATION_FAILED' : 'SHOPIFY_HAIR_ANALYSIS_PROCESSING_FAILED', 'error_message' => mb_substr($exception->getMessage(), 0, 500), 'updated_at' => date('Y-m-d H:i:s')]);
+            $failureCode = $exception instanceof InvalidArgumentException ? 'VALIDATION_FAILED' : $this->safeFailureCode($exception->getMessage());
+            $leadModel->update((int) $leadId, ['status' => 'failed', 'error_code' => $failureCode, 'error_message' => $failureCode, 'updated_at' => date('Y-m-d H:i:s')]);
             log_message('error', 'Shopify hair analysis failed ' . json_encode(['lead_reference' => $leadReference, 'category' => $exception instanceof InvalidArgumentException ? 'validation' : 'processing', 'exception_class' => get_class($exception)], JSON_UNESCAPED_SLASHES));
         }
 
@@ -212,11 +213,12 @@ final class ShopifyHairAnalysisService
         $questionnaire = is_array($questionnaire) ? $questionnaire : ['first_name' => (string) $lead['first_name']];
         $leadModel->update($id, ['status' => 'processing', 'error_code' => null, 'error_message' => null, 'updated_at' => date('Y-m-d H:i:s')]);
         try {
-            $result = $this->analyzePhotos($config, $questionnaire, $photos);
+            $result = $this->analyzePhotos($config, $questionnaire, $photos, (string) $lead['lead_reference']);
             $leadModel->update($id, ['status' => 'completed', 'result_json' => json_encode($result, JSON_UNESCAPED_SLASHES), 'processed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
             service('audit')->record('admin.shopify_hair_analysis_retried', ['lead_id' => $id, 'status' => 'completed']);
         } catch (\Throwable $exception) {
-            $leadModel->update($id, ['status' => 'failed', 'error_code' => 'SHOPIFY_HAIR_ANALYSIS_PROCESSING_FAILED', 'error_message' => mb_substr($exception->getMessage(), 0, 500), 'updated_at' => date('Y-m-d H:i:s')]);
+            $failureCode = $this->safeFailureCode($exception->getMessage());
+            $leadModel->update($id, ['status' => 'failed', 'error_code' => $failureCode, 'error_message' => $failureCode, 'updated_at' => date('Y-m-d H:i:s')]);
             throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_RETRY_FAILED');
         }
         return $this->publicLead($leadModel->find($id), true);
@@ -239,20 +241,23 @@ final class ShopifyHairAnalysisService
     }
 
     /** @return array<string,mixed> */
-    private function analyze(array $config, array $questionnaire, array $files): array
+    private function analyze(array $config, array $questionnaire, array $files, string $leadReference = ''): array
     {
         $photos = [];
         foreach (array_values($files) as $index => $file) {
             $photos[] = ['angle' => self::ANGLES[$index] ?? 'photo', 'mime' => strtolower((string) $file->getMimeType()), 'bytes' => (string) file_get_contents($file->getTempName())];
         }
-        return $this->analyzePhotos($config, $questionnaire, $photos);
+        return $this->analyzePhotos($config, $questionnaire, $photos, $leadReference);
     }
 
     /** @param list<array{angle:string,mime:string,bytes:string}> $photos */
-    private function analyzePhotos(array $config, array $questionnaire, array $photos): array
+    private function analyzePhotos(array $config, array $questionnaire, array $photos, string $leadReference = ''): array
     {
         $apiKey = trim((string) env('OPENAI_API_KEY'));
-        if ($apiKey === '') throw new RuntimeException('OPENAI_CONFIGURATION_MISSING');
+        if ($apiKey === '') {
+            $this->logOpenAiFailure($leadReference, $config, 'configuration_missing', null, null);
+            throw new RuntimeException('OPENAI_CONFIGURATION_MISSING');
+        }
         $content = [['type' => 'text', 'text' => "Patient context:\n" . json_encode($questionnaire, JSON_UNESCAPED_SLASHES)]];
         foreach ($photos as $index => $photo) {
             $content[] = ['type' => 'text', 'text' => 'Photo ' . ($index + 1) . ': ' . $photo['angle']];
@@ -260,16 +265,47 @@ final class ShopifyHairAnalysisService
         }
         $body = ['model' => (string) $config['model'], 'temperature' => (float) $config['temperature'], 'messages' => [['role' => 'system', 'content' => (string) $config['prompt_text']], ['role' => 'user', 'content' => $content]], 'response_format' => ['type' => 'json_schema', 'json_schema' => ['name' => 'rootins_hair_report', 'strict' => true, 'schema' => json_decode((string) $config['schema_json'], true)]]];
         $handle = curl_init('https://api.openai.com/v1/chat/completions');
+        if ($handle === false) {
+            $this->logOpenAiFailure($leadReference, $config, 'curl_init_failed', null, null);
+            throw new RuntimeException('OPENAI_CURL_UNAVAILABLE');
+        }
         curl_setopt_array($handle, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json'], CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_TIMEOUT => 120]);
         $raw = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+        $curlError = curl_errno($handle);
         curl_close($handle);
-        if (! is_string($raw) || $status < 200 || $status >= 300) throw new RuntimeException('OPENAI_REQUEST_FAILED');
+        if (! is_string($raw) || $status < 200 || $status >= 300) {
+            $decodedError = is_string($raw) ? json_decode($raw, true) : null;
+            $errorCode = is_array($decodedError) ? (string) ($decodedError['error']['code'] ?? '') : '';
+            $errorType = is_array($decodedError) ? (string) ($decodedError['error']['type'] ?? '') : '';
+            $this->logOpenAiFailure($leadReference, $config, $curlError > 0 ? 'curl_request_failed' : 'http_request_failed', $status, $errorCode !== '' ? $errorCode : ($errorType !== '' ? $errorType : null));
+            throw new RuntimeException($curlError > 0 ? 'OPENAI_CURL_REQUEST_FAILED' : 'OPENAI_HTTP_REQUEST_FAILED');
+        }
         $decoded = json_decode($raw, true);
         $contentJson = $decoded['choices'][0]['message']['content'] ?? null;
         $result = is_string($contentJson) ? json_decode($contentJson, true) : null;
-        if (! is_array($result)) throw new RuntimeException('OPENAI_RESPONSE_INVALID');
+        if (! is_array($result)) {
+            $this->logOpenAiFailure($leadReference, $config, 'response_invalid', $status, null);
+            throw new RuntimeException('OPENAI_RESPONSE_INVALID');
+        }
         return $result;
+    }
+
+    private function logOpenAiFailure(string $leadReference, array $config, string $stage, ?int $httpStatus, ?string $providerCode): void
+    {
+        log_message('error', 'Shopify hair analysis OpenAI failure ' . json_encode([
+            'lead_reference' => $leadReference !== '' ? $leadReference : null,
+            'configuration_version' => (int) ($config['version'] ?? 0),
+            'model' => (string) ($config['model'] ?? ''),
+            'stage' => $stage,
+            'http_status' => $httpStatus,
+            'provider_code' => $providerCode,
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    private function safeFailureCode(string $message): string
+    {
+        return preg_match('/^[A-Z0-9_]{3,100}$/', $message) === 1 ? $message : 'SHOPIFY_HAIR_ANALYSIS_PROCESSING_FAILED';
     }
 
     /** @return array<string,mixed> */
