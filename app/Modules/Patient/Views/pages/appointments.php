@@ -28,6 +28,16 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
         </div>
     </header>
 
+    <?php if (!empty($videoEnded)): ?>
+        <div class="alert alert-success d-flex align-items-start" role="status">
+            <i class="bi bi-check-circle-fill mr-2 mt-1" aria-hidden="true"></i>
+            <div>
+                <strong>Video consultation ended</strong>
+                <div class="small">Your consultation has been closed. You can review the appointment and any prescription here.</div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <section class="card patient-list-toolbar" aria-label="Appointment filters">
         <form method="get" action="<?= current_url() ?>" class="patient-filter-form">
             <input type="hidden" name="view" value="<?= esc($filters['view']) ?>">

@@ -10,6 +10,7 @@
     var button = $('#patient-video-join');
     var status = $('#patient-video-status');
     var message = $('#patient-video-message');
+    var redirectUrl = page.data('redirect-url');
     var timer = null;
     var ended = false;
 
@@ -27,6 +28,9 @@
         button.prop('disabled', true).html('<i class="bi bi-check-circle mr-1"></i>Consultation ended');
         $('#patient-video-mute, #patient-video-camera, .js-video-layout-toggle, .js-video-fullscreen').prop('disabled', true);
         if (window.RootinsTwilioRoom) window.RootinsTwilioRoom.disconnect();
+        if (redirectUrl) {
+            window.setTimeout(function () { window.location.assign(redirectUrl); }, 3500);
+        }
     }
 
     function sync() {

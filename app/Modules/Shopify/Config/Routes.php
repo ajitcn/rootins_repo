@@ -11,6 +11,9 @@ $routes->group('admin/integrations/shopify', [
     $routes->get('orders', 'Integration::orders', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('webhooks', 'Integration::webhooks', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('proxy-setup', 'Integration::proxySetup', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('ai-hair-analysis', 'Integration::hairAnalysisConfig', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('ai-hair-analysis/leads', 'Integration::hairAnalysisLeads', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('ai-hair-analysis/leads/(:num)', 'Integration::hairAnalysisLead/$1', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('on-demand-apis', 'Integration::onDemandApis', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('on-demand-apis/customers/(:any)', 'Integration::customer/$1', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('customers', 'Integration::customers', ['filter' => 'permission:shopify.integration.view']);
@@ -25,6 +28,10 @@ $routes->group('admin/integrations/shopify', [
     $routes->post('webhooks/register-missing', 'Integration::registerMissingWebhooks', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('test-connection', 'Integration::testConnection', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('proxy-setup/save', 'Integration::saveProxyConfiguration', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('ai-hair-analysis/save', 'Integration::saveHairAnalysisConfig', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('ai-hair-analysis/leads/(:num)/link-patient', 'Integration::linkHairAnalysisLeadPatient/$1', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('ai-hair-analysis/leads/(:num)/create-patient', 'Integration::createHairAnalysisLeadPatient/$1', ['filter' => 'permission:shopify.integration.manage']);
+    $routes->post('ai-hair-analysis/leads/(:num)/retry', 'Integration::retryHairAnalysisLead/$1', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('proxy-setup/test', 'Integration::testProxyConnection', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('proxy-setup/rotate-secret', 'Integration::rotateProxySecret', ['filter' => 'permission:shopify.integration.manage']);
     $routes->post('proxy-setup/enable', 'Integration::enableProxy', ['filter' => 'permission:shopify.integration.manage']);
@@ -67,3 +74,7 @@ $routes->post('rootins-proxy/prescriptions/cart-status', '\App\Modules\Shopify\C
 $routes->post('public/rootins-proxy/prescriptions/cart-status', '\App\Modules\Shopify\Controllers\ActivePrescriptions::cartStatus');
 $routes->post('rootins-proxy/prescriptions/upload', '\App\Modules\Shopify\Controllers\Proxy::upload');
 $routes->get('rootins-proxy/orders/status', '\App\Modules\Shopify\Controllers\CustomerOrderStatus::show');
+$routes->post('apps/rootins/hair-analysis/submit', '\App\Modules\Shopify\Controllers\HairAnalysis::submit');
+$routes->get('apps/rootins/hair-analysis/status', '\App\Modules\Shopify\Controllers\HairAnalysis::status');
+$routes->post('rootins-proxy/hair-analysis/submit', '\App\Modules\Shopify\Controllers\HairAnalysis::submit');
+$routes->get('rootins-proxy/hair-analysis/status', '\App\Modules\Shopify\Controllers\HairAnalysis::status');

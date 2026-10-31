@@ -17,6 +17,8 @@ use App\Services\Shopify\ShopifyWebhookRegistrationService;
 use App\Services\Shopify\ShopifyProxyConfigurationService;
 use App\Services\Shopify\ShopifyProxyCredentialVerificationException;
 use App\Services\Shopify\ShopifyProxyCredentialVerificationService;
+use App\Modules\Shopify\Models\ShopifyHairAnalysisConfigurationModel;
+use App\Services\Shopify\ShopifyHairAnalysisService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -44,6 +46,140 @@ final class Integration extends BaseAdminController
             'shopify' => (new ShopifyProxyConfigurationService())->summary(),
             'canManage' => $this->hasPermission('shopify.integration.manage'),
         ]);
+    }
+
+    public function hairAnalysisConfig(): string
+    {
+        if (! db_connect()->tableExists('shopify_hair_analysis_configurations')) {
+            return view(ADMIN_VIEW . 'pages/integrations/shopify_hair_analysis', [
+                'activeConfig' => null,
+                'history' => [],
+                'canManage' => $this->hasPermission('shopify.integration.manage'),
+                'migrationRequired' => true,
+            ]);
+        }
+        $model = new ShopifyHairAnalysisConfigurationModel();
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_hair_analysis', [
+            'activeConfig' => $model->where('is_active', 1)->orderBy('version', 'DESC')->first(),
+            'history' => $model->orderBy('version', 'DESC')->findAll(20),
+            'canManage' => $this->hasPermission('shopify.integration.manage'),
+            'migrationRequired' => false,
+        ]);
+    }
+
+    public function hairAnalysisLeads(): string
+    {
+        if (! db_connect()->tableExists('shopify_hair_analysis_leads')) {
+            return view(ADMIN_VIEW . 'pages/integrations/shopify_hair_analysis_leads', ['leads' => [], 'migrationRequired' => true]);
+        }
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_hair_analysis_leads', [
+            'leads' => (new ShopifyHairAnalysisService())->adminList(),
+            'canManage' => $this->hasPermission('shopify.integration.manage'),
+            'migrationRequired' => false,
+        ]);
+    }
+
+    public function hairAnalysisLead(int $id): string
+    {
+        if (! db_connect()->tableExists('shopify_hair_analysis_leads')) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Hair analysis lead table is not available.');
+        }
+        $lead = (new ShopifyHairAnalysisService())->adminFind($id);
+        if ($lead === null) throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Hair analysis lead not found.');
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_hair_analysis_lead', ['lead' => $lead]);
+    }
+
+    public function linkHairAnalysisLeadPatient(int $id): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->response->setStatusCode(405)->setJSON(['status' => false, 'msg' => 'Invalid link request.']);
+        try {
+            $data = (new ShopifyHairAnalysisService())->linkPatient($id, (string) $this->request->getPost('patient_reference'), (int) ($this->user['id'] ?? 0));
+            return $this->response->setJSON(['status' => true, 'msg' => 'Hair analysis lead linked to the ROOTINS patient.', 'data' => $data]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Hair analysis patient link failed ' . get_class($exception));
+            return $this->response->setStatusCode(503)->setJSON(['status' => false, 'msg' => 'The lead could not be linked safely.']);
+        }
+    }
+
+    public function retryHairAnalysisLead(int $id): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->response->setStatusCode(405)->setJSON(['status' => false, 'msg' => 'Invalid retry request.']);
+        try {
+            return $this->response->setJSON(['status' => true, 'msg' => 'Hair analysis completed.', 'data' => (new ShopifyHairAnalysisService())->retry($id)]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Hair analysis retry failed ' . get_class($exception));
+            return $this->response->setStatusCode(503)->setJSON(['status' => false, 'msg' => 'The hair analysis could not be retried safely.']);
+        }
+    }
+
+    public function createHairAnalysisLeadPatient(int $id): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->response->setStatusCode(405)->setJSON(['status' => false, 'msg' => 'Invalid patient request.']);
+        try {
+            $data = (new ShopifyHairAnalysisService())->createPatient($id, $this->request->getPost(), (int) ($this->user['id'] ?? 0));
+            return $this->response->setJSON(['status' => true, 'msg' => 'Global ROOTINS patient created from the lead.', 'data' => $data]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $exception->getMessage()]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Hair analysis patient creation failed ' . get_class($exception));
+            return $this->response->setStatusCode(503)->setJSON(['status' => false, 'msg' => 'The patient could not be created safely.']);
+        }
+    }
+
+    public function saveHairAnalysisConfig(): ResponseInterface
+    {
+        if (! db_connect()->tableExists('shopify_hair_analysis_configurations')) {
+            return $this->response->setStatusCode(503)->setJSON(['status' => false, 'msg' => 'Run the database migrations before saving AI Hair Analysis configuration.', 'code' => 'SHOPIFY_HAIR_ANALYSIS_MIGRATION_REQUIRED']);
+        }
+        if (! $this->request->isAJAX()) {
+            return $this->response->setStatusCode(405)->setJSON(['status' => false, 'msg' => 'Invalid configuration request.']);
+        }
+
+        $prompt = trim((string) $this->request->getPost('prompt_text'));
+        $schema = trim((string) $this->request->getPost('schema_json'));
+        $modelName = trim((string) $this->request->getPost('model')) ?: 'gpt-4.1-mini';
+        $temperature = (float) $this->request->getPost('temperature');
+        if (mb_strlen($prompt) < 20 || mb_strlen($prompt) > 500000) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'The analysis prompt must be between 20 and 500,000 characters.']);
+        }
+        if ($schema === '' || mb_strlen($schema) > 500000) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'A JSON schema is required.']);
+        }
+        try {
+            $decoded = json_decode($schema, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'The analysis schema must contain valid JSON.']);
+        }
+        if (! is_array($decoded)) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'The analysis schema must be a JSON object.']);
+        }
+        if (! preg_match('/^[A-Za-z0-9._-]{1,100}$/', $modelName) || $temperature < 0 || $temperature > 2) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => 'Model or temperature is invalid.']);
+        }
+
+        $db = db_connect();
+        $db->transStart();
+        $next = (int) ($db->table('shopify_hair_analysis_configurations')->selectMax('version')->get()->getRow('version') ?? 0) + 1;
+        $db->table('shopify_hair_analysis_configurations')->where('is_active', 1)->update(['is_active' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
+        $id = $db->table('shopify_hair_analysis_configurations')->insert([
+            'version' => $next,
+            'prompt_text' => $prompt,
+            'schema_json' => json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            'model' => $modelName,
+            'temperature' => number_format($temperature, 2, '.', ''),
+            'is_active' => 1,
+            'created_by' => (int) ($this->user['id'] ?? 0) ?: null,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $db->transComplete();
+        if (! $id || $db->transStatus() === false) {
+            return $this->response->setStatusCode(503)->setJSON(['status' => false, 'msg' => 'The AI Hair Analysis configuration could not be saved safely.']);
+        }
+        service('audit')->record('admin.shopify_hair_analysis_configuration_saved', ['version' => $next, 'model' => $modelName]);
+        return $this->response->setJSON(['status' => true, 'msg' => 'AI Hair Analysis configuration saved.', 'data' => ['version' => $next]]);
     }
 
     public function saveProxyConfiguration(): ResponseInterface

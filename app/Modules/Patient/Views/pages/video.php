@@ -1,7 +1,7 @@
 <?= $this->extend(PATIENT_VIEW . 'layout') ?>
 <?php $appointment = $appointment ?? []; $session = $session ?? null; $status = (string) ($session['status'] ?? 'not_started'); $appointmentId = (int) ($appointment['id'] ?? 0); ?>
 <?= $this->section('main-content') ?>
-<main class="patient-page" id="patient-video-page" data-appointment-id="<?= $appointmentId ?>" data-status-url="<?= esc(base_url('patient/video/' . $appointmentId . '/status'), 'attr') ?>">
+<main class="patient-page" id="patient-video-page" data-appointment-id="<?= $appointmentId ?>" data-status-url="<?= esc(base_url('patient/video/' . $appointmentId . '/status'), 'attr') ?>" data-redirect-url="<?= esc(base_url('patient/appointments?video=ended'), 'attr') ?>">
     <header class="patient-page-heading"><div><span class="patient-eyebrow">Patient portal / consultation</span><h1>Video consultation</h1><p class="text-muted mb-0"><?= esc($appointment['appointment_number'] ?? 'Appointment') ?> · Dr. <?= esc(trim(($appointment['doctor_first_name'] ?? '') . ' ' . ($appointment['doctor_last_name'] ?? ''))) ?></p></div><a class="btn btn-light btn-sm" href="<?= base_url('patient/appointments') ?>"><i class="bi bi-arrow-left mr-1"></i>Back to appointments</a></header>
     <section class="card patient-video-card"><div class="card-body">
         <?= csrf_field() ?>

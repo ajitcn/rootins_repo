@@ -224,6 +224,7 @@ final class Pages extends BaseController
             'appointments' => $records,
             'doctors' => $doctors,
             'services' => $services,
+            'videoEnded' => $this->request->getGet('video') === 'ended',
             'filters' => [
                 'search' => $search,
                 'status' => $status,

@@ -1150,6 +1150,18 @@ main[aria-labelledby="clinical-title"] #clinical-pane-prescription .clinical-pre
 .patient-video-stage:fullscreen { width: 100vw !important; height: 100vh !important; max-height: none !important; aspect-ratio: auto !important; border-radius: 0 !important; }
 .patient-video-stage:fullscreen .patient-video-local { width: 14rem !important; height: 8.75rem !important; }
 .patient-video-stage:fullscreen.is-local-main .patient-video-remote { width: 14rem !important; height: 8.75rem !important; }
+.patient-video-stage .js-video-fullscreen-restore { position: absolute; top: .8rem; right: .8rem; z-index: 8; display: none; align-items: center; gap: .35rem; padding: .45rem .7rem; border: 1px solid rgba(255,255,255,.45); border-radius: .5rem; color: #fff; background: rgba(0,0,0,.65); font-size: .78rem; font-weight: 700; }
+.patient-video-stage .js-video-fullscreen-restore:not([hidden]) { display: inline-flex; }
+.doctor-clinical-video-modal.is-minimized .modal-dialog { position: fixed; right: 1.25rem; bottom: 1.25rem; left: auto; width: min(30rem, calc(100vw - 2.5rem)); max-width: none; margin: 0; }
+.doctor-clinical-video-modal.is-minimized { pointer-events: none; }
+.doctor-clinical-video-modal.is-minimized .modal-dialog { pointer-events: auto; }
+.doctor-clinical-video-backdrop-hidden { display: none !important; }
+.doctor-clinical-video-modal.is-minimized .modal-body { display: none; }
+.doctor-clinical-video-modal.is-minimized .modal-content { box-shadow: 0 .75rem 2rem rgba(15, 23, 42, .3); }
+.doctor-clinical-video-modal.is-minimized .modal-header { border-bottom: 0; }
+@media (max-width: 575.98px) {
+  .doctor-clinical-video-modal.is-minimized .modal-dialog { right: .75rem; bottom: .75rem; left: .75rem; width: auto; }
+}
 @media (min-width: 768px) {
   .patient-video-stage { height: min(70vh, 34rem) !important; aspect-ratio: 16 / 9 !important; }
   .patient-video-stage .patient-video-local { inset: auto .8rem .8rem auto !important; width: 10rem !important; height: 6.25rem !important; }

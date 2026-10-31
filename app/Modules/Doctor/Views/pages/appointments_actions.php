@@ -12,7 +12,6 @@ $canConsultNow = $canConsult && ! $consultationDatePassed && in_array($status, [
         <?php
         $hasSecondaryActions = ($canEdit && (isset($nextStatuses[$status]) || ! in_array($status, ['completed', 'cancelled', 'no_show'], true)))
             || ($canConsult && ! $consultationDatePassed && in_array($status, ['scheduled', 'confirmed', 'checked_in', 'in_queue'], true))
-            || ($canConsult && ! $consultationDatePassed && in_array($status, ['scheduled', 'confirmed', 'checked_in', 'in_queue', 'in_consultation'], true) && ($appointment['appointment_type'] ?? '') === 'video')
             || ($canFollowUp && ! empty($appointment['consultation_id']))
             || ($canPrescription && ! empty($appointment['prescription_id']))
             || $canBilling;
@@ -38,9 +37,6 @@ $canConsultNow = $canConsult && ! $consultationDatePassed && in_array($status, [
                 <?php if ($canEdit && ! in_array($status, ['completed', 'cancelled', 'no_show'], true)): ?>
                     <button class="dropdown-item js-reschedule" type="button" data-id="<?= $appointmentId ?>"><i class="bi bi-pencil-square mr-2" aria-hidden="true"></i>Edit / Reschedule</button>
                     <button class="dropdown-item text-danger js-cancel" type="button" data-id="<?= $appointmentId ?>"><i class="bi bi-x-circle mr-2" aria-hidden="true"></i>Cancel</button>
-                <?php endif; ?>
-                <?php if ($canConsultNow && ($appointment['appointment_type'] ?? '') === 'video'): ?>
-                    <button class="dropdown-item js-video-consultation" type="button" data-video-url="<?= base_url('doctor/video/' . $appointmentId) ?>" data-appointment-number="<?= esc($appointmentLabel) ?>"><i class="bi bi-camera-video mr-2" aria-hidden="true"></i>Video Consultation</button>
                 <?php endif; ?>
                 <?php if ($canFollowUp && ! empty($appointment['consultation_id'])): ?>
                     <a class="dropdown-item" href="<?= base_url('doctor/follow-ups?consultation_id=' . (int) $appointment['consultation_id'] . '&appointment_id=' . $appointmentId) ?>"><i class="bi bi-calendar2-plus mr-2" aria-hidden="true"></i>Create Follow-up</a>

@@ -154,6 +154,11 @@ $clinicalActionContext = [
         <button class="btn btn-sm btn-primary" type="button" data-toggle="modal" data-target="#clinical-action-modal" data-clinical-action="consultation" aria-controls="clinical-action-modal" aria-label="Open consultation form">
             <i class="bi bi-clipboard2-pulse mr-1" aria-hidden="true"></i>Consultation Form
         </button>
+        <?php if (($selectedAppointment['appointment_type'] ?? '') === 'video'): ?>
+        <button class="btn btn-sm btn-primary js-clinical-video-consultation" type="button" data-video-url="<?= base_url('doctor/video/' . (int) $selectedAppointment['id']) ?>" aria-controls="doctor-clinical-video-modal">
+            <i class="bi bi-camera-video mr-1" aria-hidden="true"></i>Video Consultation
+        </button>
+        <?php endif; ?>
         <button class="btn btn-sm btn-primary" type="button" data-toggle="modal" data-target="#clinical-action-modal" data-clinical-action="print-prescription" aria-controls="clinical-action-modal" aria-label="Print selected prescription">
             <i class="bi bi-printer mr-1" aria-hidden="true"></i>Print Prescription
         </button>
@@ -699,12 +704,70 @@ $clinicalActionContext = [
     <?php endif; ?>
     <?php endif; ?>
 </main>
+<div class="modal fade ri-scroll-modal doctor-clinical-video-modal" id="doctor-clinical-video-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="doctor-clinical-video-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="doctor-clinical-video-title">Video consultation</h2>
+                <div class="d-flex align-items-center ml-auto">
+                    <button type="button" class="btn btn-sm btn-light mr-2 js-clinical-video-minimize" aria-label="Minimize video consultation" title="Minimize video consultation"><i class="bi bi-dash-lg" aria-hidden="true"></i><span class="sr-only">Minimize</span></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close video consultation"><span aria-hidden="true">&times;</span></button>
+                </div>
+            </div>
+            <div class="modal-body" id="doctor-clinical-video-body" aria-live="polite"><div class="text-center text-muted py-4" role="status">Loading video consultation…</div></div>
+        </div>
+    </div>
+</div>
+<?= $this->endSection() ?>
+
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('assets/css/video.css?v=20261030.1') ?>">
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
+<script src="https://sdk.twilio.com/js/video/releases/2.29.0/twilio-video.min.js"></script>
+<script src="<?= base_url('assets/js/video/twilio-room.js?v=20261030.7') ?>"></script>
+<script src="<?= base_url('assets/js/video/video-ui.js?v=20261030.5') ?>"></script>
+<script src="<?= base_url('assets/js/video/doctor-video.js?v=20261030.2') ?>"></script>
 <script>
 $(function () {
     const clinicalActionModal = $('#clinical-action-modal');
+    let clinicalVideoRequest = null;
+    $(document).on('click.clinicalVideoConsultation', '.js-clinical-video-consultation', function () {
+        const button = $(this);
+        const url = button.data('video-url');
+        const modal = $('#doctor-clinical-video-modal');
+        const body = $('#doctor-clinical-video-body');
+        if (!url || !modal.length || !body.length) return;
+        body.html('<div class="text-center text-muted py-4" role="status"><span class="spinner-border spinner-border-sm mr-2" aria-hidden="true"></span>Loading video consultation…</div>');
+        modal.removeClass('is-minimized').modal('show');
+        clinicalVideoRequest = ajaxRequest({
+            url: url + (url.indexOf('?') === -1 ? '?' : '&') + 'fragment=1',
+            method: 'GET',
+            dataType: 'html',
+            timeout: 30000,
+            success: function (html) { body.html(html); body.find('[title]').tooltip(); },
+            error: function (xhr, status) { body.html('<div class="alert alert-danger mb-0" role="alert">' + (status === 'timeout' ? 'Video consultation loading timed out.' : 'Video consultation could not be loaded safely.') + '</div>'); },
+        });
+    });
+    $(document).on('click.clinicalVideoMinimize', '.js-clinical-video-minimize', function () {
+        const modal = $('#doctor-clinical-video-modal');
+        const minimized = modal.toggleClass('is-minimized').hasClass('is-minimized');
+        const backdrop = $('.modal-backdrop').last();
+        if (minimized) {
+            backdrop.addClass('doctor-clinical-video-backdrop-hidden');
+            $('body').removeClass('modal-open');
+        } else {
+            backdrop.removeClass('doctor-clinical-video-backdrop-hidden');
+            $('body').addClass('modal-open');
+        }
+        $(this).attr('aria-label', minimized ? 'Restore video consultation' : 'Minimize video consultation').attr('title', minimized ? 'Restore video consultation' : 'Minimize video consultation').find('i').toggleClass('bi-dash-lg', !minimized).toggleClass('bi-arrows-angle-expand', minimized).siblings('.sr-only').text(minimized ? 'Restore' : 'Minimize');
+    });
+    $(document).on('hidden.bs.modal.clinicalVideoConsultation', '#doctor-clinical-video-modal', function () {
+        if (clinicalVideoRequest && clinicalVideoRequest.readyState !== 4) clinicalVideoRequest.abort();
+        $(this).removeClass('is-minimized');
+        $('.modal-backdrop').removeClass('doctor-clinical-video-backdrop-hidden');
+    });
     const amendmentButton = $('#clinical-amend-consultation');
     const workspaceForm = $('#clinical-workspace-form');
     if (amendmentButton.length && workspaceForm.length) {
