@@ -41,6 +41,8 @@ final class ShopifyProxyConfigurationService
         $subpath = trim((string) ($input['core_api_proxy_subpath'] ?? 'rootins'));
         $backend = $this->normalizeBackendUrl((string) ($input['core_api_backend_url'] ?? ''));
         $operations = array_values(array_intersect((array) ($input['allowed_core_api_operations'] ?? []), self::OPERATIONS));
+        if (array_intersect($operations, ['hair_analysis.submit', 'hair_analysis.status', 'skin_analysis.submit', 'skin_analysis.status'])) $operations[] = 'ai_analysis.callback_request';
+        $operations = array_values(array_unique($operations));
         $limit = (int) ($input['proxy_rate_limit_per_minute'] ?? 60);
         if ($appName === '' || mb_strlen($appName) > 120) throw new InvalidArgumentException('Enter a valid Core API app name.');
         if (! self::isValidStoreDomain($store)) throw new InvalidArgumentException('Enter a valid Core API Shopify store domain.');
