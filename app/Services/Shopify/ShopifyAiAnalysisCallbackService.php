@@ -27,7 +27,18 @@ final class ShopifyAiAnalysisCallbackService
             $crmService = new ShopifyAiAnalysisCrmService();
             $crmId = $crmService->ensureLead($type, $lead);
             $leadModel->update((int) $lead['id'], ['crm_lead_id' => $crmId]);
-            if (! $db->fieldExists('crm_lead_id', 'shopify_ai_analysis_callback_requests') || ! $db->fieldExists('follow_up_id', 'shopify_ai_analysis_callback_requests')) throw new RuntimeException('AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED');
+            $schema = [
+                'callback_crm_lead_id' => $db->fieldExists('crm_lead_id', 'shopify_ai_analysis_callback_requests'),
+                'callback_follow_up_id' => $db->fieldExists('follow_up_id', 'shopify_ai_analysis_callback_requests'),
+                'follow_up_priority' => $db->fieldExists('priority', 'crm_lead_followups'),
+            ];
+            if (in_array(false, $schema, true)) {
+                log_message('error', 'Shopify AI callback schema incomplete '.json_encode([
+                    'category' => 'AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED',
+                    'schema' => $schema,
+                ], JSON_UNESCAPED_SLASHES));
+                throw new RuntimeException('AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED');
+            }
             $id=$model->insert(['analysis_type'=>$type,'lead_id'=>(int)$lead['id'],'crm_lead_id'=>$crmId,'lead_reference'=>$reference,'analysis_id'=>$analysisId,'store_domain'=>$store,'shopify_customer_id'=>$customer,'preferred_time'=>$preferred,'note'=>$note,'status'=>'pending','priority'=>'high','created_at'=>$now,'updated_at'=>$now],true);
             $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$preferred,$note);
             $model->update((int)$id,['follow_up_id'=>$followUpId,'updated_at'=>$now]);
