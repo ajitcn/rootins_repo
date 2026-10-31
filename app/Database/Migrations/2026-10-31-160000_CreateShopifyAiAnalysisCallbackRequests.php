@@ -11,6 +11,7 @@ final class CreateShopifyAiAnalysisCallbackRequests extends Migration
             'id'=>['type'=>'BIGINT','constraint'=>20,'unsigned'=>true,'auto_increment'=>true],
             'analysis_type'=>['type'=>'VARCHAR','constraint'=>10],
             'lead_id'=>['type'=>'BIGINT','constraint'=>20,'unsigned'=>true],
+            'crm_lead_id'=>['type'=>'INT','constraint'=>10,'unsigned'=>true,'null'=>true],
             'lead_reference'=>['type'=>'VARCHAR','constraint'=>40],
             'analysis_id'=>['type'=>'VARCHAR','constraint'=>80],
             'store_domain'=>['type'=>'VARCHAR','constraint'=>255],
@@ -28,6 +29,8 @@ final class CreateShopifyAiAnalysisCallbackRequests extends Migration
         $this->forge->addUniqueKey(['store_domain','shopify_customer_id','analysis_type','lead_reference']);
         $this->forge->addKey(['status','priority','created_at']);
         $this->forge->addKey(['analysis_type','lead_id']);
+        $this->forge->addKey('crm_lead_id');
+        $this->forge->addForeignKey('crm_lead_id','crm_leads','id','SET NULL','CASCADE');
         $this->forge->addForeignKey('handled_by','users','id','SET NULL','CASCADE');
         $this->forge->createTable('shopify_ai_analysis_callback_requests', true);
     }
