@@ -38,6 +38,8 @@ final class ShopifySkinAnalysisService
             throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_LEAD_CREATE_FAILED', 0, $e);
         }
         if(!$id)throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_LEAD_CREATE_FAILED');
+        $crmLeadId=(new ShopifyAiAnalysisCrmService())->ensureLead('skin',$q+['lead_reference'=>$ref,'shopify_customer_id'=>$customer,'id'=>$id]);
+        $model->update((int)$id,['crm_lead_id'=>$crmLeadId]);
         $rows=[];$keys=[];$persisted=false;
         try {
             foreach(array_values($files) as $i=>$file){$this->validate($file);$angle=$this->angle($fields,$i);$ext=strtolower((string)pathinfo($file->getName(),PATHINFO_EXTENSION));$path='shopify/skin-analysis/'.$ref.'/'.$angle.'-'.bin2hex(random_bytes(8)).'.'.($ext?:'bin');($this->storage??new R2StorageLibrary())->uploadFile($path,$file);$keys[]=$path;$rows[]=['lead_id'=>(int)$id,'angle'=>$angle,'storage_key'=>$path,'mime_type'=>(string)$file->getMimeType(),'file_size'=>(int)$file->getSize(),'created_at'=>$now];}

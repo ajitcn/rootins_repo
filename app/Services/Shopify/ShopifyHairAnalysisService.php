@@ -93,6 +93,8 @@ final class ShopifyHairAnalysisService
             throw $exception;
         }
         if (! $leadId) throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_LEAD_CREATE_FAILED');
+        $crmLeadId = (new ShopifyAiAnalysisCrmService())->ensureLead('hair', $leadData + ['id' => $leadId]);
+        $leadModel->update((int) $leadId, ['crm_lead_id' => $crmLeadId]);
 
         $imageRows = [];
         $uploadedKeys = [];
