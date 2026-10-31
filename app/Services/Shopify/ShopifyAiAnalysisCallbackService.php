@@ -36,6 +36,7 @@ final class ShopifyAiAnalysisCallbackService
         } catch(\Throwable $e) {
             $db->transRollback(); $race=$model->where(['store_domain'=>$store,'shopify_customer_id'=>$customer,'analysis_type'=>$type,'lead_reference'=>$reference])->first();
             if($race)return ['request_reference'=>'CB-'.$race['id'],'status'=>(string)$race['status'],'priority'=>(string)$race['priority'],'crm_lead_id'=>(int)($race['crm_lead_id']??0),'follow_up_id'=>(int)($race['follow_up_id']??0),'message'=>'Callback request already received.'];
+            log_message('error','Shopify AI callback transaction failed '.json_encode(['analysis_type'=>$type,'lead_reference'=>$reference,'category'=>$e->getMessage(),'exception_class'=>get_class($e)],JSON_UNESCAPED_SLASHES));
             if($e instanceof RuntimeException && $e->getMessage()==='AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED') throw $e;
             throw new RuntimeException('AI_ANALYSIS_CALLBACK_CREATE_FAILED',0,$e);
         }
