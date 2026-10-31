@@ -54,3 +54,12 @@ The response is scoped to the signed Shopify store and `logged_in_customer_id`. 
 ## Data ownership
 
 Hair-analysis leads are global records and are not clinic-dependent. They remain separate from ROOTINS patients until an authorized staff workflow explicitly converts or links a lead later. Images are private R2 objects and are never exposed as permanent public URLs.
+
+## Skin Analysis
+
+Skin Analysis uses the same signed App Proxy flow with separate configuration and tables:
+
+POST /apps/rootins/skin-analysis/submit
+GET /apps/rootins/skin-analysis/status?reference=SAI-...
+
+Enable skin_analysis.submit and skin_analysis.status in App Proxy setup, then configure the separate prompt and schema at Admin → Shopify → AI Skin Analysis. Skin reports are stored separately from hair reports.

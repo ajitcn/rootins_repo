@@ -25,7 +25,7 @@ final class ShopifyProxyService
         $received = array_keys($query);
         sort($received, SORT_STRING);
         $required = ['shop', 'timestamp', 'signature', 'path_prefix'];
-        if (in_array($operation, ['patients.register', 'prescriptions.upload', 'prescriptions.active', 'prescriptions.cart_pushed', 'prescriptions.cart_status', 'orders.status', 'hair_analysis.submit', 'hair_analysis.status'], true)) {
+        if (in_array($operation, ['patients.register', 'prescriptions.upload', 'prescriptions.active', 'prescriptions.cart_pushed', 'prescriptions.cart_status', 'orders.status', 'hair_analysis.submit', 'hair_analysis.status', 'skin_analysis.submit', 'skin_analysis.status', 'ai_analysis.callback_request'], true)) {
             $required[] = 'logged_in_customer_id';
         }
         $missing = array_values(array_filter($required, static fn (string $name): bool => ! array_key_exists($name, $query) || is_array($query[$name]) || trim((string) $query[$name]) === ''));

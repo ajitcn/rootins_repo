@@ -18,7 +18,10 @@ use App\Services\Shopify\ShopifyProxyConfigurationService;
 use App\Services\Shopify\ShopifyProxyCredentialVerificationException;
 use App\Services\Shopify\ShopifyProxyCredentialVerificationService;
 use App\Modules\Shopify\Models\ShopifyHairAnalysisConfigurationModel;
+use App\Modules\Shopify\Models\ShopifySkinAnalysisConfigurationModel;
+use App\Services\Shopify\ShopifySkinAnalysisService;
 use App\Services\Shopify\ShopifyHairAnalysisService;
+use App\Services\Shopify\ShopifyAiAnalysisCallbackService;
 use CodeIgniter\HTTP\ResponseInterface;
 use InvalidArgumentException;
 
@@ -66,6 +69,30 @@ final class Integration extends BaseAdminController
             'migrationRequired' => false,
         ]);
     }
+
+    public function skinAnalysisConfig(): string
+    {
+        if (! db_connect()->tableExists('shopify_skin_analysis_configurations')) return view(ADMIN_VIEW . 'pages/integrations/shopify_skin_analysis', ['activeConfig'=>null,'history'=>[],'canManage'=>$this->hasPermission('shopify.integration.manage'),'migrationRequired'=>true]);
+        $model=new ShopifySkinAnalysisConfigurationModel();
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_skin_analysis', ['activeConfig'=>$model->where('is_active',1)->orderBy('version','DESC')->first(),'history'=>$model->orderBy('version','DESC')->findAll(20),'canManage'=>$this->hasPermission('shopify.integration.manage'),'migrationRequired'=>false]);
+    }
+
+    public function saveSkinAnalysisConfig(): ResponseInterface
+    {
+        if (! db_connect()->tableExists('shopify_skin_analysis_configurations')) return $this->response->setStatusCode(503)->setJSON(['status'=>false,'msg'=>'Run the database migrations before saving Skin Analysis configuration.']);
+        $prompt=trim((string)$this->request->getPost('prompt_text'));$schema=trim((string)$this->request->getPost('schema_json'));$modelName=trim((string)$this->request->getPost('model'))?:'gpt-4.1-mini';$temperature=(float)$this->request->getPost('temperature');
+        if(mb_strlen($prompt)<20||mb_strlen($prompt)>500000)return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>'The skin analysis prompt must be between 20 and 500,000 characters.']);
+        try{$decoded=json_decode($schema,true,512,JSON_THROW_ON_ERROR);}catch(\JsonException){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>'The skin analysis schema must contain valid JSON.']);}
+        if(!is_array($decoded)||!preg_match('/^[A-Za-z0-9._-]{1,100}$/',$modelName)||$temperature<0||$temperature>2)return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>'Skin analysis schema, model, or temperature is invalid.']);
+        $db=db_connect();$now=date('Y-m-d H:i:s');$db->transStart();$next=(int)($db->table('shopify_skin_analysis_configurations')->selectMax('version')->get()->getRow('version')??0)+1;$db->table('shopify_skin_analysis_configurations')->where('is_active',1)->update(['is_active'=>0,'updated_at'=>$now]);$id=$db->table('shopify_skin_analysis_configurations')->insert(['version'=>$next,'prompt_text'=>$prompt,'schema_json'=>json_encode($decoded,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES),'model'=>$modelName,'temperature'=>number_format($temperature,2,'.',''),'is_active'=>1,'created_by'=>(int)($this->user['id']??0)?:null,'created_at'=>$now,'updated_at'=>$now]);$db->transComplete();if(!$id||$db->transStatus()===false)return $this->response->setStatusCode(503)->setJSON(['status'=>false,'msg'=>'Skin analysis configuration could not be saved safely.']);service('audit')->record('admin.shopify_skin_analysis_configuration_saved',['version'=>$next,'model'=>$modelName]);return $this->response->setJSON(['status'=>true,'msg'=>'Skin Analysis configuration saved.','data'=>['version'=>$next]]);
+    }
+
+    public function skinAnalysisLeads(): string { if(!db_connect()->tableExists('shopify_skin_analysis_leads'))return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_leads',['leads'=>[],'migrationRequired'=>true]);return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_leads',['leads'=>(new ShopifySkinAnalysisService())->adminList(),'migrationRequired'=>false]); }
+    public function skinAnalysisLead(int $id): string { $lead=(new ShopifySkinAnalysisService())->adminFind($id);if(!$lead)throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Skin analysis lead not found.');return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_lead',['lead'=>$lead]); }
+    public function aiAnalysisCallbackRequests(): string { if (! db_connect()->tableExists('shopify_ai_analysis_callback_requests')) return view(ADMIN_VIEW.'pages/integrations/shopify_ai_analysis_callbacks',['requests'=>[],'migrationRequired'=>true]); return view(ADMIN_VIEW.'pages/integrations/shopify_ai_analysis_callbacks',['requests'=>(new ShopifyAiAnalysisCallbackService())->adminList(),'migrationRequired'=>false]); }
+    public function linkSkinAnalysisLeadPatient(int $id): ResponseInterface { try{return $this->response->setJSON(['status'=>true,'data'=>(new ShopifySkinAnalysisService())->linkPatient($id,(string)$this->request->getPost('patient_reference'),(int)($this->user['id']??0))]);}catch(\Throwable $e){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>$e->getMessage()]);} }
+    public function createSkinAnalysisLeadPatient(int $id): ResponseInterface { try{return $this->response->setJSON(['status'=>true,'data'=>(new ShopifySkinAnalysisService())->createPatient($id,$this->request->getPost(),(int)($this->user['id']??0))]);}catch(\Throwable $e){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>$e->getMessage()]);} }
+    public function retrySkinAnalysisLead(int $id): ResponseInterface { if (! $this->request->isAJAX()) return $this->response->setStatusCode(405)->setJSON(['status'=>false,'msg'=>'Invalid retry request.']); try{return $this->response->setJSON(['status'=>true,'msg'=>'Skin analysis completed.','data'=>(new ShopifySkinAnalysisService())->retry($id)]);}catch(\Throwable $e){log_message('error','Skin analysis retry failed '.get_class($e));return $this->response->setStatusCode(503)->setJSON(['status'=>false,'msg'=>'The skin analysis could not be retried safely.']);} }
 
     public function hairAnalysisLeads(): string
     {

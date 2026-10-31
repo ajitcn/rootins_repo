@@ -7,7 +7,7 @@ use InvalidArgumentException;
 
 final class ShopifyProxyConfigurationService
 {
-    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload', 'prescriptions.active', 'prescriptions.cart_status', 'orders.status', 'hair_analysis.submit', 'hair_analysis.status'];
+    private const OPERATIONS = ['appointments.availability', 'appointments.book', 'patients.register', 'prescriptions.upload', 'prescriptions.active', 'prescriptions.cart_status', 'orders.status', 'hair_analysis.submit', 'hair_analysis.status', 'skin_analysis.submit', 'skin_analysis.status', 'ai_analysis.callback_request'];
 
     public function __construct(private readonly ?ShopifyCoreApiProxyConfigurationModel $model = null) {}
 
@@ -81,7 +81,7 @@ final class ShopifyProxyConfigurationService
     }
 
     private function row(): ?array { return ($this->model ?? new ShopifyCoreApiProxyConfigurationModel())->orderBy('id', 'DESC')->first(); }
-    /** @return list<string> */ private function operations(?array $row): array { $values = json_decode((string) ($row['allowed_operations'] ?? ''), true); return array_values(array_intersect(is_array($values) ? $values : self::OPERATIONS, self::OPERATIONS)); }
+    /** @return list<string> */ private function operations(?array $row): array { $values = json_decode((string) ($row['allowed_operations'] ?? ''), true); $values=is_array($values)?$values:self::OPERATIONS; if (array_intersect($values,['hair_analysis.submit','hair_analysis.status','skin_analysis.submit','skin_analysis.status'])) $values[]='ai_analysis.callback_request'; return array_values(array_intersect(array_unique($values), self::OPERATIONS)); }
     private function encrypt(string $value): string { return base64_encode(service('encrypter')->encrypt($value, config('Encryption')->key)); }
     private function decrypt(string $value): string { try { $decoded = base64_decode($value, true); $plain = $decoded === false ? false : service('encrypter')->decrypt($decoded, config('Encryption')->key); return is_string($plain) ? $plain : ''; } catch (\Throwable) { return ''; } }
 
