@@ -40,11 +40,12 @@ final class ShopifySkinAnalysisService
         if(!$id)throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_LEAD_CREATE_FAILED');
         $crmLeadId=(new ShopifyAiAnalysisCrmService())->ensureLead('skin',$q+['lead_reference'=>$ref,'shopify_customer_id'=>$customer,'id'=>$id]);
         $model->update((int)$id,['crm_lead_id'=>$crmLeadId]);
+        (new ShopifyAiAnalysisRegistryService())->sync('skin', $q+['id'=>$id,'lead_reference'=>$ref,'store_domain'=>$store,'shopify_customer_id'=>$customer,'crm_lead_id'=>$crmLeadId,'status'=>'processing','created_at'=>$now,'updated_at'=>$now]);
         $rows=[];$keys=[];$persisted=false;
         try {
             foreach(array_values($files) as $i=>$file){$this->validate($file);$angle=$this->angle($fields,$i);$ext=strtolower((string)pathinfo($file->getName(),PATHINFO_EXTENSION));$path='shopify/skin-analysis/'.$ref.'/'.$angle.'-'.bin2hex(random_bytes(8)).'.'.($ext?:'bin');($this->storage??new R2StorageLibrary())->uploadFile($path,$file);$keys[]=$path;$rows[]=['lead_id'=>(int)$id,'angle'=>$angle,'storage_key'=>$path,'mime_type'=>(string)$file->getMimeType(),'file_size'=>(int)$file->getSize(),'created_at'=>$now];}
             (new ShopifySkinAnalysisImageModel())->insertBatch($rows);$persisted=true;
-            $result=$this->analyze($config,$q,$files,$ref);$model->update((int)$id,['status'=>'completed','result_json'=>json_encode($result,JSON_UNESCAPED_SLASHES),'processed_at'=>$now,'updated_at'=>date('Y-m-d H:i:s')]);service('audit')->record('shopify.skin_analysis_completed',['lead_reference'=>$ref,'configuration_version'=>(int)$config['version']]);
+            $result=$this->analyze($config,$q,$files,$ref);$model->update((int)$id,['status'=>'completed','result_json'=>json_encode($result,JSON_UNESCAPED_SLASHES),'processed_at'=>$now,'updated_at'=>date('Y-m-d H:i:s')]);(new ShopifyAiAnalysisRegistryService())->sync('skin',$model->find((int)$id)?:[]);service('audit')->record('shopify.skin_analysis_completed',['lead_reference'=>$ref,'configuration_version'=>(int)$config['version']]);
         }catch(\Throwable $e){if(!$persisted)foreach($keys as $path){try{($this->storage??new R2StorageLibrary())->delete($path);}catch(\Throwable){}}$code=$e instanceof InvalidArgumentException?'VALIDATION_FAILED':$this->code($e->getMessage());$model->update((int)$id,['status'=>'failed','error_code'=>$code,'error_message'=>$code,'updated_at'=>date('Y-m-d H:i:s')]);log_message('error','Shopify skin analysis failed '.json_encode(['lead_reference'=>$ref,'error_code'=>$code,'exception_class'=>get_class($e)],JSON_UNESCAPED_SLASHES));}
         return $this->public($model->find((int)$id));
     }

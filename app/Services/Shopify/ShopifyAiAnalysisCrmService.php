@@ -23,10 +23,17 @@ final class ShopifyAiAnalysisCrmService
         $mobile = trim((string) ($lead['mobile_number'] ?? ''));
         $normalized = $mobile !== '' ? preg_replace('/\D+/', '', $mobile) : null;
         if ($email !== '' || $normalized !== null) {
-            $existing = $db->table('crm_leads')->where('clinic_id', null)->where('deleted_at', null)
-                ->groupStart()->where('email', $email)->orWhere('mobile_normalized', $normalized)->groupEnd()
-                ->orderBy('id', 'ASC')->get()->getRowArray();
+            $query = $db->table('crm_leads')->where('deleted_at', null)->groupStart();
+            if ($email !== '') $query->where('email', $email);
+            if ($email !== '' && $normalized !== null) $query->orWhere('mobile_normalized', $normalized);
+            elseif ($normalized !== null) $query->where('mobile_normalized', $normalized);
+            $existing = $query->groupEnd()->orderBy('id', 'ASC')->get()->getRowArray();
             if ($existing) {
+                $updates = [];
+                if (empty($existing['mobile_number']) && $mobile !== '') { $updates['mobile_number'] = $mobile; $updates['mobile_normalized'] = $normalized; }
+                if (empty($existing['country_code']) && ! empty($lead['country_code'])) $updates['country_code'] = trim((string) $lead['country_code']);
+                if (empty($existing['email']) && $email !== '') $updates['email'] = $email;
+                if ($updates !== []) $db->table('crm_leads')->where('id', (int) $existing['id'])->update($updates);
                 return (int) $existing['id'];
             }
         }

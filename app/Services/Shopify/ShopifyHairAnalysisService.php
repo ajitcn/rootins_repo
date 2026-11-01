@@ -95,6 +95,7 @@ final class ShopifyHairAnalysisService
         if (! $leadId) throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_LEAD_CREATE_FAILED');
         $crmLeadId = (new ShopifyAiAnalysisCrmService())->ensureLead('hair', $leadData + ['id' => $leadId]);
         $leadModel->update((int) $leadId, ['crm_lead_id' => $crmLeadId]);
+        (new ShopifyAiAnalysisRegistryService())->sync('hair', $leadData + ['id' => $leadId, 'crm_lead_id' => $crmLeadId]);
 
         $imageRows = [];
         $uploadedKeys = [];
@@ -113,6 +114,7 @@ final class ShopifyHairAnalysisService
             $imagesPersisted = true;
             $result = $this->analyze($config, $questionnaire, $files, $leadReference);
             $leadModel->update((int) $leadId, ['status' => 'completed', 'result_json' => json_encode($result, JSON_UNESCAPED_SLASHES), 'processed_at' => $now, 'updated_at' => date('Y-m-d H:i:s')]);
+            (new ShopifyAiAnalysisRegistryService())->sync('hair', $leadModel->find((int) $leadId) ?: []);
             service('audit')->record('shopify.hair_analysis_completed', ['lead_reference' => $leadReference, 'configuration_version' => (int) $config['version']]);
         } catch (\Throwable $exception) {
             if (! $imagesPersisted) foreach ($uploadedKeys as $uploadedKey) {

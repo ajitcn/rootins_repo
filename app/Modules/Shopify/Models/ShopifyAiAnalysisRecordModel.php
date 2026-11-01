@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Modules\Shopify\Models;
+
+use CodeIgniter\Model;
+
+final class ShopifyAiAnalysisRecordModel extends Model
+{
+    protected $table = 'shopify_ai_analysis_records';
+    protected $returnType = 'array';
+    protected $useTimestamps = true;
+    protected $allowedFields = [
+        'analysis_type', 'legacy_record_id', 'lead_reference', 'store_domain', 'shopify_customer_id', 'idempotency_key',
+        'first_name', 'last_name', 'age', 'gender', 'email', 'mobile_number', 'country_code', 'date_of_birth',
+        'concern', 'health_list', 'questionnaire_json', 'status', 'result_json', 'error_code', 'error_message',
+        'patient_id', 'crm_lead_id', 'processed_at', 'created_at', 'updated_at',
+    ];
+}
