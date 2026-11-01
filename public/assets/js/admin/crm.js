@@ -148,7 +148,7 @@
         var dialog = target.querySelector('.modal-dialog');
         if (!dialog) {
             dialog = document.createElement('div');
-            dialog.className = 'modal-dialog modal-dialog-centered modal-lg';
+            dialog.className = 'modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg';
             target.appendChild(dialog);
         }
         var typeOptions = target.querySelector('[data-followup-panel="reschedule"] select[name="follow_up_type_id"]');
@@ -193,7 +193,8 @@
             target.dataset.followupId = button.dataset.followupId || '';
             target.dataset.followupUrl = button.dataset.followupUrl || '';
             var followUpTime = formatTime(item.follow_up_time);
-            var values = {lead:item.full_name, lead_number:item.lead_number, mobile:item.mobile_display, follow_up:formatDate(item.follow_up_date) + ' · ' + followUpTime, type:item.follow_up_type_name, status:titleCase(item.follow_up_status), assigned:item.assigned_user_name || 'Unassigned', remarks:item.remarks || '—', created:formatDateTime(item.created_at), creator:item.creator_name || 'Unknown creator', updated:formatDateTime(item.updated_at), updater:item.updater_name || 'Unknown updater'};
+            var tagText = item.tags ? 'Tags: ' + item.tags + '\n\n' : '';
+            var values = {lead:item.full_name, lead_number:item.lead_number, mobile:item.mobile_display, follow_up:formatDate(item.follow_up_date) + ' · ' + followUpTime, type:item.follow_up_type_name, status:titleCase(item.follow_up_status), assigned:item.assigned_user_name || 'Unassigned', remarks:tagText + (item.remarks || '—'), created:formatDateTime(item.created_at), creator:item.creator_name || 'Unknown creator', updated:formatDateTime(item.updated_at), updater:item.updater_name || 'Unknown updater'};
             values.service = item.service_name || '—';
             values.date = formatDate(item.follow_up_date);
             values.time = followUpTime;

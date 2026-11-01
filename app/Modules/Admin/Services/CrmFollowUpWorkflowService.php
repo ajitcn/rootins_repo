@@ -35,7 +35,7 @@ class CrmFollowUpWorkflowService
         $visibleFields = [
             'lead_number', 'full_name', 'mobile_display', 'service_name', 'follow_up_date', 'follow_up_time',
             'follow_up_type_id', 'follow_up_type_name', 'follow_up_status', 'assigned_user_id',
-            'assigned_user_name', 'remarks', 'created_at', 'creator_name', 'updated_at', 'updater_name',
+            'assigned_user_name', 'remarks', 'tags', 'created_at', 'creator_name', 'updated_at', 'updater_name',
         ];
 
         return ['follow_up' => array_intersect_key($followUp, array_flip($visibleFields)), 'activity' => $this->activity($id, (int) $followUp['clinic_id'])];
