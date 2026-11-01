@@ -58,7 +58,7 @@ final class ShopifyAiAnalysisCrmService
 
     private function dbLeadExists(int $id): bool
     {
-        return (bool) $this->db->table('crm_leads')->select('id')->where('id', $id)->where('deleted_at', null)->get()->getRowArray();
+        return (bool) db_connect()->table('crm_leads')->select('id')->where('id', $id)->where('deleted_at', null)->get()->getRowArray();
     }
 
     private function syncLeadProfile(int $id, array $lead): void
@@ -78,7 +78,7 @@ final class ShopifyAiAnalysisCrmService
         }
         if ($profile !== []) {
             $profile['updated_at'] = date('Y-m-d H:i:s');
-            $this->db->table('crm_leads')->where('id', $id)->update($profile);
+            db_connect()->table('crm_leads')->where('id', $id)->update($profile);
         }
     }
 
