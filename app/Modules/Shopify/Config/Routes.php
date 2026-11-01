@@ -18,6 +18,7 @@ $routes->group('admin/integrations/shopify', [
     $routes->get('ai-skin-analysis/leads', 'Integration::skinAnalysisLeads', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('ai-skin-analysis/leads/(:num)', 'Integration::skinAnalysisLead/$1', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('ai-analysis/callback-requests', 'Integration::aiAnalysisCallbackRequests', ['filter' => 'permission:shopify.integration.view']);
+    $routes->get('ai-analysis/history', 'Integration::aiAnalysisHistory', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('on-demand-apis', 'Integration::onDemandApis', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('on-demand-apis/customers/(:any)', 'Integration::customer/$1', ['filter' => 'permission:shopify.integration.view']);
     $routes->get('customers', 'Integration::customers', ['filter' => 'permission:shopify.integration.view']);

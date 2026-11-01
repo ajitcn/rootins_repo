@@ -72,5 +72,6 @@ $displayName = trim((string) ($sessionUser['username'] ?? $sessionUser['email'] 
     <?php if ($can('doctor_language.view')): ?><li class="nav-item"><a href="<?= base_url('admin/doctor-languages') ?>" class="nav-link <?= $active('admin/doctor-languages') ? 'active' : '' ?>"><i class="fa-solid fa-language menu-icon" aria-hidden="true"></i><span>Doctor Languages</span></a></li><?php endif; ?>
     <?php if ($can('popular_treatment.view')): ?><li class="nav-item"><a href="<?= base_url('admin/popular-treatments') ?>" class="nav-link <?= $active('admin/popular-treatments') ? 'active' : '' ?>"><i class="fa-solid fa-list menu-icon" aria-hidden="true"></i><span>Popular Treatments</span></a></li><?php endif; ?>
     <?php endif; ?>
+    <?php if ($can('shopify.integration.view')): ?><li class="nav-item"><a href="<?= base_url('admin/integrations/shopify/ai-analysis/history') ?>" class="nav-link <?= $active('admin/integrations/shopify/ai-analysis/history') ? 'active' : '' ?>"><i class="fa-solid fa-chart-line menu-icon" aria-hidden="true"></i><span>AI Analysis History</span></a></li><?php endif; ?>
   </ul>
 </nav>

@@ -39,7 +39,7 @@ final class ShopifyAiAnalysisCrmService
             'mobile_number' => $mobile ?: null, 'mobile_normalized' => $normalized, 'country_code' => trim((string) ($lead['country_code'] ?? '')) ?: null,
             'email' => $email ?: null, 'gender' => trim((string) ($lead['gender'] ?? '')) ?: null, 'date_of_birth' => $lead['date_of_birth'] ?? null,
             'source_id' => (int) $source['id'], 'interested_service' => 'AI ' . ucfirst($type) . ' Analysis', 'lead_status_id' => (int) $status['id'],
-            'priority' => 'high', 'remarks' => 'AI ' . ucfirst($type) . ' Analysis lead from Shopify.', 'created_at' => $now, 'updated_at' => $now,
+            'priority' => 'high', 'remarks' => 'AI ' . ucfirst($type) . ' Analysis lead from Shopify.', 'tags' => '#AI ' . ucfirst($type) . ' Analysis, #Important', 'created_at' => $now, 'updated_at' => $now,
         ], true);
         if (! $id) {
             throw new RuntimeException('CRM_LEAD_CREATE_FAILED');
@@ -100,7 +100,7 @@ final class ShopifyAiAnalysisCrmService
         $id = $db->table('crm_lead_followups')->insert([
             'follow_up_number' => 'TEMP-' . bin2hex(random_bytes(5)), 'lead_id' => $crmLeadId, 'clinic_id' => (int) $clinic, 'patient_id' => null,
             'follow_up_date' => $followUpDate, 'follow_up_time' => $followUpTime, 'follow_up_type_id' => (int) $typeRow['id'],
-            'follow_up_status' => (string) ($status['code'] ?? $status['normalized_code'] ?? 'scheduled'), 'priority' => 'high', 'remarks' => $remarks,
+            'follow_up_status' => (string) ($status['code'] ?? $status['normalized_code'] ?? 'scheduled'), 'priority' => 'high', 'remarks' => $remarks, 'tags' => '#AI ' . ucfirst($type) . ' Analysis, #Important',
             'created_at' => $now, 'updated_at' => $now,
         ], true);
         if (! $id) throw new RuntimeException('CRM_FOLLOWUP_CREATE_FAILED');

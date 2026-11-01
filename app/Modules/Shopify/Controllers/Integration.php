@@ -90,6 +90,19 @@ final class Integration extends BaseAdminController
     public function skinAnalysisLeads(): string { if(!db_connect()->tableExists('shopify_skin_analysis_leads'))return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_leads',['leads'=>[],'migrationRequired'=>true]);return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_leads',['leads'=>(new ShopifySkinAnalysisService())->adminList(),'migrationRequired'=>false]); }
     public function skinAnalysisLead(int $id): string { $lead=(new ShopifySkinAnalysisService())->adminFind($id);if(!$lead)throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Skin analysis lead not found.');return view(ADMIN_VIEW.'pages/integrations/shopify_skin_analysis_lead',['lead'=>$lead]); }
     public function aiAnalysisCallbackRequests(): string { if (! db_connect()->tableExists('shopify_ai_analysis_callback_requests')) return view(ADMIN_VIEW.'pages/integrations/shopify_ai_analysis_callbacks',['requests'=>[],'migrationRequired'=>true]); return view(ADMIN_VIEW.'pages/integrations/shopify_ai_analysis_callbacks',['requests'=>(new ShopifyAiAnalysisCallbackService())->adminList(),'migrationRequired'=>false]); }
+    public function aiAnalysisHistory(): string
+    {
+        $db = db_connect(); $rows = [];
+        foreach ([['shopify_hair_analysis_leads', 'hair', 'admin/integrations/shopify/ai-hair-analysis/leads/'], ['shopify_skin_analysis_leads', 'skin', 'admin/integrations/shopify/ai-skin-analysis/leads/']] as [$table, $type, $detailPrefix]) {
+            if (! $db->tableExists($table)) continue;
+            foreach ($db->table($table)->orderBy('id', 'DESC')->limit(200)->get()->getResultArray() as $lead) {
+                $rows[(string) $lead['lead_reference']] = ['type' => $type, 'lead' => $lead, 'detail_url' => base_url($detailPrefix . (int) $lead['id']), 'callbacks' => []];
+            }
+        }
+        if ($db->tableExists('shopify_ai_analysis_callback_requests')) foreach ($db->table('shopify_ai_analysis_callback_requests')->orderBy('id', 'DESC')->limit(500)->get()->getResultArray() as $callback) { $reference = (string) ($callback['lead_reference'] ?? ''); if (isset($rows[$reference])) $rows[$reference]['callbacks'][] = $callback; }
+        usort($rows, static fn (array $a, array $b): int => strcmp((string) ($b['lead']['created_at'] ?? ''), (string) ($a['lead']['created_at'] ?? '')));
+        return view(ADMIN_VIEW . 'pages/integrations/shopify_ai_analysis_history', ['rows' => array_values($rows), 'migrationRequired' => $rows === []]);
+    }
     public function linkSkinAnalysisLeadPatient(int $id): ResponseInterface { try{return $this->response->setJSON(['status'=>true,'data'=>(new ShopifySkinAnalysisService())->linkPatient($id,(string)$this->request->getPost('patient_reference'),(int)($this->user['id']??0))]);}catch(\Throwable $e){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>$e->getMessage()]);} }
     public function createSkinAnalysisLeadPatient(int $id): ResponseInterface { try{return $this->response->setJSON(['status'=>true,'data'=>(new ShopifySkinAnalysisService())->createPatient($id,$this->request->getPost(),(int)($this->user['id']??0))]);}catch(\Throwable $e){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'msg'=>$e->getMessage()]);} }
     public function retrySkinAnalysisLead(int $id): ResponseInterface { if (! $this->request->isAJAX()) return $this->response->setStatusCode(405)->setJSON(['status'=>false,'msg'=>'Invalid retry request.']); try{return $this->response->setJSON(['status'=>true,'msg'=>'Skin analysis completed.','data'=>(new ShopifySkinAnalysisService())->retry($id)]);}catch(\Throwable $e){log_message('error','Skin analysis retry failed '.get_class($e));return $this->response->setStatusCode(503)->setJSON(['status'=>false,'msg'=>'The skin analysis could not be retried safely.']);} }
