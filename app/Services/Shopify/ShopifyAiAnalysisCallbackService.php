@@ -45,7 +45,7 @@ final class ShopifyAiAnalysisCallbackService
                 throw new RuntimeException('AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED');
             }
             $id=$model->insert(['analysis_type'=>$type,'lead_id'=>(int)$lead['id'],'crm_lead_id'=>$crmId,'lead_reference'=>$reference,'analysis_id'=>$analysisId,'store_domain'=>$store,'shopify_customer_id'=>$customer,'preferred_date'=>$preferredDate,'preferred_slot'=>$preferredSlot,'preferred_slot_label'=>$preferredSlotLabel,'preferred_time'=>$preferred,'note'=>$note,'status'=>'pending','priority'=>'high','created_at'=>$now,'updated_at'=>$now],true);
-            $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$preferred,$note,$preferredDate,$preferredSlotLabel);
+            $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$preferred,$note,$preferredDate,$preferredSlot,$preferredSlotLabel);
             $model->update((int)$id,['follow_up_id'=>$followUpId,'updated_at'=>$now]);
             if(!$id||$db->transStatus()===false) throw new RuntimeException('AI_ANALYSIS_CALLBACK_CREATE_FAILED');
             $db->transCommit();
