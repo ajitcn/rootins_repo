@@ -45,14 +45,29 @@
             if (!status || !/scheduled|rescheduled/i.test(status.textContent)) return;
             var dateText = cell.querySelector('strong') && cell.querySelector('strong').textContent.trim();
             var timeText = cell.querySelector('small') && cell.querySelector('small').textContent.trim();
-            var parsed = Date.parse((dateText || '') + ' ' + (timeText || ''));
-            var dateMatch = String(dateText || '').match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+            var parsed = NaN;
+            var rawDate = String(dateText || '').trim().replace(/,/g, '');
+            var dateMatch = rawDate.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+            var monthMatch = rawDate.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+            var day = 0, month = 0, year = 0;
             if (dateMatch) {
-                parsed = Date.parse(dateMatch[3] + '-' + dateMatch[2].padStart(2, '0') + '-' + dateMatch[1].padStart(2, '0') + 'T' + (timeText || '00:00'));
+                day = parseInt(dateMatch[1], 10);
+                month = parseInt(dateMatch[2], 10);
+                year = parseInt(dateMatch[3], 10);
+            } else if (monthMatch) {
+                var monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                day = parseInt(monthMatch[1], 10);
+                month = monthNames.indexOf(monthMatch[2].slice(0, 3).toLowerCase()) + 1;
+                year = parseInt(monthMatch[3], 10);
             }
-            if (Number.isNaN(parsed)) {
-                var monthMatch = String(dateText || '').match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
-                if (monthMatch) parsed = Date.parse(monthMatch[1] + ' ' + monthMatch[2] + ' ' + monthMatch[3] + ' ' + (timeText || '00:00'));
+            if (day > 0 && month > 0 && year > 0) {
+                var clock = String(timeText || '00:00').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+                var hour = clock ? parseInt(clock[1], 10) : 0;
+                var minute = clock ? parseInt(clock[2], 10) : 0;
+                var meridiem = clock && clock[3] ? clock[3].toUpperCase() : '';
+                if (meridiem === 'PM' && hour < 12) hour += 12;
+                if (meridiem === 'AM' && hour === 12) hour = 0;
+                parsed = new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
             }
             if (!Number.isNaN(parsed) && parsed < Date.now()) {
                 cell.insertAdjacentHTML('beforeend', '<small class="text-danger font-weight-bold">Missed follow-up time</small>');
