@@ -27,7 +27,8 @@
         summary.className = 'crm-followup-status-summary mb-3';
         Object.keys(counts).forEach(function (status) {
             var card = document.createElement('span');
-            card.className = 'badge badge-light mr-2 mb-2 p-2';
+            var statusKey = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown';
+            card.className = 'crm-status-box crm-status-box-' + statusKey;
             card.textContent = status + ': ' + counts[status];
             summary.appendChild(card);
         });
@@ -78,7 +79,8 @@
         summary.className = 'crm-lead-status-summary mb-3';
         Object.keys(counts).forEach(function (status) {
             var card = document.createElement('span');
-            card.className = 'badge badge-light p-2';
+            var statusKey = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown';
+            card.className = 'crm-status-box crm-status-box-' + statusKey;
             card.textContent = status + ': ' + counts[status];
             summary.appendChild(card);
         });
@@ -305,23 +307,38 @@
             }
             aiSection.innerHTML = '';
             if (analyses.length) {
+                aiSection.classList.remove('d-none');
                 var aiTitle = document.createElement('h3');
                 aiTitle.className = 'h6 mb-2';
-                aiTitle.textContent = 'Linked AI analysis';
+                aiTitle.textContent = 'Linked AI analysis history';
                 aiSection.appendChild(aiTitle);
                 analyses.forEach(function (analysis) {
                     var row = document.createElement('div');
-                    row.className = 'd-flex justify-content-between align-items-center border-top pt-2 mt-2';
-                    var label = document.createElement('span');
-                    label.textContent = String(analysis.type || '').toUpperCase() + ' · ' + String(analysis.reference || '') + ' · ' + titleCase(String(analysis.status || ''));
+                    row.className = 'border-top pt-2 mt-2';
+                    var header = document.createElement('div');
+                    header.className = 'd-flex justify-content-between align-items-center flex-wrap';
+                    var label = document.createElement('strong');
+                    label.textContent = String(analysis.type || '').toUpperCase() + ' · ' + String(analysis.reference || '');
                     var link = document.createElement('a');
                     link.className = 'btn btn-sm btn-outline-primary ml-2';
                     link.href = analysis.detail_url || '#';
-                    link.textContent = 'View analysis';
+                    link.textContent = 'Open full analysis';
                     link.target = '_blank';
                     link.rel = 'noopener';
-                    row.appendChild(label);
-                    row.appendChild(link);
+                    header.appendChild(label);
+                    header.appendChild(link);
+                    row.appendChild(header);
+                    var meta = document.createElement('div');
+                    meta.className = 'small text-muted mt-1';
+                    var contact = [analysis.mobile_number || '', analysis.email || ''].filter(Boolean).join(' · ');
+                    meta.textContent = 'Status: ' + titleCase(String(analysis.status || 'Unknown')) + (contact ? ' · Contact: ' + contact : '') + ' · Images: ' + String(analysis.image_count || 0);
+                    row.appendChild(meta);
+                    if (analysis.concern || analysis.summary) {
+                        var context = document.createElement('div');
+                        context.className = 'small mt-1';
+                        context.textContent = analysis.concern || analysis.summary;
+                        row.appendChild(context);
+                    }
                     aiSection.appendChild(row);
                 });
             } else {

@@ -9,7 +9,11 @@ final class ShopifyAiAnalysisCrmService
     public function ensureLead(string $type, array $lead): int
     {
         if (! empty($lead['crm_lead_id'])) {
-            return (int) $lead['crm_lead_id'];
+            $leadId = (int) $lead['crm_lead_id'];
+            if ($this->dbLeadExists($leadId)) {
+                $this->syncLeadProfile($leadId, $lead);
+                return $leadId;
+            }
         }
 
         $db = db_connect();
@@ -29,11 +33,7 @@ final class ShopifyAiAnalysisCrmService
             elseif ($normalized !== null) $query->where('mobile_normalized', $normalized);
             $existing = $query->groupEnd()->orderBy('id', 'ASC')->get()->getRowArray();
             if ($existing) {
-                $updates = [];
-                if (empty($existing['mobile_number']) && $mobile !== '') { $updates['mobile_number'] = $mobile; $updates['mobile_normalized'] = $normalized; }
-                if (empty($existing['country_code']) && ! empty($lead['country_code'])) $updates['country_code'] = trim((string) $lead['country_code']);
-                if (empty($existing['email']) && $email !== '') $updates['email'] = $email;
-                if ($updates !== []) $db->table('crm_leads')->where('id', (int) $existing['id'])->update($updates);
+                $this->syncLeadProfile((int) $existing['id'], $lead);
                 return (int) $existing['id'];
             }
         }
@@ -54,6 +54,32 @@ final class ShopifyAiAnalysisCrmService
         $db->table('crm_leads')->where('id', (int) $id)->update(['lead_number' => 'LEAD-' . str_pad((string) $id, 6, '0', '0')]);
         service('audit')->record('shopify.ai_analysis_crm_lead_created', ['crm_lead_id' => (int) $id, 'analysis_type' => $type, 'lead_reference' => $lead['lead_reference'] ?? null]);
         return (int) $id;
+    }
+
+    private function dbLeadExists(int $id): bool
+    {
+        return (bool) $this->db->table('crm_leads')->select('id')->where('id', $id)->where('deleted_at', null)->get()->getRowArray();
+    }
+
+    private function syncLeadProfile(int $id, array $lead): void
+    {
+        $profile = [];
+        $first = trim((string) ($lead['first_name'] ?? ''));
+        $last = trim((string) ($lead['last_name'] ?? ''));
+        $name = trim($first . ' ' . $last);
+        $mobile = trim((string) ($lead['mobile_number'] ?? ''));
+        $email = trim((string) ($lead['email'] ?? ''));
+        if ($name !== '') $profile['full_name'] = $name;
+        if ($mobile !== '') { $profile['mobile_number'] = $mobile; $profile['mobile_normalized'] = preg_replace('/\\D+/', '', $mobile) ?: null; }
+        if ($email !== '') $profile['email'] = $email;
+        foreach (['country_code', 'gender', 'date_of_birth'] as $field) {
+            $value = trim((string) ($lead[$field] ?? ''));
+            if ($value !== '') $profile[$field] = $value;
+        }
+        if ($profile !== []) {
+            $profile['updated_at'] = date('Y-m-d H:i:s');
+            $this->db->table('crm_leads')->where('id', $id)->update($profile);
+        }
     }
 
     public function createCallbackFollowUp(int $crmLeadId, string $type, ?string $preferred, ?string $note, ?string $preferredDate = null, ?string $preferredSlot = null, ?string $preferredSlotLabel = null): int

@@ -27,7 +27,7 @@
 .crm-followup-details-modal .modal-dialog { width: calc(100% - 2rem); max-width: 960px; }
 .crm-followups-filter-toggle { margin-bottom: 1rem; }
 .crm-followup-status-summary { display: flex; flex-wrap: wrap; gap: .65rem; align-items: stretch; }
-.crm-followup-status-summary .badge { margin: 0 !important; min-width: 120px; border: 1px solid #dbe3ec; border-radius: .65rem; background: #fff; color: #1f2937; font-size: .8rem; font-weight: 800; text-align: left; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); }
+.crm-followup-status-summary .crm-status-box { margin: 0 !important; }
 .crm-status-overdue { border-color: #fecaca !important; background: #fef2f2 !important; color: #b91c1c !important; }
 @media (max-width: 575.98px) {
     .crm-followups-table thead { display: none; }
@@ -41,5 +41,5 @@
     .crm-followups-table td:before { display: block; margin-bottom: .15rem; color: #6b7280; font-size: .67rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; content: attr(data-label); }
     .crm-followups-table .dropdown-menu { position: static; float: none; }
     .crm-followup-details-grid { grid-template-columns: 1fr; }
-    .crm-followup-status-summary .badge { min-width: calc(50% - .35rem); }
+    .crm-followup-status-summary .crm-status-box { min-width: calc(50% - .35rem); }
 }
