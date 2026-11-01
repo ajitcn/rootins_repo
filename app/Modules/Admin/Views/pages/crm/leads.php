@@ -1,5 +1,5 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261013.2') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/lead-hierarchy.css?v=20261101.3') ?>"><?= $this->endSection() ?>
+<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261013.2') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/lead-hierarchy.css?v=20261101.4') ?>"><?= $this->endSection() ?>
 <?= $this->section('main-content') ?>
 <main class="dashboard-container crm-page crm-leads-page" aria-labelledby="crm-leads-title">
     <header class="crm-header"><div><span class="crm-eyebrow">ADMIN / CRM</span><h1 id="crm-leads-title">Lead Management</h1><p>Capture, assign and progress prospective patient enquiries.</p></div><button class="btn theme-btn" type="button" data-toggle="modal" data-target="#crmLeadModal" data-crm-reset="1"><i class="bi bi-plus-lg mr-1"></i>New lead</button></header>
@@ -36,5 +36,5 @@
         <div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button class="btn theme-btn" type="submit">Save lead</button></div>
     </form></div></div>
 </div>
-<script defer src="<?= base_url('assets/js/crm/lead-hierarchy.js?v=20261101.2') ?>"></script><script defer src="<?= base_url('assets/js/admin/crm.js?v=20261101.22') ?>"></script>
+<script defer src="<?= base_url('assets/js/crm/lead-hierarchy.js?v=20261101.3') ?>"></script><script defer src="<?= base_url('assets/js/admin/crm.js?v=20261101.23') ?>"></script>
 <?= $this->endSection() ?>

@@ -10,7 +10,10 @@
         toggle.type = 'button';
         toggle.className = 'btn btn-outline-secondary crm-followups-filter-toggle';
         toggle.textContent = 'Show filters';
-        toolbar.parentNode.insertBefore(toggle, toolbar);
+        var header = page.querySelector('.crm-header');
+        var primaryAction = header && header.querySelector('button[data-toggle="modal"]');
+        if (header && primaryAction) header.insertBefore(toggle, primaryAction);
+        else toolbar.parentNode.insertBefore(toggle, toolbar);
         toggle.addEventListener('click', function () {
             var hidden = toolbar.style.display === 'none';
             toolbar.style.display = hidden ? '' : 'none';
@@ -62,7 +65,10 @@
         toggle.type = 'button';
         toggle.className = 'btn btn-outline-secondary crm-leads-filter-toggle';
         toggle.textContent = 'Show filters';
-        toolbar.parentNode.insertBefore(toggle, toolbar);
+        var header = page.querySelector('.crm-header');
+        var primaryAction = header && header.querySelector('button[data-toggle="modal"]');
+        if (header && primaryAction) header.insertBefore(toggle, primaryAction);
+        else toolbar.parentNode.insertBefore(toggle, toolbar);
         toggle.addEventListener('click', function () {
             var hidden = toolbar.style.display === 'none';
             toolbar.style.display = hidden ? '' : 'none';

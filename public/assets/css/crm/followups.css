@@ -25,11 +25,22 @@
 .crm-followup-details-wide { grid-column: 1 / -1; }
 .crm-followup-details-wide dd { white-space: pre-wrap; overflow-wrap: anywhere; }
 .crm-followup-details-modal .modal-dialog { width: calc(100% - 2rem); max-width: 960px; }
-.crm-followups-filter-toggle { margin-bottom: 1rem; }
+.crm-followups-filter-toggle { margin-left: auto; margin-right: .6rem; white-space: nowrap; }
 .crm-followup-status-summary { display: flex; flex-wrap: wrap; gap: .65rem; align-items: stretch; }
 .crm-followup-status-summary .crm-status-box { margin: 0 !important; }
+.crm-status-box { display: inline-flex; align-items: center; min-width: 140px; min-height: 48px; padding: .65rem .85rem; border: 1px solid #d9e0e8; border-left: 3px solid #64748b; border-radius: 6px; background: #fff; color: #273449; font-size: .82rem; font-weight: 700; line-height: 1.25; box-shadow: 0 1px 3px rgba(15, 23, 42, .06); }
+.crm-status-box-new,.crm-status-box-scheduled,.crm-status-box-rescheduled { border-left-color: #2563eb; }
+.crm-status-box-completed,.crm-status-box-converted,.crm-status-box-approved { border-left-color: #16a34a; }
+.crm-status-box-cancelled,.crm-status-box-rejected { border-left-color: #dc2626; }
+.crm-status-box-missed,.crm-status-box-overdue { border-left-color: #ea580c; }
+.crm-status-box-in-progress,.crm-status-box-processing { border-left-color: #9333ea; }
+.crm-status-box-pending,.crm-status-box-follow-up { border-left-color: #ca8a04; }
 .crm-status-overdue { border-color: #fecaca !important; background: #fef2f2 !important; color: #b91c1c !important; }
 @media (max-width: 575.98px) {
+    .crm-followups-page .crm-header,
+    .crm-leads-page .crm-header { align-items: flex-start; flex-wrap: wrap; }
+    .crm-followups-filter-toggle,
+    .crm-leads-filter-toggle { margin-left: 0; margin-right: .5rem; }
     .crm-followups-table thead { display: none; }
     .crm-followups-table,
     .crm-followups-table tbody,
