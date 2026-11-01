@@ -21,7 +21,9 @@ final class ShopifyAiAnalysisCallbackService
         $leadModel=$type==='hair'?new ShopifyHairAnalysisLeadModel():new ShopifySkinAnalysisLeadModel();
         $lead=$leadModel->where(['lead_reference'=>$reference,'store_domain'=>$store,'shopify_customer_id'=>$customer])->first();
         if(!$lead) throw new RuntimeException('AI_ANALYSIS_NOT_FOUND');
-        $now=date('Y-m-d H:i:s'); $note=trim((string)($input['note']??''))?:null; $preferred=trim((string)($input['preferred_time']??''))?:null;
+        $now=date('Y-m-d H:i:s'); $note=trim((string)($input['note']??''))?:null; $preferredDate=trim((string)($input['preferred_date']??''))?:null; $preferredSlot=trim((string)($input['preferred_slot']??''))?:null; $preferredSlotLabel=trim((string)($input['preferred_slot_label']??''))?:null; $preferred=trim((string)($input['preferred_time']??''))?:null;
+        if($preferredDate!==null&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$preferredDate))throw new InvalidArgumentException('preferred_date must use YYYY-MM-DD format.');
+        if($preferredDate!==null&&!$preferred) $preferred=$preferredDate.($preferredSlot!==null?' '.$preferredSlot:'');
         $db=db_connect(); $db->transBegin();
         try {
             $crmService = new ShopifyAiAnalysisCrmService();
@@ -30,6 +32,9 @@ final class ShopifyAiAnalysisCallbackService
             $schema = [
                 'callback_crm_lead_id' => $db->fieldExists('crm_lead_id', 'shopify_ai_analysis_callback_requests'),
                 'callback_follow_up_id' => $db->fieldExists('follow_up_id', 'shopify_ai_analysis_callback_requests'),
+                'callback_preferred_date' => $db->fieldExists('preferred_date', 'shopify_ai_analysis_callback_requests'),
+                'callback_preferred_slot' => $db->fieldExists('preferred_slot', 'shopify_ai_analysis_callback_requests'),
+                'callback_preferred_slot_label' => $db->fieldExists('preferred_slot_label', 'shopify_ai_analysis_callback_requests'),
                 'follow_up_priority' => $db->fieldExists('priority', 'crm_lead_followups'),
             ];
             if (in_array(false, $schema, true)) {
@@ -39,8 +44,8 @@ final class ShopifyAiAnalysisCallbackService
                 ], JSON_UNESCAPED_SLASHES));
                 throw new RuntimeException('AI_ANALYSIS_CRM_LINKAGE_MIGRATION_REQUIRED');
             }
-            $id=$model->insert(['analysis_type'=>$type,'lead_id'=>(int)$lead['id'],'crm_lead_id'=>$crmId,'lead_reference'=>$reference,'analysis_id'=>$analysisId,'store_domain'=>$store,'shopify_customer_id'=>$customer,'preferred_time'=>$preferred,'note'=>$note,'status'=>'pending','priority'=>'high','created_at'=>$now,'updated_at'=>$now],true);
-            $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$preferred,$note);
+            $id=$model->insert(['analysis_type'=>$type,'lead_id'=>(int)$lead['id'],'crm_lead_id'=>$crmId,'lead_reference'=>$reference,'analysis_id'=>$analysisId,'store_domain'=>$store,'shopify_customer_id'=>$customer,'preferred_date'=>$preferredDate,'preferred_slot'=>$preferredSlot,'preferred_slot_label'=>$preferredSlotLabel,'preferred_time'=>$preferred,'note'=>$note,'status'=>'pending','priority'=>'high','created_at'=>$now,'updated_at'=>$now],true);
+            $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$preferred,$note,$preferredDate,$preferredSlotLabel);
             $model->update((int)$id,['follow_up_id'=>$followUpId,'updated_at'=>$now]);
             if(!$id||$db->transStatus()===false) throw new RuntimeException('AI_ANALYSIS_CALLBACK_CREATE_FAILED');
             $db->transCommit();
