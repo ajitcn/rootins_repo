@@ -9,5 +9,8 @@
 .crm-history-heading p strong,.crm-page>header p strong{color:#94a3b8;font-size:.78rem;font-weight:600}
 .crm-leads-page .crm-table tbody td:first-child{display:flex;flex-direction:column}
 .crm-leads-page .crm-table tbody td:first-child strong{order:2;color:#94a3b8;font-size:.74rem;font-weight:600;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crm-leads-filter-toggle{margin-bottom:1rem}
+.crm-lead-status-summary{display:flex;flex-wrap:wrap;gap:.65rem;align-items:stretch}
+.crm-lead-status-summary .badge{margin:0!important;min-width:120px;border:1px solid #dbe3ec;border-radius:.65rem;background:#fff;color:#1f2937;font-size:.8rem;font-weight:800;text-align:left;box-shadow:0 2px 8px rgba(15,23,42,.05)}
 .crm-leads-page .crm-table tbody td:first-child small{order:1;color:#111827;font-size:.95rem;font-weight:800;line-height:1.25;margin-top:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 @media(max-width:575.98px){.crm-leads-page .crm-table tbody td:first-child{display:block}.crm-leads-page .crm-table tbody td:first-child small{white-space:normal;overflow-wrap:anywhere}.crm-lead-cell .crm-lead-primary{white-space:normal}}

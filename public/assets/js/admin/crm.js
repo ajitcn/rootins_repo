@@ -52,6 +52,40 @@
         });
     });
 
+    document.addEventListener('DOMContentLoaded', function () {
+        var page = document.querySelector('.crm-leads-page');
+        var toolbar = page && page.querySelector('.crm-toolbar');
+        if (!page || !toolbar || page.querySelector('.crm-leads-filter-toggle')) return;
+        toolbar.style.display = 'none';
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'btn btn-outline-secondary crm-leads-filter-toggle';
+        toggle.textContent = 'Show filters';
+        toolbar.parentNode.insertBefore(toggle, toolbar);
+        toggle.addEventListener('click', function () {
+            var hidden = toolbar.style.display === 'none';
+            toolbar.style.display = hidden ? '' : 'none';
+            toggle.textContent = hidden ? 'Hide filters' : 'Show filters';
+        });
+        var counts = {};
+        page.querySelectorAll('table tbody tr').forEach(function (row) {
+            var cell = row.querySelector('[data-label="Status"]');
+            if (!cell) return;
+            var status = cell.textContent.trim() || 'Unknown';
+            counts[status] = (counts[status] || 0) + 1;
+        });
+        var summary = document.createElement('div');
+        summary.className = 'crm-lead-status-summary mb-3';
+        Object.keys(counts).forEach(function (status) {
+            var card = document.createElement('span');
+            card.className = 'badge badge-light p-2';
+            card.textContent = status + ': ' + counts[status];
+            summary.appendChild(card);
+        });
+        var card = page.querySelector('.crm-card');
+        if (summary.childNodes.length && card) card.parentNode.insertBefore(summary, card);
+    });
+
     if (window.rootinsCrmBound && window.rootinsCrmModalLifecycleVersion) {
         return;
     }
@@ -253,9 +287,49 @@
                 var leadCard = target.querySelector('.crm-followup-lead-card');
                 if (leadCard) leadCard.appendChild(aiLink);
             }
+            var emailField = target.querySelector('[data-detail="email"]');
+            if (!emailField) {
+                emailField = document.createElement('small');
+                emailField.dataset.detail = 'email';
+                var emailCard = target.querySelector('.crm-followup-lead-card');
+                if (emailCard) emailCard.appendChild(emailField);
+            }
+            var aiSection = target.querySelector('[data-ai-analysis-section]');
+            var analyses = Array.isArray(payload.data.ai_analyses) ? payload.data.ai_analyses : [];
+            if (!aiSection) {
+                aiSection = document.createElement('section');
+                aiSection.dataset.aiAnalysisSection = '1';
+                aiSection.className = 'crm-followup-ai-section mt-3 p-3 border rounded';
+                var modalBody = target.querySelector('.modal-body');
+                if (modalBody) modalBody.insertBefore(aiSection, modalBody.querySelector('.crm-followup-activity'));
+            }
+            aiSection.innerHTML = '';
+            if (analyses.length) {
+                var aiTitle = document.createElement('h3');
+                aiTitle.className = 'h6 mb-2';
+                aiTitle.textContent = 'Linked AI analysis';
+                aiSection.appendChild(aiTitle);
+                analyses.forEach(function (analysis) {
+                    var row = document.createElement('div');
+                    row.className = 'd-flex justify-content-between align-items-center border-top pt-2 mt-2';
+                    var label = document.createElement('span');
+                    label.textContent = String(analysis.type || '').toUpperCase() + ' · ' + String(analysis.reference || '') + ' · ' + titleCase(String(analysis.status || ''));
+                    var link = document.createElement('a');
+                    link.className = 'btn btn-sm btn-outline-primary ml-2';
+                    link.href = analysis.detail_url || '#';
+                    link.textContent = 'View analysis';
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    row.appendChild(label);
+                    row.appendChild(link);
+                    aiSection.appendChild(row);
+                });
+            } else {
+                aiSection.classList.add('d-none');
+            }
             var followUpTime = formatTime(item.follow_up_time);
             var tagText = item.tags ? 'Tags: ' + item.tags + '\n\n' : '';
-            var values = {lead:item.full_name, lead_number:item.lead_number, mobile:item.mobile_display, follow_up:formatDate(item.follow_up_date) + ' · ' + followUpTime, type:item.follow_up_type_name, status:titleCase(item.follow_up_status), assigned:item.assigned_user_name || 'Unassigned', remarks:tagText + (item.remarks || '—'), created:formatDateTime(item.created_at), creator:item.creator_name || 'Unknown creator', updated:formatDateTime(item.updated_at), updater:item.updater_name || 'Unknown updater'};
+            var values = {lead:item.full_name, lead_number:item.lead_number, mobile:item.mobile_display || 'Phone not recorded', email:item.email || 'Email not recorded', follow_up:formatDate(item.follow_up_date) + ' · ' + followUpTime, type:item.follow_up_type_name, status:titleCase(item.follow_up_status), assigned:item.assigned_user_name || 'Unassigned', remarks:tagText + (item.remarks || '—'), created:formatDateTime(item.created_at), creator:item.creator_name || 'Unknown creator', updated:formatDateTime(item.updated_at), updater:item.updater_name || 'Unknown updater'};
             values.service = item.service_name || '—';
             values.date = formatDate(item.follow_up_date);
             values.time = followUpTime;

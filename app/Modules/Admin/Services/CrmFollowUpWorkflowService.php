@@ -5,6 +5,7 @@ namespace Admin\Services;
 use Admin\Models\CrmLeadFollowUpModel;
 use Admin\Models\CrmLeadHistoryModel;
 use CodeIgniter\Database\BaseConnection;
+use App\Services\Crm\CrmAiAnalysisReferenceService;
 use RuntimeException;
 
 /** Transactional follow-up actions backed by the immutable CRM lead history. */
@@ -33,12 +34,12 @@ class CrmFollowUpWorkflowService
         }
 
         $visibleFields = [
-            'lead_number', 'full_name', 'mobile_display', 'service_name', 'follow_up_date', 'follow_up_time',
+            'lead_number', 'full_name', 'mobile_display', 'email', 'service_name', 'follow_up_date', 'follow_up_time',
             'follow_up_type_id', 'follow_up_type_name', 'follow_up_status', 'assigned_user_id',
             'assigned_user_name', 'remarks', 'tags', 'created_at', 'creator_name', 'updated_at', 'updater_name',
         ];
 
-        return ['follow_up' => array_intersect_key($followUp, array_flip($visibleFields)), 'activity' => $this->activity($id, (int) $followUp['clinic_id'])];
+        return ['follow_up' => array_intersect_key($followUp, array_flip($visibleFields)), 'activity' => $this->activity($id, (int) $followUp['clinic_id']), 'ai_analyses' => (new CrmAiAnalysisReferenceService())->forLead((int) $followUp['lead_id'])];
     }
 
     public function addComment(int $id, array $input, int $actor): array
@@ -169,7 +170,7 @@ class CrmFollowUpWorkflowService
 
     private function scopedFollowUp(int $id): ?array
     {
-        $query = $this->db->table('crm_lead_followups f')->select('f.*, l.clinic_id AS lead_clinic_id, l.lead_number, l.full_name, l.mobile_number, l.country_code, l.interested_service, srv.name AS service_name, COALESCE(l.country_code, tc.normalized_code) AS lead_country_code, ft.name AS follow_up_type_name, au.username AS assigned_user_name, cu.username AS creator_name, uu.username AS updater_name')->join('crm_leads l', 'l.id=f.lead_id')->join('admin_services srv', 'srv.id = l.interested_service AND (srv.clinic_id = l.clinic_id OR srv.clinic_id IS NULL)', 'left')->join('telephone_country_codes tc', 'tc.id=l.telephone_country_code_id', 'left')->join('follow_up_types ft', 'ft.id=f.follow_up_type_id', 'left')->join('users au', 'au.id=f.assigned_user_id', 'left')->join('users cu', 'cu.id=f.created_by', 'left')->join('users uu', 'uu.id=f.updated_by', 'left')->where('f.id', $id)->where('f.deleted_at', null);
+        $query = $this->db->table('crm_lead_followups f')->select('f.*, l.clinic_id AS lead_clinic_id, l.lead_number, l.full_name, l.mobile_number, l.email, l.country_code, l.interested_service, srv.name AS service_name, COALESCE(l.country_code, tc.normalized_code) AS lead_country_code, ft.name AS follow_up_type_name, au.username AS assigned_user_name, cu.username AS creator_name, uu.username AS updater_name')->join('crm_leads l', 'l.id=f.lead_id')->join('admin_services srv', 'srv.id = l.interested_service AND (srv.clinic_id = l.clinic_id OR srv.clinic_id IS NULL)', 'left')->join('telephone_country_codes tc', 'tc.id=l.telephone_country_code_id', 'left')->join('follow_up_types ft', 'ft.id=f.follow_up_type_id', 'left')->join('users au', 'au.id=f.assigned_user_id', 'left')->join('users cu', 'cu.id=f.created_by', 'left')->join('users uu', 'uu.id=f.updated_by', 'left')->where('f.id', $id)->where('f.deleted_at', null);
         if ($this->clinicId() > 0) {
             $query->groupStart()->where('l.clinic_id', $this->clinicId())->orWhere('l.clinic_id', null)->groupEnd();
         }
