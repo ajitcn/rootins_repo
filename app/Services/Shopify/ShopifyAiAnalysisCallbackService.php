@@ -93,7 +93,7 @@ final class ShopifyAiAnalysisCallbackService
         $db=db_connect();
         if($db->tableExists('shopify_ai_analysis_records')){
             $common=$db->table('shopify_ai_analysis_records')->where(['analysis_type'=>$type,'lead_reference'=>$reference,'store_domain'=>$store,'shopify_customer_id'=>$customer])->get()->getRowArray();
-            if($common){
+            if($common && (int)($common['legacy_record_id']??0)>0){
                 $legacyId=(int)($common['legacy_record_id']??0);
                 $common['id']=$legacyId;
                 return $common;

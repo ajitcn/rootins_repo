@@ -35,7 +35,10 @@ final class ShopifyHairAnalysisService
 
         $model = $this->leads ?? new ShopifyHairAnalysisLeadModel();
         $existing = $model->where(['store_domain' => $store, 'shopify_customer_id' => $customer, 'idempotency_key' => $idempotencyKey])->first();
-        if ($existing !== null) return $this->publicLead($existing);
+        if ($existing !== null) {
+            $existing = $this->repairExistingLinkage($existing, $model);
+            return $this->publicLead($existing);
+        }
 
         $firstName = trim((string) ($fields['first_name'] ?? ''));
         if ($firstName === '' || mb_strlen($firstName) > 100) throw new InvalidArgumentException('First name is required and must be at most 100 characters.');
@@ -146,6 +149,27 @@ final class ShopifyHairAnalysisService
         $lead = ($this->leads ?? new ShopifyHairAnalysisLeadModel())->where(['lead_reference' => trim($reference), 'store_domain' => (string) ($context['store_domain'] ?? ''), 'shopify_customer_id' => (string) ($context['customer_id'] ?? '')])->first();
         if ($lead === null) throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_NOT_FOUND');
         return $this->publicLead($lead, true);
+    }
+
+    private function repairExistingLinkage(array $lead, ShopifyHairAnalysisLeadModel $model): array
+    {
+        try {
+            $crmLeadId = (new ShopifyAiAnalysisCrmService())->ensureLead('hair', $lead);
+            if ((int) ($lead['crm_lead_id'] ?? 0) !== $crmLeadId) {
+                $model->update((int) $lead['id'], ['crm_lead_id' => $crmLeadId, 'updated_at' => date('Y-m-d H:i:s')]);
+                $lead['crm_lead_id'] = $crmLeadId;
+            }
+            (new ShopifyAiAnalysisRegistryService())->sync('hair', $lead);
+            return $model->find((int) $lead['id']) ?: $lead;
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify hair analysis existing linkage repair failed ' . json_encode([
+                'lead_reference' => (string) ($lead['lead_reference'] ?? ''),
+                'stage' => 'existing_linkage_repair',
+                'exception_class' => get_class($exception),
+                'exception_message' => preg_replace('/[^A-Za-z0-9_ .:-]/', '', $exception->getMessage()),
+            ], JSON_UNESCAPED_SLASHES));
+            throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_CRM_LINK_FAILED', 0, $exception);
+        }
     }
 
     /** @return list<array<string,mixed>> */

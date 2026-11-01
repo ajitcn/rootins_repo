@@ -23,7 +23,10 @@ final class ShopifySkinAnalysisService
         if(!preg_match('/^[A-Za-z0-9._:-]{8,191}$/',$key)) throw new InvalidArgumentException('A valid Idempotency-Key header is required.');
         $model=$this->leads??new ShopifySkinAnalysisLeadModel();
         $existing=$model->where(['store_domain'=>$store,'shopify_customer_id'=>$customer,'idempotency_key'=>$key])->first();
-        if($existing)return $this->public($existing);
+        if($existing){
+            $existing=$this->repairExistingLinkage($existing,$model);
+            return $this->public($existing);
+        }
         $first=trim((string)($fields['first_name']??'')); if($first===''||mb_strlen($first)>100)throw new InvalidArgumentException('First name is required and must be at most 100 characters.');
         if(count($files)<1||count($files)>5)throw new InvalidArgumentException('Upload between 1 and 5 skin images.');
         $config=($this->configs??new ShopifySkinAnalysisConfigurationModel())->where('is_active',1)->orderBy('version','DESC')->first();
@@ -38,9 +41,16 @@ final class ShopifySkinAnalysisService
             throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_LEAD_CREATE_FAILED', 0, $e);
         }
         if(!$id)throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_LEAD_CREATE_FAILED');
-        $crmLeadId=(new ShopifyAiAnalysisCrmService())->ensureLead('skin',$q+['lead_reference'=>$ref,'shopify_customer_id'=>$customer,'id'=>$id]);
-        $model->update((int)$id,['crm_lead_id'=>$crmLeadId]);
-        (new ShopifyAiAnalysisRegistryService())->sync('skin', $q+['id'=>$id,'lead_reference'=>$ref,'store_domain'=>$store,'shopify_customer_id'=>$customer,'crm_lead_id'=>$crmLeadId,'status'=>'processing','created_at'=>$now,'updated_at'=>$now]);
+        try {
+            $crmLeadId=(new ShopifyAiAnalysisCrmService())->ensureLead('skin',$q+['lead_reference'=>$ref,'shopify_customer_id'=>$customer,'id'=>$id]);
+            $model->update((int)$id,['crm_lead_id'=>$crmLeadId]);
+            (new ShopifyAiAnalysisRegistryService())->sync('skin', $q+['id'=>$id,'lead_reference'=>$ref,'store_domain'=>$store,'shopify_customer_id'=>$customer,'crm_lead_id'=>$crmLeadId,'status'=>'processing','created_at'=>$now,'updated_at'=>$now]);
+        } catch (\Throwable $e) {
+            $code=$this->code($e->getMessage());
+            $model->update((int)$id,['status'=>'failed','error_code'=>$code,'error_message'=>$code,'updated_at'=>date('Y-m-d H:i:s')]);
+            log_message('error','Shopify skin analysis CRM linkage failed '.json_encode(['lead_reference'=>$ref,'stage'=>'crm_lead_link','exception_class'=>get_class($e),'exception_message'=>preg_replace('/[^A-Za-z0-9_ .:-]/','',$e->getMessage())],JSON_UNESCAPED_SLASHES));
+            throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_CRM_LINK_FAILED',0,$e);
+        }
         $rows=[];$keys=[];$persisted=false;
         try {
             foreach(array_values($files) as $i=>$file){$this->validate($file);$angle=$this->angle($fields,$i);$ext=strtolower((string)pathinfo($file->getName(),PATHINFO_EXTENSION));$path='shopify/skin-analysis/'.$ref.'/'.$angle.'-'.bin2hex(random_bytes(8)).'.'.($ext?:'bin');($this->storage??new R2StorageLibrary())->uploadFile($path,$file);$keys[]=$path;$rows[]=['lead_id'=>(int)$id,'angle'=>$angle,'storage_key'=>$path,'mime_type'=>(string)$file->getMimeType(),'file_size'=>(int)$file->getSize(),'created_at'=>$now];}
@@ -54,6 +64,18 @@ final class ShopifySkinAnalysisService
     {
         $lead=($this->leads??new ShopifySkinAnalysisLeadModel())->where(['lead_reference'=>trim($reference),'store_domain'=>(string)($context['store_domain']??''),'shopify_customer_id'=>(string)($context['customer_id']??'')])->first();
         if(!$lead)throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_NOT_FOUND'); return $this->public($lead,true);
+    }
+    private function repairExistingLinkage(array $lead,ShopifySkinAnalysisLeadModel $model):array
+    {
+        try{
+            $crmLeadId=(new ShopifyAiAnalysisCrmService())->ensureLead('skin',$lead);
+            if((int)($lead['crm_lead_id']??0)!==$crmLeadId){$model->update((int)$lead['id'],['crm_lead_id'=>$crmLeadId,'updated_at'=>date('Y-m-d H:i:s')]);$lead['crm_lead_id']=$crmLeadId;}
+            (new ShopifyAiAnalysisRegistryService())->sync('skin',$lead);
+            return $model->find((int)$lead['id'])?:$lead;
+        }catch(\Throwable $e){
+            log_message('error','Shopify skin analysis existing linkage repair failed '.json_encode(['lead_reference'=>(string)($lead['lead_reference']??''),'stage'=>'existing_linkage_repair','exception_class'=>get_class($e),'exception_message'=>preg_replace('/[^A-Za-z0-9_ .:-]/','',$e->getMessage())],JSON_UNESCAPED_SLASHES));
+            throw new RuntimeException('SHOPIFY_SKIN_ANALYSIS_CRM_LINK_FAILED',0,$e);
+        }
     }
     public function adminList(): array{return ($this->leads??new ShopifySkinAnalysisLeadModel())->orderBy('id','DESC')->findAll(100);}
     public function adminFind(int $id):?array{$lead=($this->leads??new ShopifySkinAnalysisLeadModel())->find($id);if(!$lead)return null;$lead['patient_reference']=!empty($lead['patient_id'])?(string)(db_connect()->table('patients')->select('registration_number')->where('id',(int)$lead['patient_id'])->get()->getRow('registration_number')??''):'';$lead['images']=($this->images??new ShopifySkinAnalysisImageModel())->where('lead_id',$id)->orderBy('id','ASC')->findAll();foreach($lead['images'] as &$image){try{$image['temporary_url']=($this->storage??new R2StorageLibrary())->getTemporaryUrl((string)$image['storage_key'],10,(string)$image['mime_type'],'inline');}catch(\Throwable){$image['temporary_url']='';}unset($image['storage_key']);}unset($image);return $lead;}

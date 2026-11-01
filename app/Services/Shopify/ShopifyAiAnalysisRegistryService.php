@@ -7,7 +7,9 @@ final class ShopifyAiAnalysisRegistryService
     public function sync(string $type, array $row): void
     {
         $db = db_connect();
-        if (! $db->tableExists('shopify_ai_analysis_records')) return;
+        if (! $db->tableExists('shopify_ai_analysis_records')) {
+            throw new \RuntimeException('SHOPIFY_AI_ANALYSIS_REGISTRY_TABLE_MISSING');
+        }
         $data = [];
         foreach (['lead_reference','store_domain','shopify_customer_id','idempotency_key','first_name','last_name','age','gender','email','mobile_number','country_code','date_of_birth','concern','health_list','questionnaire_json','status','result_json','error_code','error_message','patient_id','crm_lead_id','processed_at','created_at','updated_at'] as $field) {
             if (array_key_exists($field, $row)) $data[$field] = $row[$field];
@@ -21,6 +23,8 @@ final class ShopifyAiAnalysisRegistryService
             } else {
                 $db->table('shopify_ai_analysis_records')->insert($data);
             }
+            $stored = $db->table('shopify_ai_analysis_records')->where('lead_reference', (string) ($row['lead_reference'] ?? ''))->get()->getRowArray();
+            if (! $stored) throw new \RuntimeException('SHOPIFY_AI_ANALYSIS_REGISTRY_WRITE_FAILED');
         } catch (\Throwable $exception) {
             log_message('error', 'Shopify AI analysis registry sync failed ' . json_encode([
                 'analysis_type' => $type,
@@ -29,6 +33,7 @@ final class ShopifyAiAnalysisRegistryService
                 'exception_class' => get_class($exception),
                 'exception_message' => preg_replace('/[^A-Za-z0-9_ .:-]/', '', $exception->getMessage()),
             ], JSON_UNESCAPED_SLASHES));
+            throw $exception;
         }
     }
 }

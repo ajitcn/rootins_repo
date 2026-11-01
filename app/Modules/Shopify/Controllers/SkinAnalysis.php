@@ -16,7 +16,7 @@ final class SkinAnalysis extends \App\Controllers\BaseController
         catch(ShopifyProxyAuthenticationException $e){return $this->response->setStatusCode($e->httpStatus)->setJSON(['status'=>false,'code'=>$e->errorCode,'message'=>$e->getMessage()]);}
         catch(InvalidArgumentException $e){return $this->response->setStatusCode(422)->setJSON(['status'=>false,'code'=>'SHOPIFY_SKIN_ANALYSIS_INVALID_REQUEST','message'=>$e->getMessage()]);}
         catch(RuntimeException $e){return $this->response->setStatusCode($e->getMessage()==='SHOPIFY_SKIN_ANALYSIS_NOT_FOUND'?404:503)->setJSON(['status'=>false,'code'=>$e->getMessage(),'message'=>'Skin analysis could not be processed safely.']);}
-        catch(\Throwable $e){log_message('error','Shopify skin analysis boundary failure '.get_class($e));return $this->response->setStatusCode(503)->setJSON(['status'=>false,'code'=>'SHOPIFY_SKIN_ANALYSIS_UNAVAILABLE']);}
+        catch(\Throwable $e){log_message('error','Shopify skin analysis boundary failure '.json_encode(['exception_class'=>get_class($e),'exception_message'=>preg_replace('/[^A-Za-z0-9_ .:-]/','',$e->getMessage())],JSON_UNESCAPED_SLASHES));return $this->response->setStatusCode(503)->setJSON(['status'=>false,'code'=>'SHOPIFY_SKIN_ANALYSIS_UNAVAILABLE']);}
     }
     public function status(): ResponseInterface
     {
