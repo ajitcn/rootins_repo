@@ -100,6 +100,9 @@ final class ShopifyAiAnalysisCrmService
 
         $clinic = $db->table('clinics')->select('id')->where('status', 1)->orderBy('id', 'ASC')->get()->getRow('id');
         if (! $clinic) {
+            $clinic = $db->table('clinics')->select('id')->orderBy('id', 'ASC')->get()->getRow('id');
+        }
+        if (! $clinic) {
             throw new RuntimeException('CRM_CLINIC_NOT_CONFIGURED');
         }
         $typeRows = $db->table('follow_up_types')->where('status', 1)->orderBy('id', 'ASC')->get()->getResultArray();

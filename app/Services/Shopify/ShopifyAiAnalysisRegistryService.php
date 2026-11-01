@@ -15,10 +15,20 @@ final class ShopifyAiAnalysisRegistryService
         $data['analysis_type'] = $type;
         $data['legacy_record_id'] = (int) ($row['id'] ?? 0);
         $existing = $db->table('shopify_ai_analysis_records')->where('lead_reference', (string) ($row['lead_reference'] ?? ''))->get()->getRowArray();
-        if ($existing) {
-            $db->table('shopify_ai_analysis_records')->where('id', (int) $existing['id'])->update($data);
-        } else {
-            $db->table('shopify_ai_analysis_records')->insert($data);
+        try {
+            if ($existing) {
+                $db->table('shopify_ai_analysis_records')->where('id', (int) $existing['id'])->update($data);
+            } else {
+                $db->table('shopify_ai_analysis_records')->insert($data);
+            }
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify AI analysis registry sync failed ' . json_encode([
+                'analysis_type' => $type,
+                'lead_reference' => (string) ($row['lead_reference'] ?? ''),
+                'stage' => 'common_registry_sync',
+                'exception_class' => get_class($exception),
+                'exception_message' => preg_replace('/[^A-Za-z0-9_ .:-]/', '', $exception->getMessage()),
+            ], JSON_UNESCAPED_SLASHES));
         }
     }
 }
