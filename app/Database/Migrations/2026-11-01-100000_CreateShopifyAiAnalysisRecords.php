@@ -8,8 +8,8 @@ final class CreateShopifyAiAnalysisRecords extends Migration
 {
     public function up(): void
     {
-        if ($this->db->tableExists('shopify_ai_analysis_records')) return;
-        $this->forge->addField([
+        if (! $this->db->tableExists('shopify_ai_analysis_records')) {
+            $this->forge->addField([
             'id' => ['type' => 'INT', 'constraint' => 10, 'unsigned' => true, 'auto_increment' => true],
             'analysis_type' => ['type' => 'VARCHAR', 'constraint' => 20],
             'legacy_record_id' => ['type' => 'INT', 'constraint' => 10, 'unsigned' => true, 'null' => true],
@@ -37,13 +37,14 @@ final class CreateShopifyAiAnalysisRecords extends Migration
             'processed_at' => ['type' => 'DATETIME', 'null' => true],
             'created_at' => ['type' => 'DATETIME', 'null' => true],
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
-        ]);
-        $this->forge->addKey('id', true);
-        $this->forge->addUniqueKey('lead_reference');
-        $this->forge->addKey(['store_domain', 'shopify_customer_id', 'analysis_type']);
-        $this->forge->addKey('crm_lead_id');
-        $this->forge->addForeignKey('crm_lead_id', 'crm_leads', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('shopify_ai_analysis_records', true);
+            ]);
+            $this->forge->addKey('id', true);
+            $this->forge->addUniqueKey('lead_reference');
+            $this->forge->addKey(['store_domain', 'shopify_customer_id', 'analysis_type']);
+            $this->forge->addKey('crm_lead_id');
+            $this->forge->addForeignKey('crm_lead_id', 'crm_leads', 'id', 'SET NULL', 'CASCADE');
+            $this->forge->createTable('shopify_ai_analysis_records', true);
+        }
 
         foreach ([['shopify_hair_analysis_leads', 'hair'], ['shopify_skin_analysis_leads', 'skin']] as [$table, $type]) {
             if (! $this->db->tableExists($table)) continue;
@@ -63,7 +64,7 @@ final class CreateShopifyAiAnalysisRecords extends Migration
             if ($email === '' && $mobile === '') continue;
             $leads = $this->db->table('crm_leads')->where('deleted_at', null);
             $leads->groupStart();
-            if ($email !== '') $leads->where('LOWER(email)', $email, false);
+            if ($email !== '') $leads->where('email', $email);
             if ($email !== '' && $mobile !== '') $leads->orWhere('mobile_normalized', $mobile);
             elseif ($mobile !== '') $leads->where('mobile_normalized', $mobile);
             $lead = $leads->groupEnd()->orderBy('id', 'ASC')->get()->getRowArray();
