@@ -20,7 +20,55 @@ class Crm extends BaseAdminController
     public function convertAppointment(int $id) { if(!$this->guard('crm.lead.convert'))return $this->denied(); return $this->write(function() use ($id) { $input=$this->request->getPost(); $lead=$this->crm->findLead($id); if(($input['service_name']??'')===''&&$lead)$input['service_name']=$lead['service_name']??$lead['interested_service']??''; return ['data'=>$this->crm->convertToAppointment($id,$input,(int)($this->user['id']??0))]; }); }
     public function saveLead(?int $id=null) { if(!$this->guard($id?'crm.lead.edit':'crm.lead.create'))return $this->denied(); if(!$this->validate(['gender'=>['label'=>'Gender','rules'=>'permit_empty|in_list[Male,Female,Other]|max_length[20]']]))return $this->json(['status'=>false,'msg'=>'Please correct the highlighted fields.','errors'=>$this->validator->getErrors()],422); return $this->write(function() use ($id) { $input=$this->request->getPost(); $serviceValue=trim((string)($input['interested_service']??'')); if($serviceValue!==''){ if(!ctype_digit($serviceValue)||($this->crm->clinicId()>0&&(new ServiceModel())->forScope($this->crm->clinicId())->where('id',(int)$serviceValue)->where('status',1)->first()===null)||($this->crm->clinicId()<=0&&(new ServiceModel())->where('id',(int)$serviceValue)->where('status',1)->first()===null)) throw new RuntimeException(json_encode(['interested_service'=>'Select an active service.'])); $input['interested_service']=(string)(int)$serviceValue; } else { $input['interested_service']=null; } return ['data'=>$this->crm->saveLead($input,$id,(int)($this->user['id']??0))]; }); }
     public function saveFollowUp(?int $id=null) { if(!$this->guard($id?'crm.followup.edit':'crm.followup.create'))return $this->denied(); return $this->write(fn()=>['data'=>$this->crm->saveFollowUp($this->request->getPost(),$id,(int)($this->user['id']??0))]); }
-    public function followUpDetails(int $id) { if(!$this->guard('crm.followup.view'))return $this->denied(); try{$data=$this->followUpWorkflow->details($id);if($this->request->isAJAX())return $this->json(['status'=>true,'data'=>$data]);return view(CRM_VIEW.'pages/followup_detail',$data);}catch(RuntimeException $e){if($this->request->isAJAX())return $this->json(['status'=>false,'msg'=>$e->getMessage()],404);return $this->response->setStatusCode(404)->setBody('Follow-up not found.');} }
+    public function followUpDetails(int $id)
+    {
+        if (! $this->guard('crm.followup.view')) {
+            return $this->denied();
+        }
+
+        try {
+            $data = $this->followUpWorkflow->details($id);
+
+            if ($this->request->isAJAX()) {
+                return $this->json(['status' => true, 'data' => $data]);
+            }
+
+            // The CRM controller owns the route, but the shared Admin layout
+            // owns this detail template. Keep the browser page and AJAX
+            // endpoint on the same data path.
+            return view(ADMIN_VIEW . 'pages/crm/followup_detail', $data);
+        } catch (RuntimeException $e) {
+            $message = $e->getMessage();
+
+            if ($this->request->isAJAX()) {
+                return $this->json(['status' => false, 'msg' => $message], $message === 'Follow-up not found.' ? 404 : 500);
+            }
+
+            if ($message === 'Follow-up not found.') {
+                return $this->response->setStatusCode(404)->setBody('Follow-up not found.');
+            }
+
+            log_message('error', 'CRM follow-up detail page failed ' . json_encode([
+                'follow_up_id' => $id,
+                'exception_class' => get_class($e),
+                'message' => $message,
+            ], JSON_UNESCAPED_SLASHES));
+
+            return $this->response->setStatusCode(500)->setBody('The follow-up details could not be loaded.');
+        } catch (\Throwable $e) {
+            log_message('error', 'CRM follow-up detail page failed ' . json_encode([
+                'follow_up_id' => $id,
+                'exception_class' => get_class($e),
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_SLASHES));
+
+            if ($this->request->isAJAX()) {
+                return $this->json(['status' => false, 'msg' => 'The follow-up details could not be loaded.'], 500);
+            }
+
+            return $this->response->setStatusCode(500)->setBody('The follow-up details could not be loaded.');
+        }
+    }
     public function followUpHistory(int $id) { if(!$this->guard('crm.history.view'))return $this->denied(); try{return $this->json(['status'=>true,'data'=>$this->followUpWorkflow->details($id)]);}catch(RuntimeException $e){return $this->json(['status'=>false,'msg'=>'Follow-up history not found.'],404);} }
     public function addFollowUpComment(int $id) { if(!$this->guard('crm.followup.edit'))return $this->denied(); return $this->write(fn()=>['data'=>$this->followUpWorkflow->addComment($id,$this->request->getPost(),(int)($this->user['id']??0))]); }
     public function rescheduleFollowUp(int $id) { if(!$this->guard('crm.followup.edit'))return $this->denied(); return $this->write(fn()=>['data'=>$this->followUpWorkflow->reschedule($id,$this->request->getPost(),(int)($this->user['id']??0))]); }
