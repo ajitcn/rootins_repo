@@ -32,6 +32,24 @@
             summary.appendChild(card);
         });
         if (summary.childNodes.length) page.querySelector('.crm-card').parentNode.insertBefore(summary, page.querySelector('.crm-card'));
+        page.querySelectorAll('.js-crm-followup-history').forEach(function (button) {
+            button.remove();
+        });
+        page.querySelectorAll('.crm-followup-datetime').forEach(function (cell) {
+            var status = cell.parentNode.querySelector('[data-label="Follow-up status"]');
+            if (!status || !/scheduled|rescheduled/i.test(status.textContent)) return;
+            var dateText = cell.querySelector('strong') && cell.querySelector('strong').textContent.trim();
+            var timeText = cell.querySelector('small') && cell.querySelector('small').textContent.trim();
+            var parsed = Date.parse((dateText || '') + ' ' + (timeText || ''));
+            var dateMatch = String(dateText || '').match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+            if (dateMatch) {
+                parsed = Date.parse(dateMatch[3] + '-' + dateMatch[2].padStart(2, '0') + '-' + dateMatch[1].padStart(2, '0') + 'T' + (timeText || '00:00'));
+            }
+            if (!Number.isNaN(parsed) && parsed < Date.now()) {
+                cell.insertAdjacentHTML('beforeend', '<small class="text-danger font-weight-bold">Missed follow-up time</small>');
+                status.classList.add('crm-status-overdue');
+            }
+        });
     });
 
     if (window.rootinsCrmBound && window.rootinsCrmModalLifecycleVersion) {
@@ -225,6 +243,16 @@
             var item = payload.data.follow_up || {};
             target.dataset.followupId = button.dataset.followupId || '';
             target.dataset.followupUrl = button.dataset.followupUrl || '';
+            var aiLink = target.querySelector('[data-ai-analysis-link]');
+            if (!aiLink) {
+                aiLink = document.createElement('a');
+                aiLink.className = 'btn btn-sm btn-outline-primary mt-2';
+                aiLink.dataset.aiAnalysisLink = '1';
+                aiLink.textContent = 'View AI analysis history';
+                aiLink.hidden = true;
+                var leadCard = target.querySelector('.crm-followup-lead-card');
+                if (leadCard) leadCard.appendChild(aiLink);
+            }
             var followUpTime = formatTime(item.follow_up_time);
             var tagText = item.tags ? 'Tags: ' + item.tags + '\n\n' : '';
             var values = {lead:item.full_name, lead_number:item.lead_number, mobile:item.mobile_display, follow_up:formatDate(item.follow_up_date) + ' · ' + followUpTime, type:item.follow_up_type_name, status:titleCase(item.follow_up_status), assigned:item.assigned_user_name || 'Unassigned', remarks:tagText + (item.remarks || '—'), created:formatDateTime(item.created_at), creator:item.creator_name || 'Unknown creator', updated:formatDateTime(item.updated_at), updater:item.updater_name || 'Unknown updater'};
@@ -241,6 +269,14 @@
                 var field = target.querySelector('[data-detail="' + key + '"]');
                 if (field && field.closest('div')) field.closest('div').remove();
             });
+            var aiLink = target.querySelector('[data-ai-analysis-link]');
+            if (aiLink) {
+                var hasAiTag = /#?AI\s+(Hair|Skin)\s+Analysis/i.test(String(item.tags || ''));
+                aiLink.hidden = !hasAiTag;
+                if (hasAiTag) {
+                    aiLink.href = window.location.pathname.replace(/\/admin\/crm\/follow-ups(?:\/.*)?$/, '/admin/integrations/shopify/ai-analysis/history');
+                }
+            }
             var activityHeading = target.querySelector('.crm-followup-activity h3');
             if (activityHeading) activityHeading.textContent = 'Recent activity';
             target.querySelectorAll('[data-followup-status-action]').forEach(function (form) {

@@ -1,5 +1,5 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261101.1') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/followups.css?v=20261101.3') ?>"><script defer src="<?= base_url('assets/js/admin/crm.js?v=20261101.18') ?>"></script><script defer src="<?= base_url('assets/js/admin/crm-followup-modal-lifecycle.js?v=20261101.3') ?>"></script><?= $this->endSection() ?>
+<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261101.1') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/followups.css?v=20261101.4') ?>"><script defer src="<?= base_url('assets/js/admin/crm.js?v=20261101.19') ?>"></script><script defer src="<?= base_url('assets/js/admin/crm-followup-modal-lifecycle.js?v=20261101.4') ?>"></script><?= $this->endSection() ?>
 <?= $this->section('main-content') ?>
 <!-- service_name remains available from the scoped row contract for details and compatibility. -->
 <main class="dashboard-container crm-page crm-followups-page" aria-labelledby="crm-followups-title">

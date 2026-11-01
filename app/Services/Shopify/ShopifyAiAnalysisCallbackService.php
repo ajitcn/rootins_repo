@@ -17,7 +17,10 @@ final class ShopifyAiAnalysisCallbackService
         if($store===''||$customer==='') throw new RuntimeException('SHOPIFY_PROXY_CONTEXT_MISSING');
         $model=new ShopifyAiAnalysisCallbackRequestModel();
         $existing=$model->where(['store_domain'=>$store,'shopify_customer_id'=>$customer,'analysis_type'=>$type,'lead_reference'=>$reference])->first();
-        if($existing)return ['request_reference'=>'CB-'.$existing['id'],'status'=>(string)$existing['status'],'priority'=>(string)$existing['priority'],'crm_lead_id'=>(int)($existing['crm_lead_id']??0),'follow_up_id'=>(int)($existing['follow_up_id']??0),'message'=>'Callback request already received.'];
+        if($existing){
+            $existing=$this->repairExistingCallback($existing,$type,$store,$customer,$reference);
+            return ['request_reference'=>'CB-'.$existing['id'],'status'=>(string)$existing['status'],'priority'=>(string)$existing['priority'],'crm_lead_id'=>(int)($existing['crm_lead_id']??0),'follow_up_id'=>(int)($existing['follow_up_id']??0),'message'=>'Callback request already received.'];
+        }
         $leadModel=$type==='hair'?new ShopifyHairAnalysisLeadModel():new ShopifySkinAnalysisLeadModel();
         $lead=$leadModel->where(['lead_reference'=>$reference,'store_domain'=>$store,'shopify_customer_id'=>$customer])->first();
         if(!$lead) throw new RuntimeException('AI_ANALYSIS_NOT_FOUND');
@@ -59,6 +62,31 @@ final class ShopifyAiAnalysisCallbackService
         if(!$id)throw new RuntimeException('AI_ANALYSIS_CALLBACK_CREATE_FAILED');
         service('audit')->record('shopify.ai_analysis_callback_requested',['request_id'=>(int)$id,'analysis_type'=>$type,'lead_reference'=>$reference,'priority'=>'high']);
         return ['request_reference'=>'CB-'.$id,'status'=>'pending','priority'=>'high','crm_lead_id'=>$crmId,'follow_up_id'=>$followUpId,'message'=>'Callback request received.'];
+    }
+    private function repairExistingCallback(array $existing,string $type,string $store,string $customer,string $reference):array
+    {
+        $db=db_connect();
+        $followUpId=(int)($existing['follow_up_id']??0);
+        if($followUpId>0 && $db->table('crm_lead_followups')->where('id',$followUpId)->where('deleted_at',null)->countAllResults()>0)return $existing;
+        $leadModel=$type==='hair'?new ShopifyHairAnalysisLeadModel():new ShopifySkinAnalysisLeadModel();
+        $lead=$leadModel->where(['lead_reference'=>$reference,'store_domain'=>$store,'shopify_customer_id'=>$customer])->first();
+        if(!$lead)throw new RuntimeException('AI_ANALYSIS_NOT_FOUND');
+        $crmId=(int)($existing['crm_lead_id']??0);
+        if($crmId<=0)$crmId=(new ShopifyAiAnalysisCrmService())->ensureLead($type,$lead);
+        $db->transBegin();
+        try{
+            $followUpId=(new ShopifyAiAnalysisCrmService())->createCallbackFollowUp($crmId,$type,$existing['preferred_time']??null,$existing['note']??null,$existing['preferred_date']??null,$existing['preferred_slot']??null,$existing['preferred_slot_label']??null);
+            (new ShopifyAiAnalysisCallbackRequestModel())->update((int)$existing['id'],['crm_lead_id'=>$crmId,'follow_up_id'=>$followUpId,'updated_at'=>date('Y-m-d H:i:s')]);
+            if($db->transStatus()===false)throw new RuntimeException('AI_ANALYSIS_CALLBACK_REPAIR_FAILED');
+            $db->transCommit();
+            log_message('info','Shopify AI callback follow-up repaired '.json_encode(['request_id'=>(int)$existing['id'],'analysis_type'=>$type,'lead_reference'=>$reference,'crm_lead_id'=>$crmId,'follow_up_id'=>$followUpId],JSON_UNESCAPED_SLASHES));
+            $existing['crm_lead_id']=$crmId;$existing['follow_up_id']=$followUpId;
+            return $existing;
+        }catch(\Throwable $e){
+            $db->transRollback();
+            log_message('error','Shopify AI callback follow-up repair failed '.json_encode(['request_id'=>(int)$existing['id'],'analysis_type'=>$type,'lead_reference'=>$reference,'category'=>$e->getMessage(),'exception_class'=>get_class($e)],JSON_UNESCAPED_SLASHES));
+            throw $e;
+        }
     }
     public function adminList():array{return (new ShopifyAiAnalysisCallbackRequestModel())->select('shopify_ai_analysis_callback_requests.*, crm_leads.lead_number')->join('crm_leads','crm_leads.id=shopify_ai_analysis_callback_requests.crm_lead_id','left')->orderBy("FIELD(shopify_ai_analysis_callback_requests.priority, 'urgent', 'high', 'normal', 'low')",'',false)->orderBy('shopify_ai_analysis_callback_requests.created_at','ASC')->findAll(200);}
 
