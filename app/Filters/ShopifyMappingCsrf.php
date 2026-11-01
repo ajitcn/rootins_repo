@@ -20,10 +20,12 @@ final class ShopifyMappingCsrf extends CSRF
                 str_contains($path, '/admin/integrations/shopify/order-mappings/')
                 || str_contains($path, '/admin/integrations/shopify/order-operations/')
                 || str_contains($path, '/pharmacy/shopify-orders/')
+                || str_contains($path, '/admin/integrations/shopify/ai-hair-analysis/save')
+                || str_contains($path, '/admin/integrations/shopify/ai-skin-analysis/save')
             );
             if ($isShopifyMappingAction) {
                 $correlationId = bin2hex(random_bytes(16));
-                log_message('warning', 'Shopify mapping CSRF validation failed. Correlation ID: ' . $correlationId);
+                log_message('warning', 'Shopify protected action CSRF validation failed. Correlation ID: ' . $correlationId);
 
                 return service('response')->setStatusCode(403)->setJSON([
                     'status' => false,
