@@ -33,7 +33,10 @@ final class HairAnalysis extends \App\Controllers\BaseController
             $status = in_array($code, ['SHOPIFY_HAIR_ANALYSIS_NOT_FOUND'], true) ? 404 : 503;
             return $this->response->setStatusCode($status)->setJSON(['status' => false, 'code' => $code, 'message' => 'Hair analysis could not be processed safely.']);
         } catch (\Throwable $exception) {
-            log_message('error', 'Shopify hair analysis boundary failure ' . json_encode(['exception_class' => get_class($exception)], JSON_UNESCAPED_SLASHES));
+            log_message('error', 'Shopify hair analysis boundary failure ' . json_encode([
+                'exception_class' => get_class($exception),
+                'exception_message' => preg_replace('/[^A-Za-z0-9_ .:-]/', '', $exception->getMessage()),
+            ], JSON_UNESCAPED_SLASHES));
             return $this->response->setStatusCode(503)->setJSON(['status' => false, 'code' => 'SHOPIFY_HAIR_ANALYSIS_UNAVAILABLE', 'message' => 'Hair analysis is temporarily unavailable.']);
         }
     }

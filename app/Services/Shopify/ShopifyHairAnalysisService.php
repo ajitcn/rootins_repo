@@ -93,9 +93,19 @@ final class ShopifyHairAnalysisService
             throw $exception;
         }
         if (! $leadId) throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_LEAD_CREATE_FAILED');
-        $crmLeadId = (new ShopifyAiAnalysisCrmService())->ensureLead('hair', $leadData + ['id' => $leadId]);
-        $leadModel->update((int) $leadId, ['crm_lead_id' => $crmLeadId]);
-        (new ShopifyAiAnalysisRegistryService())->sync('hair', $leadData + ['id' => $leadId, 'crm_lead_id' => $crmLeadId]);
+        try {
+            $crmLeadId = (new ShopifyAiAnalysisCrmService())->ensureLead('hair', $leadData + ['id' => $leadId]);
+            $leadModel->update((int) $leadId, ['crm_lead_id' => $crmLeadId]);
+            (new ShopifyAiAnalysisRegistryService())->sync('hair', $leadData + ['id' => $leadId, 'crm_lead_id' => $crmLeadId]);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Shopify hair analysis CRM linkage failed ' . json_encode([
+                'lead_reference' => $leadReference,
+                'stage' => 'crm_lead_link',
+                'exception_class' => get_class($exception),
+                'exception_message' => preg_replace('/[^A-Za-z0-9_ .:-]/', '', $exception->getMessage()),
+            ], JSON_UNESCAPED_SLASHES));
+            throw new RuntimeException('SHOPIFY_HAIR_ANALYSIS_CRM_LINK_FAILED', 0, $exception);
+        }
 
         $imageRows = [];
         $uploadedKeys = [];

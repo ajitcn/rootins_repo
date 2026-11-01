@@ -136,12 +136,15 @@ final class ShopifyAiAnalysisCrmService
         if ($note) $remarks .= ' Customer note: ' . $note;
 
         $now = date('Y-m-d H:i:s');
-        $id = $db->table('crm_lead_followups')->insert([
+        $followUpData = [
             'follow_up_number' => 'TEMP-' . bin2hex(random_bytes(5)), 'lead_id' => $crmLeadId, 'clinic_id' => (int) $clinic, 'patient_id' => null,
             'follow_up_date' => $followUpDate, 'follow_up_time' => $followUpTime, 'follow_up_type_id' => (int) $typeRow['id'],
             'follow_up_status' => (string) ($status['code'] ?? $status['normalized_code'] ?? 'scheduled'), 'priority' => 'high', 'remarks' => $remarks, 'tags' => '#AI ' . ucfirst($type) . ' Analysis, #Important',
             'created_at' => $now, 'updated_at' => $now,
-        ], true);
+        ];
+        $followUpFields = $db->getFieldNames('crm_lead_followups');
+        $followUpData = array_intersect_key($followUpData, array_flip($followUpFields));
+        $id = $db->table('crm_lead_followups')->insert($followUpData, true);
         if (! $id) throw new RuntimeException('CRM_FOLLOWUP_CREATE_FAILED');
         $db->table('crm_lead_followups')->where('id', (int) $id)->update(['follow_up_number' => 'FUP-' . str_pad((string) $id, 6, '0', '0')]);
         service('audit')->record('shopify.ai_analysis_callback_followup_created', ['follow_up_id' => (int) $id, 'crm_lead_id' => $crmLeadId, 'priority' => 'high', 'follow_up_date' => $followUpDate, 'follow_up_time' => $followUpTime]);
