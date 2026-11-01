@@ -1,5 +1,5 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261013.6') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/history.css?v=20261013.3') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/history-enhancements.css?v=20261013.1') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/lead-hierarchy.css?v=20261013.1') ?>"><script defer src="<?= base_url('assets/js/admin/crm-history.js?v=20261013.1') ?>"></script><?= $this->endSection() ?>
+<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261101.7') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/history.css?v=20261101.4') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/history-enhancements.css?v=20261101.2') ?>"><link rel="stylesheet" href="<?= base_url('assets/css/crm/lead-hierarchy.css?v=20261101.2') ?>"><script defer src="<?= base_url('assets/js/admin/crm-history.js?v=20261101.2') ?>"></script><?= $this->endSection() ?>
 <?= $this->section('main-content') ?>
 <?php
 $filters = $filters ?? ['event_type' => '', 'actor' => '', 'from' => '', 'to' => '']; $summary = $summary ?? [];

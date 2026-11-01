@@ -186,7 +186,16 @@ final class ShopifyHairAnalysisService
         if (! empty($lead['patient_id'])) {
             $lead['patient_reference'] = (string) (db_connect()->table('patients')->select('registration_number')->where('id', (int) $lead['patient_id'])->get()->getRow('registration_number') ?? '');
         }
-        $lead['images'] = ($this->images ?? new ShopifyHairAnalysisImageModel())->where('lead_id', $id)->findAll();
+        $lead['images'] = ($this->images ?? new ShopifyHairAnalysisImageModel())->where('lead_id', $id)->orderBy('id', 'ASC')->findAll();
+        foreach ($lead['images'] as &$image) {
+            try {
+                $image['temporary_url'] = ($this->storage ?? new R2StorageLibrary())->getTemporaryUrl((string) $image['storage_key'], 10, (string) $image['mime_type'], 'inline');
+            } catch (\Throwable) {
+                $image['temporary_url'] = '';
+            }
+            unset($image['storage_key']);
+        }
+        unset($image);
         return $lead;
     }
 
