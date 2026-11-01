@@ -22,8 +22,8 @@ $(function () {
             button.prop('disabled', true);
             ajaxRequest({
                 url: form.attr('action'), method: 'POST', data: form.serialize(), headers: window.RootinsCsrf.headers(),
-                success: function (response) { window.RootinsCsrf.update(response); if (response.status) location.reload(); else showError(response.msg || 'Save failed.'); },
-                error: function (xhr) { var response = xhr.responseJSON || {}; window.RootinsCsrf.update(response); if (xhr.status === 403 && response.csrf && !retried) { retried = true; window.setTimeout(save, 50); return; } showError(response.msg || 'Save failed safely.'); },
+                success: function (response) { window.RootinsCsrf.update(response); if (response.status) { if (window.showSuccess) window.showSuccess(response.msg || 'Skin Analysis configuration saved.'); window.setTimeout(function () { location.reload(); }, 2500); } else if (window.showError) window.showError(response.msg || 'Save failed.'); },
+                error: function (xhr) { var response = xhr.responseJSON || {}; window.RootinsCsrf.update(response); if (xhr.status === 403 && response.csrf && !retried) { retried = true; window.setTimeout(save, 50); return; } if (window.showError) window.showError(response.msg || 'Save failed safely.'); },
                 complete: function () { button.prop('disabled', false); }
             });
         }
