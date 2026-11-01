@@ -39,6 +39,7 @@
         page.querySelectorAll('.js-crm-followup-history').forEach(function (button) {
             button.remove();
         });
+        var missedRows = [];
         page.querySelectorAll('.crm-followup-datetime').forEach(function (cell) {
             var status = cell.parentNode.querySelector('[data-label="Follow-up status"]');
             if (!status || !/scheduled|rescheduled/i.test(status.textContent)) return;
@@ -52,8 +53,19 @@
             if (!Number.isNaN(parsed) && parsed < Date.now()) {
                 cell.insertAdjacentHTML('beforeend', '<small class="text-danger font-weight-bold">Missed follow-up time</small>');
                 status.classList.add('crm-status-overdue');
+                cell.parentNode.classList.add('crm-followup-missed-row');
+                status.insertAdjacentHTML('beforeend', '<span class="crm-missed-tag">Missed schedule time</span>');
+                missedRows.push(cell.parentNode);
             }
         });
+        if (missedRows.length) {
+            var alert = document.createElement('div');
+            alert.className = 'crm-followup-missed-alert';
+            alert.setAttribute('role', 'alert');
+            alert.innerHTML = '<strong>' + missedRows.length + ' follow-up' + (missedRows.length === 1 ? '' : 's') + ' need attention</strong><span>The scheduled time has passed. Review and reschedule or mark the follow-up as missed.</span>';
+            var header = page.querySelector('.crm-header');
+            if (header) header.insertAdjacentElement('afterend', alert);
+        }
     });
 
     document.addEventListener('DOMContentLoaded', function () {
