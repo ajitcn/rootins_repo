@@ -50,6 +50,10 @@
             if (dateMatch) {
                 parsed = Date.parse(dateMatch[3] + '-' + dateMatch[2].padStart(2, '0') + '-' + dateMatch[1].padStart(2, '0') + 'T' + (timeText || '00:00'));
             }
+            if (Number.isNaN(parsed)) {
+                var monthMatch = String(dateText || '').match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+                if (monthMatch) parsed = Date.parse(monthMatch[1] + ' ' + monthMatch[2] + ' ' + monthMatch[3] + ' ' + (timeText || '00:00'));
+            }
             if (!Number.isNaN(parsed) && parsed < Date.now()) {
                 cell.insertAdjacentHTML('beforeend', '<small class="text-danger font-weight-bold">Missed follow-up time</small>');
                 status.classList.add('crm-status-overdue');

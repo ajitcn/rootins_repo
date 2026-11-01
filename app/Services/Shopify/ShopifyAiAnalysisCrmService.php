@@ -115,6 +115,12 @@ final class ShopifyAiAnalysisCrmService
             $code = strtolower(trim((string) ($row['code'] ?? $row['normalized_code'] ?? $row['name'] ?? '')));
             if ($code === 'scheduled') { $status = $row; break; }
         }
+        if (! $typeRow && $typeRows !== []) {
+            $typeRow = $typeRows[0];
+        }
+        if (! $status && $statusRows !== []) {
+            $status = $statusRows[0];
+        }
         if (! $typeRow || ! $status) {
             throw new RuntimeException('CRM_FOLLOWUP_MASTER_DATA_MISSING');
         }
