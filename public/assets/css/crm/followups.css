@@ -5,3 +5,13 @@
 .crm-followups-table .crm-remarks-truncate::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 4px; }
 .crm-followups-table .crm-remarks-truncate::-webkit-scrollbar-track { background: #e5e7eb; }
 @media (max-width: 575.98px) { .crm-followups-table .crm-remarks-truncate { width: 200px; max-width: 200px; height: 150px; max-height: 150px; display: block; white-space: pre-wrap; -webkit-line-clamp: unset; } }
+.crm-followups-page .crm-followups-table { min-width: 0; table-layout: auto; }
+.crm-followups-page .crm-followups-table th,
+.crm-followups-page .crm-followups-table td,
+.admin-shell .crm-followups-page .crm-followups-table th,
+.admin-shell .crm-followups-page .crm-followups-table td { width: auto; }
+.crm-followup-details-modal .modal-dialog { width: calc(100% - 2rem); max-width: 960px; }
+.crm-followups-filter-toggle { margin-bottom: 1rem; }
+.crm-followup-status-summary { display:flex; flex-wrap:wrap; gap:.65rem; align-items:stretch; }
+.crm-followup-status-summary .badge { margin:0!important; min-width:120px; border:1px solid #dbe3ec; border-radius:.65rem; background:#fff; color:#1f2937; font-size:.8rem; font-weight:800; text-align:left; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+@media (max-width:575.98px) { .crm-followup-status-summary .badge { min-width:calc(50% - .35rem); } }

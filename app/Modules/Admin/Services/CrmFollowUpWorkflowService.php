@@ -171,7 +171,7 @@ class CrmFollowUpWorkflowService
     {
         $query = $this->db->table('crm_lead_followups f')->select('f.*, l.clinic_id AS lead_clinic_id, l.lead_number, l.full_name, l.mobile_number, l.country_code, l.interested_service, srv.name AS service_name, COALESCE(l.country_code, tc.normalized_code) AS lead_country_code, ft.name AS follow_up_type_name, au.username AS assigned_user_name, cu.username AS creator_name, uu.username AS updater_name')->join('crm_leads l', 'l.id=f.lead_id')->join('admin_services srv', 'srv.id = l.interested_service AND (srv.clinic_id = l.clinic_id OR srv.clinic_id IS NULL)', 'left')->join('telephone_country_codes tc', 'tc.id=l.telephone_country_code_id', 'left')->join('follow_up_types ft', 'ft.id=f.follow_up_type_id', 'left')->join('users au', 'au.id=f.assigned_user_id', 'left')->join('users cu', 'cu.id=f.created_by', 'left')->join('users uu', 'uu.id=f.updated_by', 'left')->where('f.id', $id)->where('f.deleted_at', null);
         if ($this->clinicId() > 0) {
-            $query->where('l.clinic_id', $this->clinicId());
+            $query->groupStart()->where('l.clinic_id', $this->clinicId())->orWhere('l.clinic_id', null)->groupEnd();
         }
         $row = $query->get()->getRowArray();
         if ($row) {

@@ -1,6 +1,39 @@
 (function () {
     'use strict';
 
+    document.addEventListener('DOMContentLoaded', function () {
+        var page = document.querySelector('.crm-followups-page');
+        var toolbar = page && page.querySelector('.crm-toolbar');
+        if (!page || !toolbar || page.querySelector('.crm-followups-filter-toggle')) return;
+        toolbar.style.display = 'none';
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'btn btn-outline-secondary crm-followups-filter-toggle';
+        toggle.textContent = 'Show filters';
+        toolbar.parentNode.insertBefore(toggle, toolbar);
+        toggle.addEventListener('click', function () {
+            var hidden = toolbar.style.display === 'none';
+            toolbar.style.display = hidden ? '' : 'none';
+            toggle.textContent = hidden ? 'Hide filters' : 'Show filters';
+        });
+        var counts = {};
+        page.querySelectorAll('.crm-followups-table tbody tr').forEach(function (row) {
+            var cell = row.querySelector('[data-label="Follow-up status"]');
+            if (!cell) return;
+            var status = cell.textContent.trim() || 'Unknown';
+            counts[status] = (counts[status] || 0) + 1;
+        });
+        var summary = document.createElement('div');
+        summary.className = 'crm-followup-status-summary mb-3';
+        Object.keys(counts).forEach(function (status) {
+            var card = document.createElement('span');
+            card.className = 'badge badge-light mr-2 mb-2 p-2';
+            card.textContent = status + ': ' + counts[status];
+            summary.appendChild(card);
+        });
+        if (summary.childNodes.length) page.querySelector('.crm-card').parentNode.insertBefore(summary, page.querySelector('.crm-card'));
+    });
+
     if (window.rootinsCrmBound && window.rootinsCrmModalLifecycleVersion) {
         return;
     }
