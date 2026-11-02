@@ -16,6 +16,7 @@ $routes->group('admin/crm', ['namespace' => 'CRM\Controllers', 'filter' => 'auth
     $routes->post('follow-ups/update/(:num)', 'Crm::saveFollowUp/$1', ['filter' => 'permission:crm.followup.edit']);
     $routes->post('follow-ups/(:num)/comment', 'Crm::addFollowUpComment/$1', ['filter' => 'permission:crm.followup.edit']);
     $routes->post('follow-ups/(:num)/reschedule', 'Crm::rescheduleFollowUp/$1', ['filter' => 'permission:crm.followup.edit']);
+    $routes->post('follow-ups/(:num)/status', 'Crm::updateFollowUpStatus/$1', ['filter' => 'permission:crm.followup.edit']);
     $routes->post('follow-ups/(:num)/complete', 'Crm::followUpAction/$1/complete', ['filter' => 'permission:crm.followup.complete']);
     $routes->post('follow-ups/(:num)/cancel', 'Crm::followUpAction/$1/cancel', ['filter' => 'permission:crm.followup.cancel']);
     $routes->post('follow-ups/(:num)/missed', 'Crm::followUpAction/$1/missed', ['filter' => 'permission:crm.followup.cancel']);

@@ -68,6 +68,10 @@
                 if (meridiem === 'PM' && hour < 12) hour += 12;
                 if (meridiem === 'AM' && hour === 12) hour = 0;
                 parsed = new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+                var today = new Date();
+                if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate() && !cell.querySelector('.crm-today-tag')) {
+                    cell.insertAdjacentHTML('beforeend', '<span class="crm-today-tag">Today</span>');
+                }
             }
             if (!Number.isNaN(parsed) && parsed < Date.now()) {
                 cell.insertAdjacentHTML('beforeend', '<small class="text-danger font-weight-bold">Missed follow-up time</small>');
@@ -128,18 +132,17 @@
     function ensureFollowupActionModals() {
         if (!document.querySelector('.crm-followups-page')) return;
         if (!document.querySelector('#crmFollowUpStatusModal')) {
-            document.body.insertAdjacentHTML('beforeend', '<div class="modal fade crm-modal" id="crmFollowUpStatusModal" tabindex="-1" role="dialog" aria-labelledby="crmFollowUpStatusTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form class="js-crm-form" data-no-global-loader="1" method="post"><div class="modal-header"><div><span class="crm-eyebrow">CRM FOLLOW-UP</span><h2 class="modal-title h5" id="crmFollowUpStatusTitle">Update follow-up status</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button></div><div class="modal-body"><div class="alert alert-light border small">Choose the new status and enter a remark. The remark is required for accountability.</div><div class="form-group"><label for="crmFollowUpStatusSelect">New status</label><select class="form-control" id="crmFollowUpStatusSelect" name="status_action" required><option value="complete">Completed</option><option value="cancel">Cancelled</option><option value="missed">Missed</option></select></div><div class="form-group"><label for="crmFollowUpStatusRemark">Remark <span class="text-danger">*</span></label><textarea class="form-control" id="crmFollowUpStatusRemark" name="comment" rows="4" maxlength="2000" required placeholder="Why is this follow-up being updated?"></textarea><div class="crm-error" data-error-for="comment"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button class="btn btn-dark" type="submit">Save status</button></div></form></div></div></div>');
+            document.body.insertAdjacentHTML('beforeend', '<div class="modal fade crm-modal" id="crmFollowUpStatusModal" tabindex="-1" role="dialog" aria-labelledby="crmFollowUpStatusTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form class="js-crm-form" data-no-global-loader="1" method="post"><div class="modal-header"><div><span class="crm-eyebrow">CRM FOLLOW-UP</span><h2 class="modal-title h5" id="crmFollowUpStatusTitle">Update follow-up status</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button></div><div class="modal-body"><div class="alert alert-light border small">Choose a Lead Status and enter a remark. The remark is required for accountability.</div><div class="form-group"><label for="crmFollowUpStatusSelect">New status</label><select class="form-control" id="crmFollowUpStatusSelect" name="follow_up_status" required></select></div><div class="form-group"><label for="crmFollowUpStatusRemark">Remark <span class="text-danger">*</span></label><textarea class="form-control" id="crmFollowUpStatusRemark" name="comment" rows="4" maxlength="2000" required placeholder="Why is this follow-up being updated?"></textarea><div class="crm-error" data-error-for="comment"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button class="btn btn-dark" type="submit">Save status</button></div></form></div></div></div>');
         }
         if (!document.querySelector('#crmFollowUpRescheduleModal')) {
-            document.body.insertAdjacentHTML('beforeend', '<div class="modal fade crm-modal" id="crmFollowUpRescheduleModal" tabindex="-1" role="dialog" aria-labelledby="crmFollowUpRescheduleTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content"><form class="js-crm-form" data-no-global-loader="1" method="post"><div class="modal-header"><div><span class="crm-eyebrow">CRM FOLLOW-UP</span><h2 class="modal-title h5" id="crmFollowUpRescheduleTitle">Reschedule follow-up</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button></div><div class="modal-body"><div class="crm-form-grid"><div class="form-group"><label for="crmStandaloneRescheduleDate">Follow-up date</label><input class="form-control" id="crmStandaloneRescheduleDate" name="follow_up_date" type="date" required><div class="crm-error" data-error-for="follow_up_date"></div></div><div class="form-group"><label for="crmStandaloneRescheduleTime">Follow-up time</label><input class="form-control" id="crmStandaloneRescheduleTime" name="follow_up_time" type="time" required><div class="crm-error" data-error-for="follow_up_time"></div></div><div class="form-group"><label for="crmStandaloneRescheduleType">Follow-up type</label><select class="form-control" id="crmStandaloneRescheduleType" name="follow_up_type_id" required></select><div class="crm-error" data-error-for="follow_up_type_id"></div></div><div class="form-group"><label for="crmStandaloneRescheduleAssigned">Assigned user</label><select class="form-control" id="crmStandaloneRescheduleAssigned" name="assigned_user_id"><option value="">Unassigned</option></select><div class="crm-error" data-error-for="assigned_user_id"></div></div><div class="form-group crm-wide"><label for="crmStandaloneRescheduleRemark">Remark</label><textarea class="form-control" id="crmStandaloneRescheduleRemark" name="comment" rows="4" maxlength="2000" required placeholder="Add a reason for rescheduling"></textarea><div class="crm-error" data-error-for="comment"></div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button class="btn btn-dark" type="submit">Save reschedule</button></div></form></div></div></div>');
+            document.body.insertAdjacentHTML('beforeend', '<div class="modal fade crm-modal" id="crmFollowUpRescheduleModal" tabindex="-1" role="dialog" aria-labelledby="crmFollowUpRescheduleTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><form class="js-crm-form" data-no-global-loader="1" method="post"><div class="modal-header"><div><span class="crm-eyebrow">CRM FOLLOW-UP</span><h2 class="modal-title h5" id="crmFollowUpRescheduleTitle">Reschedule follow-up</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button></div><div class="modal-body"><div class="alert alert-light border small">The existing follow-up type and assigned user will be kept.</div><div class="form-group"><label for="crmStandaloneRescheduleDate">Follow-up date</label><input class="form-control" id="crmStandaloneRescheduleDate" name="follow_up_date" type="date" required><div class="crm-error" data-error-for="follow_up_date"></div></div><div class="form-group"><label for="crmStandaloneRescheduleTime">Follow-up time</label><input class="form-control" id="crmStandaloneRescheduleTime" name="follow_up_time" type="time" required><div class="crm-error" data-error-for="follow_up_time"></div></div><div class="form-group"><label for="crmStandaloneRescheduleRemark">Remark</label><textarea class="form-control" id="crmStandaloneRescheduleRemark" name="comment" rows="4" maxlength="2000" required placeholder="Add a reason for rescheduling"></textarea><div class="crm-error" data-error-for="comment"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button><button class="btn btn-dark" type="submit">Save reschedule</button></div></form></div></div></div>');
         }
         var detailsModal = document.querySelector('#crmFollowUpDetailsModal');
+        var statusSelect = document.querySelector('#crmFollowUpStatusSelect');
+        var leadStatusSelect = document.querySelector('#crmFollowUpStatus');
+        if (statusSelect && leadStatusSelect && !statusSelect.options.length) statusSelect.innerHTML = leadStatusSelect.innerHTML;
         var rescheduleType = detailsModal && detailsModal.querySelector('[data-followup-panel="reschedule"] select[name="follow_up_type_id"]');
         var rescheduleAssigned = detailsModal && detailsModal.querySelector('[data-followup-panel="reschedule"] select[name="assigned_user_id"]');
-        var standaloneType = document.querySelector('#crmStandaloneRescheduleType');
-        var standaloneAssigned = document.querySelector('#crmStandaloneRescheduleAssigned');
-        if (standaloneType && rescheduleType && !standaloneType.options.length) standaloneType.innerHTML = rescheduleType.innerHTML;
-        if (standaloneAssigned && rescheduleAssigned && standaloneAssigned.options.length === 1) standaloneAssigned.innerHTML = rescheduleAssigned.innerHTML;
         document.querySelectorAll('.crm-followups-table .dropdown-menu').forEach(function (menu) {
             menu.querySelectorAll('.js-crm-followup-history, form').forEach(function (node) { node.remove(); });
             var comment = menu.querySelector('.js-crm-followup-details[data-followup-mode="comment"]');
@@ -152,11 +155,22 @@
                 reschedule.setAttribute('data-target', '#crmFollowUpRescheduleModal');
             }
             var statusCell = menu.closest('tr') && menu.closest('tr').querySelector('[data-label="Follow-up status"]');
-            var canUpdateStatus = statusCell && /scheduled|rescheduled/i.test(statusCell.textContent || '');
-            if (!canUpdateStatus && reschedule) reschedule.remove();
+            var statusText = statusCell ? String(statusCell.textContent || '').toLowerCase() : '';
+            var canUpdateStatus = statusCell && !/cancelled|completed|closed|lost/i.test(statusText);
+            var canReschedule = statusCell && /scheduled|rescheduled|new|contacted|interested/i.test(statusText);
+            if (!canReschedule && reschedule) reschedule.remove();
             if (canUpdateStatus && !menu.querySelector('.js-crm-followup-status')) {
                 var details = menu.querySelector('.js-crm-followup-details');
                 if (details) {
+                    var edit = document.createElement('button');
+                    edit.type = 'button';
+                    edit.className = 'dropdown-item js-crm-followup-edit';
+                    edit.dataset.toggle = 'modal';
+                    edit.dataset.target = '#crmFollowUpModal';
+                    edit.dataset.followupId = details.dataset.followupId || '';
+                    edit.dataset.followupUrl = details.dataset.followupUrl || '';
+                    edit.textContent = 'Edit follow-up';
+                    details.insertAdjacentElement('afterend', edit);
                     var status = document.createElement('button');
                     status.type = 'button';
                     status.className = 'dropdown-item js-crm-followup-status';
@@ -603,15 +617,46 @@
     bindCrmModalFallback();
 
     document.addEventListener('click', async function (event) {
+        var editButton = event.target.closest('.js-crm-followup-edit');
         var statusButton = event.target.closest('.js-crm-followup-status');
         var rescheduleButton = event.target.closest('.js-crm-followup-reschedule');
+        if (editButton) {
+            event.preventDefault();
+            var editModal = document.querySelector('#crmFollowUpModal');
+            var editForm = editModal && editModal.querySelector('form');
+            if (!editModal || !editForm) return;
+            showCrmModal(editModal, editButton);
+            try {
+                var editResponse = await fetch(editButton.dataset.followupUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+                var editPayload = await editResponse.json();
+                if (!editResponse.ok || !editPayload.status) throw new Error(editPayload.msg || 'Unable to load follow-up.');
+                var followUp = editPayload.data.follow_up || {};
+                editForm.action = String(editButton.dataset.followupUrl || '').replace(/\/follow-ups\/(\d+)$/, '/follow-ups/update/$1');
+                editModal.querySelector('#crmFollowUpModalTitle').textContent = 'Edit follow-up';
+                var lead = editForm.querySelector('[name="lead_id"]');
+                if (lead && !lead.querySelector('option[value="' + String(followUp.lead_id || '').replace(/"/g, '\\"') + '"]')) {
+                    var option = document.createElement('option');
+                    option.value = followUp.lead_id || '';
+                    option.textContent = (followUp.lead_number || 'Lead') + ' · ' + (followUp.full_name || 'Current lead');
+                    lead.appendChild(option);
+                }
+                var values = {lead_id: followUp.lead_id, follow_up_date: followUp.follow_up_date, follow_up_time: String(followUp.follow_up_time || '').slice(0, 5), follow_up_type_id: followUp.follow_up_type_id, follow_up_status: followUp.follow_up_status, assigned_user_id: followUp.assigned_user_id || '', remarks: followUp.remarks || ''};
+                Object.keys(values).forEach(function (key) { var field = editForm.querySelector('[name="' + key + '"]'); if (field) field.value = values[key] == null ? '' : values[key]; });
+                var submit = editForm.querySelector('button[type="submit"]');
+                if (submit) submit.textContent = 'Update follow-up';
+            } catch (error) {
+                if (window.showError) window.showError(error.message || 'Unable to load follow-up.');
+                hideCrmModal(editModal);
+            }
+            return;
+        }
         if (statusButton) {
             event.preventDefault();
             var statusModal = document.querySelector('#crmFollowUpStatusModal');
             var statusForm = statusModal && statusModal.querySelector('form');
             if (!statusModal || !statusForm) return;
             statusForm.dataset.followupStatusBase = statusButton.dataset.statusUrl || '';
-            statusForm.action = followupActionUrl(statusButton.dataset.statusUrl || '', statusButton.dataset.followupId) + '/complete';
+            statusForm.action = followupActionUrl(statusButton.dataset.statusUrl || '', statusButton.dataset.followupId) + '/status';
             statusForm.reset();
             clear(statusForm);
             showCrmModal(statusModal, statusButton);
@@ -636,19 +681,10 @@
             rescheduleForm.action = followupActionUrl(rescheduleButton.dataset.followupUrl, rescheduleButton.dataset.followupId) + '/reschedule';
             rescheduleForm.querySelector('[name="follow_up_date"]').value = item.follow_up_date || '';
             rescheduleForm.querySelector('[name="follow_up_time"]').value = String(item.follow_up_time || '').slice(0, 5);
-            rescheduleForm.querySelector('[name="follow_up_type_id"]').value = item.follow_up_type_id || '';
-            rescheduleForm.querySelector('[name="assigned_user_id"]').value = item.assigned_user_id || '';
         } catch (error) {
             if (window.showError) window.showError(error.message || 'Unable to load follow-up details.');
             hideCrmModal(rescheduleModal);
         }
-    });
-
-    document.addEventListener('change', function (event) {
-        if (!event.target.matches('#crmFollowUpStatusSelect')) return;
-        var form = event.target.closest('form');
-        var base = form && form.dataset.followupStatusBase;
-        if (form && base) form.action = base + '/' + event.target.value;
     });
 
     document.addEventListener('click', function (event) {

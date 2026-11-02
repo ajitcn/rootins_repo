@@ -14,12 +14,6 @@
         </div>
 
         <div class="d-flex align-items-center gap-2">
-          <!-- Quick Add Button -->
-          <a href="#" class="btn btn-sm d-inline-flex align-items-center gap-1 py-1 px-2.5 me-1 theme-btn-light">
-            <i class="bi bi-plus-lg"></i>
-            <span class="d-none d-sm-inline">Add Patient</span>
-          </a>
-
           <a href="#" class="btn-tabler-icon" title="Messages">
             <i class="bi bi-chat-left-text"></i>
             <span class="badge-dot"></span>

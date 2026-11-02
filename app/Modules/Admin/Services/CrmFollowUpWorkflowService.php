@@ -34,7 +34,7 @@ class CrmFollowUpWorkflowService
         }
 
         $visibleFields = [
-            'lead_number', 'full_name', 'mobile_display', 'email', 'service_name', 'follow_up_date', 'follow_up_time',
+            'lead_id', 'lead_number', 'full_name', 'mobile_display', 'email', 'service_name', 'follow_up_date', 'follow_up_time',
             'follow_up_type_id', 'follow_up_type_name', 'follow_up_status', 'assigned_user_id',
             'assigned_user_name', 'remarks', 'tags', 'created_at', 'creator_name', 'updated_at', 'updater_name',
         ];
@@ -174,6 +174,32 @@ class CrmFollowUpWorkflowService
         }
     }
 
+    public function updateStatus(int $id, string $status, string $remark, int $actor): array
+    {
+        $followUp = $this->scopedFollowUp($id);
+        if (! $followUp) throw new RuntimeException('Follow-up not found.');
+        $status = trim($status);
+        $remark = trim($remark);
+        $valid = $this->db->table('crm_lead_statuses')->where(['code' => $status, 'status' => 1])->get()->getRowArray();
+        $errors = [];
+        if (! $valid) $errors['follow_up_status'] = 'Select an active Lead Status.';
+        if ($remark === '') $errors['comment'] = 'Enter a remark before updating the follow-up status.';
+        if (mb_strlen($remark) > 2000) $errors['comment'] = 'Remark must not exceed 2000 characters.';
+        if ($errors) throw new RuntimeException(json_encode($errors));
+
+        $this->db->transBegin();
+        try {
+            $new = ['follow_up_status' => $status, 'updated_by' => $actor];
+            $this->followUps->update($id, $new);
+            $this->record($followUp, 'follow_up_status_changed', ['follow_up_status' => $followUp['follow_up_status']], ['follow_up_status' => $status], $actor, $remark);
+            $this->commitOrFail();
+            return $this->details($id);
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+    }
+
     private function scopedFollowUp(int $id): ?array
     {
         $query = $this->db->table('crm_lead_followups f')->select('f.*, l.clinic_id AS lead_clinic_id, l.lead_number, l.full_name, l.mobile_number, l.email, l.country_code, l.interested_service, srv.name AS service_name, COALESCE(l.country_code, tc.normalized_code) AS lead_country_code, ft.name AS follow_up_type_name, au.username AS assigned_user_name, cu.username AS creator_name, uu.username AS updater_name')->join('crm_leads l', 'l.id=f.lead_id')->join('admin_services srv', 'srv.id = l.interested_service AND (srv.clinic_id = l.clinic_id OR srv.clinic_id IS NULL)', 'left')->join('telephone_country_codes tc', 'tc.id=l.telephone_country_code_id', 'left')->join('follow_up_types ft', 'ft.id=f.follow_up_type_id', 'left')->join('users au', 'au.id=f.assigned_user_id', 'left')->join('users cu', 'cu.id=f.created_by', 'left')->join('users uu', 'uu.id=f.updated_by', 'left')->where('f.id', $id)->where('f.deleted_at', null);
@@ -182,9 +208,10 @@ class CrmFollowUpWorkflowService
         }
         $row = $query->get()->getRowArray();
         if ($row) {
-            // Lead ownership is the scope source for installations where the
-            // legacy follow-up table has no clinic_id column.
-            $row['clinic_id'] = (int) ($row['lead_clinic_id'] ?? 0);
+            // Follow-ups retain the operational clinic used for billing and
+            // history. A global lead may have a NULL clinic_id, so never
+            // replace the follow-up clinic with the lead's global scope.
+            $row['clinic_id'] = (int) ($row['clinic_id'] ?? $row['lead_clinic_id'] ?? 0);
             $row['mobile_display'] = trim((string) ($row['lead_country_code'] ?? '') . ' ' . (string) ($row['mobile_number'] ?? ''));
         }
         return $row ?: null;

@@ -42,6 +42,7 @@
 .crm-followups-table .crm-followup-missed-row { background: #fffaf5; }
 .crm-followups-table .crm-followup-missed-row:hover { background: #fff7ed; }
 .crm-missed-tag { display: block; width: max-content; margin-top: .35rem; padding: .15rem .4rem; border-radius: 4px; background: #ffedd5; color: #c2410c; font-size: .68rem; font-weight: 800; line-height: 1.2; }
+.crm-today-tag { display: block; width: max-content; margin-top: .35rem; padding: .15rem .4rem; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-size: .68rem; font-weight: 800; line-height: 1.2; }
 @media (max-width: 575.98px) {
     .crm-followup-missed-alert { display: block; }
     .crm-followup-missed-alert span { display: block; margin-top: .25rem; }
