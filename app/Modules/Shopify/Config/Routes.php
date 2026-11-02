@@ -89,6 +89,8 @@ $routes->post('rootins-proxy/hair-analysis/submit', '\App\Modules\Shopify\Contro
 $routes->get('rootins-proxy/hair-analysis/status', '\App\Modules\Shopify\Controllers\HairAnalysis::status');
 $routes->post('apps/rootins/skin-analysis/submit', '\App\Modules\Shopify\Controllers\SkinAnalysis::submit');
 $routes->get('apps/rootins/skin-analysis/status', '\App\Modules\Shopify\Controllers\SkinAnalysis::status');
+$routes->get('apps/rootins/ai-analysis/status', '\App\Modules\Shopify\Controllers\AiAnalysis::status');
+$routes->get('rootins-proxy/ai-analysis/status', '\App\Modules\Shopify\Controllers\AiAnalysis::status');
 $routes->post('apps/rootins/ai-analysis/callback-request', '\App\Modules\Shopify\Controllers\AiAnalysisCallback::request');
 $routes->post('rootins-proxy/ai-analysis/callback-request', '\App\Modules\Shopify\Controllers\AiAnalysisCallback::request');
 $routes->post('rootins-proxy/skin-analysis/submit', '\App\Modules\Shopify\Controllers\SkinAnalysis::submit');

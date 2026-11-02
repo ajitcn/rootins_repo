@@ -105,6 +105,9 @@ class CrmFollowUpWorkflowService
         }
 
         $reason = trim((string) ($input['comment'] ?? $input['remarks'] ?? ''));
+        if ($reason === '') {
+            $errors['comment'] = 'Enter a remark before rescheduling the follow-up.';
+        }
         if (mb_strlen($reason) > 2000) {
             $errors['comment'] = 'Reason must not exceed 2000 characters.';
         }
@@ -148,6 +151,9 @@ class CrmFollowUpWorkflowService
             throw new RuntimeException('Invalid follow-up status transition.');
         }
         $comment = trim((string) ($input['comment'] ?? $input['remarks'] ?? ''));
+        if ($comment === '') {
+            throw new RuntimeException(json_encode(['comment' => 'Enter a remark before updating the follow-up status.']));
+        }
         if (mb_strlen($comment) > 2000) {
             throw new RuntimeException(json_encode(['comment' => 'Comment must not exceed 2000 characters.']));
         }
