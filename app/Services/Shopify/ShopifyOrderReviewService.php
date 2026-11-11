@@ -40,6 +40,24 @@ final class ShopifyOrderReviewService
                 ->get(1)
                 ->getRowArray();
             $externalLineMatch = $line !== null;
+
+            // Shopify can deliver the same line identity as a plain numeric
+            // ID or as a GraphQL GID. Resolve both forms, but only among lines
+            // already belonging to this import.
+            if ($line === null) {
+                $candidateKeys = array_fill_keys(array_map([$this, 'normalizeLineIdentity'], $externalCandidates), true);
+                foreach ($db->table('shopify_order_import_lines')
+                    ->where('import_id', $importId)
+                    ->get()
+                    ->getResultArray() as $candidateLine) {
+                    $storedKey = $this->normalizeLineIdentity((string) ($candidateLine['shopify_line_item_id'] ?? ''));
+                    if ($storedKey !== '' && isset($candidateKeys[$storedKey])) {
+                        $line = $candidateLine;
+                        $externalLineMatch = true;
+                        break;
+                    }
+                }
+            }
         }
         if ($import === null || $line === null) {
             log_message('warning', 'Shopify pharmacist line scope lookup failed ' . json_encode([
@@ -56,6 +74,13 @@ final class ShopifyOrderReviewService
             throw new InvalidArgumentException('The Shopify order line was not found in the permitted scope.');
         }
         $internalLineId = (int) $line['id'];
+        log_message('debug', 'Shopify pharmacist line scope resolved ' . json_encode([
+            'import_id' => $importId,
+            'line_id' => $internalLineId,
+            'submitted_line_id_type' => $lineId !== '' && ctype_digit($lineId) ? 'numeric' : ($lineId !== '' ? 'external_or_gid' : 'empty'),
+            'external_line_match' => $externalLineMatch,
+            'clinic_scope' => $clinicId,
+        ], JSON_UNESCAPED_SLASHES));
         $next = $this->lineState($action);
         $previous = (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review');
         if ($previous === $next && in_array($next, ['approved', 'rejected', 'out_of_stock', 'prescription_invalid'], true)) throw new InvalidArgumentException('This pharmacist decision has already been applied.');
@@ -107,6 +132,14 @@ final class ShopifyOrderReviewService
 
     private function import(int $id, ?int $clinicId): ?array
     { $q = db_connect()->table('shopify_order_imports')->where('id', $id); if ($clinicId !== null) $q->where('clinic_id', $clinicId); return $q->get(1)->getRowArray() ?: null; }
+
+    private function normalizeLineIdentity(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') return '';
+        if (preg_match('/(?:^|\\/)(?:LineItem|line_item)\\/(\\d+)$/', $value, $matches)) return $matches[1];
+        return ctype_digit($value) ? ltrim($value, '0') ?: '0' : $value;
+    }
 
     private function validateApprovedQuantity(array $import, array $line, int $quantity): void
     {
