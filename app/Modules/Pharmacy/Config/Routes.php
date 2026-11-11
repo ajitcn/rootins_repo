@@ -17,6 +17,7 @@ $routes->group('pharmacy', ['namespace' => 'Pharmacy\Controllers', 'filter' => '
     $routes->get('shopify-orders/(:num)/prescription', 'ShopifyOrders::viewPrescription/$1', ['filter' => 'permission:pharmacy.shopify_orders.view']);
     $routes->post('shopify-orders/action/(:num)', 'ShopifyOrders::action/$1', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->post('shopify-orders/prescriptions/review', 'ShopifyOrders::reviewPrescription', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
+    $routes->post('shopify-orders/(:num)/review/line', 'ShopifyOrders::reviewLine/$1', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->post('shopify-orders/review/line', 'ShopifyOrders::reviewLine', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->post('shopify-orders/review/order', 'ShopifyOrders::reviewOrder', ['filter' => 'permission:pharmacy.shopify_orders.manage']);
     $routes->get('orders/labels/(:num)', 'Orders::labels/$1', ['filter' => 'permission:pharmacy.order.label.view']);
