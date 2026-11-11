@@ -161,15 +161,27 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             if ($postedImportId === '' || $postedImportId === '0') $postedImportId = (string) ($routeImportId ?? 0);
             $postedLineId = trim((string) $this->request->getPost('line_id'));
             $postedShopifyLineId = trim((string) $this->request->getPost('shopify_line_item_id'));
+            $postedAction = trim((string) $this->request->getPost('action'));
+            $postedAction = match (strtolower($postedAction)) {
+                'approve' => 'approve',
+                'reject' => 'reject',
+                'out of stock', 'out_of_stock' => 'out_of_stock',
+                'request prescription', 'request_prescription' => 'request_prescription',
+                'prescription invalid', 'invalid prescription', 'invalid_prescription' => 'invalid_prescription',
+                'substitute' => 'substitute',
+                default => $postedAction,
+            };
             log_message('info', 'Shopify pharmacist review request ' . json_encode([
                 'import_id' => $postedImportId,
                 'line_id_type' => $postedLineId !== '' && ctype_digit($postedLineId) ? 'numeric' : ($postedLineId !== '' ? 'external_or_gid' : 'empty'),
                 'shopify_line_id_hash' => $postedShopifyLineId !== '' ? hash('sha256', $postedShopifyLineId) : null,
-                'action' => trim((string) $this->request->getPost('action')),
+                'action' => $postedAction,
                 'clinic_scope' => $clinicId,
                 'actor_user_id' => (int) (session('user')['id'] ?? 0),
             ], JSON_UNESCAPED_SLASHES));
-            $data = $this->review->reviewLine((int) $postedImportId, $postedLineId, (string) $this->request->getPost('action'), $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
+            $postData = $this->request->getPost();
+            $postData['action'] = $postedAction;
+            $data = $this->review->reviewLine((int) $postedImportId, $postedLineId, $postedAction, $postData, (int) (session('user')['id'] ?? 0), $clinicId);
             return $this->json(true, 'Medicine line review saved.', 200, $data);
         } catch (InvalidArgumentException $e) { return $this->json(false, $e->getMessage(), 422); }
         catch (\Throwable $e) { log_message('error', 'Shopify line review failed: ' . get_class($e)); return $this->json(false, 'Medicine line review could not be saved safely.', 500); }
