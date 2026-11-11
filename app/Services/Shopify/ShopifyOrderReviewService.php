@@ -96,9 +96,10 @@ final class ShopifyOrderReviewService
         $previous = (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review');
         if ($previous === $next && in_array($next, ['approved', 'rejected', 'out_of_stock', 'prescription_invalid'], true)) throw new InvalidArgumentException('This pharmacist decision has already been applied.');
         if ($next === 'approved' && ((int) ($line['medicine_id'] ?? 0) <= 0 || in_array($previous, ['prescription_missing', 'prescription_invalid', 'out_of_stock', 'unmapped', 'inactive'], true))) throw new InvalidArgumentException('This medicine line is not eligible for approval.');
-        if ($next === 'substituted' && trim((string) ($input['substitute_note'] ?? '')) === '') throw new InvalidArgumentException('A substitute note is required.');
+        $substituteNote = trim((string) ($input['substitute_note'] ?? $input['reason'] ?? ''));
+        if ($next === 'substituted' && $substituteNote === '') throw new InvalidArgumentException('A substitute note is required.');
         $data = ['review_status' => $next, 'review_reason' => trim((string) ($input['reason'] ?? '')) ?: null, 'reviewed_by' => $actorId > 0 ? $actorId : null, 'reviewed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')];
-        if ($next === 'substituted') { $data['substitute_medicine_id'] = (int) ($input['substitute_medicine_id'] ?? 0) ?: null; $data['substitute_note'] = trim((string) $input['substitute_note']); }
+        if ($next === 'substituted') { $data['substitute_medicine_id'] = (int) ($input['substitute_medicine_id'] ?? 0) ?: null; $data['substitute_note'] = $substituteNote; }
         if ($next === 'approved') {
             $approvedQuantity = max(0, (int) ($input['approved_quantity'] ?? $line['quantity'] ?? 0));
             $this->validateApprovedQuantity($import, $line, $approvedQuantity);
