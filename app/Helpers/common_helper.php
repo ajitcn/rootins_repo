@@ -204,7 +204,7 @@ if (!function_exists('shopify_status_tone')) {
         $status = shopify_status_normalize($value);
         $tones = [
             'payment' => ['paid' => 'green', 'pending' => 'amber', 'failed' => 'red', 'refunded' => 'purple', 'partially_refunded' => 'orange', 'cancelled' => 'red'],
-            'import' => ['processed' => 'green', 'imported' => 'blue', 'ready_to_import' => 'blue', 'pending_mapping' => 'amber', 'quarantined' => 'orange', 'failed' => 'red', 'received' => 'gray', 'processing' => 'blue'],
+            'import' => ['processed' => 'green', 'imported' => 'blue', 'ready_to_import' => 'blue', 'pending_mapping' => 'amber', 'quarantined' => 'orange', 'failed' => 'red', 'received' => 'gray', 'processing' => 'blue', 'awaiting_review' => 'amber', 'awaiting_customer_action' => 'orange', 'partially_approved' => 'blue', 'approved' => 'green', 'rejected' => 'red', 'fulfilled' => 'green'],
             'prescription' => ['not_required' => 'gray', 'uploaded' => 'green', 'available' => 'green', 'awaiting_review' => 'amber', 'missing' => 'red', 'rejected' => 'red', 'approved' => 'green'],
             'delivery' => ['not_fulfilled' => 'gray', 'processing' => 'blue', 'packed' => 'blue', 'shipped' => 'indigo', 'delivered' => 'green', 'fulfilled' => 'green', 'cancelled' => 'red', 'returned' => 'purple', 'failed' => 'red'],
         ];

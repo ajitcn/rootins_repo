@@ -196,7 +196,9 @@
         if (!data) return;
         var status = label(data.status), error = data.error_message || data.last_error || data.failure_reason || data.quarantine_reason || 'No active error.';
         var $status = $('#shopifyOrderDetailStatus');
-        if ($status.length) $status.find('[data-import-status]').text(status).end().find('[data-import-error]').text(error);
+        if ($status.length) {
+            $status.find('[data-import-status]').text(status).end().find('[data-review-status]').text(label(data.review_status || 'awaiting_review')).end().find('[data-import-error]').text(error);
+        }
     }
 
     function renderDetails(importData) {
