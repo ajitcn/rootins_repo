@@ -304,7 +304,18 @@
             if ($(form).hasClass('shopify-line-review-form')) await refreshReviewLine($(form).find('[name="line_id"]').val());
             else window.location.reload();
         } catch (error) { if (isLine) lineFeedback($row, error && error.message ? error.message : 'Review could not be saved safely.', true); else feedback(error && error.message ? error.message : 'Review could not be saved safely.', true); }
-        finally { if (isLine) setLineReviewLoading(form, false); $(form).data('busy', false); clearStaleLoadingState(); }
+        finally {
+            if (isLine) {
+                setLineReviewLoading(form, false);
+                // Always clear the request lock after a response. The selected
+                // action control may have been disabled during the request,
+                // and stale disabled state must not prevent the next review.
+                $form.find('select, input, button').prop('disabled', false);
+                $form.removeAttr('aria-busy');
+            }
+            $(form).data('busy', false);
+            clearStaleLoadingState();
+        }
         return false;
     });
 
