@@ -15,6 +15,7 @@ final class ShopifyOrderReviewService
     public function reviewLine(int $importId, string $lineId, string $action, array $input, int $actorId, ?int $clinicId = null): array
     {
         $db = db_connect();
+        $action = $this->normalizeReviewAction($action);
         $import = $this->import($importId, $clinicId);
         $lineId = trim($lineId);
         $externalLineId = trim((string) ($input['shopify_line_item_id'] ?? ''));
@@ -134,8 +135,25 @@ final class ShopifyOrderReviewService
         return ['import_id' => $importId, 'status' => $next];
     }
 
+    private function normalizeReviewAction(string $action): string
+    {
+        $normalized = strtolower(trim($action));
+        $normalized = preg_replace('/[\\s-]+/', '_', $normalized) ?? $normalized;
+        return match ($normalized) {
+            'approve' => 'approve',
+            'reject' => 'reject',
+            'out_of_stock' => 'out_of_stock',
+            'request_prescription' => 'request_prescription',
+            'prescription_invalid', 'invalid_prescription' => 'invalid_prescription',
+            'substitute' => 'substitute',
+            'refunded' => 'refunded',
+            'fulfilled' => 'fulfilled',
+            default => $normalized,
+        };
+    }
+
     private function lineState(string $action): string
-    { return match ($action) { 'approve' => 'approved', 'reject' => 'rejected', 'out_of_stock' => 'out_of_stock', 'request_prescription' => 'prescription_missing', 'invalid_prescription' => 'prescription_invalid', 'substitute' => 'substituted', 'refunded' => 'refunded', 'fulfilled' => 'fulfilled', default => throw new InvalidArgumentException('This line review action is invalid.') }; }
+    { return match ($this->normalizeReviewAction($action)) { 'approve' => 'approved', 'reject' => 'rejected', 'out_of_stock' => 'out_of_stock', 'request_prescription' => 'prescription_missing', 'invalid_prescription' => 'prescription_invalid', 'substitute' => 'substituted', 'refunded' => 'refunded', 'fulfilled' => 'fulfilled', default => throw new InvalidArgumentException('This line review action is invalid.') }; }
 
     private function notificationType(string $action): string
     { return match ($action) { 'request_prescription' => 'new_prescription_required', 'invalid_prescription' => 'prescription_rejected', 'out_of_stock' => 'medicine_unavailable', 'substitute' => 'substitute_required', 'refunded' => 'partial_refund', 'fulfilled' => 'partial_fulfilment', 'reject' => 'full_cancellation_refund', default => 'pharmacist_review_updated' }; }
