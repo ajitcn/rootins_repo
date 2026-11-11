@@ -59,14 +59,24 @@ final class ShopifyOrderReviewService
                 }
             }
         }
-        if ($import === null || $line === null) {
+        if ($import === null) {
+            log_message('warning', 'Shopify pharmacist import scope lookup failed ' . json_encode([
+                'import_id' => $importId,
+                'clinic_scope' => $clinicId,
+                'failure_category' => 'SHOPIFY_ORDER_IMPORT_SCOPE_NOT_FOUND',
+            ], JSON_UNESCAPED_SLASHES));
+            throw new InvalidArgumentException('The Shopify order was not found in the permitted scope.');
+        }
+        if ($line === null) {
+            $lineCount = (int) $db->table('shopify_order_import_lines')->where('import_id', $importId)->countAllResults();
             log_message('warning', 'Shopify pharmacist line scope lookup failed ' . json_encode([
                 'import_id' => $importId,
                 'submitted_line_id' => $lineId,
                 'submitted_shopify_line_id' => $externalLineId !== '' ? hash('sha256', $externalLineId) : null,
-                'import_found' => $import !== null,
-                'import_clinic_id' => $import !== null ? (int) ($import['clinic_id'] ?? 0) : null,
+                'import_found' => true,
+                'import_clinic_id' => (int) ($import['clinic_id'] ?? 0),
                 'clinic_scope' => $clinicId,
+                'line_count_for_import' => $lineCount,
                 'internal_line_match' => $internalLineMatch,
                 'external_line_match' => $externalLineMatch,
                 'failure_category' => 'SHOPIFY_ORDER_LINE_SCOPE_NOT_FOUND',
