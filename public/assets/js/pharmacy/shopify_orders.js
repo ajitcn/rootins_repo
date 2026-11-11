@@ -279,9 +279,13 @@
         if ($(form).data('busy')) return false;
         $(form).data('busy', true);
         var $form = $(form), isLine = $form.hasClass('shopify-line-review-form'), $row = $form.closest('.shopify-review-line-card');
-        if (isLine) setLineReviewLoading(form, true);
         try {
             var body = new FormData(form);
+            // Disabled controls are excluded from FormData. Capture the
+            // selected review action before the loading state disables the
+            // select, otherwise the server receives action="".
+            var actionField = form.querySelector('[name="action"]');
+            if (actionField && actionField.value) body.set('action', actionField.value);
             var displayedLineId = $row.find('.shopify-review-id').first().text().trim();
             if (displayedLineId && displayedLineId !== 'Line unavailable') body.set('shopify_line_item_id', displayedLineId);
             if (window.RootinsCsrf) window.RootinsCsrf.formData(body);
@@ -293,6 +297,7 @@
             if (!actionUrl || actionUrl.includes('[object') || actionUrl.includes('loading-icon.gif')) {
                 throw new Error('Invalid Shopify review action URL.');
             }
+            if (isLine) setLineReviewLoading(form, true);
             var response = await fetchWithTimeout(actionUrl, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
             var payload = await parseJsonResponse(response);
             if (isLine) lineFeedback($row, payload.message || payload.msg || 'Review saved.', false); else feedback(payload.message || payload.msg || 'Review saved.', false);
