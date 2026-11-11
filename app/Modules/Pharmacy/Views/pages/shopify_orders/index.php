@@ -1,7 +1,7 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
 <?php
-$this->setData(['eyebrow' => 'Medicine Orders / Shopify', 'title' => 'Shopify Orders', 'titleId' => 'pharmacy-shopify-orders-title', 'description' => 'Review imported Shopify orders, prescriptions, mappings, payment, delivery, and processing history.', 'count' => count($imports ?? []), 'countLabel' => 'orders in scope']);
+$this->setData(['eyebrow' => 'Medicine Orders / Shopify', 'title' => 'Shopify Orders', 'titleId' => 'pharmacy-shopify-orders-title', 'description' => 'Review imported Shopify orders, prescriptions, mappings, payment, delivery, and processing history.', 'count' => count($imports ?? []), 'countLabel' => 'orders in scope', 'filterTarget' => '#pharmacy-shopify-order-filters', 'filterMode' => 'collapse']);
 $filters = $filters ?? [];
 $statusOptions = ['received' => 'Received', 'awaiting_patient_link' => 'Awaiting patient link', 'pending_mapping' => 'Pending mapping', 'ready_to_import' => 'Ready to process', 'quarantined' => 'Quarantined', 'imported' => 'Imported', 'failed' => 'Failed', 'cancelled' => 'Cancelled'];
 $paymentOptions = ['paid' => 'Paid', 'authorized' => 'Authorized', 'partially_paid' => 'Partially paid', 'pending' => 'Pending', 'refunded' => 'Refunded', 'voided' => 'Voided'];
@@ -18,14 +18,14 @@ $badge = static function (string $groupOrValue, mixed $value = null): string {
     return shopify_status_badge_class($groupOrValue, $value);
 };
 ?>
-<main class="dashboard-container pharmacy-shopify-orders-page" aria-labelledby="pharmacy-shopify-orders-title">
+<main class="pharmacy-page pharmacy-shopify-orders-page" aria-labelledby="pharmacy-shopify-orders-title">
     <?= $this->include(PHARMACY_VIEW . 'parts/inner_page_header') ?>
     <section class="pharmacy-shopify-summary" aria-label="Shopify order summary">
         <?php foreach ([['total_shopify_orders', 'Total Shopify Orders', 'bi-bag-check'], ['awaiting_review', 'Awaiting Review', 'bi-hourglass-split'], ['quarantined', 'Quarantined', 'bi-shield-exclamation'], ['unmapped', 'Unmapped', 'bi-link-45deg'], ['prescription_review', 'Prescription Review', 'bi-prescription2'], ['ready_to_process', 'Ready to Process', 'bi-check2-circle']] as [$key, $label, $icon]): ?>
             <div class="pharmacy-shopify-summary-card"><span class="summary-icon"><i class="bi <?= esc($icon) ?>" aria-hidden="true"></i></span><span class="summary-copy"><span><?= esc($label) ?></span><strong><?= (int) ($counters[$key] ?? 0) ?></strong></span></div>
         <?php endforeach; ?>
     </section>
-    <form class="pharmacy-shopify-filters" method="get" action="<?= base_url('pharmacy/shopify-orders') ?>">
+    <div class="collapse pharmacy-top-filter" id="pharmacy-shopify-order-filters"><form class="pharmacy-shopify-filters" method="get" action="<?= base_url('pharmacy/shopify-orders') ?>">
         <?= csrf_field() ?>
         <div class="filter-field filter-search"><label for="shopifyOrderSearch">Search</label><input class="form-control form-control-sm" id="shopifyOrderSearch" name="search" value="<?= esc($filters['search'] ?? '') ?>" placeholder="Order number, customer, patient, or Shopify ID"></div>
         <?php foreach ([['status', 'Order status', $statusOptions], ['financial_status', 'Payment status', $paymentOptions], ['prescription_status', 'Prescription status', $prescriptionOptions], ['mapping_status', 'Mapping status', $mappingOptions], ['fulfillment_status', 'Delivery status', $deliveryOptions]] as [$field, $label, $options]): ?>
@@ -34,9 +34,8 @@ $badge = static function (string $groupOrValue, mixed $value = null): string {
         <div class="filter-field"><label for="shopify-date-from">From</label><input class="form-control form-control-sm" type="date" id="shopify-date-from" name="date_from" value="<?= esc($filters['date_from'] ?? '') ?>"></div>
         <div class="filter-field"><label for="shopify-date-to">To</label><input class="form-control form-control-sm" type="date" id="shopify-date-to" name="date_to" value="<?= esc($filters['date_to'] ?? '') ?>"></div>
         <div class="pharmacy-shopify-filter-actions"><button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search mr-1" aria-hidden="true"></i>Apply</button><a class="btn btn-sm btn-light" href="<?= base_url('pharmacy/shopify-orders') ?>">Clear</a></div>
-    </form>
+    </form></div>
     <section class="card pharmacy-shopify-table-card" aria-label="Imported Shopify orders">
-        <div class="card-header d-flex justify-content-between align-items-center"><div><h2 class="h6 mb-1">Order queue</h2><p class="small text-muted mb-0">Use More Actions to inspect a full order or recheck its medicine mapping.</p></div><span class="small text-muted"><?= count($imports ?? []) ?> shown</span></div>
         <div class="table-responsive pharmacy-shopify-table-wrap"><table class="table pharmacy-shopify-table mb-0"><caption class="sr-only">Imported Shopify orders</caption><thead><tr><th>Shopify Order</th><th>Customer / Patient</th><th>Medicines / Mapping</th><th>Payment / Import Status</th><th>Prescription / Delivery</th><th>Actions</th></tr></thead><tbody>
         <?php if (($imports ?? []) === []): ?><tr><td colspan="6"><div class="pharmacy-orders-empty" role="status"><i class="bi bi-shop d-block" aria-hidden="true"></i><strong>No Shopify orders found</strong><span>Imported orders for this pharmacy clinic will appear here.</span></div></td></tr><?php else: foreach ($imports as $import): ?>
             <?php $orderId = (int) $import['id']; $customer = $import['customer_name_snapshot'] ?: $import['customer_email_snapshot'] ?: $import['shopify_customer_id'] ?: 'Unknown'; $patientName = trim(implode(' ', array_filter([(string) ($import['first_name'] ?? ''), (string) ($import['last_name'] ?? '')]))); $contact = implode(' · ', array_filter([(string) ($import['customer_mobile_snapshot'] ?? ''), (string) ($import['customer_email_snapshot'] ?? '')])) ?: 'Contact not recorded'; $medicineSummary = $import['medicine_summary'] ?: 'No line details'; $paymentStatus = (string) ($import['financial_status'] ?: 'Unknown'); $orderStatus = (string) ($import['status'] ?: 'Unknown'); $prescriptionStatus = (string) ($import['prescription_status'] ?: 'Not supplied'); $deliveryStatus = (string) ($import['fulfillment_status'] ?: 'Unknown'); ?>

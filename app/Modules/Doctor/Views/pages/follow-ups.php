@@ -45,14 +45,39 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
     || (int) ($filters['follow_up_type_id'] ?? 0) > 0
     || trim((string) ($filters['date_from'] ?? '')) !== ''
     || trim((string) ($filters['date_to'] ?? '')) !== '';
+$statusCounts = [];
+foreach ($followUpStatuses as $followUpStatus) {
+    $statusCode = (string) ($followUpStatus['code'] ?? '');
+    if ($statusCode !== '') {
+        $statusCounts[$statusCode] = 0;
+    }
+}
+foreach ($followUps as $followUp) {
+    $statusCode = (string) ($followUp['follow_up_status_code'] ?? $followUp['status'] ?? '');
+    if ($statusCode !== '') {
+        $statusCounts[$statusCode] = ($statusCounts[$statusCode] ?? 0) + 1;
+    }
+}
+$todayFollowUps = 0;
+$missedFollowUps = 0;
+foreach ($followUps as $followUp) {
+    $followUpDate = (string) ($followUp['follow_up_date'] ?? '');
+    $statusCode = (string) ($followUp['follow_up_status_code'] ?? $followUp['status'] ?? '');
+    if ($followUpDate === date('Y-m-d') && !in_array($statusCode, ['completed', 'cancelled', 'closed'], true)) {
+        $todayFollowUps++;
+    }
+    if ($followUpDate !== '' && $followUpDate < date('Y-m-d') && !in_array($statusCode, ['completed', 'cancelled', 'closed'], true)) {
+        $missedFollowUps++;
+    }
+}
 ?>
 
 <main class="dashboard-container doctor-followups-page" aria-labelledby="doctor-followups-title">
-    <div class="page-heading">
+    <div class="page-heading doctor-followups-heading">
         <div>
             <div class="page-eyebrow">Continuity of care</div>
             <h1 id="doctor-followups-title">Follow-ups</h1>
-            <p class="text-muted mb-0">Track and update follow-up plans within your clinic scope.</p>
+            <p class="text-muted mb-0">Keep patient follow-up plans visible and on schedule.</p>
         </div>
         <div class="d-flex flex-wrap align-items-center">
             <?php if ($canEdit): ?>
@@ -69,18 +94,14 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            <div class="d-flex flex-wrap align-items-center justify-content-between">
-                <div>
-                    <h2 class="h5 mb-1">Follow-up register</h2>
-                    <small class="text-muted" role="status" aria-live="polite">
-                        <?= (int) ($pagination['total'] ?? count($followUps)) ?> follow-up(s) in scope
-                        <span class="badge badge-light ml-1"><?= $hasActiveFilters ? 'Filters active' : 'All follow-ups' ?></span>
-                    </small>
-                </div>
-            </div>
-        </div>
+    <section class="doctor-followup-summary" aria-label="Follow-up summary">
+        <div class="doctor-followup-summary-card doctor-followup-summary-blue"><span class="doctor-followup-summary-icon"><i class="bi bi-calendar2-check" aria-hidden="true"></i></span><span class="doctor-followup-summary-copy"><strong><?= (int) ($pagination['total'] ?? count($followUps)) ?></strong><span>Total follow-ups</span><small><?= $hasActiveFilters ? 'Filtered results' : 'In your scope' ?></small></span></div>
+        <div class="doctor-followup-summary-card doctor-followup-summary-amber"><span class="doctor-followup-summary-icon"><i class="bi bi-clock" aria-hidden="true"></i></span><span class="doctor-followup-summary-copy"><strong><?= (int) $todayFollowUps ?></strong><span>Due today</span><small>Needs attention</small></span></div>
+        <div class="doctor-followup-summary-card doctor-followup-summary-red"><span class="doctor-followup-summary-icon"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span><span class="doctor-followup-summary-copy"><strong><?= (int) $missedFollowUps ?></strong><span>Missed</span><small>Past scheduled date</small></span></div>
+        <div class="doctor-followup-summary-card doctor-followup-summary-green"><span class="doctor-followup-summary-icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></span><span class="doctor-followup-summary-copy"><strong><?= (int) ($statusCounts['completed'] ?? 0) ?></strong><span>Completed</span><small>Closed follow-ups</small></span></div>
+    </section>
+
+    <section class="card doctor-followup-register">
 
         <?php if ($followUps !== []): ?>
             <div class="table-responsive doctor-followup-table-wrap">
@@ -174,7 +195,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                 <small class="d-block mt-1">Record a follow-up from a consultation or adjust Filters to get started.</small>
             </div>
         <?php endif; ?>
-    </div>
+    </section>
     <?= view(DOCTOR_VIEW . 'parts/pagination', ['pagination' => $pagination, 'filters' => $filters]) ?>
 </main>
 
@@ -195,8 +216,10 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                     <div class="form-row">
                         <div class="form-group col-12">
                             <label for="doctor-followup-patient-search">Patient <span class="text-danger" aria-hidden="true">*</span></label>
-                            <input id="doctor-followup-patient-search" type="search" class="form-control doctor-followup-patient-search" placeholder="Search patient name, number, or mobile" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="doctor-followup-patient-results" aria-describedby="patient_idErr" required>
-                            <div id="doctor-followup-patient-results" class="doctor-followup-patient-results" role="listbox" aria-live="polite"></div>
+                            <div class="doctor-followup-patient-picker">
+                                <input id="doctor-followup-patient-search" type="search" class="form-control doctor-followup-patient-search" placeholder="Search patient name, number, or mobile" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="doctor-followup-patient-results" aria-describedby="patient_idErr" required>
+                                <div id="doctor-followup-patient-results" class="doctor-followup-patient-results" role="listbox" aria-live="polite"></div>
+                            </div>
                             <div class="validation-error" id="patient_idErr"></div>
                         </div>
                         <div class="form-group col-md-4 col-12">
@@ -323,6 +346,22 @@ $(function () {
         }
     }
 
+    function initFollowUpSelects(scope, containerSelector) {
+        $(scope).find('.btSelect').each(function () {
+            const select = $(this);
+            if (select.data('selectpicker')) {
+                select.selectpicker('destroy');
+            }
+            select.selectpicker({
+                liveSearch: select.is('#doctor-followup-type'),
+                dropupAuto: false,
+                width: '100%',
+                container: containerSelector,
+                size: 6,
+            });
+        });
+    }
+
     function setFormMode(editing) {
         $('#doctor-followup-modal-title').text(editing ? 'Edit Follow-up' : 'New Follow-up');
         $('#doctor-followup-submit-label').text(editing ? 'Save Changes' : 'Create Follow-up');
@@ -417,7 +456,7 @@ $(function () {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                     event.preventDefault();
                     activeIndex = event.key === 'ArrowDown' ? (activeIndex + 1) % options.length : (activeIndex - 1 + options.length) % options.length;
-                    options.attr('aria-selected', 'false').eq(activeIndex).attr('aria-selected', 'true').focus();
+                    options.attr('aria-selected', 'false').eq(activeIndex).attr('aria-selected', 'true');
                 } else if (event.key === 'Escape') {
                     event.preventDefault();
                     results.empty();
@@ -426,6 +465,16 @@ $(function () {
                     event.preventDefault();
                     options.eq(activeIndex).trigger('click');
                 }
+            })
+            .off('mousedown.doctorFollowupAutocompleteOutside')
+            .on('mousedown.doctorFollowupAutocompleteOutside', function (event) {
+                if ($(event.target).closest('.doctor-followup-patient-picker').length) {
+                    return;
+                }
+
+                results.empty().removeAttr('aria-busy');
+                input.attr('aria-expanded', 'false');
+                activeIndex = -1;
             });
         input.on('focus', function () {
             if ($.trim(input.val()).length >= 2 && results.children().length) input.attr('aria-expanded', 'true');
@@ -454,7 +503,7 @@ $(function () {
 
     modal.on('shown.bs.modal', function () {
         initSharedDatepickers(this);
-        $('.btSelect', this).selectpicker('refresh');
+        initFollowUpSelects(this, '#doctor-followup-modal');
         $('#doctor-followup-patient-search').trigger('focus').trigger('select');
     });
 
@@ -498,7 +547,7 @@ $(function () {
 
     $('#doctor-followup-filter-modal').on('shown.bs.modal', function () {
         initSharedDatepickers(this);
-        $('.btSelect', this).selectpicker('refresh');
+        initFollowUpSelects(this, '#doctor-followup-filter-modal');
     });
 });
 </script>

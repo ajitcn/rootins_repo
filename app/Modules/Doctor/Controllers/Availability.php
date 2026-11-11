@@ -24,8 +24,9 @@ class Availability extends BaseController
         $this->leave = new DoctorLeave();
     }
 
-    public function index()
+    public function index(string $pageMode = 'availability')
     {
+        $pageMode = $pageMode === 'leaves' ? 'leaves' : 'availability';
         $context = $this->context();
 
         if ($context === null) {
@@ -85,7 +86,13 @@ class Availability extends BaseController
             'today' => $this->today(),
             'canOverrideConflict' => $this->canOverrideConflict(),
             'days' => [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'],
+            'pageMode' => $pageMode,
         ]);
+    }
+
+    public function leaves()
+    {
+        return $this->index('leaves');
     }
 
     public function saveSchedule(): ResponseInterface

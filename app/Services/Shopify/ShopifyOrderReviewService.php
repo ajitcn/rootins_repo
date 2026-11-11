@@ -12,12 +12,50 @@ final class ShopifyOrderReviewService
     public const ORDER_STATUSES = ['received', 'awaiting_review', 'awaiting_customer_action', 'partially_approved', 'approved', 'partially_fulfilled', 'fulfilled', 'partially_refunded', 'refunded', 'rejected', 'quarantined'];
 
     /** @return array<string,mixed> */
-    public function reviewLine(int $importId, int $lineId, string $action, array $input, int $actorId, ?int $clinicId = null): array
+    public function reviewLine(int $importId, string $lineId, string $action, array $input, int $actorId, ?int $clinicId = null): array
     {
         $db = db_connect();
         $import = $this->import($importId, $clinicId);
-        $line = $db->table('shopify_order_import_lines')->where(['id' => $lineId, 'import_id' => $importId])->get(1)->getRowArray();
-        if ($import === null || $line === null) throw new InvalidArgumentException('The Shopify order line was not found in the permitted scope.');
+        $lineId = trim($lineId);
+        $externalLineId = trim((string) ($input['shopify_line_item_id'] ?? ''));
+        // The hidden line_id is the canonical local identity. The visible
+        // Shopify line ID is a fallback only; it can be formatted differently
+        // by the payload/UI while the local line row remains valid.
+        $line = null;
+        if ($lineId !== '' && ctype_digit($lineId)) {
+            $line = $db->table('shopify_order_import_lines')
+                ->where('id', (int) $lineId)
+                ->where('import_id', $importId)
+                ->get(1)
+                ->getRowArray();
+        }
+
+        $externalCandidates = array_values(array_unique(array_filter([$externalLineId, $lineId], static fn (string $value): bool => $value !== '')));
+        $internalLineMatch = $line !== null;
+        $externalLineMatch = false;
+        if ($line === null && $externalCandidates !== []) {
+            $line = $db->table('shopify_order_import_lines')
+                ->where('import_id', $importId)
+                ->whereIn('shopify_line_item_id', $externalCandidates)
+                ->get(1)
+                ->getRowArray();
+            $externalLineMatch = $line !== null;
+        }
+        if ($import === null || $line === null) {
+            log_message('warning', 'Shopify pharmacist line scope lookup failed ' . json_encode([
+                'import_id' => $importId,
+                'submitted_line_id' => $lineId,
+                'submitted_shopify_line_id' => $externalLineId !== '' ? hash('sha256', $externalLineId) : null,
+                'import_found' => $import !== null,
+                'import_clinic_id' => $import !== null ? (int) ($import['clinic_id'] ?? 0) : null,
+                'clinic_scope' => $clinicId,
+                'internal_line_match' => $internalLineMatch,
+                'external_line_match' => $externalLineMatch,
+                'failure_category' => 'SHOPIFY_ORDER_LINE_SCOPE_NOT_FOUND',
+            ], JSON_UNESCAPED_SLASHES));
+            throw new InvalidArgumentException('The Shopify order line was not found in the permitted scope.');
+        }
+        $internalLineId = (int) $line['id'];
         $next = $this->lineState($action);
         $previous = (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review');
         if ($previous === $next && in_array($next, ['approved', 'rejected', 'out_of_stock', 'prescription_invalid'], true)) throw new InvalidArgumentException('This pharmacist decision has already been applied.');
@@ -31,7 +69,7 @@ final class ShopifyOrderReviewService
             $data['approved_quantity'] = $approvedQuantity;
         }
         $db->transStart();
-        $builder = $db->table('shopify_order_import_lines')->where('id', $lineId)->where('import_id', $importId);
+        $builder = $db->table('shopify_order_import_lines')->where('id', $internalLineId)->where('import_id', $importId);
         $builder->where('review_status', $line['review_status'] ?? null)->update($data);
         if ($db->affectedRows() < 1) throw new InvalidArgumentException('The line changed while it was being reviewed. Refresh and retry.');
         $this->recomputeOrder($importId, $import, $actorId);
@@ -39,7 +77,7 @@ final class ShopifyOrderReviewService
         if (! $db->transStatus()) throw new \RuntimeException('The pharmacist decision could not be saved.');
         $this->audit($import, $line, 'line_' . $action, $previous, $next, $actorId);
         $this->queue($import, $this->notificationType($action), $actorId);
-        return ['import_id' => $importId, 'line_id' => $lineId, 'previous_status' => $previous, 'status' => $next];
+        return ['import_id' => $importId, 'line_id' => $internalLineId, 'previous_status' => $previous, 'status' => $next];
     }
 
     /** @return array<string,mixed> */

@@ -1,10 +1,25 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
-<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/admin/payment-statuses.css?v=20261012.4') ?>"><?= $this->endSection() ?>
+<?= $this->section('styles') ?><link rel="stylesheet" href="<?= base_url('assets/css/admin/payment-statuses.css?v=20261012.4') ?>"><style>
+    .payment-status-page { padding-bottom: 2rem; }
+    .payment-status-page .payment-status-header { margin-bottom: 1.25rem; }
+    .payment-status-page .payment-status-header { align-items: center; }
+    .payment-status-page .payment-status-header h1 { margin: .15rem 0 .35rem; }
+    .payment-status-page .payment-status-header .payment-status-eyebrow { color: #64748b; font-size: .68rem; font-weight: 800; letter-spacing: .12em; }
+    .payment-status-page .payment-status-filters { display: none; }
+    .payment-status-page .payment-status-filters.is-visible { display: grid; }
+    .payment-status-page .payment-status-toolbar { display: none; }
+    .payment-status-page .payment-status-filter-slot { margin-bottom: 1.25rem; padding: 0; border: 0; border-radius: 0; background: transparent; }
+    .payment-status-page .payment-status-filter-slot .payment-status-filters { min-width: 0; }
+    .payment-status-page .payment-status-workspace { margin-top: 1.25rem; }
+    .payment-status-page .payment-status-summary { margin-bottom: 1.25rem; }
+    @media (max-width: 767.98px) { .payment-status-page .payment-status-header { align-items: stretch; } }
+</style><?= $this->endSection() ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container payment-status-page" aria-labelledby="payment-statuses-title">
-    <header class="payment-status-header">
+<main class="dashboard-container doctor-management-standard crm-page access-shell payment-status-page" aria-labelledby="payment-statuses-title">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Masters', 'page' => 'Payment Statuses']) ?>
+    <header class="payment-status-header crm-header access-hero">
         <div><div class="payment-status-eyebrow">ADMIN / MASTERS</div><h1 id="payment-statuses-title">Payment Statuses</h1><p>Control the status codes and labels used by pharmacy payment workflows.</p></div>
-        <button class="btn theme-btn payment-status-primary" type="button" data-toggle="modal" data-target="#paymentStatusModal" data-payment-status-reset="1"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>Add status</button>
+        <div class="d-flex flex-wrap" style="gap:.5rem"><button class="btn btn-outline-secondary" type="button" onclick="var f=document.getElementById('paymentStatusFilters');if(f){var o=f.classList.toggle('is-visible');this.setAttribute('aria-expanded',String(o));}" aria-expanded="false"><i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters</button><button class="btn theme-btn payment-status-primary" type="button" data-toggle="modal" data-target="#paymentStatusModal" data-payment-status-reset="1"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>Add status</button></div>
     </header>
     <section class="payment-status-summary" aria-label="Payment status summary">
         <div class="payment-status-summary-card"><span>Total statuses</span><strong><?= (int) ($summary['total'] ?? 0) ?></strong></div>
@@ -45,4 +60,24 @@
 }());
 </script>
 <script defer src="<?= base_url('assets/js/admin/payment_status.js?v=20261012.6') ?>"></script>
+<script>
+document.addEventListener('click', function (event) {
+    var button = event.target.closest('.payment-status-header .btn-outline-secondary');
+    if (!button) return;
+    var filters = document.querySelector('.payment-status-filters');
+    if (!filters) return;
+    filters.classList.toggle('is-visible');
+    button.setAttribute('aria-expanded', filters.classList.contains('is-visible') ? 'true' : 'false');
+});
+document.addEventListener('DOMContentLoaded', function () {
+    var page = document.querySelector('.payment-status-page');
+    var summary = page && page.querySelector('.payment-status-summary');
+    var form = page && page.querySelector('.payment-status-filters');
+    if (!summary || !form || form.closest('.payment-status-filter-slot')) return;
+    var slot = document.createElement('div');
+    slot.className = 'payment-status-filter-slot';
+    slot.appendChild(form);
+    summary.parentNode.insertBefore(slot, summary);
+});
+</script>
 <?= $this->endSection() ?>

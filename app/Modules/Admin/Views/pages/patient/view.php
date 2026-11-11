@@ -19,7 +19,7 @@ $appointmentLabel = static function (array $appointment, string $fallback = 'Not
 $detailItem = static function (string $label, string $content, string $class = ''): string { return '<div class="admin-patient-detail-item ' . esc($class) . '"><dt>' . esc($label) . '</dt><dd>' . $content . '</dd></div>'; };
 ?>
 
-<main class="dashboard-container admin-patient-detail-page" aria-labelledby="patient-detail-title">
+<main class="dashboard-container crm-page admin-patient-detail-page" aria-labelledby="patient-detail-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Patient Details']) ?>
     <section class="admin-patient-detail-toolbar" aria-label="Patient detail actions">
         <div class="admin-patient-detail-toolbar-copy"><span class="page-eyebrow">Patient record</span><h1 id="patient-detail-title">Patient details</h1><p><?= esc($patientName ?: 'Unknown patient') ?> <span aria-hidden="true">·</span> <?= esc($value('registration_number')) ?></p></div>

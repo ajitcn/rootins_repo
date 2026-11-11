@@ -151,7 +151,7 @@ final class PrescriptionReviewService
      */
     private function normalizeItem(array $item): array
     {
-        return ['medicine_name' => trim((string) ($item['medicine_name'] ?? '')) ?: 'Unnamed medicine', 'duration' => trim(implode(' ', array_filter([(string) ($item['duration'] ?? ''), (string) ($item['duration_unit'] ?? '')]))) ?: 'Not recorded', 'frequency' => trim((string) ($item['frequency'] ?? '')) ?: 'Not recorded', 'dose' => trim((string) ($item['dosage'] ?? '')) ?: 'Not recorded', 'intake' => trim((string) ($item['instructions'] ?? '')) ?: 'Not recorded', 'note' => trim((string) ($item['notes'] ?? '')) ?: 'Not recorded'];
+        return ['medicine_name' => trim((string) ($item['medicine_name'] ?? '')) ?: 'Unnamed medicine', 'duration' => trim(implode(' ', array_filter([(string) ($item['duration'] ?? ''), (string) ($item['duration_unit'] ?? '')]))) ?: 'Not recorded', 'frequency' => trim((string) ($item['frequency'] ?? '')) ?: 'Not recorded', 'dose' => trim((string) ($item['dosage'] ?? '')) ?: 'Not recorded', 'quantity' => trim((string) ($item['quantity'] ?? '')) ?: 'Not recorded', 'intake' => trim((string) ($item['instructions'] ?? '')) ?: 'Not recorded', 'note' => trim((string) ($item['notes'] ?? '')) ?: 'Not recorded'];
     }
 
     private function toIsoDate(string $value): ?string

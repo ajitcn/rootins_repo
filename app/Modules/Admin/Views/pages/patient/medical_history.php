@@ -10,7 +10,7 @@ $patientName = trim(implode(' ', array_filter([
 ], static fn ($part) => $part !== null && $part !== '')));
 ?>
 
-<main class="dashboard-container">
+<main class="dashboard-container crm-page">
     <?= view('templates/_breadcrumb', [
         'module' => 'admin',
         'menu_title' => 'Patient Management',

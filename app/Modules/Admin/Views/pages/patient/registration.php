@@ -1,21 +1,25 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url('assets/css/crm/crm.css?v=20261103.1') ?>">
+<?= $this->endSection() ?>
+
 <?= $this->section('main-content') ?>
 
-<main class="dashboard-container admin-patient-registration-page" aria-labelledby="patient-registration-title">
+<main class="dashboard-container doctor-management-standard crm-page admin-patient-registration-page" aria-labelledby="patient-registration-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Patient Management', 'page' => 'Patient Registration']) ?>
 
-    <section class="admin-registration-heading">
-        <div><span class="page-eyebrow">Patient management</span><h1 id="patient-registration-title">Patient registration</h1><p>Create a clinic-scoped patient record with optional first appointment.</p></div>
+    <header class="crm-header admin-registration-heading">
+        <div><span class="page-eyebrow">Patient management</span><h1 id="patient-registration-title">Patient registration</h1><p>Create a globally accessible patient record with optional first appointment.</p></div>
         <a href="<?= base_url('admin/patients') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i>Back to patients</a>
-    </section>
+    </header>
 
-    <section class="card admin-registration-card" aria-labelledby="patient-registration-form-title">
-        <div class="card-header admin-registration-card-header"><div><h2 id="patient-registration-form-title">Register a patient</h2><p>Required fields are marked with <span class="text-danger">*</span>. The registration number is generated after a successful save.</p></div><span class="admin-registration-step"><i class="bi bi-shield-check mr-1" aria-hidden="true"></i>Secure clinic scope</span></div>
+    <section class="card crm-card admin-registration-card" aria-label="Patient registration form">
         <div class="card-body admin-registration-card-body">
             <?= form_open('', ['id' => 'patientRegistrationForm', 'autocomplete' => 'off', 'novalidate' => 'novalidate']) ?>
                 <div id="patientRegistrationResult" class="alert alert-success d-none" role="status"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i>Patient registered successfully. Registration number: <strong id="patientRegistrationNumber"></strong></div>
                 <div class="admin-registration-notice"><i class="bi bi-info-circle mr-2" aria-hidden="true"></i><span>The patient source is assigned by the server for this Admin registration. It cannot be changed from the form.</span></div>
+                <input type="hidden" name="clinic_id" id="registration_clinic_id" value="<?= (int) ($registrationClinicId ?? 0) ?>">
 
                 <fieldset class="admin-registration-section">
                     <legend><span class="admin-registration-section-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>Patient identity</legend>
@@ -41,8 +45,7 @@
                 </fieldset>
 
                 <fieldset class="admin-registration-section">
-                    <legend><span class="admin-registration-section-icon"><i class="bi bi-building" aria-hidden="true"></i></span>Clinic and location</legend>
-                    <div class="admin-registration-grid admin-registration-grid-2"><div class="form-group"><label for="registration_clinic_id">Clinic <span class="text-danger">*</span></label><select class="form-control btSelect" data-live-search="true" title="Select clinic" name="clinic_id" id="registration_clinic_id" required><option value="">Select clinic</option><?php foreach (($clinics ?? []) as $clinic): ?><option value="<?= (int) $clinic['id'] ?>"><?= esc($clinic['clinic_name']) ?></option><?php endforeach; ?></select><div class="validation-error" id="clinic_idErr"></div></div></div>
+                    <legend><span class="admin-registration-section-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>Location</legend>
                     <div class="admin-registration-grid admin-registration-grid-4">
                         <div class="form-group"><label for="registration_country_id">Country</label><select class="form-control btSelect" data-live-search="true" title="Select country" name="country_id" id="registration_country_id"><option value="">Select country</option><?php foreach (($countries ?? []) as $country): ?><option value="<?= (int) $country['id'] ?>"><?= esc($country['name']) ?></option><?php endforeach; ?></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_country_manual" data-select="#registration_country_id" data-input="#registration_country_name"><label class="custom-control-label small" for="registration_country_manual">Enter country manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="country_name" id="registration_country_name" placeholder="Country name" maxlength="191"><div class="validation-error" id="country_idErr"></div></div>
                         <div class="form-group"><label for="registration_state_id">State</label><select class="form-control btSelect" data-live-search="true" title="Select state" name="state_id" id="registration_state_id"><option value="">Select state</option></select><div class="custom-control custom-switch mt-2"><input type="checkbox" class="custom-control-input location-manual-toggle" id="registration_state_manual" data-select="#registration_state_id" data-input="#registration_state_name"><label class="custom-control-label small" for="registration_state_manual">Enter manually</label></div><input type="text" class="form-control mt-2 location-manual d-none" name="state_name" id="registration_state_name" placeholder="State or division" maxlength="191"><div class="validation-error" id="state_idErr"></div></div>

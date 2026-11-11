@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container">
+<main class="dashboard-container crm-page">
     <h1 class="h4 mb-3"><?= esc($title) ?></h1>
     <div class="action-btn-container d-flex justify-content-between">
         <form method="get" class="form-inline" aria-label="Filter settings">

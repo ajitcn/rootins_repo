@@ -114,10 +114,54 @@ class DashboardService
         $toDateTime = $to . ' 23:59:59';
 
         $count = static function (string $table, string $dateColumn, array $where = []) use ($db, $fromDateTime, $toDateTime): int {
+            if (! $db->tableExists($table) || ! $db->fieldExists($dateColumn, $table)) return 0;
             $query = $db->table($table)->where($dateColumn . ' >=', $fromDateTime)->where($dateColumn . ' <=', $toDateTime);
             foreach ($where as $column => $value) $query->where($column, $value);
             return (int) $query->countAllResults();
         };
+        $safeCount = static function (string $table, array $where = []) use ($db): int {
+            if (! $db->tableExists($table)) return 0;
+            $query = $db->table($table);
+            foreach ($where as $column => $value) {
+                if (! $db->fieldExists($column, $table)) continue;
+                if (is_array($value)) $query->whereIn($column, $value); else $query->where($column, $value);
+            }
+            return (int) $query->countAllResults();
+        };
+        $today = (new DateTimeImmutable('now', $this->timezone))->format('Y-m-d');
+        $missedFollowUps = 0;
+        if ($db->tableExists('crm_lead_followups') && $db->fieldExists('follow_up_date', 'crm_lead_followups')) {
+            $followUpQuery = $db->table('crm_lead_followups')->where('follow_up_date <', $today);
+            if ($db->fieldExists('follow_up_status', 'crm_lead_followups')) $followUpQuery->whereNotIn('follow_up_status', ['completed', 'cancelled', 'closed']);
+            $missedFollowUps = (int) $followUpQuery->countAllResults();
+        }
+        $shopify = [
+            'failed_orders' => $safeCount('shopify_order_imports', ['status' => 'failed']),
+            'ready_orders' => $safeCount('shopify_order_imports', ['status' => 'ready_to_import']),
+            'unmapped_orders' => $safeCount('shopify_order_imports', ['mapping_status' => 'unmapped']),
+            'quarantined_orders' => $safeCount('shopify_order_imports', ['status' => 'quarantined']),
+        ];
+        $ai = [
+            'pending_hair' => $safeCount('shopify_hair_analysis_leads', ['status' => ['received', 'processing']]),
+            'pending_skin' => $safeCount('shopify_skin_analysis_leads', ['status' => ['received', 'processing']]),
+            'callback_requests' => $safeCount('shopify_ai_analysis_callback_requests', ['status' => ['pending', 'new']]),
+        ];
+        $prescriptionStatuses = [];
+        if ($db->tableExists('prescriptions') && $db->fieldExists('status', 'prescriptions')) {
+            $prescriptionStatuses = $db->table('prescriptions')->select('status, COUNT(*) total')->where('created_at >=', $fromDateTime)->where('created_at <=', $toDateTime)->groupBy('status')->get()->getResultArray();
+        }
+        $todayFollowUps = 0;
+        if ($db->tableExists('crm_lead_followups') && $db->fieldExists('follow_up_date', 'crm_lead_followups')) {
+            $todayFollowUps = (int) $db->table('crm_lead_followups')->where('follow_up_date', $today)->whereNotIn('follow_up_status', ['completed', 'cancelled', 'closed'])->countAllResults();
+        }
+        $completedPrescriptions = 0;
+        foreach ($prescriptionStatuses as $prescriptionStatus) if ((string) ($prescriptionStatus['status'] ?? '') === 'completed') $completedPrescriptions = (int) ($prescriptionStatus['total'] ?? 0);
+        $inventory = ['low_stock' => 0, 'out_of_stock' => 0, 'near_expiry' => 0];
+        if ($db->tableExists('medicine_inventory_batches')) {
+            $inventory['out_of_stock'] = (int) $db->table('medicine_inventory_batches')->where('quantity_available <=', 0)->countAllResults();
+            $inventory['low_stock'] = (int) $db->table('medicine_inventory_batches')->where('quantity_available >', 0)->where('quantity_available <=', 10)->where('status', 'active')->countAllResults();
+            if ($db->fieldExists('expiry_date', 'medicine_inventory_batches')) $inventory['near_expiry'] = (int) $db->table('medicine_inventory_batches')->where('expiry_date >=', $today)->where('expiry_date <=', date('Y-m-d', strtotime($today . ' +30 days')))->where('status', 'active')->countAllResults();
+        }
 
         $appointmentsByDay = $db->table('appointments')->select('appointment_date day, COUNT(*) total')
             ->where('appointment_date >=', $from)->where('appointment_date <=', $to)
@@ -137,6 +181,19 @@ class DashboardService
 
         $appointmentStatuses = [];
         foreach ($statuses as $status) $appointmentStatuses[(string) $status['status']] = (int) $status['total'];
+        $newLeads = $count('crm_leads', 'created_at');
+        $openFollowUps = 0;
+        if ($db->tableExists('crm_lead_followups')) {
+            $openFollowUpQuery = $db->table('crm_lead_followups');
+            if ($db->fieldExists('follow_up_status', 'crm_lead_followups')) {
+                $openFollowUpQuery->whereNotIn('follow_up_status', ['completed', 'cancelled', 'closed']);
+            }
+            $openFollowUps = (int) $openFollowUpQuery->countAllResults();
+        }
+        $completedAiAnalyses = $count('shopify_hair_analysis_leads', 'created_at', ['status' => 'completed'])
+            + $count('shopify_skin_analysis_leads', 'created_at', ['status' => 'completed']);
+        $paidInvoices = $count('invoices', 'created_at', ['payment_status' => 'paid']);
+        $pendingInvoices = $safeCount('invoices', ['payment_status' => ['pending', 'unpaid']]);
         return [
             'range' => $range,
             'metrics' => [
@@ -147,11 +204,18 @@ class DashboardService
                 'revenue' => (float) ($revenue ?? 0),
                 'payments' => $count('invoices', 'created_at', ['payment_status' => 'paid']),
                 'orders' => $count('medicine_orders', 'created_at'),
+                'new_leads' => $newLeads,
+                'completed_appointments' => $appointmentStatuses['completed'] ?? 0,
+                'paid_invoices' => $paidInvoices,
+                'pending_invoices' => $pendingInvoices,
+                'open_followups' => $openFollowUps,
+                'completed_ai_analyses' => $completedAiAnalyses,
                 'audit_alerts' => (int) $db->table('audit_logs')->where('occurred_at >=', $fromDateTime)->where('occurred_at <=', $toDateTime)->groupStart()->like('action', 'failed')->orLike('action', 'denied')->groupEnd()->countAllResults(),
             ],
             'charts' => ['appointments_by_day' => $appointmentsByDay, 'appointment_statuses' => $appointmentStatuses],
             'chart_maxima' => ['appointments_by_day' => max(1, self::maximumNumericValue($appointmentTotals))],
             'summaries' => ['total_appointments' => array_sum($appointmentStatuses), 'completed_appointments' => $appointmentStatuses['completed'] ?? 0, 'cancelled_appointments' => $appointmentStatuses['cancelled'] ?? 0],
+            'operations' => ['missed_followups' => $missedFollowUps, 'today_followups' => $todayFollowUps, 'completed_prescriptions' => $completedPrescriptions, 'shopify' => $shopify, 'ai' => $ai, 'inventory' => $inventory, 'prescription_statuses' => $prescriptionStatuses, 'today' => $today],
             'tables' => ['recent_activity' => $activity],
         ];
     }

@@ -58,8 +58,15 @@ $routes->group('admin/configuration', ['namespace' => 'Admin\Controllers', 'filt
     $routes->get('masters/(:segment)', 'Configuration::master/$1', ['filter' => 'permission:settings.manage']);
     $routes->post('masters/save', 'Configuration::saveMaster', ['filter' => 'permission:settings.manage']);
     $routes->post('masters/delete/(:num)', 'Configuration::deleteMaster/$1', ['filter' => 'permission:settings.manage']);
+    $routes->get('settings/email-settings', 'Configuration::emailSettings', ['filter' => 'permission:settings.manage']);
+    $routes->get('settings/notification-settings', 'Configuration::notificationSettings', ['filter' => 'permission:settings.manage']);
+    $routes->get('settings/document-templates', 'Configuration::documentTemplates', ['filter' => 'permission:settings.manage']);
     $routes->get('settings/(:segment)', 'Configuration::settings/$1', ['filter' => 'permission:settings.manage']);
     $routes->post('settings/save', 'Configuration::saveSetting', ['filter' => 'permission:settings.manage']);
+    $routes->post('settings/email-settings/save', 'Configuration::saveEmailSettings', ['filter' => 'permission:settings.manage']);
+    $routes->post('settings/email-settings/test', 'Configuration::testEmail', ['filter' => 'permission:settings.manage']);
+    $routes->post('settings/notification-settings/save', 'Configuration::saveNotificationSettings', ['filter' => 'permission:settings.manage']);
+    $routes->post('settings/document-templates/save', 'Configuration::saveDocumentTemplates', ['filter' => 'permission:settings.manage']);
 });
 $routes->group('admin/delivery-providers', ['namespace' => 'Admin\Controllers', 'filter' => 'auth'], function ($routes) {
     $routes->get('/', 'DeliveryProvider::index', ['filter' => 'permission:delivery_provider.view']);

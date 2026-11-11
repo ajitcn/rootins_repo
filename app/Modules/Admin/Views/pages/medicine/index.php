@@ -6,7 +6,7 @@ $filters = $filters ?? [];
 $lookupOptions = $lookupOptions ?? ['forms' => [], 'strengths' => [], 'units' => [], 'manufacturers' => [], 'statuses' => []];
 $prescriptionOptionSets = $prescriptionOptionSets ?? ['duration' => [], 'frequency' => [], 'dose' => [], 'intake' => []];
 ?>
-<main class="dashboard-container">
+<main class="dashboard-container crm-page medicine-master-page">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Masters & Configuration', 'page' => 'Medicine Master']) ?>
 
     <div class="action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3"><h1 class="h4 mb-2 mb-md-0">Medicine Master</h1><div><button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#medicineFilterModal"><i class="bi bi-funnel" aria-hidden="true"></i> Filters</button><?php if ($canManageLookups): ?><a class="btn btn-sm btn-outline-secondary mr-2" href="<?= base_url('admin/medicine-lookups') ?>"><i class="bi bi-list-check" aria-hidden="true"></i> Manage options</a><?php endif; ?><?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openMedicineModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> New Medicine</button><?php endif; ?></div></div>

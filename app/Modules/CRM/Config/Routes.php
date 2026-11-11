@@ -2,7 +2,6 @@
 /** @var \CodeIgniter\Router\RouteCollection $routes */
 $routes->group('admin/crm', ['namespace' => 'CRM\Controllers', 'filter' => 'auth'], static function ($routes) {
     $routes->get('leads', 'Crm::leads', ['filter' => 'permission:crm.lead.view']);
-    $routes->get('leads/(:num)', 'Crm::viewLead/$1', ['filter' => 'permission:crm.lead.view']);
     $routes->get('leads/(:num)/history', 'Crm::history/$1', ['filter' => 'permission:crm.history.view']);
     $routes->post('leads/(:num)/convert/patient', 'Crm::convertPatient/$1', ['filter' => 'permission:crm.lead.convert']);
     $routes->post('leads/(:num)/convert/appointment', 'Crm::convertAppointment/$1', ['filter' => 'permission:crm.lead.convert']);

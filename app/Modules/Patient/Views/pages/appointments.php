@@ -22,7 +22,7 @@ $today = (new DateTimeImmutable('now', new DateTimeZone(config('App')->appTimezo
             <p class="text-muted mb-1">Review your schedule, join video consultations, and manage eligible bookings.</p>
             <span class="small text-muted">Patient: <?= esc(trim(($patient['first_name'] ?? '') . ' ' . ($patient['last_name'] ?? ''))) ?> · <?= esc($patient['registration_number'] ?? '—') ?> · <?= esc($patient['mobile_number'] ?? '—') ?></span>
         </div>
-        <div class="patient-page-heading-actions">
+        <div class="patient-page-heading-actions page-header-buttons">
             <span class="badge badge-light"><i class="bi bi-calendar-check mr-1" aria-hidden="true"></i><?= (int) ($pagination['total'] ?? 0) ?> total</span>
             <a class="btn btn-primary btn-sm" href="<?= base_url('patient/portal') ?>#booking-form"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>Book appointment</a>
         </div>

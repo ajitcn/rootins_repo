@@ -1,6 +1,6 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container pharmacy-billing-page" aria-labelledby="pharmacy-billing-title">
+<main class="pharmacy-page pharmacy-billing-page" aria-labelledby="pharmacy-billing-title">
     <?= $this->include(PHARMACY_VIEW . 'pages/billing/_toolbar') ?>
     <section class="pharmacy-billing-grid" aria-label="Billing and payment cards">
         <?php if (($rows ?? []) === []): ?>

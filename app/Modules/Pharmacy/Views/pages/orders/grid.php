@@ -1,6 +1,6 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container pharmacy-orders-page" aria-labelledby="pharmacy-orders-title">
+<main class="pharmacy-page pharmacy-orders-page" aria-labelledby="pharmacy-orders-title">
     <?= $this->include(PHARMACY_VIEW . 'pages/orders/_toolbar') ?>
     <section class="pharmacy-order-grid" aria-label="Medicine order cards">
         <?php if (($orders ?? []) === []): ?>

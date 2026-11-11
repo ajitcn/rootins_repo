@@ -3,7 +3,7 @@
 <?= $this->section('main-content') ?>
 <?php $scopeLabel = $clinicId > 0 ? 'Assigned clinic' : 'All permitted clinics'; ?>
 
-<main class="dashboard-container p-3">
+<main class="dashboard-container crm-page p-3">
     <div class="mb-4">
         <h4 class="mb-1">Operational overview</h4>
         <div class="text-muted small"><?= esc($scopeLabel) ?> · Today: <?= esc(date('d M Y')) ?></div>

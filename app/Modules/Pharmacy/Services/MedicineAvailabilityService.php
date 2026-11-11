@@ -55,9 +55,8 @@ final class MedicineAvailabilityService
             'today' => $today->format('Y-m-d'),
         ];
 
-        if ($this->scope->clinicId() === null) {
-            return $empty;
-        }
+        // Central inventory is shared across the application. A missing clinic
+        // session value must not turn a valid stock query into an empty result.
         $query = db_connect()->table('medicine_inventory_batches AS batches')->select('batches.id AS batch_id, batches.medicine_id, batches.batch_number, batches.expiry_date, batches.quantity_available, batches.status AS batch_status, medicines.medicine_name, medicines.unit, medicines.dosage_form')->join('medicines', 'medicines.id = batches.medicine_id')->where('medicines.status', 'active');
 
         if ($search !== '') {

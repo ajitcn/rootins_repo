@@ -3,7 +3,7 @@
 
  <?= $this->section('main-content')?>
 
-<main class="dashboard-container">
+<main class="dashboard-container doctor-management-standard">
 	<!-- breadcrumb -->
     <?=
         view(
@@ -17,16 +17,13 @@
 ?>
 
  	<!-- main content -->
-        <div class="action-btn-container d-flex justify-content-end mb-3">
-            <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorScheduleFilter', 'filters' => $filters ?? []]) ?>
-  			<button class="btn btn-sm theme-btn open_doctor_schedule_modal">+ New Schedule</button>
-  		</div>
+        <header class="crm-header"><div><span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span><h1>Doctor Schedules</h1><p>Manage doctor availability, shifts, and appointment capacity.</p></div><div class="d-flex flex-wrap align-items-center mt-3 mt-md-0"><?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorScheduleFilter', 'filters' => $filters ?? []]) ?><button class="btn theme-btn open_doctor_schedule_modal ml-2">+ New Schedule</button></div></header>
 
         <?= display_session_msg()?>
 
-         <div class="table-responsive">
+         <section class="card crm-card" aria-label="Doctor schedules"><div class="table-responsive">
 
-            <table class="table table-bordered table-hover table-striped">
+            <table class="table table-bordered table-hover">
 
                 <thead>
 
@@ -123,7 +120,7 @@
 
             </table>
 
-        </div>
+        </div></section>
  
 
 <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_schedules', 'filters' => $filters ?? []]) ?>

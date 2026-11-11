@@ -1,6 +1,6 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container pharmacy-delivery-page" aria-labelledby="pharmacy-delivery-title">
+<main class="pharmacy-page pharmacy-delivery-page" aria-labelledby="pharmacy-delivery-title">
     <?= $this->include(PHARMACY_VIEW . 'pages/delivery/_toolbar') ?>
     <section class="pharmacy-delivery-grid" aria-label="Delivery records">
     <?php if (($rows ?? []) === []): ?><div class="card pharmacy-delivery-empty" role="status"><i class="bi bi-truck d-block" aria-hidden="true"></i><strong>No delivery records found</strong><span>Adjust the search or filters.</span></div>

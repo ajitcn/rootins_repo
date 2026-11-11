@@ -8,19 +8,18 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
 $formatDate = static function ($value): string { if (empty($value)) return 'Unknown'; $timestamp = strtotime((string) $value); return $timestamp ? date('d-m-Y', $timestamp) : 'Unknown'; };
 $pagerTotal = $pager?->getTotal('doctor_documents') ?? count($documents ?? []);
 ?>
-<main class="dashboard-container doctor-documents-page">
+<main class="dashboard-container doctor-management-standard doctor-documents-page">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Doctor Management', 'page' => 'Doctor Documents']) ?>
-    <section class="doctor-documents-heading page-heading" aria-labelledby="doctor-documents-title">
-        <div><span class="page-eyebrow">Doctor management</span><h1 id="doctor-documents-title">Doctor documents</h1><p class="doctor-documents-subtitle">Keep licensing, qualification, and identity records easy to verify.</p></div>
+    <header class="doctor-documents-heading crm-header" aria-labelledby="doctor-documents-title">
+        <div><span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span><h1 id="doctor-documents-title">Doctor documents</h1><p class="doctor-documents-subtitle">Keep licensing, qualification, and identity records easy to verify.</p></div>
         <div class="doctor-documents-heading-actions">
             <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorDocumentFilter', 'filters' => $filters ?? []]) ?>
             <?php if ($can('doctor_document.create')): ?><button type="button" class="btn theme-btn open_doctor_document_modal"><i class="bi bi-cloud-arrow-up mr-1" aria-hidden="true"></i>Upload document</button><?php endif; ?>
         </div>
-    </section>
+    </header>
     <?= display_session_msg() ?>
     <section class="doctor-document-summary" aria-label="Document summary"><div class="doctor-document-summary-card"><span class="doctor-document-summary-label">Records shown</span><strong><?= esc((string) $pagerTotal) ?></strong><span>matching current filters</span></div><div class="doctor-document-summary-card"><span class="doctor-document-summary-label">Search scope</span><strong>Doctors + files</strong><span>name, code, title, or file</span></div><div class="doctor-document-summary-card"><span class="doctor-document-summary-label">Upload limit</span><strong>10 MB</strong><span>PDF, image, or Office file</span></div></section>
-    <section class="card doctor-document-list-card" aria-labelledby="doctor-document-list-title">
-        <div class="card-header doctor-document-list-header"><div><h2 id="doctor-document-list-title" class="h5 mb-1">Document register</h2><p class="mb-0 text-muted small">Review access-controlled records and their current status.</p></div><span class="doctor-document-count-indicator"><i class="bi bi-file-earmark-text mr-1" aria-hidden="true"></i><?= esc((string) $pagerTotal) ?> total</span></div>
+    <section class="card crm-card doctor-document-list-card" aria-label="Doctor document register">
         <div class="table-responsive doctor-document-table-wrap"><table class="table doctor-document-table" id="doctorDocumentTable"><thead><tr><th scope="col">Doctor</th><th scope="col">Document</th><th scope="col">Details</th><th scope="col">Status</th><th scope="col" class="text-right">Actions</th></tr></thead><tbody>
         <?php if (!empty($documents)): foreach ($documents as $row): ?>
             <?php $doctorName = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')); $extension = strtoupper((string) pathinfo((string) ($row['file_name'] ?? ''), PATHINFO_EXTENSION)); $fileSize = (int) ($row['file_size'] ?? 0); $fileSizeLabel = $fileSize >= 1048576 ? number_format($fileSize / 1048576, 2) . ' MB' : ($fileSize >= 1024 ? number_format($fileSize / 1024, 2) . ' KB' : $fileSize . ' B'); $statusLabel = ((int) ($row['status'] ?? 0) === 1) ? 'Active' : 'Unknown'; ?>

@@ -25,7 +25,7 @@
                 </div></div>
                 <div class="clinic-form-section mb-0"><h3 class="clinic-form-section-title">Operations</h3><div class="form-row"><div class="form-group col-md-6 mb-md-0"><label for="clinic_status">Status <span class="text-danger">*</span></label><select class="form-control btSelect" name="status" id="clinic_status" required><option value="1">Active</option><option value="0">Inactive</option></select></div></div></div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button><button type="submit" class="btn theme-btn save"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i> Save Clinic</button></div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary save"><i class="bi bi-check-circle mr-1" aria-hidden="true"></i> Save Clinic</button></div>
             <?= form_close() ?>
         </div>
     </div>

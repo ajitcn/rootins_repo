@@ -1,5 +1,72 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
+<?= $this->section('styles') ?>
+<style>
+    .admin-appointment-calendar-page > .ri-calendar-header { margin-bottom: 1.25rem; }
+    .admin-appointment-calendar-page .ri-calendar-toolbar,
+    .admin-appointment-calendar-page .ri-calendar-filter-card {
+        margin-bottom: 1.25rem;
+        padding: 1.15rem;
+    }
+    .admin-appointment-calendar-page .ri-calendar-toolbar { margin-bottom: 1.25rem; }
+    .admin-appointment-calendar-page .ri-calendar-filter-card > .d-flex {
+        margin-bottom: 1rem !important;
+        padding-bottom: .85rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .admin-appointment-calendar-page .ri-calendar-filter-card h2 { color: #1f2937; font-weight: 800; }
+    .admin-appointment-calendar-page .ri-calendar-filters {
+        display: grid;
+        grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr));
+        gap: .85rem;
+        align-items: end;
+    }
+    .admin-appointment-calendar-page .ri-calendar-filters > div { min-width: 0; }
+    .admin-appointment-calendar-page .ri-calendar-filters .form-control,
+    .admin-appointment-calendar-page .ri-calendar-filters .input-group-text {
+        min-height: 40px;
+        border-color: #d9dee7;
+    }
+    .admin-appointment-calendar-page .ri-calendar-filters .form-control:focus {
+        border-color: #64748b;
+        box-shadow: 0 0 0 .16rem rgba(100, 116, 139, .15);
+    }
+    .admin-appointment-calendar-page .ri-calendar-filter-search { grid-column: span 2; }
+    .admin-appointment-calendar-page .ri-calendar-filter-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .5rem;
+        white-space: nowrap;
+    }
+    .admin-appointment-calendar-page .ri-calendar-filter-actions .btn {
+        min-width: 88px;
+        min-height: 40px;
+    }
+    .admin-appointment-calendar-page .ri-calendar-filters label { margin-bottom: .35rem; }
+    .admin-appointment-calendar-page .ri-calendar-summary-row { margin-top: 1.25rem; margin-bottom: .75rem; }
+    .admin-appointment-calendar-page .ri-calendar-legend { margin-bottom: 1rem; }
+    @media (max-width: 991.98px) {
+        .admin-appointment-calendar-page .ri-calendar-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .admin-appointment-calendar-page .ri-calendar-filter-search { grid-column: span 2; }
+        .admin-appointment-calendar-page .ri-calendar-filter-actions { grid-column: span 1; justify-content: stretch; }
+        .admin-appointment-calendar-page .ri-calendar-filter-actions .btn { flex: 1 1 0; }
+    }
+    @media (max-width: 767.98px) {
+        .admin-appointment-calendar-page .ri-calendar-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+        .admin-appointment-calendar-page .ri-calendar-filter-search,
+        .admin-appointment-calendar-page .ri-calendar-filter-actions { grid-column: 1 / -1; }
+        .admin-appointment-calendar-page .ri-calendar-filter-actions { justify-content: stretch; }
+        .admin-appointment-calendar-page .ri-calendar-filter-actions .btn { flex: 1 1 0; }
+    }
+    @media (max-width: 575.98px) {
+        .admin-appointment-calendar-page .ri-calendar-filters { grid-template-columns: 1fr; }
+        .admin-appointment-calendar-page .ri-calendar-filter-search,
+        .admin-appointment-calendar-page .ri-calendar-filter-actions { grid-column: auto; }
+    }
+</style>
+<?= $this->endSection() ?>
+
 <?= $this->section('main-content') ?>
 <?php
 $calendarToday = $calendarToday ?? (new \DateTimeImmutable('now', new \DateTimeZone((string) config('App')->appTimezone)))->format('Y-m-d');
@@ -16,7 +83,7 @@ $statusOptions = [
     'no_show' => 'No Show',
 ];
 ?>
-<main class="dashboard-container admin-appointment-calendar-page"
+<main class="dashboard-container doctor-management-standard admin-appointment-calendar-page"
       data-calendar-today="<?= esc($calendarToday) ?>"
       data-calendar-timezone="<?= esc($calendarTimezone) ?>">
     <?= view('templates/_breadcrumb', [
@@ -25,18 +92,19 @@ $statusOptions = [
         'page' => 'Calendar View',
     ]) ?>
 
-    <section class="ri-calendar-header" aria-labelledby="appointmentCalendarPageTitle">
+    <header class="crm-header ri-calendar-header" aria-labelledby="appointmentCalendarPageTitle">
         <div class="ri-calendar-header-copy">
             <p class="text-muted text-uppercase small mb-1">Appointment Management</p>
             <h1 id="appointmentCalendarPageTitle" class="h4 mb-1">Appointment calendar</h1>
             <p class="text-muted mb-0">Review patient, doctor, service, queue, and appointment status by day, week, or month.</p>
         </div>
         <div class="ri-calendar-header-actions">
+            <button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="collapse" data-target="#appointmentCalendarFilterPanel" aria-expanded="false" aria-controls="appointmentCalendarFilterPanel"><i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters</button>
             <a href="<?= base_url('admin/appointments') ?>" class="btn btn-sm theme-btn"><i class="bi bi-list-ul mr-1" aria-hidden="true"></i>List View</a>
         </div>
-    </section>
+    </header>
 
-    <section class="ri-calendar-toolbar" aria-label="Calendar controls">
+    <section class="card crm-card ri-calendar-toolbar" aria-label="Calendar controls">
         <div class="ri-calendar-toolbar-row">
             <div class="ri-calendar-view-switch" role="group" aria-label="Calendar view">
                 <span class="ri-calendar-toolbar-label">View</span>
@@ -55,6 +123,16 @@ $statusOptions = [
             </div>
         </div>
 
+    </section>
+
+    <section class="card crm-card ri-calendar-filter-card collapse" id="appointmentCalendarFilterPanel" aria-label="Appointment filters">
+        <div class="d-flex flex-wrap align-items-start justify-content-between mb-3">
+            <div>
+                <span class="crm-eyebrow">APPOINTMENT FILTERS</span>
+                <h2 class="h6 mb-1">Find appointments</h2>
+                <p class="small text-muted mb-0">Search by patient, doctor, status, type, clinic, or date range.</p>
+            </div>
+        </div>
         <form id="appointmentCalendarFilters" class="ri-calendar-filters" data-no-global-loader>
             <div class="ri-calendar-filter-search">
                 <label for="appointmentCalendarSearch">Search</label>
@@ -153,6 +231,16 @@ $statusOptions = [
 </div>
 
 <?= $this->section('scripts') ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var page = document.querySelector('.admin-appointment-calendar-page');
+    var header = page ? page.querySelector('.ri-calendar-header') : null;
+    var filters = page ? page.querySelector('#appointmentCalendarFilterPanel') : null;
+    if (page && header && filters) {
+        header.insertAdjacentElement('afterend', filters);
+    }
+});
+</script>
 <script src="<?= base_url('assets/js/admin/appointment/appointment_calendar.js?v=20261010-calendar-filters1') ?>"></script>
 <?= $this->endSection() ?>
 

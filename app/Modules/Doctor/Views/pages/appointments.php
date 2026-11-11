@@ -60,18 +60,20 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
 ?>
 
 <main class="dashboard-container doctor-appointments-page" aria-labelledby="doctor-appointments-title">
-    <header class="doctor-appointments-header">
-    <div class="page-heading mb-0">
+    <div class="page-heading doctor-appointments-heading">
         <div>
             <div class="page-eyebrow">Schedule / patient queue</div>
             <h1 id="doctor-appointments-title">Appointments</h1>
             <p class="text-muted mb-0">Create and manage appointments within your clinic scope.</p>
         </div>
-        <div class="doctor-appointments-header-actions">
-            <div class="doctor-appointments-total" role="status" aria-live="polite">
-                <strong><?= (int) ($pagination['total'] ?? count($appointments)) ?></strong>
-                <span>appointments in scope</span>
+        <div class="doctor-appointments-header-actions page-header-buttons">
+            <div class="btn-group doctor-appointments-view-toggle" role="group" aria-label="Appointment view">
+                <button type="button" class="btn btn-outline-secondary <?= $appointmentView === 'list' ? 'active' : '' ?>" data-appointment-view="list" aria-pressed="<?= $appointmentView === 'list' ? 'true' : 'false' ?>" title="List View"><i class="fa-solid fa-list" aria-hidden="true"></i><span class="ml-1">List</span></button>
+                <button type="button" class="btn btn-outline-secondary <?= $appointmentView === 'grid' ? 'active' : '' ?>" data-appointment-view="grid" aria-pressed="<?= $appointmentView === 'grid' ? 'true' : 'false' ?>" title="Grid View"><i class="fa-solid fa-grip" aria-hidden="true"></i><span class="ml-1">Grid</span></button>
             </div>
+            <button class="btn btn-outline-primary" type="button" data-toggle="modal" data-target="#doctor-appointment-filter-modal" aria-controls="doctor-appointment-filter-modal">
+                <i class="bi bi-funnel mr-1" aria-hidden="true"></i> Filters
+            </button>
             <?php if ($canCreate): ?>
                 <button class="btn btn-primary" type="button" data-toggle="modal" data-target="#doctor-appointment-create-modal" aria-controls="doctor-appointment-create-modal">
                     <i class="bi bi-calendar-plus mr-1" aria-hidden="true"></i> New Appointment
@@ -79,7 +81,6 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
             <?php endif; ?>
         </div>
     </div>
-    </header>
 
     <section class="card doctor-appointments-toolbar-card" aria-labelledby="doctor-appointments-toolbar-title">
         <div class="card-body">
@@ -96,9 +97,6 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                     <div class="validation-error" id="appointment_searchErr"></div>
                 </div>
                 <div class="doctor-appointments-toolbar-actions">
-                    <button class="btn btn-outline-primary" type="button" data-toggle="modal" data-target="#doctor-appointment-filter-modal" aria-controls="doctor-appointment-filter-modal">
-                        <i class="bi bi-funnel mr-1" aria-hidden="true"></i> Filters
-                    </button>
                     <a class="btn btn-light" href="<?= current_url() ?>">
                         <i class="bi bi-arrow-counterclockwise mr-1" aria-hidden="true"></i> Clear filters
                     </a>
@@ -226,21 +224,8 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
     </div>
     <?php endif; ?>
 
-    <section class="card doctor-appointments-content-card" aria-labelledby="doctor-appointment-register-title">
-        <div class="card-header">
-            <div class="d-flex flex-wrap align-items-center justify-content-between">
-                <div>
-                    <h2 class="h5 mb-1" id="doctor-appointment-register-title">Appointment register</h2>
-                    <small class="text-muted" role="status" aria-live="polite">
-                        <?= (int) ($pagination['total'] ?? count($appointments)) ?> appointment(s) in scope
-                        <span class="badge badge-light ml-1"><?= $hasActiveFilters ? 'Filters active' : 'All appointments' ?></span>
-                    </small>
-                </div>
-            </div>
-        </div>
-        <div class="card-body p-0 doctor-appointment-content-body">
-        <?php if ($appointments !== []): ?>
-            <div class="doctor-appointment-records" data-appointment-view-container data-view="<?= esc($appointmentView) ?>" role="<?= $appointmentView === 'grid' ? 'list' : 'region' ?>" aria-label="Appointments">
+    <?php if ($appointments !== []): ?>
+        <div class="doctor-appointments-content-card doctor-appointment-content-body doctor-appointment-records" data-appointment-view-container data-view="<?= esc($appointmentView) ?>" role="<?= $appointmentView === 'grid' ? 'list' : 'region' ?>" aria-label="Appointments">
                 <?= view(DOCTOR_VIEW . 'pages/appointments_' . $appointmentView, [
                     'appointments' => $appointments,
                     'appointmentContext' => $appointmentContext,
@@ -252,17 +237,15 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                     'canPrescription' => $canPrescription,
                     'canBilling' => $canBilling,
                 ]) ?>
-            </div>
-        <?php else: ?>
-            <div class="empty-state" role="status" aria-live="polite">
+        </div>
+    <?php else: ?>
+        <div class="doctor-appointments-content-card doctor-appointment-content-body empty-state" role="status" aria-live="polite">
                 <i class="bi bi-calendar-x d-block h3 mb-2" aria-hidden="true"></i>
                 <strong>No appointments match the current filters.</strong>
                 <small class="d-block mt-1">Use New Appointment or adjust Filters to get started.</small>
-            </div>
-        <?php endif; ?>
         </div>
-        <?= view(DOCTOR_VIEW . 'parts/pagination', ['pagination' => $pagination ?? [], 'filters' => $filters, 'hidePageSize' => true]) ?>
-    </section>
+    <?php endif; ?>
+    <?= view(DOCTOR_VIEW . 'parts/pagination', ['pagination' => $pagination ?? [], 'filters' => $filters, 'hidePageSize' => true]) ?>
 </main>
 
 <div class="modal fade ri-scroll-modal" id="doctor-appointment-filter-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="doctor-appointment-filter-title" aria-hidden="true">
@@ -276,9 +259,10 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                 <div class="modal-body">
                     <input type="hidden" name="search" value="<?= esc($filters['search'] ?? '') ?>">
                     <input type="hidden" name="view" value="<?= esc($appointmentView) ?>" data-appointment-view-input>
-                    <div class="form-group">
+                    <div class="form-row">
+                    <div class="form-group col-md-6">
                         <label for="doctor-appointment-filter-type">Consultation type</label>
-                        <select id="doctor-appointment-filter-type" name="appointment_type" class="form-control btSelect" title="All consultation types">
+                        <select id="doctor-appointment-filter-type" name="appointment_type" class="form-control btSelect" data-container="#doctor-appointment-filter-modal" data-width="100%" data-size="3" title="All consultation types">
                             <option value="">All consultation types</option>
                             <?php foreach (['in_person' => 'In person', 'video' => 'Video', 'phone' => 'Telephone'] as $value => $label): ?>
                                 <option value="<?= esc($value) ?>" <?= ($filters['appointment_type'] ?? '') === $value ? 'selected' : '' ?>><?= esc($label) ?></option>
@@ -286,7 +270,7 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                         </select>
                         <div class="validation-error" id="doctor_appointment_filter_appointment_typeErr"></div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group col-md-6">
                         <label for="doctor-appointment-filter-service">Service</label>
                         <select id="doctor-appointment-filter-service" name="service_id" class="form-control btSelect" data-live-search="true" title="All services">
                             <option value="">All services</option>
@@ -296,7 +280,9 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                         </select>
                         <div class="validation-error" id="service_idErr"></div>
                     </div>
-                    <div class="form-group">
+                    </div>
+                    <div class="form-row">
+                    <div class="form-group col-md-6">
                         <label for="doctor-appointment-filter-status">Status</label>
                         <select id="doctor-appointment-filter-status" name="status" class="form-control btSelect" title="All statuses">
                             <option value="">All statuses</option>
@@ -305,6 +291,12 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                             <?php endforeach; ?>
                         </select>
                         <div class="validation-error" id="doctor_appointment_filter_statusErr"></div>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="doctor-appointment-filter-queue">Queue number</label>
+                        <input id="doctor-appointment-filter-queue" name="queue_number" type="number" min="1" step="1" class="form-control" value="<?= (int) ($filters['queue_number'] ?? 0) ?: '' ?>" placeholder="Any queue number" inputmode="numeric">
+                        <div class="validation-error" id="queue_numberErr"></div>
+                    </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group col-md-6">
@@ -317,11 +309,6 @@ $hasActiveFilters = trim((string) ($filters['search'] ?? '')) !== ''
                             <input id="doctor-appointment-filter-to" name="date_to" type="text" class="form-control datepicker" data-submit-display-date="true" placeholder="dd-mm-yyyy" value="<?= esc($filters['date_to'] ?? '') ?>" autocomplete="off">
                             <div class="validation-error" id="date_toErr"><?= esc($filterErrors['date_to'] ?? '') ?></div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="doctor-appointment-filter-queue">Queue number</label>
-                        <input id="doctor-appointment-filter-queue" name="queue_number" type="number" min="1" step="1" class="form-control" value="<?= (int) ($filters['queue_number'] ?? 0) ?: '' ?>" placeholder="Any queue number" inputmode="numeric">
-                        <div class="validation-error" id="queue_numberErr"></div>
                     </div>
                     <input type="hidden" name="page_size" value="<?= esc((string) ($filters['page_size'] ?? 15)) ?>">
                 </div>
@@ -872,6 +859,16 @@ $(function () {
 
     let appointmentViewRequest = null;
 
+    $(document).on('submit.doctorAppointmentsHeaderSearch', '#doctor-appointments-header-search-form', function (event) {
+        event.preventDefault();
+        $('#doctor-appointment-toolbar-search').val($('#doctor-appointments-header-search').val());
+        $('.doctor-appointments-toolbar-form').trigger('submit');
+    });
+
+    $(document).on('input.doctorAppointmentsHeaderSearch', '#doctor-appointments-header-search', function () {
+        $('#doctor-appointment-toolbar-search').val(this.value);
+    });
+
     function setAppointmentViewToggle(view) {
         $('[data-appointment-view]').each(function () {
             const isActive = this.getAttribute('data-appointment-view') === view;
@@ -908,10 +905,11 @@ $(function () {
             success: function (html) {
                 const parsed = $('<div>').html(html);
                 const nextContent = parsed.find('.doctor-appointments-content-card').first();
-                const nextFooter = nextContent.find('.card-footer').first();
-                const nextRecords = nextContent.find('[data-appointment-view-container]').first();
+                    const nextRecords = nextContent.is('[data-appointment-view-container]')
+                        ? nextContent
+                        : nextContent.find('[data-appointment-view-container]').first();
                 const nextEmptyState = nextContent.find('.empty-state').first();
-                if (!nextContent.length || !nextFooter.length || (!nextRecords.length && !nextEmptyState.length)) {
+                    if (!nextContent.length || (!nextRecords.length && !nextEmptyState.length)) {
                     showError('Appointment view could not be loaded safely.');
                     setAppointmentViewToggle(previousView);
                     return;

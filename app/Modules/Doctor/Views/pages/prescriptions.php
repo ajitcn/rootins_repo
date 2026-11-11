@@ -59,9 +59,22 @@ $prescriptionContext = static function (array $item) use ($cartSyncLabels): arra
             <p class="text-muted mb-0">Your authored prescriptions and their review handoff status.</p>
         </div>
         <?php if ($doctorCanViewClinical): ?>
-            <a class="btn btn-primary" href="<?= base_url('doctor/clinical') ?>">
-                <i class="bi bi-plus-circle mr-1" aria-hidden="true"></i>Create prescription
-            </a>
+            <div class="doctor-prescriptions-heading-actions page-header-buttons">
+                <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#doctor-prescription-filter-modal" aria-controls="doctor-prescription-filter-modal"><i class="fa-solid fa-filter mr-1" aria-hidden="true"></i>Filters</button>
+                <div class="btn-group doctor-prescription-view-toggle" role="group" aria-label="Prescription view">
+                    <button type="button" class="btn btn-outline-secondary <?= $prescriptionView === 'list' ? 'active' : '' ?>" data-prescription-view="list" aria-pressed="<?= $prescriptionView === 'list' ? 'true' : 'false' ?>" title="List View"><i class="fa-solid fa-list" aria-hidden="true"></i><span class="ml-1">List</span></button>
+                    <button type="button" class="btn btn-outline-secondary <?= $prescriptionView === 'grid' ? 'active' : '' ?>" data-prescription-view="grid" aria-pressed="<?= $prescriptionView === 'grid' ? 'true' : 'false' ?>" title="Grid View"><i class="fa-solid fa-grip" aria-hidden="true"></i><span class="ml-1">Grid</span></button>
+                </div>
+                <a class="btn btn-primary" href="<?= base_url('doctor/clinical') ?>"><i class="bi bi-plus-circle mr-1" aria-hidden="true"></i>Create prescription</a>
+            </div>
+        <?php else: ?>
+            <div class="doctor-prescriptions-heading-actions page-header-buttons">
+                <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#doctor-prescription-filter-modal" aria-controls="doctor-prescription-filter-modal"><i class="fa-solid fa-filter mr-1" aria-hidden="true"></i>Filters</button>
+                <div class="btn-group doctor-prescription-view-toggle" role="group" aria-label="Prescription view">
+                    <button type="button" class="btn btn-outline-secondary <?= $prescriptionView === 'list' ? 'active' : '' ?>" data-prescription-view="list" aria-pressed="<?= $prescriptionView === 'list' ? 'true' : 'false' ?>" title="List View"><i class="fa-solid fa-list" aria-hidden="true"></i><span class="ml-1">List</span></button>
+                    <button type="button" class="btn btn-outline-secondary <?= $prescriptionView === 'grid' ? 'active' : '' ?>" data-prescription-view="grid" aria-pressed="<?= $prescriptionView === 'grid' ? 'true' : 'false' ?>" title="Grid View"><i class="fa-solid fa-grip" aria-hidden="true"></i><span class="ml-1">Grid</span></button>
+                </div>
+            </div>
         <?php endif; ?>
     </div>
 

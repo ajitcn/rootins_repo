@@ -14,7 +14,7 @@ $doctorName = trim(implode(' ', array_filter([
 $patientMobile = trim((string) ($appointment['patient_mobile'] ?? '')) ?: 'Not provided';
 $patientEmail = trim((string) ($appointment['patient_email'] ?? '')) ?: 'Not provided';
 ?>
-<main class="dashboard-container admin-appointment-page">
+<main class="dashboard-container crm-page admin-appointment-page">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Appointment Management', 'page' => 'Appointment Details']) ?>
 
     <div class="action-btn-container">

@@ -7,6 +7,9 @@ use Admin\Models\AdminSettingRecordModel;
 use Admin\Models\AuditLogModel;
 use Admin\Models\Master\DoctorSpecializationModel;
 use App\Controllers\BaseAdminController;
+use App\Services\Notification\EmailNotificationProvider;
+use App\Services\Notification\EmailSettingsService;
+use App\Services\Notification\NotificationSettingsService;
 use CodeIgniter\HTTP\ResponseInterface;
 use Throwable;
 
@@ -85,6 +88,162 @@ class Configuration extends BaseAdminController
         }
 
         return view(ADMIN_VIEW . 'pages/configuration/settings', ['title' => $title, 'group' => $group, 'rows' => $rows, 'pager' => $model->pager, 'filters' => ['search' => $search, 'page_size' => $size]]);
+    }
+
+    public function emailSettings(): string
+    {
+        return view(ADMIN_VIEW . 'pages/configuration/email_settings', [
+            'title' => 'Email notifications',
+            'email' => (new EmailSettingsService())->summary($this->clinic()),
+        ]);
+    }
+
+    public function saveEmailSettings(): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->json(405, false, 'Invalid request.');
+
+        try {
+            $summary = (new EmailSettingsService())->save($this->request->getPost(), $this->clinic(), (int) ($this->user['id'] ?? 0));
+            $this->audit->record('admin.email_settings_updated', ['enabled' => $summary['enabled'], 'protocol' => $summary['protocol']]);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Email notification settings saved.', 'data' => $summary]);
+        } catch (\InvalidArgumentException $e) {
+            $errors = json_decode($e->getMessage(), true);
+            return $this->validation(is_array($errors) ? $errors : ['email' => 'Email settings are invalid.']);
+        } catch (Throwable $e) {
+            log_message('error', 'Email settings save failed: ' . get_class($e));
+            return $this->json(500, false, 'Email settings could not be saved safely.');
+        }
+    }
+
+    public function testEmail(): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->json(405, false, 'Invalid request.');
+        $address = trim((string) $this->request->getPost('email_to'));
+        if (! filter_var($address, FILTER_VALIDATE_EMAIL)) return $this->validation(['email_to' => 'Enter a valid test recipient email address.']);
+
+        try {
+            $result = (new EmailNotificationProvider(null, $this->clinic()))->send(['channel' => 'email', 'recipient' => ['address' => $address], 'template' => 'admin.email_test', 'data' => ['subject' => 'ROOTINS email configuration test', 'message' => 'This is a test email from ROOTINS. Your email notification configuration is working.']]);
+            if (($result['status'] ?? '') !== 'sent') return $this->json(422, false, (string) ($result['failure_reason'] ?? 'Test email could not be sent.'));
+            $this->audit->record('admin.email_settings_test_sent', []);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Test email sent successfully.']);
+        } catch (Throwable $e) {
+            log_message('error', 'Email configuration test failed: ' . get_class($e));
+            return $this->json(500, false, 'Test email could not be sent safely.');
+        }
+    }
+
+    public function notificationSettings(): string
+    {
+        return view(ADMIN_VIEW . 'pages/configuration/notification_settings', [
+            'title' => 'Notification settings',
+            'notifications' => (new NotificationSettingsService())->summary($this->clinic()),
+            'email' => (new EmailSettingsService())->summary($this->clinic()),
+        ]);
+    }
+
+    public function documentTemplates(): string
+    {
+        $clinicId = $this->clinic();
+
+        return view(ADMIN_VIEW . 'pages/configuration/document_templates', [
+            'title' => 'Document templates',
+            'templates' => [
+                'invoice' => $this->documentTemplateValue('invoice-templates', $clinicId),
+                'prescription' => $this->documentTemplateValue('prescription-templates', $clinicId),
+            ],
+        ]);
+    }
+
+    public function saveDocumentTemplates(): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) {
+            return $this->json(405, false, 'Invalid request.');
+        }
+
+        $allowed = ['standard'];
+        $invoice = trim((string) $this->request->getPost('invoice_template'));
+        $prescription = trim((string) $this->request->getPost('prescription_template'));
+        $errors = [];
+
+        if (! in_array($invoice, $allowed, true)) {
+            $errors['invoice_template'] = 'Select a valid invoice template.';
+        }
+        if (! in_array($prescription, $allowed, true)) {
+            $errors['prescription_template'] = 'Select a valid prescription template.';
+        }
+        if ($errors) {
+            return $this->validation($errors);
+        }
+
+        try {
+            $clinicId = $this->clinic();
+            $this->saveDocumentTemplateValue('invoice-templates', $invoice, $clinicId);
+            $this->saveDocumentTemplateValue('prescription-templates', $prescription, $clinicId);
+            $this->audit->record('admin.document_templates_updated', [
+                'invoice_template' => $invoice,
+                'prescription_template' => $prescription,
+                'clinic_id' => $clinicId,
+            ]);
+
+            return $this->response->setJSON(['status' => true, 'msg' => 'Document template settings saved.']);
+        } catch (Throwable $e) {
+            log_message('error', 'Document template settings save failed: ' . get_class($e));
+
+            return $this->json(500, false, 'Document template settings could not be saved safely.');
+        }
+    }
+
+    private function documentTemplateValue(string $group, ?int $clinicId): string
+    {
+        $model = new AdminSettingRecordModel();
+        $query = $model->where('setting_group', $group)->where('setting_key', 'default_template');
+        $row = $clinicId === null
+            ? $query->where('clinic_id', null)->first()
+            : $query->groupStart()->where('clinic_id', $clinicId)->orWhere('clinic_id', null)->groupEnd()->orderBy('clinic_id', 'DESC')->first();
+
+        return trim((string) ($row['setting_value'] ?? 'standard')) ?: 'standard';
+    }
+
+    private function saveDocumentTemplateValue(string $group, string $value, ?int $clinicId): void
+    {
+        $model = new AdminSettingRecordModel();
+        $query = $model->where('setting_group', $group)->where('setting_key', 'default_template');
+        $row = $clinicId === null
+            ? $query->where('clinic_id', null)->first()
+            : $query->where('clinic_id', $clinicId)->first();
+        $data = [
+            'setting_group' => $group,
+            'setting_key' => 'default_template',
+            'setting_value' => $value,
+            'is_secret' => 0,
+            'clinic_id' => $clinicId,
+            'created_by' => (int) ($this->user['id'] ?? 0),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($row) {
+            $model->update((int) $row['id'], $data);
+            return;
+        }
+        if (! $model->insert($data, true)) {
+            throw new \RuntimeException('Document template setting insert failed.');
+        }
+    }
+
+    public function saveNotificationSettings(): ResponseInterface
+    {
+        if (! $this->request->isAJAX()) return $this->json(405, false, 'Invalid request.');
+        try {
+            $summary = (new NotificationSettingsService())->save($this->request->getPost(), $this->clinic(), (int) ($this->user['id'] ?? 0));
+            $this->audit->record('admin.notification_settings_updated', ['enabled' => $summary['enabled'], 'email_enabled' => $summary['email_enabled']]);
+            return $this->response->setJSON(['status' => true, 'msg' => 'Notification settings saved.', 'data' => $summary]);
+        } catch (\InvalidArgumentException $e) {
+            $errors = json_decode($e->getMessage(), true);
+            return $this->validation(is_array($errors) ? $errors : ['notifications' => 'Notification settings are invalid.']);
+        } catch (Throwable $e) {
+            log_message('error', 'Notification settings save failed: ' . get_class($e));
+            return $this->json(500, false, 'Notification settings could not be saved safely.');
+        }
     }
 
     private function systemLogs(): string

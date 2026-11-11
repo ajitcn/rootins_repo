@@ -1,0 +1,244 @@
+.doctor-availability-page {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 24px 28px 40px;
+}
+
+.doctor-availability-page > .page-heading {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 24px;
+    margin-bottom: 18px;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.doctor-availability-page > .page-heading > div:first-child {
+    min-width: 0;
+}
+
+.doctor-availability-page > .page-heading .d-flex {
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px !important;
+}
+
+.doctor-availability-page > .page-heading .btn {
+    min-height: 36px;
+    margin: 0;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.doctor-availability-page > .card {
+    margin-bottom: 20px !important;
+    border: 1px solid #e1e8f1;
+    border-radius: 15px;
+    box-shadow: 0 5px 18px rgba(26, 52, 84, .045);
+    overflow: hidden;
+}
+
+.doctor-availability-page .doctor-availability-leave-card,
+.doctor-availability-page .doctor-leave-action,
+.doctor-availability-page .doctor-leave-filter-action {
+    display: none;
+}
+
+.doctor-leaves-page .doctor-availability-schedule-card,
+.doctor-leaves-page .doctor-schedule-action,
+.doctor-leaves-page .doctor-schedule-filter-action {
+    display: none;
+}
+
+.doctor-leaves-page .doctor-availability-leave-card,
+.doctor-leaves-page .doctor-leave-action,
+.doctor-leaves-page .doctor-leave-filter-action {
+    display: block;
+}
+
+.doctor-leaves-page .doctor-availability-leave-card > form.card-body {
+    display: none;
+}
+
+.doctor-leaves-page .doctor-leave-action,
+.doctor-leaves-page .doctor-leave-filter-action {
+    display: inline-block;
+}
+
+.doctor-availability-page > .card:last-of-type {
+    margin-bottom: 0 !important;
+}
+
+.doctor-availability-page > .card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #edf1f6;
+    background: #fff;
+}
+
+.doctor-availability-page .doctor-availability-schedule-card > .card-header {
+    display: none;
+}
+
+.doctor-availability-page .doctor-availability-schedule-card > form.card-body {
+    display: none;
+}
+
+#schedule-filter-modal .modal-content {
+    border: 1px solid #dfe7f0;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+#schedule-filter-modal .modal-body {
+    padding: 18px;
+}
+
+#schedule-filter-modal .modal-footer {
+    padding: 12px 18px;
+}
+
+#schedule-filter-modal label {
+    color: #42536b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.doctor-availability-page > .card .card-header h2 {
+    margin: 0 0 3px;
+    color: #17233b;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.doctor-availability-page > .card .card-header .small {
+    color: #718096 !important;
+    font-size: 11px;
+}
+
+.doctor-availability-page > .card > form.card-body {
+    padding: 16px 20px;
+    border-bottom: 1px solid #edf1f6 !important;
+    background: #fbfcfe;
+}
+
+.doctor-availability-page > .card > form.card-body .form-group {
+    margin-bottom: 0;
+}
+
+.doctor-availability-page > .card > form.card-body label {
+    margin-bottom: 5px;
+    color: #42536b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.doctor-availability-page > .card > form.card-body .form-control {
+    min-height: 36px;
+    border: 1px solid #d6e0eb;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.doctor-availability-page > .card > form.card-body .btn {
+    min-height: 36px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.doctor-availability-page .table-responsive {
+    background: #fff;
+}
+
+.doctor-availability-page .doctor-scheduling-table {
+    margin: 0;
+    color: #17233b;
+    font-size: 12px;
+}
+
+.doctor-availability-page .doctor-scheduling-table thead th {
+    padding: 12px 14px;
+    border-top: 0;
+    border-bottom: 1px solid #e1e8f1;
+    background: #f7f9fc;
+    color: #65748a;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.doctor-availability-page .doctor-scheduling-table tbody td {
+    padding: 14px;
+    border-color: #edf1f6;
+    vertical-align: middle;
+}
+
+.doctor-availability-page .doctor-scheduling-table tbody tr:hover td {
+    background: #fbfdff;
+}
+
+.doctor-availability-page .doctor-scheduling-table .btn {
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.doctor-availability-page .doctor-scheduling-table .badge {
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.doctor-availability-page > .card > nav {
+    padding: 12px 20px !important;
+    border-top: 1px solid #edf1f6;
+    background: #fff;
+}
+
+@media (max-width: 700px) {
+    .doctor-availability-page {
+        padding: 16px 14px 28px;
+    }
+
+    .doctor-availability-page > .page-heading {
+        display: block !important;
+    }
+
+    .doctor-availability-page > .page-heading .d-flex {
+        width: 100%;
+        margin-top: 15px;
+    }
+
+    .doctor-availability-page > .page-heading .btn {
+        flex: 1 1 0;
+    }
+
+    .doctor-availability-page > .card .card-header {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px;
+    }
+
+    .doctor-availability-page > .card > form.card-body {
+        padding: 14px;
+    }
+
+    .doctor-availability-page > .card > form.card-body .form-group {
+        margin-bottom: 12px;
+    }
+
+    .doctor-availability-page > .card > form.card-body .form-group:last-child {
+        margin-bottom: 0;
+    }
+}

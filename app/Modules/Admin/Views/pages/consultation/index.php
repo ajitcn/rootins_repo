@@ -2,18 +2,17 @@
 
 <?= $this->section('main-content') ?>
 <?php $filters = $filters ?? []; ?>
-<main class="dashboard-container admin-clinical-page">
+<main class="dashboard-container doctor-management-standard crm-page admin-clinical-page">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Clinical Records', 'page' => 'Consultations']) ?>
 
-    <div class="ri-page-header action-btn-container">
+    <header class="crm-header ri-page-header action-btn-container">
         <div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Clinical Records</p><h1 class="h3 mb-1">Consultation history</h1><p class="text-muted mb-0">Review patient context, visit timing, clinical notes, and follow-up plans.</p></div>
         <div class="ri-page-header-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#consultationFilterModal"><i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters</button><?php if ($canCreate): ?><button type="button" class="btn btn-sm theme-btn" id="openConsultationModal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New consultation</button><?php endif; ?></div>
-    </div>
+    </header>
 
     <?= display_session_msg() ?>
 
-    <section class="ri-list-card clinical-record-list-card">
-        <div class="ri-list-card-header"><div><h2 class="h6 mb-1">Patient visits</h2><p class="text-muted small mb-0">Grouped by patient, care team, visit context, and status.</p></div><span class="ri-list-count"><?= esc((string) count($consultations)) ?> on this page</span></div>
+    <section class="card crm-card ri-list-card clinical-record-list-card">
         <div class="table-responsive admin-clinical-table-wrap">
             <table class="table table-hover admin-clinical-table" id="consultations-table">
                 <thead><tr><th class="clinical-col-patient">Patient</th><th class="clinical-col-doctor">Doctor</th><th class="clinical-col-visit">Visit</th><th class="clinical-col-status">Status</th><th class="clinical-col-actions text-right">Actions</th></tr></thead>

@@ -27,7 +27,9 @@ final class Inventory extends BaseController
     {
         $clinicId = $this->scope->clinicId();
 
-        if ($clinicId === null || !$this->scope->can('pharmacy.inventory.view')) {
+        // Inventory is the centralized stock pool; reading it must not depend on
+        // a clinic assignment. Permission remains the authorization boundary.
+        if (!$this->scope->can('pharmacy.inventory.view')) {
             return redirect()->to(base_url('permission-denied'));
         }
 

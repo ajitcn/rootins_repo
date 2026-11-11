@@ -18,7 +18,7 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
         'page' => 'Appointments',
     ]) ?>
 
-    <div class="ri-page-header action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3" id="appointments-title">
+    <header class="ri-page-header crm-header action-btn-container d-flex flex-wrap justify-content-between align-items-center mb-3" id="appointments-title">
         <div class="ri-page-header-copy"><p class="text-muted text-uppercase small mb-1">Appointment Management</p><h1 class="h4 mb-1">Appointments</h1><p class="text-muted mb-0">Patient, doctor, schedule, and current appointment status.</p></div>
         <div class="ri-page-header-actions">
             <button type="button" class="btn btn-sm btn-outline-secondary mr-2" data-toggle="modal" data-target="#appointmentFilterModal">
@@ -28,11 +28,11 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                 <i class="bi bi-plus-lg" aria-hidden="true"></i> New Appointment
             </button><?php endif; ?>
         </div>
-    </div>
+    </header>
 
     <?= display_session_msg() ?>
 
-    <div class="admin-appointment-table-wrap table-responsive" role="region" aria-labelledby="appointments-table-caption" tabindex="0">
+    <section class="card crm-card admin-appointment-table-wrap table-responsive" role="region" aria-labelledby="appointments-table-caption" tabindex="0">
         <table class="table table-bordered table-hover admin-appointment-table" id="appointments-table">
             <caption id="appointments-table-caption" class="sr-only">Appointments grouped by patient, doctor, appointment schedule, status, and available actions.</caption>
             <colgroup>
@@ -129,7 +129,7 @@ $canBilling = $canBilling ?? in_array('billing.view', $permissions, true);
                 <?php endforeach; ?>
             </tbody>
         </table>
-    </div>
+    </section>
     <?= view(ADMIN_VIEW . 'parts/doctor_pagination', [
         'pager' => $pager ?? null,
         'group' => 'appointments',

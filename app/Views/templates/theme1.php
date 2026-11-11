@@ -41,10 +41,11 @@
   <?= $this->renderSection('styles') ?>
   <link href="<?= base_url('assets/css/rootins-monochrome.css?v=20261028-prescription-cart-sync-ui1')?>" rel="stylesheet" />
   <link href="<?= base_url('assets/css/responsive-tables.css?v=20261019-native-tables6')?>" rel="stylesheet" />
+  <link href="<?= base_url('assets/css/rootins-standard.css?v=20261106.1')?>" rel="stylesheet" />
  
 </head>
 <?php $currentUiPath = trim(uri_string(), '/'); ?>
-<body class="<?= trim(implode(' ', array_filter([
+<body class="rootins-standard <?= trim(implode(' ', array_filter([
     $currentUiPath === 'patient/login' ? 'patient-login-shell' : '',
     str_starts_with($currentUiPath, 'admin') ? 'admin-shell' : '',
 ]))) ?>">

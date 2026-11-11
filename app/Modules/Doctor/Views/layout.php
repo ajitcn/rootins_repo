@@ -1,5 +1,24 @@
 <?= $this->extend('templates/theme1') ?>
 
+<?php $this->section('styles'); ?>
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/dashboard.css?v=20261106-doctor-dashboard1') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/dashboard-refinements.css?v=20261106-doctor-dashboard2') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups.css?v=20261106-doctor-followups1') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups-picker.css?v=20261106-doctor-followups3') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups-standard.css?v=20261106-doctor-followups4') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups-pagination.css?v=20261106-doctor-followups5') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups-heading.css?v=20261106-doctor-followups6') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/follow-ups-summary.css?v=20261106-doctor-followups7') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/standard-pages.css?v=20261106-doctor-standard1') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/patients-standard.css?v=20261106-doctor-patients2') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/patients-toolbar.css?v=20261106-doctor-patients3') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/appointments-standard.css?v=20261106-doctor-appointments1') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/appointments-summary.css?v=20261106-doctor-appointments2') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/appointments-layout.css?v=20261106-doctor-appointments3') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/availability-standard.css?v=20261106-doctor-availability2') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/doctor/prescriptions-standard.css?v=20261106-doctor-prescriptions4') ?>">
+<?= $this->endSection(); ?>
+
 <?= $this->section('side-menu') ?>
 <?php
 $path = trim(uri_string(), '/');
@@ -81,15 +100,6 @@ $active = static function (string $prefix) use ($path): bool {
                         <span>Appointments</span>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a
-                        class="nav-link <?= $active('doctor/video') ? 'active' : '' ?>"
-                        href="<?= base_url('doctor/appointments') ?>"
-                    >
-                        <i class="bi bi-camera-video menu-icon" aria-hidden="true"></i>
-                        <span>Video consultations</span>
-                    </a>
-                </li>
             <?php endif; ?>
 
             <?php if ($can('doctor.view')): ?>
@@ -99,7 +109,16 @@ $active = static function (string $prefix) use ($path): bool {
                         href="<?= base_url('doctor/availability') ?>"
                     >
                         <i class="bi bi-calendar-week menu-icon" aria-hidden="true"></i>
-                        <span>Availability &amp; leave</span>
+                        <span>Availability</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a
+                        class="nav-link <?= $active('doctor/leaves') ? 'active' : '' ?>"
+                        href="<?= base_url('doctor/leaves') ?>"
+                    >
+                        <i class="bi bi-calendar-x menu-icon" aria-hidden="true"></i>
+                        <span>Leaves</span>
                     </a>
                 </li>
             <?php endif; ?>

@@ -10,11 +10,12 @@ $permissions = session('permissions') ?? [];
 $can = static fn (string $permission): bool => in_array($permission, $permissions, true);
 ?>
 
-<main class="dashboard-container doctor-directory-page" aria-labelledby="doctor-management-title">
+<main class="dashboard-container doctor-management-standard doctor-directory-page" aria-labelledby="doctor-management-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Doctor Management', 'page' => 'Doctors']) ?>
 
-    <div class="page-heading mb-3">
+    <header class="crm-header">
         <div>
+            <span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span>
             <h1 id="doctor-management-title" class="h3 mb-1">Doctor Management</h1>
             <p class="text-muted mb-0">Manage doctors, professional details, and availability settings.</p>
         </div>
@@ -22,16 +23,11 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
             <button type="button" class="btn btn-outline-secondary mr-2 mb-2 mb-md-0" data-toggle="modal" data-target="#doctorFilterModal" aria-controls="doctorFilterModal"><i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters</button>
             <button type="button" class="btn btn-primary mb-2 mb-md-0 open_doctor_modal" aria-controls="doctorModal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New Doctor</button>
         </div>
-    </div>
+    </header>
 
     <?= display_session_msg() ?>
 
-    <div class="card">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
-            <h2 class="h6 mb-0">Doctor directory</h2>
-            <span class="small text-muted"><?= esc((string) $pagination['total']) ?> doctor<?= (int) $pagination['total'] === 1 ? '' : 's' ?> in scope</span>
-        </div>
-        <div class="card-body p-0">
+    <section class="card crm-card">
             <div class="table-responsive doctors-table-wrapper" role="region" aria-label="Doctor directory table" tabindex="0">
                 <table class="table table-bordered table-hover align-middle mb-0 doctors-table" id="doctors-table">
                     <caption class="sr-only">Doctor records</caption>
@@ -126,7 +122,6 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
                     </tbody>
                 </table>
             </div>
-        </div>
         <div class="card-footer d-flex flex-wrap justify-content-between align-items-center">
             <form method="get" action="<?= current_url() ?>" class="form-inline mb-2 mb-md-0" aria-label="Doctor page size">
                 <input type="hidden" name="search" value="<?= esc($filters['search']) ?>"><input type="hidden" name="status" value="<?= esc($filters['status']) ?>">
@@ -135,7 +130,7 @@ $can = static fn (string $permission): bool => in_array($permission, $permission
             </form>
             <nav aria-label="Doctor pagination"><span class="small text-muted mr-3">Page <?= esc((string) $pagination['page']) ?> of <?= esc((string) $pagination['pages']) ?> (<?= esc((string) $pagination['total']) ?> total)</span><a class="btn btn-sm btn-outline-secondary <?= $pagination['page'] <= 1 ? 'disabled' : '' ?>" href="<?= $pagination['page'] > 1 ? esc($pageUrl($pagination['page'] - 1)) : '#' ?>" aria-label="Previous page">Previous</a> <a class="btn btn-sm btn-outline-secondary <?= $pagination['page'] >= $pagination['pages'] ? 'disabled' : '' ?>" href="<?= $pagination['page'] < $pagination['pages'] ? esc($pageUrl($pagination['page'] + 1)) : '#' ?>" aria-label="Next page">Next</a></nav>
         </div>
-    </div>
+    </section>
 </main>
 
 <div class="modal fade" id="doctorFilterModal" tabindex="-1" role="dialog" aria-labelledby="doctorFilterModalTitle" aria-hidden="true"><div class="modal-dialog" role="document"><div class="modal-content"><form method="get" action="<?= current_url() ?>"><div class="modal-header"><h2 class="modal-title h5" id="doctorFilterModalTitle">Filter doctors</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close filters"><span aria-hidden="true">&times;</span></button></div><div class="modal-body"><div class="form-group"><label for="doctor-filter-search">Search</label><input class="form-control" id="doctor-filter-search" name="search" type="search" value="<?= esc($filters['search']) ?>" placeholder="Name, code, clinic, or email"></div><div class="form-group"><label for="doctor-filter-status">Status</label><select class="custom-select" id="doctor-filter-status" name="status"><option value="">All statuses</option><option value="1" <?= $filters['status'] === '1' ? 'selected' : '' ?>>Active</option><option value="0" <?= $filters['status'] === '0' ? 'selected' : '' ?>>Inactive</option></select></div></div><div class="modal-footer"><a class="btn btn-link mr-auto" href="<?= current_url() ?>">Clear</a><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Apply filters</button></div></form></div></div></div>

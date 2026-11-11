@@ -157,7 +157,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         $clinicId = $this->clinicId('pharmacy.shopify_orders.manage');
         if ($clinicId === null) return $this->json(false, 'Shopify order management is not permitted.', 403);
         try {
-            $data = $this->review->reviewLine((int) $this->request->getPost('import_id'), (int) $this->request->getPost('line_id'), (string) $this->request->getPost('action'), $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
+            $data = $this->review->reviewLine((int) $this->request->getPost('import_id'), (string) $this->request->getPost('line_id'), (string) $this->request->getPost('action'), $this->request->getPost(), (int) (session('user')['id'] ?? 0), $clinicId);
             return $this->json(true, 'Medicine line review saved.', 200, $data);
         } catch (InvalidArgumentException $e) { return $this->json(false, $e->getMessage(), 422); }
         catch (\Throwable $e) { log_message('error', 'Shopify line review failed: ' . get_class($e)); return $this->json(false, 'Medicine line review could not be saved safely.', 500); }

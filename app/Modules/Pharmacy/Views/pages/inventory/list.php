@@ -1,6 +1,6 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container pharmacy-page pharmacy-inventory-page" aria-labelledby="pharmacy-inventory-title">
+<main class="pharmacy-page pharmacy-inventory-page" aria-labelledby="pharmacy-inventory-title">
     <?= $this->include(PHARMACY_VIEW . 'pages/inventory/_toolbar') ?>
     <section class="card pharmacy-inventory-card" aria-label="Central medicine stock list">
         <div class="table-responsive"><table class="table pharmacy-inventory-table mb-0"><caption class="sr-only">Central medicine stock</caption><thead><tr><th scope="col">Medicine</th><th scope="col">Batch</th><th scope="col">Expiry date</th><th scope="col">Quantity</th><th scope="col">Stock status</th><th scope="col" class="text-right">Actions</th></tr></thead><tbody>

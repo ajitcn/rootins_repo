@@ -1,7 +1,7 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
-<main class="dashboard-container admin-appointment-queue-page">
+<main class="dashboard-container crm-page admin-appointment-queue-page">
     <?= view('templates/_breadcrumb', [
         'module' => 'admin',
         'menu_title' => 'Appointment Management',

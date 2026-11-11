@@ -84,3 +84,349 @@ body:has(.pharmacy-prescription-modal) .modal-backdrop { z-index: var(--ri-z-mod
     .review-prescription-meta { grid-template-columns: 1fr; }
     .review-medicine-table { min-width: 680px; }
 }
+
+/* Review modal detail layout: keep the patient-facing prescription view readable. */
+.pharmacy-prescription-modal .review-medicine-table { min-width: 860px; }
+.pharmacy-prescription-modal .review-medicine-table th:nth-child(5) { width: 10%; }
+.pharmacy-prescription-modal .review-medicine-table th:nth-child(6) { width: 18%; }
+.pharmacy-prescription-modal .review-medicine-table th:nth-child(7) { width: 20%; }
+.pharmacy-prescription-modal .review-modal-long-text { color: #3d4b63; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Clean clinical-document presentation for the review modal. */
+.pharmacy-prescription-modal .modal-dialog { max-width: 1040px; }
+.pharmacy-prescription-modal-content { border: 1px solid #dce3ec; border-radius: 14px; background: #f4f7fb; box-shadow: 0 24px 70px rgba(18, 32, 53, .24); }
+.pharmacy-prescription-modal-header { padding: 20px 26px; color: #172033; background: #fff; border-bottom: 1px solid #e4e9f0; }
+.pharmacy-prescription-modal-header .modal-title { color: #172033; font-size: 1.08rem; font-weight: 800; letter-spacing: -.01em; }
+.pharmacy-prescription-modal-header .close { color: #526176; }
+.pharmacy-modal-eyebrow { color: #738198; font-size: .66rem; letter-spacing: .12em; }
+.pharmacy-prescription-modal-summary { margin-top: 6px; color: #66748a; font-size: .78rem; }
+.pharmacy-prescription-modal-summary .badge { color: #31415a; border: 1px solid #dbe3ed; background: #f5f7fa; font-weight: 700; }
+.pharmacy-prescription-modal-body { padding: 22px 26px; background: #f4f7fb; }
+.pharmacy-prescription-modal .review-modal-section { margin-bottom: 16px; padding: 18px; border: 1px solid #e1e7ef; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(18, 32, 53, .035); }
+.pharmacy-prescription-modal .review-modal-section-heading { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #edf1f5; }
+.pharmacy-prescription-modal .review-modal-section-title { display: flex; align-items: center; color: #1b2b45; font-size: .86rem; letter-spacing: -.005em; }
+.pharmacy-prescription-modal .review-modal-section-title i { color: #476b9d; font-size: .98rem; }
+.review-modal-section-kicker { color: #8793a5; font-size: .7rem; }
+.pharmacy-prescription-modal .review-modal-info-item,
+.pharmacy-prescription-modal .review-modal-summary-grid > span { padding: 11px 12px; border: 1px solid #edf1f5; border-radius: 8px; background: #fbfcfe; }
+.pharmacy-prescription-modal .review-summary-label,
+.pharmacy-prescription-modal .review-prescription-meta small { color: #7c899b; font-size: .64rem; letter-spacing: .08em; }
+.pharmacy-prescription-modal .review-modal-info-item strong,
+.pharmacy-prescription-modal .review-modal-info-item > span:last-child,
+.pharmacy-prescription-modal .review-prescription-meta strong { color: #1e2d43; font-size: .82rem; }
+.pharmacy-prescription-modal .review-modal-table-wrap { border: 1px solid #dfe6ee; border-radius: 8px; }
+.pharmacy-prescription-modal .review-medicine-table { color: #34445c; font-size: .76rem; }
+.pharmacy-prescription-modal .review-medicine-table thead th { padding: 10px 12px; color: #65738a; background: #f5f7fa; border-bottom: 1px solid #dfe6ee; font-size: .64rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+.pharmacy-prescription-modal .review-medicine-table tbody td { padding: 12px; border-color: #edf1f5; line-height: 1.45; }
+.pharmacy-prescription-modal .review-medicine-table tbody tr:last-child td { border-bottom: 0; }
+.pharmacy-prescription-modal .review-modal-action-section { background: #fffdf8; border-color: #f0dfb1; }
+.pharmacy-prescription-modal .review-modal-action-section .review-modal-section-heading { border-bottom-color: #f2e8ce; }
+.pharmacy-prescription-modal .pharmacy-review-form { border-top: 0; }
+.pharmacy-prescription-modal .review-modal-footer,
+.pharmacy-prescription-modal-footer { padding: 14px 26px; background: #fff; border-top: 1px solid #e4e9f0; }
+.pharmacy-prescription-modal-footer .btn { min-height: 38px; border-radius: 7px; font-size: .76rem; font-weight: 700; }
+@media (max-width: 767.98px) {
+    .pharmacy-prescription-modal-header, .pharmacy-prescription-modal-footer { padding-left: 16px; padding-right: 16px; }
+    .pharmacy-prescription-modal-body { padding: 14px; }
+    .pharmacy-prescription-modal .review-modal-section { padding: 14px; }
+    .review-modal-section-kicker { align-self: flex-start; }
+}
+@media (max-width: 575.98px) {
+    .pharmacy-prescription-modal .review-medicine-table { min-width: 860px; }
+}
+
+/* Prescription grid view. */
+.pharmacy-review-page .pharmacy-review-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: .25rem;
+}
+
+.pharmacy-review-page .pharmacy-review-grid .prescription-review-card {
+    display: flex;
+    min-width: 0;
+    min-height: 288px;
+    flex-direction: column;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: .8rem;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, .05);
+}
+
+.pharmacy-review-page .prescription-card-header {
+    min-height: 54px;
+    align-items: flex-start;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.pharmacy-review-page .prescription-card-header h2 {
+    margin-top: 3px!important;
+    color: #172033!important;
+    font-size: .9rem!important;
+    font-weight: 800!important;
+}
+
+.pharmacy-review-page .prescription-card-header small,
+.pharmacy-review-page .prescription-card-patient span,
+.pharmacy-review-page .prescription-card-details em {
+    color: #718096!important;
+    font-size: .7rem!important;
+    line-height: 1.35;
+}
+
+.pharmacy-review-page .prescription-card-patient {
+    gap: 4px;
+    margin: 0;
+    padding: 13px 0;
+}
+
+.pharmacy-review-page .prescription-card-patient strong {
+    max-width: 100%;
+    color: #172033;
+    font-size: .85rem;
+    line-height: 1.3;
+}
+
+.pharmacy-review-page .prescription-card-details {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    margin-top: 0;
+    padding: 12px 0;
+    border-top: 1px solid #edf1f5;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.pharmacy-review-page .prescription-card-details > span {
+    gap: 3px;
+}
+
+.pharmacy-review-page .prescription-card-details strong {
+    color: #26364b;
+    font-size: .78rem;
+}
+
+.pharmacy-review-page .prescription-card-footer {
+    align-items: flex-start;
+    gap: 16px;
+    margin-top: auto;
+    padding-top: 13px;
+}
+
+.pharmacy-review-page .prescription-card-status-group {
+    min-width: 0;
+}
+
+.pharmacy-review-page .prescription-card-status-group small {
+    color: #718096;
+    font-size: .65rem;
+    line-height: 1.35;
+}
+
+.pharmacy-review-page .prescription-card-status-group .badge {
+    margin: 2px 0;
+    font-size: .68rem;
+}
+
+.pharmacy-review-page .prescription-review-card .pharmacy-more-actions-toggle {
+    white-space: nowrap;
+}
+
+.pharmacy-review-page .pharmacy-review-grid .pharmacy-review-empty {
+    grid-column: 1 / -1;
+    min-height: 220px;
+    margin: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: .8rem;
+    background: #fff;
+}
+
+@media (max-width: 1100px) {
+    .pharmacy-review-page .pharmacy-review-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .pharmacy-review-page .pharmacy-review-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .pharmacy-review-page .pharmacy-review-grid .prescription-review-card {
+        min-height: 0;
+    }
+}
+
+/* Standard pharmacy page refinement. */
+.pharmacy-review-page {
+    padding-bottom: 2rem;
+}
+
+.pharmacy-review-page .pharmacy-page-header {
+    margin-bottom: 1rem;
+    padding: 0;
+}
+
+.pharmacy-review-page .pharmacy-page-actions {
+    align-items: center;
+    gap: .5rem;
+}
+
+.pharmacy-review-page .pharmacy-filter-card {
+    display: flex;
+    align-items: flex-end;
+    gap: .75rem;
+    margin: 0 0 .75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+}
+
+.pharmacy-review-page .pharmacy-filter-card label {
+    margin-bottom: .35rem;
+    color: #64748b;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.pharmacy-review-page .pharmacy-review-summary {
+    margin: 0 0 .9rem;
+    padding: .7rem .9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: .6rem;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: .75rem;
+}
+
+.pharmacy-review-page .pharmacy-review-summary strong {
+    color: #172033;
+    font-size: 1rem;
+}
+
+.pharmacy-review-page .pharmacy-review-card {
+    overflow: visible;
+    border: 1px solid #e2e8f0;
+    border-radius: .8rem;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, .05);
+}
+
+.pharmacy-review-page .pharmacy-review-table {
+    table-layout: fixed;
+    min-width: 960px;
+}
+
+.pharmacy-review-page .pharmacy-review-table thead th {
+    padding: .8rem .85rem;
+    border-top: 0;
+    border-bottom: 1px solid #dfe6ef;
+    background: #f8fafc;
+    color: #52647a;
+    font-size: .67rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.pharmacy-review-page .pharmacy-review-table tbody td {
+    padding: .9rem .85rem;
+    border-color: #edf1f5;
+}
+
+.pharmacy-review-page .pharmacy-review-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.pharmacy-review-page .pharmacy-review-table tbody tr:hover td {
+    background: #fbfdff;
+}
+
+.pharmacy-review-page .pharmacy-review-stack strong {
+    color: #172033;
+    font-size: .8rem;
+}
+
+.pharmacy-review-page .pharmacy-review-stack > span,
+.pharmacy-review-page .pharmacy-review-status-stack small {
+    color: #718096;
+}
+
+.pharmacy-review-page .pharmacy-review-medicine-count {
+    display: inline-flex;
+    align-items: center;
+    padding: .35rem .55rem;
+    border-radius: 999px;
+    background: #eef5ff;
+    color: #2563a6;
+    font-size: .72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pharmacy-review-page .pharmacy-review-status-stack .badge {
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.pharmacy-review-page .pharmacy-review-empty {
+    min-height: 190px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+}
+
+.pharmacy-review-page .pharmacy-review-empty i {
+    margin-bottom: .65rem;
+    color: #94a3b8;
+    font-size: 1.8rem;
+}
+
+.pharmacy-review-page .pharmacy-review-empty strong,
+.pharmacy-review-page .pharmacy-review-empty span {
+    display: block;
+}
+
+.pharmacy-review-page .pharmacy-review-empty strong {
+    color: #334155;
+}
+
+.pharmacy-review-page .pharmacy-review-empty span {
+    margin-top: .3rem;
+    color: #64748b;
+    font-size: .78rem;
+}
+
+@media (max-width: 767.98px) {
+    .pharmacy-review-page .pharmacy-page-header {
+        margin-bottom: .85rem;
+    }
+
+    .pharmacy-review-page .pharmacy-filter-card {
+        display: block;
+    }
+
+    .pharmacy-review-page .pharmacy-filter-card .form-group,
+    .pharmacy-review-page .pharmacy-filter-actions {
+        width: 100%;
+        margin-bottom: .65rem;
+    }
+
+    .pharmacy-review-page .pharmacy-filter-actions {
+        display: flex;
+        gap: .5rem;
+        margin-bottom: 0;
+    }
+
+    .pharmacy-review-page .pharmacy-filter-actions .btn {
+        flex: 1 1 0;
+    }
+}

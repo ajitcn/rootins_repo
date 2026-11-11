@@ -1,0 +1,110 @@
+.doctor-prescriptions-page > .page-heading {
+    justify-content: space-between !important;
+    margin-bottom: 18px;
+}
+
+.doctor-prescriptions-heading-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.doctor-prescriptions-heading-actions .btn {
+    min-height: 36px;
+    margin: 0;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.doctor-prescriptions-heading-actions .doctor-prescription-view-toggle {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.doctor-prescriptions-heading-actions .doctor-prescription-view-toggle .btn {
+    border-radius: 9px !important;
+}
+
+.doctor-prescriptions-page > .doctor-prescription-toolbar-card {
+    display: none !important;
+}
+
+.doctor-prescriptions-page .doctor-prescription-register-header {
+    display: none !important;
+}
+
+.doctor-prescriptions-page .doctor-prescription-register-card {
+    border: 1px solid #e1e8f1;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 5px 18px rgba(26, 52, 84, .045);
+    overflow: visible;
+}
+
+.doctor-prescriptions-page .doctor-prescription-results {
+    display: block;
+}
+
+.doctor-prescriptions-page .doctor-prescription-records {
+    min-width: 0;
+}
+
+.doctor-prescriptions-page .doctor-prescription-records {
+    margin-top: 0;
+}
+
+.doctor-prescriptions-page .doctor-prescription-records[data-view="list"] {
+    padding: 0;
+    background: #fff;
+}
+
+.doctor-prescriptions-page .doctor-prescription-records[data-view="list"] .doctor-prescription-table-wrap {
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+}
+
+.doctor-prescriptions-page .doctor-prescription-list-table {
+    min-width: 820px;
+}
+
+.doctor-prescriptions-page .doctor-prescription-list-table th,
+.doctor-prescriptions-page .doctor-prescription-list-table td {
+    padding: 13px 16px;
+}
+
+.doctor-prescriptions-page .doctor-prescription-list-table th:first-child,
+.doctor-prescriptions-page .doctor-prescription-list-table td:first-child {
+    padding-left: 20px;
+}
+
+.doctor-prescriptions-page .doctor-prescription-list-table th:last-child,
+.doctor-prescriptions-page .doctor-prescription-list-table td:last-child {
+    padding-right: 20px;
+}
+
+@media (max-width: 700px) {
+    .doctor-prescriptions-page > .page-heading {
+        display: block !important;
+    }
+
+    .doctor-prescriptions-heading-actions {
+        width: 100%;
+        margin-top: 15px;
+        align-items: stretch;
+    }
+
+    .doctor-prescriptions-heading-actions > .btn,
+    .doctor-prescriptions-heading-actions > .doctor-prescription-view-toggle {
+        flex: 1 1 0;
+    }
+
+    .doctor-prescriptions-heading-actions .doctor-prescription-view-toggle .btn {
+        width: 50%;
+        min-width: 0;
+    }
+}

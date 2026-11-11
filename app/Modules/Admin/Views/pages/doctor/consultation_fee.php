@@ -2,11 +2,12 @@
 
 <?= $this->section('main-content') ?>
 
-<main class="dashboard-container" aria-labelledby="consultation-fee-title">
+<main class="dashboard-container doctor-management-standard" aria-labelledby="consultation-fee-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Doctor Management', 'page' => 'Consultation Fee']) ?>
 
-    <div class="page-heading mb-3">
+    <header class="crm-header">
         <div>
+            <span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span>
             <h1 id="consultation-fee-title" class="h3 mb-1">Consultation Fees</h1>
             <p class="text-muted mb-0">Manage doctor consultation fees by type, mode, and effective date.</p>
         </div>
@@ -18,16 +19,11 @@
                 <i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New Consultation Fee
             </button>
         </div>
-    </div>
+    </header>
 
     <?= display_session_msg() ?>
 
-    <div class="card">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
-            <h2 class="h6 mb-0">Doctor consultation fee list</h2>
-            <span class="small text-muted">Use filters to narrow the permitted scope.</span>
-        </div>
-        <div class="card-body p-0">
+    <section class="card crm-card" aria-label="Doctor consultation fees">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover align-middle" id="consultationFeeTable">
                     <thead>
@@ -100,9 +96,7 @@
                     <?php endif; ?>
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
+    </section>
 
     <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_fees', 'filters' => $filters ?? []]) ?>
 </main>

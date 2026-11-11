@@ -3,8 +3,8 @@
         <div class="modal-content pharmacy-prescription-modal-content">
             <div class="modal-header pharmacy-prescription-modal-header">
                 <div class="min-width-0">
-                    <div class="pharmacy-modal-eyebrow">Prescription Review</div>
-                    <h2 class="modal-title h5 mb-1" id="pharmacy-prescription-modal-title">Prescription Review</h2>
+                    <div class="pharmacy-modal-eyebrow">Clinical prescription</div>
+                    <h2 class="modal-title h5 mb-1" id="pharmacy-prescription-modal-title">Review prescription</h2>
                     <div class="pharmacy-prescription-modal-summary" aria-live="polite">
                         <span id="review-header-number">Prescription not selected</span>
                         <span aria-hidden="true">&middot;</span>
@@ -17,8 +17,8 @@
                 <button type="button" class="close pharmacy-prescription-modal-close" data-dismiss="modal" aria-label="Close prescription review"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body pharmacy-prescription-modal-body">
-                <section class="review-modal-section" aria-labelledby="review-patient-heading">
-                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-patient-heading">Patient information</h3></div>
+                <section class="review-modal-section review-modal-identity" aria-labelledby="review-patient-heading">
+                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-patient-heading"><i class="bi bi-person-vcard mr-2" aria-hidden="true"></i>Patient</h3><span class="review-modal-section-kicker">Recipient of this prescription</span></div>
                     <div class="review-modal-info-grid">
                         <div class="review-modal-info-item"><span class="review-summary-label">Name</span><strong id="review-patient-name">Not recorded</strong></div>
                         <div class="review-modal-info-item"><span class="review-summary-label">Patient number</span><span id="review-patient-number">Not recorded</span></div>
@@ -26,31 +26,37 @@
                     </div>
                 </section>
                 <section class="review-modal-section" aria-labelledby="review-doctor-heading">
-                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-doctor-heading">Doctor information</h3></div>
+                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-doctor-heading"><i class="bi bi-person-badge mr-2" aria-hidden="true"></i>Prescription and doctor</h3><span class="review-modal-section-kicker">Clinical context</span></div>
                     <div class="review-modal-info-grid review-modal-info-grid-two">
                         <div class="review-modal-info-item"><span class="review-summary-label">Doctor</span><strong id="review-doctor-name">Not recorded</strong></div>
                         <div class="review-modal-info-item"><span class="review-summary-label">Doctor code</span><span id="review-doctor-code">Not recorded</span></div>
                     </div>
                 </section>
                 <section class="review-modal-section" aria-labelledby="review-summary-heading">
-                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-summary-heading">Prescription summary</h3></div>
+                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-summary-heading"><i class="bi bi-clipboard2-pulse mr-2" aria-hidden="true"></i>Prescription summary</h3></div>
                     <div class="review-prescription-meta review-modal-summary-grid">
                         <span><small>Prescription number</small><strong id="review-prescription-number">Not recorded</strong></span>
                         <span><small>Prescription date</small><strong id="review-prescription-date">Not recorded</strong></span>
                         <span><small>Prescription status</small><span class="badge badge-light" id="review-current-status">Not recorded</span></span>
                         <span><small id="review-date-label">Last updated</small><strong id="review-date">Not recorded</strong></span>
                         <span><small>Review status</small><span class="badge badge-light" id="review-state">Not recorded</span></span>
+                        <span><small>Valid until</small><strong id="review-valid-until">Not recorded</strong></span>
+                        <span><small>Cart sync</small><span class="badge badge-light" id="review-cart-sync">Not recorded</span></span>
                     </div>
                 </section>
                 <section class="review-modal-section" aria-labelledby="review-medicines-heading">
-                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-medicines-heading">Medicine details</h3><span class="text-muted small">Review the prescribed medicines before deciding.</span></div>
+                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-medicines-heading"><i class="bi bi-capsule mr-2" aria-hidden="true"></i>Medicine plan</h3><span class="review-modal-section-kicker">Review before deciding</span></div>
                     <div class="table-responsive review-modal-table-wrap">
                         <table class="table table-sm review-medicine-table mb-0">
                             <caption class="sr-only">Prescription medicines</caption>
-                            <thead><tr><th scope="col">Medicine</th><th scope="col">Duration</th><th scope="col">Frequency</th><th scope="col">Dose</th><th scope="col">Intake</th><th scope="col">Note</th></tr></thead>
+                            <thead><tr><th scope="col">Medicine</th><th scope="col">Duration</th><th scope="col">Frequency</th><th scope="col">Dose</th><th scope="col">Quantity</th><th scope="col">Intake</th><th scope="col">Note</th></tr></thead>
                             <tbody id="review-medicine-rows"></tbody>
                         </table>
                     </div>
+                </section>
+                <section class="review-modal-section review-modal-notes" aria-labelledby="review-notes-heading">
+                    <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-notes-heading"><i class="bi bi-journal-text mr-2" aria-hidden="true"></i>Instructions and notes</h3></div>
+                    <p class="review-modal-long-text mb-0" id="review-prescription-notes">No prescription notes recorded.</p>
                 </section>
                 <section class="review-modal-section review-modal-action-section" aria-labelledby="review-action-heading">
                     <div class="review-modal-section-heading"><h3 class="review-modal-section-title" id="review-action-heading">Review action</h3></div>
@@ -64,7 +70,7 @@
                     </form>
                 </section>
             </div>
-            <div class="modal-footer pharmacy-prescription-modal-footer"><span class="text-muted small mr-auto" id="review-modal-help">Select a review action to continue.</span><button class="btn btn-light" type="button" data-dismiss="modal">Close</button><button class="btn btn-warning d-none review-submit-action" type="button" data-decision="clarification">Request clarification</button><button class="btn btn-danger d-none review-submit-action" type="button" data-decision="reject">Reject</button><button class="btn btn-outline-danger d-none review-submit-action" type="button" data-decision="cancel">Cancel</button><button class="btn btn-success d-none review-submit-action" type="button" data-decision="approve">Approve</button></div>
+            <div class="modal-footer pharmacy-prescription-modal-footer"><span class="text-muted small mr-auto" id="review-modal-help">Select a review action to continue.</span><button class="btn btn-outline-primary" type="button" id="review-print-prescription"><i class="bi bi-printer mr-1" aria-hidden="true"></i>Print / save PDF</button><button class="btn btn-light" type="button" data-dismiss="modal">Close</button><button class="btn btn-warning d-none review-submit-action" type="button" data-decision="clarification">Request clarification</button><button class="btn btn-danger d-none review-submit-action" type="button" data-decision="reject">Reject</button><button class="btn btn-outline-danger d-none review-submit-action" type="button" data-decision="cancel">Cancel</button><button class="btn btn-success d-none review-submit-action" type="button" data-decision="approve">Approve</button></div>
         </div>
     </div>
 </div>

@@ -1,0 +1,98 @@
+:root{
+  --ri-page-bg:#f6f8fb;
+  --ri-surface:#fff;
+  --ri-border:#e2e8f0;
+  --ri-border-strong:#cbd5e1;
+  --ri-text:#172033;
+  --ri-muted:#64748b;
+  --ri-primary:#1d4ed8;
+  --ri-radius:.75rem;
+  --ri-shadow:0 6px 20px rgba(15,23,42,.05);
+}
+.rootins-standard{background:var(--ri-page-bg);color:var(--ri-text)}
+.rootins-standard .dashboard-container{width:100%;max-width:var(--ri-content-max,1600px);margin:0 auto;padding:1.25rem 1.5rem 2rem}
+.rootins-standard main.container-fluid{width:100%;max-width:var(--ri-content-max,1600px);margin:0 auto;padding:1.25rem 1.5rem 2rem!important}
+.rootins-standard .page-heading,.rootins-standard .page-header,.rootins-standard .crm-header,.rootins-standard .ri-page-header,.rootins-standard .access-hero,.rootins-standard .payment-status-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;padding:1.25rem 1.4rem;border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow)}
+.rootins-standard .page-heading h1,.rootins-standard .page-header h1,.rootins-standard .crm-header h1,.rootins-standard .ri-page-header h1,.rootins-standard .access-hero h1,.rootins-standard .access-hero h4,.rootins-standard .payment-status-header h1{margin:.2rem 0 .35rem;color:var(--ri-text);font-size:1.55rem;font-weight:800;letter-spacing:-.02em}
+.rootins-standard .page-heading p,.rootins-standard .page-header p,.rootins-standard .crm-header p,.rootins-standard .ri-page-header p,.rootins-standard .access-hero p,.rootins-standard .payment-status-header p{margin:0;color:var(--ri-muted);line-height:1.5}
+.rootins-standard .page-eyebrow,.rootins-standard .page-header .page-eyebrow{display:block;margin-bottom:.35rem;color:#64748b;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.rootins-standard .page-heading>.d-flex,.rootins-standard .page-header>.d-flex,.rootins-standard .crm-header>.d-flex,.rootins-standard .ri-page-header-actions,.rootins-standard .access-hero>button,.rootins-standard .payment-status-header>button{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.rootins-standard .page-header-buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.5rem}
+.rootins-standard .page-header-buttons>.btn,.rootins-standard .page-header-buttons .btn-group>.btn,.rootins-standard .ri-page-header-actions>.btn,.rootins-standard .ri-page-header-actions .btn-group>.btn{min-height:36px;margin:0;border-radius:9px;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap}
+.rootins-standard .card{border:1px solid var(--ri-border);border-radius:var(--ri-radius);box-shadow:var(--ri-shadow)}
+.rootins-standard .card-header{border-bottom:1px solid var(--ri-border);background:var(--ri-surface);color:var(--ri-text)}
+.rootins-standard .card-header h1,.rootins-standard .card-header h2,.rootins-standard .card-header h3,.rootins-standard .card-header h4,.rootins-standard .card-header h5,.rootins-standard .card-header h6{color:var(--ri-text)}
+.rootins-standard .card-body{padding:1.25rem}
+.rootins-standard .card-footer{border-top:1px solid var(--ri-border);background:var(--ri-surface)}
+.rootins-standard .ri-list-card,.rootins-standard .access-card{border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow);overflow:visible}
+.rootins-standard .ri-list-card-header,.rootins-standard .access-card>.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--ri-border);background:var(--ri-surface);color:var(--ri-text)}
+.rootins-standard .ri-list-card-header h1,.rootins-standard .ri-list-card-header h2,.rootins-standard .ri-list-card-header h3,.rootins-standard .ri-list-card-header h4,.rootins-standard .ri-list-card-header h5,.rootins-standard .ri-list-card-header h6{color:var(--ri-text)}
+.rootins-standard .action-btn-container{gap:1rem;margin-bottom:1.25rem!important}
+.rootins-standard .action-btn-container>div,.rootins-standard .ri-page-header-copy,.rootins-standard .ri-page-header-actions{min-width:0}
+.rootins-standard .admin-appointment-table-wrap,.rootins-standard .admin-clinical-table-wrap,.rootins-standard main.dashboard-container>.table-responsive{padding:0;border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow);overflow-x:auto;overflow-y:visible}
+.rootins-standard .admin-appointment-table-wrap table,.rootins-standard .admin-clinical-table-wrap table,.rootins-standard main.dashboard-container>.table-responsive table{margin-bottom:0}
+.rootins-standard .table-responsive{border-radius:var(--ri-radius)}
+.rootins-standard .table{color:var(--ri-text)}
+.rootins-standard .table thead th{border-top:0;background:#f8fafc;color:#64748b;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.rootins-standard .table td,.rootins-standard .table th{padding:.8rem 1rem;border-color:#edf1f5;vertical-align:middle}
+.rootins-standard .table tbody tr:nth-child(even){background:transparent}
+.rootins-standard .table tbody tr:hover{background:#f8fafc}
+.rootins-standard .form-control,.rootins-standard .custom-select{min-height:40px;border:1px solid var(--ri-border-strong);border-radius:.5rem;color:var(--ri-text);box-shadow:none}
+.rootins-standard .form-control:focus,.rootins-standard .custom-select:focus{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.rootins-standard .btn{border-radius:.5rem;font-weight:700}
+.rootins-standard .modal-content{border:1px solid var(--ri-border);border-radius:var(--ri-radius);box-shadow:0 20px 55px rgba(15,23,42,.2)}
+.rootins-standard .modal-header{border-bottom:1px solid var(--ri-border);background:#f8fafc}
+.rootins-standard .modal-footer{border-top:1px solid var(--ri-border)}
+.rootins-standard .clinic-standard-page .action-btn-container{text-align:left;margin-bottom:1.25rem}
+.rootins-standard .clinic-standard-page .action-btn-container>div:first-child{min-width:0}
+.rootins-standard .clinic-standard-page .action-btn-container h1{color:var(--ri-text);font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
+.rootins-standard .clinic-standard-page .clinic-summary{color:var(--ri-muted);font-size:.78rem}
+.rootins-standard .clinic-standard-page .clinic-list-card>.card-header{padding:1rem 1.25rem;background:var(--ri-surface)!important;color:var(--ri-text)!important}
+.rootins-standard .clinic-standard-page .clinic-list-card>.card-header h2{color:var(--ri-text)!important}
+.rootins-standard .clinic-standard-page .clinic-list-card>.card-header .small{color:var(--ri-muted)!important}
+.rootins-standard .clinic-standard-page #clinics-table{table-layout:auto;min-width:0}
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-number,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-number,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-main,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-main,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-contact,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-contact,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-location,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-location,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-operations,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-operations,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-status,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-status,
+.rootins-standard .clinic-standard-page #clinics-table .clinic-col-actions,.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-actions{width:auto}
+.rootins-standard .clinic-standard-page #clinics-table .clinic-cell-actions{white-space:nowrap}
+.rootins-standard .clinic-standard-page .clinic-list-card .table-responsive{overflow-x:auto;overflow-y:visible}
+.rootins-standard .doctor-management-standard .page-heading,
+.rootins-standard .doctor-management-standard .doctor-documents-heading{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;padding:1.25rem 1.4rem;
+  border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow)
+}
+.rootins-standard .doctor-management-standard .page-heading h1,
+.rootins-standard .doctor-management-standard .doctor-documents-heading h1{margin:.2rem 0 .35rem;color:var(--ri-text)!important;font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
+.rootins-standard .doctor-management-standard .page-heading p,
+.rootins-standard .doctor-management-standard .doctor-documents-heading p{margin:0;color:var(--ri-muted)!important;line-height:1.5}
+.rootins-standard .doctor-management-standard .page-heading .d-flex,
+.rootins-standard .doctor-management-standard .doctor-documents-heading-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.rootins-standard .doctor-management-standard .page-heading .d-flex .mr-2{margin-right:0!important}
+.rootins-standard .doctor-management-standard>.card,
+.rootins-standard .doctor-management-standard>.table-responsive,
+.rootins-standard .doctor-management-standard>.doctor-document-list-card{border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow);overflow:visible}
+.rootins-standard .doctor-management-standard>.card>.card-header,
+.rootins-standard .doctor-management-standard .doctor-document-list-header{padding:1rem 1.25rem;background:var(--ri-surface)!important;color:var(--ri-text)!important;border-color:var(--ri-border)!important}
+.rootins-standard .doctor-management-standard>.card>.card-header h1,
+.rootins-standard .doctor-management-standard>.card>.card-header h2,
+.rootins-standard .doctor-management-standard>.card>.card-header h3,
+.rootins-standard .doctor-management-standard>.card>.card-header h4,
+.rootins-standard .doctor-management-standard>.card>.card-header h5,
+.rootins-standard .doctor-management-standard>.card>.card-header h6{color:var(--ri-text)!important}
+.rootins-standard .doctor-management-standard>.card>.card-header .text-muted,
+.rootins-standard .doctor-management-standard .doctor-document-list-header .text-muted{color:var(--ri-muted)!important}
+.rootins-standard .doctor-management-standard .table-responsive{overflow-x:auto;overflow-y:visible}
+.rootins-standard .doctor-management-standard table{margin-bottom:0;color:var(--ri-text)}
+.rootins-standard .doctor-management-standard table thead th{border-top:0;background:#f8fafc;color:#64748b;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.rootins-standard .doctor-management-standard table td,.rootins-standard .doctor-management-standard table th{padding:.8rem 1rem;border-color:#edf1f5;vertical-align:middle}
+.rootins-standard .doctor-management-standard .doctors-table{min-width:0}
+.rootins-standard .doctor-management-standard .doctors-table .doctor-cell-status{white-space:nowrap}
+.rootins-standard .doctor-management-standard .action-btn-container{text-align:left}
+.rootins-standard .doctor-management-standard .doctor-documents-heading-actions .doctor-list-filter{margin-right:0}
+.rootins-standard .doctor-management-standard> .d-flex.justify-content-between{padding:1.25rem 1.4rem;border:1px solid var(--ri-border);border-radius:var(--ri-radius);background:var(--ri-surface);box-shadow:var(--ri-shadow)}
+.rootins-standard .doctor-management-standard> .d-flex.justify-content-between h2{color:var(--ri-text);font-size:1.35rem;font-weight:800}
+@media(max-width:700px){.rootins-standard .dashboard-container,.rootins-standard main.container-fluid{padding:.85rem .75rem 1.5rem!important}.rootins-standard .page-heading,.rootins-standard .page-header,.rootins-standard .crm-header,.rootins-standard .ri-page-header,.rootins-standard .access-hero,.rootins-standard .payment-status-header{display:block;padding:1rem}.rootins-standard .page-heading .btn,.rootins-standard .page-header .btn,.rootins-standard .crm-header .btn,.rootins-standard .ri-page-header .btn,.rootins-standard .access-hero .btn,.rootins-standard .payment-status-header .btn{width:100%;margin-top:.8rem}.rootins-standard .table td,.rootins-standard .table th{padding:.7rem .65rem}}

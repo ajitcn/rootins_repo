@@ -3,7 +3,7 @@
 
  <?= $this->section('main-content')?>
 
-<main class="dashboard-container" aria-labelledby="doctor-leaves-title">
+<main class="dashboard-container doctor-management-standard" aria-labelledby="doctor-leaves-title">
 	<!-- breadcrumb -->
     <?=
         view(
@@ -17,16 +17,16 @@
 ?>
 
  	<!-- main content -->
-        <div class="page-heading mb-3"><div><h1 id="doctor-leaves-title" class="h3 mb-1">Doctor Leaves</h1><p class="text-muted mb-0">Manage doctor leave periods and approval status.</p></div><div class="d-flex flex-wrap align-items-center">
+        <header class="crm-header"><div><span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span><h1 id="doctor-leaves-title" class="h3 mb-1">Doctor Leaves</h1><p class="text-muted mb-0">Manage doctor leave periods and approval status.</p></div><div class="d-flex flex-wrap align-items-center">
             <?= view(ADMIN_VIEW . 'parts/doctor_list_filter', ['filterId' => 'doctorLeaveFilter', 'filters' => $filters ?? []]) ?>
   			<button type="button" class="btn btn-primary ml-2 mb-2 mb-md-0 open_doctor_leave_modal"><i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New Leave</button>
-  		</div></div>
+            </div></header>
 
         <?= display_session_msg()?>
 
-          <div class="card"><div class="card-header"><h2 class="h6 mb-0">Leave records</h2></div><div class="card-body p-0"><div class="table-responsive">
+          <section class="card crm-card" aria-label="Doctor leave records"><div class="table-responsive">
 
-            <table class="table table-bordered table-hover table-striped">
+            <table class="table table-bordered table-hover">
 
                 <thead>
 
@@ -137,7 +137,7 @@
 
             </table>
 
-        </div></div></div>
+        </div></section>
  
 
 <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_leaves', 'filters' => $filters ?? []]) ?>

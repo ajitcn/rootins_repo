@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container" aria-labelledby="billing-edit-title">
+<main class="dashboard-container crm-page" aria-labelledby="billing-edit-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Billing and Invoices', 'page' => 'Edit Draft Invoice']) ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3"><div><h1 id="billing-edit-title" class="h4 mb-1">Edit Draft Invoice</h1><p class="text-muted mb-0"><?= esc($invoice['invoice_number']) ?> · INR</p></div><a href="<?= base_url('admin/billing') ?>" class="btn btn-outline-secondary">Back to bill list</a></div>
     <div id="billing-alert" role="status" aria-live="polite"></div>

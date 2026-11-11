@@ -1,7 +1,7 @@
 <?= $this->extend('templates/theme1') ?>
 
 <?= $this->section('styles') ?>
-<?php $pharmacyAssetVersion = '20261015-dashboard3'; ?>
+<?php $pharmacyAssetVersion = '20261106-pharmacy-standard11'; ?>
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shared.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/prescriptions.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/prescriptions-refinement.css?v=' . $pharmacyAssetVersion) ?>">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/notifications.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/more_actions.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/theme.css?v=' . $pharmacyAssetVersion) ?>">
-<link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shopify-orders.css?v=20261029-shopify4') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shopify-orders.css?v=' . $pharmacyAssetVersion) ?>">
 <?= $this->endSection() ?>
 
 <?= $this->section('side-menu') ?>
@@ -37,8 +37,6 @@ $displayName = trim((string) ($pharmacyUser['username'] ?? $pharmacyUser['email'
         <?php if (in_array('Pharmacy Assistant', session('roles') ?? [], true) && in_array('pharmacy.notification.view', $permissions, true)): ?><a class="nav-link <?= $path === 'pharmacy/notifications' ? 'active' : '' ?>" href="<?= base_url('pharmacy/notifications') ?>"><i class="bi bi-bell menu-icon" aria-hidden="true"></i><span>Notifications</span></a><?php endif; ?>
         <?php if (in_array('Pharmacy Assistant', session('roles') ?? [], true) && in_array('pharmacy.audit.view', $permissions, true)): ?><a class="nav-link <?= $path === 'pharmacy/audit' ? 'active' : '' ?>" href="<?= base_url('pharmacy/audit') ?>"><i class="bi bi-shield-check menu-icon" aria-hidden="true"></i><span>Audit trail</span></a><?php endif; ?>
     </nav>
-    <div class="small text-muted mt-3">Orders, payment, and delivery are managed from the pharmacy dashboard.</div>
-    <a class="d-block mt-4 text-danger" href="<?= base_url('system/logout') ?>">Log out</a>
 </aside>
 <?= $this->endSection() ?>
 

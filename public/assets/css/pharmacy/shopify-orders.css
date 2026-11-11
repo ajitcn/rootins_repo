@@ -1,15 +1,22 @@
 .pharmacy-shopify-orders-page { --shopify-border: #e6eaf0; --shopify-muted: #697586; }
+.pharmacy-shopify-orders-page .pharmacy-page-header { padding-bottom: 4px; }
+.pharmacy-shopify-orders-page .pharmacy-page-actions { align-self: flex-start; }
 .pharmacy-shopify-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
 .pharmacy-shopify-summary-card { display: flex; align-items: center; gap: 11px; min-height: 82px; padding: 15px; background: #fff; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
 .pharmacy-shopify-summary-card .summary-icon { display: grid; place-items: center; width: 34px; height: 34px; color: #2754a5; background: #edf3ff; border-radius: 9px; }
 .pharmacy-shopify-summary-card .summary-copy { display: grid; gap: 3px; min-width: 0; }
 .pharmacy-shopify-summary-card .summary-copy span { color: var(--shopify-muted); font-size: 11px; line-height: 1.2; }
 .pharmacy-shopify-summary-card strong { color: #182230; font-size: 21px; line-height: 1; }
-.pharmacy-shopify-filters { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(5, minmax(125px, 1fr)) repeat(2, minmax(130px, .8fr)) auto; gap: 10px; align-items: end; padding: 15px; margin-bottom: 18px; background: #fff; border: 1px solid var(--shopify-border); border-radius: 10px; }
+.pharmacy-top-filter { width: 100%; max-width: 100%; overflow: visible; }
+.pharmacy-shopify-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; width: 100%; max-width: 100%; min-width: 0; padding: 16px; margin-bottom: 18px; background: #fff; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 3px 12px rgba(31, 41, 55, .04); }
+.pharmacy-shopify-filters .filter-field { min-width: 0; }
+.pharmacy-shopify-filters .filter-search { grid-column: span 2; }
+.pharmacy-shopify-filters .form-control { width: 100%; min-width: 0; }
 .pharmacy-shopify-filters label { display: block; margin-bottom: 5px; color: #5d6878; font-size: 11px; font-weight: 700; }
 .pharmacy-shopify-filter-actions { display: flex; gap: 6px; }
 .pharmacy-shopify-table-card { overflow: visible; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
-.pharmacy-shopify-table-card .card-header { padding: 14px 16px; background: #fff; border-bottom: 1px solid var(--shopify-border); }
+.pharmacy-shopify-table-card .card-header { min-height: 52px; padding: 15px 16px; background: #fff; border-bottom: 1px solid var(--shopify-border); }
+.pharmacy-shopify-table-card .card-header h2 { color: #1f2940; font-size: .86rem; font-weight: 800; }
 .pharmacy-shopify-table-wrap { overflow-x: auto; }
 .pharmacy-shopify-table { table-layout: fixed; min-width: 980px; }
 .pharmacy-shopify-table th:nth-child(1), .pharmacy-shopify-table td:nth-child(1) { width: 16%; }
@@ -19,7 +26,7 @@
 .pharmacy-shopify-table th:nth-child(5), .pharmacy-shopify-table td:nth-child(5) { width: 16%; }
 .pharmacy-shopify-table th:nth-child(6), .pharmacy-shopify-table td:nth-child(6) { width: 130px; }
 .pharmacy-shopify-table th { padding: 12px 13px; color: #667085; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; border-top: 0; }
-.pharmacy-shopify-table td { padding: 13px; color: #2d3748; font-size: 12px; vertical-align: middle; border-top: 1px solid #eef1f5; }
+.pharmacy-shopify-table td { padding: 14px 13px; color: #2d3748; font-size: 12px; vertical-align: top; border-top: 1px solid #eef1f5; }
 .shopify-order-primary { display: grid; gap: 3px; min-width: 125px; }
 .shopify-order-primary a, .shopify-order-primary strong { color: #1e4fa3; font-weight: 750; }
 .shopify-order-primary small, .pharmacy-shopify-table time { color: var(--shopify-muted); font-size: 11px; }
@@ -91,7 +98,8 @@
 .shopify-process-modal textarea { resize: vertical; }
 .shopify-process-modal .btn { font-size: 12px; font-weight: 700; }
 body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-details-modal { z-index: 1070; }
-@media (max-width: 1200px) { .pharmacy-shopify-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pharmacy-shopify-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .filter-search { grid-column: span 3; } }
+@media (max-width: 1200px) { .pharmacy-shopify-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pharmacy-shopify-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pharmacy-shopify-filters .filter-search { grid-column: span 3; } }
+@media (max-width: 991.98px) { .pharmacy-shopify-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 767.98px) { .pharmacy-shopify-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .pharmacy-shopify-summary-card { min-height: 70px; padding: 11px; } .pharmacy-shopify-filters { grid-template-columns: 1fr 1fr; padding: 12px; } .filter-search { grid-column: span 2; } .pharmacy-shopify-filter-actions { grid-column: span 2; } .pharmacy-shopify-filter-actions .btn { flex: 1; } .pharmacy-shopify-table-card .card-header { align-items: flex-start !important; } .pharmacy-shopify-table { min-width: 0; table-layout: auto; } .pharmacy-shopify-table thead { display: none; } .pharmacy-shopify-table, .pharmacy-shopify-table tbody, .pharmacy-shopify-table tr, .pharmacy-shopify-table td { display: block; width: 100%; } .pharmacy-shopify-table tr { padding: 8px 0; border-bottom: 1px solid var(--shopify-border); } .pharmacy-shopify-table td { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 10px 13px; border: 0; text-align: right; } .pharmacy-shopify-table td::before { flex: 0 0 38%; color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; } .pharmacy-shopify-table td > * { max-width: 62%; } .pharmacy-shopify-table td > .shopify-group-cell { max-width: 62%; align-items: flex-end; text-align: right; } .pharmacy-shopify-table .dropdown-menu { text-align: left; } .pharmacy-shopify-actions { min-width: 0; } .shopify-detail-summary { grid-template-columns: 1fr; } .pharmacy-shopify-details-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .pharmacy-shopify-details-modal .modal-content { max-height: calc(100vh - 16px); } }
 @media (max-width: 767.98px) { .shopify-label-value-grid { grid-template-columns: 1fr; gap: 12px; } .shopify-detail-lines { min-width: 620px; } .shopify-process-modal .modal-dialog { margin: 8px; max-height: calc(100vh - 16px); } .shopify-process-modal .modal-content { max-height: calc(100vh - 16px); } .shopify-process-modal .modal-body { padding: 16px; } }
 @media (max-width: 767.98px) { .shopify-review-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.shopify-review-heading { display: block; }.shopify-review-table-wrap { overflow: visible; }.shopify-review-table { min-width: 0; }.shopify-review-table thead { display: none; }.shopify-review-table, .shopify-review-table tbody, .shopify-review-table tr, .shopify-review-table td { display: block; width: 100%; }.shopify-review-table tr { padding: 12px 0; border-bottom: 1px solid var(--shopify-border); }.shopify-review-table td { display: grid; grid-template-columns: 40% minmax(0, 1fr); gap: 10px; min-width: 0; padding: 8px 0; border: 0; }.shopify-review-table td::before { color: #667085; content: attr(data-label); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }.shopify-review-action { min-width: 0; }.shopify-review-controls { grid-template-columns: 1fr; }.shopify-history-panel { max-height: 300px; } }
@@ -383,9 +391,29 @@ body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-detail
 .shopify-review-line-actions .shopify-review-controls .btn { min-width: 78px; white-space: nowrap; }
 .shopify-review-line-card.is-saving { opacity: .78; }
 
+/* Final visible Pharmacist workspace treatment. Keep the existing review
+   markup and forms intact while giving the section a calmer clinical layout. */
+.shopify-review-workspace-v2 > .card-body { padding: 0; }
+.shopify-review-workspace-v2 .shopify-review-heading { padding: 20px 24px 16px; border-bottom: 1px solid #edf0f4; background: #fbfcfe; }
+.shopify-review-workspace-v2 .shopify-review-heading h2 { margin: 3px 0 4px !important; color: #182230; font-size: 18px; letter-spacing: -.01em; }
+.shopify-review-workspace-v2 .shopify-review-heading p { color: #697586 !important; line-height: 1.45; }
+.shopify-review-workspace-v2 .shopify-review-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 16px 24px 18px; }
+.shopify-review-workspace-v2 .shopify-review-metric { min-height: 68px; padding: 11px 13px; border-color: #e7ebf0; background: #fff; }
+.shopify-review-workspace-v2 .shopify-review-metric span { color: #697586; font-size: 10px; font-weight: 700; }
+.shopify-review-workspace-v2 .shopify-review-metric strong { color: #182230; font-size: 20px; line-height: 1; }
+.shopify-review-workspace-v2 .shopify-review-lines-v2 { padding: 0 24px 24px; }
+.shopify-review-workspace-v2 .shopify-review-line-card { gap: 14px; padding: 18px; border-color: #e5e9ef; border-radius: 10px; box-shadow: 0 3px 10px rgba(31,41,55,.035); }
+.shopify-review-workspace-v2 .shopify-review-line-card:hover { border-color: #cfd7e3; box-shadow: 0 6px 16px rgba(31,41,55,.06); }
+.shopify-review-workspace-v2 .shopify-review-detail-label { color: #7b8798; font-size: 9px; letter-spacing: .06em; }
+.shopify-review-workspace-v2 .shopify-review-detail strong { color: #263445; }
+.shopify-review-workspace-v2 .shopify-review-line-actions { padding-top: 14px; border-top-color: #edf0f4; }
+.shopify-review-workspace-v2 .shopify-order-actions { margin: 0 24px 24px; }
+
 @media (max-width: 767.98px) {
     .shopify-review-workspace-v2 { margin-top: 32px; }
-    .shopify-review-workspace-v2 > .card-body { padding: 18px 16px 20px; }
+    .shopify-review-workspace-v2 .shopify-review-heading { padding: 17px 16px 14px; }
+    .shopify-review-workspace-v2 .shopify-review-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 16px 16px; }
+    .shopify-review-workspace-v2 .shopify-review-lines-v2 { padding: 0 16px 18px; }
     .shopify-review-line-card { padding: 16px; }
     .shopify-review-line-details { grid-template-columns: 1fr; gap: 10px; }
     .shopify-review-detail-medicine,
@@ -394,4 +422,5 @@ body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-detail
     .shopify-review-line-actions .shopify-review-controls select,
     .shopify-review-line-actions .shopify-review-controls input,
     .shopify-review-line-actions .shopify-review-controls .btn { width: 100%; min-width: 0; }
+    .shopify-review-workspace-v2 .shopify-order-actions { margin: 0 16px 18px; }
 }

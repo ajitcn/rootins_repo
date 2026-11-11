@@ -1,0 +1,203 @@
+.doctor-appointments-page .doctor-appointments-heading {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 24px !important;
+}
+
+.doctor-appointments-page .doctor-appointments-header-actions {
+    display: flex !important;
+    flex: 0 0 auto;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap;
+    gap: 8px !important;
+    margin-left: auto;
+    margin-top: 0 !important;
+    align-self: flex-start;
+}
+
+.doctor-appointments-page .doctor-appointments-header-search {
+    display: flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    margin: 0 !important;
+}
+
+.doctor-appointments-page .doctor-appointments-header-search .form-control {
+    width: 210px !important;
+    min-height: 36px;
+    border: 1px solid #d6e0eb;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.doctor-appointments-page .doctor-appointments-header-search .btn,
+.doctor-appointments-page .doctor-appointments-header-actions > .btn,
+.doctor-appointments-page .doctor-appointments-view-toggle > .btn {
+    min-height: 36px;
+    margin: 0 !important;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.doctor-appointments-page .doctor-appointments-view-toggle {
+    display: inline-flex;
+    gap: 8px;
+    margin: 0 !important;
+}
+
+.doctor-appointments-page .doctor-appointments-view-toggle > .btn {
+    border-radius: 9px !important;
+}
+
+.doctor-appointments-page .doctor-appointments-content-card {
+    margin-top: 0;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+}
+
+.doctor-appointments-page .doctor-appointments-content-card > .doctor-appointment-content-body {
+    background: transparent;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 0;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card {
+    min-height: 100%;
+    border: 1px solid #dfe7f0;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 5px 18px rgba(26, 52, 84, .06);
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-main {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+    padding: 18px;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-group-kicker {
+    display: block;
+    margin-bottom: 6px;
+    color: #718096;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-patient {
+    grid-column: 1 / -1;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-status {
+    align-items: flex-start;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-status .doctor-appointment-label {
+    display: none;
+}
+
+.doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card > .doctor-appointment-actions {
+    margin-top: auto;
+    padding: 12px 14px;
+    border-top: 1px solid #edf1f5;
+    background: #fafbfd;
+}
+
+@media (max-width: 767.98px) {
+    .doctor-appointments-page .doctor-appointment-records[data-view="grid"] {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-main {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .doctor-appointments-page .doctor-appointment-records[data-view="grid"] .doctor-appointment-card-patient {
+        grid-column: auto;
+    }
+}
+
+#doctor-appointment-filter-modal .bootstrap-select[data-id="doctor-appointment-filter-type"],
+#doctor-appointment-filter-modal .bootstrap-select:has(#doctor-appointment-filter-type) {
+    width: 100% !important;
+}
+
+#doctor-appointment-filter-modal .bootstrap-select:has(#doctor-appointment-filter-type) .dropdown-menu {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 4px;
+    font-size: 12px;
+}
+
+#doctor-appointment-filter-modal .bootstrap-select:has(#doctor-appointment-filter-type) .dropdown-menu .inner {
+    min-height: 0 !important;
+    max-height: 150px !important;
+}
+
+#doctor-appointment-filter-modal .bootstrap-select:has(#doctor-appointment-filter-type) .dropdown-menu li a {
+    padding: 7px 10px;
+    border-radius: 6px;
+}
+
+@media (max-width: 900px) {
+    .doctor-appointments-page .doctor-appointments-heading {
+        display: block !important;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-actions {
+        width: 100%;
+        justify-content: flex-start !important;
+        margin-top: 15px;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-search {
+        flex: 1 1 auto;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-search .form-control {
+        width: auto !important;
+        flex: 1 1 auto;
+    }
+}
+
+@media (max-width: 620px) {
+    .doctor-appointments-page .doctor-appointments-header-actions {
+        align-items: stretch !important;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-search {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-search .form-control {
+        min-width: 0;
+    }
+
+    .doctor-appointments-page .doctor-appointments-header-actions > .btn,
+    .doctor-appointments-page .doctor-appointments-header-actions > .doctor-appointments-view-toggle {
+        flex: 1 1 0;
+    }
+
+    .doctor-appointments-page .doctor-appointments-view-toggle > .btn {
+        width: 50%;
+    }
+}

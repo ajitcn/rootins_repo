@@ -1,25 +1,3 @@
-$(document).on('click', '.open_patient_modal', function () {
-    $('#patient_clinic_id option[data-patient-inactive="1"]').remove();
-    resetForm('#patientForm');
-    resetLocationControls('#patientForm');
-    bindLocationManualToggles('#patientForm');
-    bindCountryCodeToggles('#patientForm');
-    clearFormErrors();
-
-    $('#patient_id').val('');
-    $('#patient_clinic_id').prop('disabled', false).selectpicker('refresh');
-    $('#patientModal .modal-title').text('Add Patient');
-    $('#patientForm .save').text('Save Patient');
-
-    $('#patient_state_id').html('<option value="">Select State</option>');
-    $('#patient_city_id').html('<option value="">Select City</option>');
-    $('#patient_locality_id').html('<option value="">Select Locality</option>');
-    $('#patient_locality_name').val('');
-    $('#patient_country_name, #patient_state_name, #patient_city_name').val('');
-    $('#patientForm .btSelect').selectpicker('refresh');
-    $('#patientModal').modal('show');
-});
-
 $('#patientForm').on('submit', function (e) {
     e.preventDefault();
     clearFormErrors();

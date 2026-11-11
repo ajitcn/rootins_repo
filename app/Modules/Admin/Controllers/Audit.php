@@ -8,7 +8,11 @@ class Audit extends BaseAdminController
 {
     public function index(): string
     {
-        $query = db_connect()->table('audit_logs')->select('audit_logs.*')->orderBy('id', 'DESC');
+        $query = db_connect()->table('audit_logs')
+            ->select('audit_logs.*, users.username AS actor_username, users.email AS actor_email, clinics.clinic_name')
+            ->join('users', 'users.id = audit_logs.actor_user_id', 'left')
+            ->join('clinics', 'clinics.id = audit_logs.clinic_id', 'left')
+            ->orderBy('audit_logs.id', 'DESC');
         $clinicId = (int) ($this->user['clinic_id'] ?? session('clinic_id') ?? 0);
 
         if ($clinicId > 0) {

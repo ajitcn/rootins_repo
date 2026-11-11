@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container" aria-labelledby="system-logs-title">
+<main class="dashboard-container crm-page" aria-labelledby="system-logs-title">
     <h1 id="system-logs-title" class="h4 mb-3">System Logs</h1>
     <form method="get" class="card card-body mb-3" aria-label="Filter system logs">
         <div class="form-row align-items-end">

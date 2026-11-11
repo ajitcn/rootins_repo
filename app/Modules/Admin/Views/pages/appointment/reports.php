@@ -4,7 +4,7 @@
 $statuses = ['scheduled', 'confirmed', 'checked_in', 'in_queue', 'completed', 'cancelled', 'no_show'];
 $filters = $filters ?? [];
 ?>
-<main class="dashboard-container admin-report-page" id="appointment-reports-page">
+<main class="dashboard-container crm-page admin-report-page" id="appointment-reports-page">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Appointment Management', 'page' => 'Appointment Reports']) ?>
     <div class="ri-page-header action-btn-container"><div class="ri-page-header-copy"><p class="ri-eyebrow mb-1">Appointment Management</p><h1 class="h3 mb-1">Appointment Reports</h1><p class="text-muted mb-0">Filter appointment activity by date, patient, doctor, service, and status.</p></div><div class="ri-page-header-actions"><button type="button" class="btn btn-sm btn-outline-secondary" id="printAppointmentReport"><i class="bi bi-printer mr-1" aria-hidden="true"></i>Print report</button></div></div>
     <section class="ri-list-card admin-report-filter-card" aria-labelledby="appointment-report-filter-title"><div class="ri-list-card-header"><div><h2 class="h6 mb-1" id="appointment-report-filter-title">Report filters</h2><p class="text-muted small mb-0">Dates use dd-mm-yyyy. To Date cannot be earlier than From Date.</p></div><span class="ri-list-count" id="appointmentReportResultLabel">Ready to run</span></div>

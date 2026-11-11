@@ -80,18 +80,19 @@ class Patient extends BaseAdminController
 
     public function registration()
     {
+        $registrationClinicId = $this->registrationClinicId();
         $doctorQuery = (new DoctorModel())->select('id, clinic_id, first_name, last_name, doctor_code')->where('status', 1)->orderBy('first_name')->orderBy('last_name');
 
-        if ($this->clinicScope() > 0) {
-            $doctorQuery->where('clinic_id', $this->clinicScope());
+        if ($registrationClinicId > 0) {
+            $doctorQuery->where('clinic_id', $registrationClinicId);
         }
 
-        $services = (new ServiceModel())->forScope($this->clinicScope() > 0 ? $this->clinicScope() : null)->where('status', 1)->orderBy('name')->findAll();
+        $services = (new ServiceModel())->forScope($registrationClinicId > 0 ? $registrationClinicId : null)->where('status', 1)->orderBy('name')->findAll();
 
         return view(ADMIN_VIEW . 'pages/patient/registration', [
             'countries' => service('location')->countries(),
             'telephoneCodes' => service('location')->telephoneCodes(),
-            'clinics' => $this->scopedClinics(),
+            'registrationClinicId' => $registrationClinicId,
             'doctors' => $doctorQuery->findAll(),
             'services' => $services,
             'canCreateAppointment' => $this->hasPermission('appointment.create'),
@@ -197,9 +198,13 @@ class Patient extends BaseAdminController
 
         try {
             $result = $this->registrationService->register($this->getRegistrationData(), isset($this->user['id']) ? (int) $this->user['id'] : null, ['source_type' => 'self', 'source_user_id' => isset($this->user['id']) ? (int) $this->user['id'] : null]);
-            $this->audit->record('admin.patient_created', ['patient_id' => (int) $result['id'], 'clinic_id' => (int) $this->request->getPost('clinic_id')]);
+            $this->audit->record('admin.patient_created', ['patient_id' => (int) $result['id'], 'clinic_id' => $this->registrationClinicId()]);
 
             return $this->response->setJSON(['status' => true, 'msg' => 'Patient registered successfully.', 'data' => $result]);
+        } catch (\InvalidArgumentException $e) {
+            log_message('warning', 'Patient registration rejected: ' . $e->getMessage());
+
+            return $this->response->setStatusCode(422)->setJSON(['status' => false, 'msg' => $e->getMessage()]);
         } catch (\Throwable $e) {
             log_message('error', 'Patient registration failed: ' . $e->getMessage());
 
@@ -391,11 +396,14 @@ class Patient extends BaseAdminController
 
     private function validateRegistration(): array
     {
-        $rules = ['first_name' => ['label' => 'First Name', 'rules' => 'required|max_length[100]'], 'middle_name' => ['label' => 'Middle Name', 'rules' => 'permit_empty|max_length[100]'], 'last_name' => ['label' => 'Last Name', 'rules' => 'required|max_length[100]'], 'gender' => ['label' => 'Gender', 'rules' => 'permit_empty|max_length[20]'], 'date_of_birth' => ['label' => 'Date of Birth', 'rules' => 'required|valid_date[Y-m-d]'], 'email' => ['label' => 'Email', 'rules' => 'required|valid_email|max_length[255]'], 'country_code' => ['label' => 'Country Code', 'rules' => 'permit_empty|max_length[5]'], 'telephone_country_code_id' => ['label' => 'Country Code', 'rules' => 'permit_empty|integer'], 'telephone_country_name' => ['label' => 'Country Name', 'rules' => 'permit_empty|max_length[191]'], 'mobile_number' => ['label' => 'Mobile Number', 'rules' => 'required|regex_match[/^[0-9][0-9 ()-]{6,19}$/]'], 'address' => ['label' => 'Address', 'rules' => 'permit_empty'], 'clinic_id' => ['label' => 'Clinic', 'rules' => 'required|integer'], 'country_id' => ['label' => 'Country', 'rules' => 'permit_empty|integer|is_not_unique[countries.id]'], 'state_id' => ['label' => 'State', 'rules' => 'permit_empty|integer|is_not_unique[states.id]'], 'city_id' => ['label' => 'City', 'rules' => 'permit_empty|integer|is_not_unique[cities.id]'], 'locality_id' => ['label' => 'Locality', 'rules' => 'permit_empty|integer|is_not_unique[localities.id]'], 'postal_code' => ['label' => 'Postal Code', 'rules' => 'permit_empty|max_length[20]']];
+        $rules = ['first_name' => ['label' => 'First Name', 'rules' => 'required|max_length[100]'], 'middle_name' => ['label' => 'Middle Name', 'rules' => 'permit_empty|max_length[100]'], 'last_name' => ['label' => 'Last Name', 'rules' => 'required|max_length[100]'], 'gender' => ['label' => 'Gender', 'rules' => 'permit_empty|max_length[20]'], 'date_of_birth' => ['label' => 'Date of Birth', 'rules' => 'required|valid_date[Y-m-d]'], 'email' => ['label' => 'Email', 'rules' => 'required|valid_email|max_length[255]'], 'country_code' => ['label' => 'Country Code', 'rules' => 'permit_empty|max_length[5]'], 'telephone_country_code_id' => ['label' => 'Country Code', 'rules' => 'permit_empty|integer'], 'telephone_country_name' => ['label' => 'Country Name', 'rules' => 'permit_empty|max_length[191]'], 'mobile_number' => ['label' => 'Mobile Number', 'rules' => 'required|regex_match[/^[0-9][0-9 ()-]{6,19}$/]'], 'address' => ['label' => 'Address', 'rules' => 'permit_empty'], 'country_id' => ['label' => 'Country', 'rules' => 'permit_empty|integer|is_not_unique[countries.id]'], 'state_id' => ['label' => 'State', 'rules' => 'permit_empty|integer|is_not_unique[states.id]'], 'city_id' => ['label' => 'City', 'rules' => 'permit_empty|integer|is_not_unique[cities.id]'], 'locality_id' => ['label' => 'Locality', 'rules' => 'permit_empty|integer|is_not_unique[localities.id]'], 'postal_code' => ['label' => 'Postal Code', 'rules' => 'permit_empty|max_length[20]']];
 
         $rules['date_of_birth']['rules'] = 'required';
         if (!$this->validate($rules)) {
             return ['status' => false, 'errors' => $this->validator->getErrors()];
+        }
+        if ($this->registrationClinicId() < 1) {
+            return ['status' => false, 'errors' => ['clinic_id' => 'No active clinic is configured for patient registration.']];
         }
         if (rootins_parse_date($this->request->getPost('date_of_birth')) === null) {
             return ['status' => false, 'errors' => ['date_of_birth' => 'Enter a valid date of birth as dd-mm-yyyy.']];
@@ -503,7 +511,7 @@ class Patient extends BaseAdminController
         $country = $this->telephoneCodeInput();
         $dateOfBirth = rootins_parse_date($this->request->getPost('date_of_birth'));
 
-        $data = ['clinic_id' => (int) $this->request->getPost('clinic_id'), 'first_name' => trim((string) $this->request->getPost('first_name')), 'middle_name' => $this->nullableString('middle_name'), 'last_name' => trim((string) $this->request->getPost('last_name')), 'gender' => $this->nullableString('gender'), 'date_of_birth' => $dateOfBirth, 'email' => trim((string) $this->request->getPost('email')), 'country_code_id' => $country['country_id'] ?? null, 'telephone_country_code_id' => $this->request->getPost('country_code_manual') === '1' ? null : ($country['id'] ?? null), 'country_code' => $this->nullableString('country_code'), 'telephone_country_name' => $this->request->getPost('country_code_manual') === '1' ? $this->nullableString('telephone_country_name') : null, 'mobile_normalized' => preg_replace('/[^0-9]/', '', (string) $this->request->getPost('mobile_number')), 'mobile_number' => trim((string) $this->request->getPost('mobile_number')), 'address' => $this->nullableString('address'), 'country_id' => $this->nullableInteger('country_id'), 'state_id' => $this->nullableInteger('state_id'), 'city_id' => $this->nullableInteger('city_id'), 'locality_id' => $this->nullableInteger('locality_id'), 'country_name' => $this->nullableString('country_name'), 'state_name' => $this->nullableString('state_name'), 'city_name' => $this->nullableString('city_name'), 'locality_name' => $this->nullableString('locality_name'), 'postal_code' => $this->nullableString('postal_code'), 'status' => 1];
+        $data = ['clinic_id' => $this->registrationClinicId(), 'first_name' => trim((string) $this->request->getPost('first_name')), 'middle_name' => $this->nullableString('middle_name'), 'last_name' => trim((string) $this->request->getPost('last_name')), 'gender' => $this->nullableString('gender'), 'date_of_birth' => $dateOfBirth, 'email' => trim((string) $this->request->getPost('email')), 'country_code_id' => $country['country_id'] ?? null, 'telephone_country_code_id' => $this->request->getPost('country_code_manual') === '1' ? null : ($country['id'] ?? null), 'country_code' => $this->nullableString('country_code'), 'telephone_country_name' => $this->request->getPost('country_code_manual') === '1' ? $this->nullableString('telephone_country_name') : null, 'mobile_normalized' => preg_replace('/[^0-9]/', '', (string) $this->request->getPost('mobile_number')), 'mobile_number' => trim((string) $this->request->getPost('mobile_number')), 'address' => $this->nullableString('address'), 'country_id' => $this->nullableInteger('country_id'), 'state_id' => $this->nullableInteger('state_id'), 'city_id' => $this->nullableInteger('city_id'), 'locality_id' => $this->nullableInteger('locality_id'), 'country_name' => $this->nullableString('country_name'), 'state_name' => $this->nullableString('state_name'), 'city_name' => $this->nullableString('city_name'), 'locality_name' => $this->nullableString('locality_name'), 'postal_code' => $this->nullableString('postal_code'), 'status' => 1];
 
         if ((string) $this->request->getPost('create_appointment_now') === '1') {
             $service = (new ServiceModel())->forScope((int) $data['clinic_id'])->where('id', (int) $this->request->getPost('appointment_service_id'))->where('status', 1)->first();
@@ -582,6 +590,19 @@ class Patient extends BaseAdminController
     private function clinicScope(): int
     {
         return (int) ($this->user['clinic_id'] ?? session('clinic_id') ?? 0);
+    }
+
+    private function registrationClinicId(): int
+    {
+        $scopedClinicId = $this->clinicScope();
+
+        if ($scopedClinicId > 0) {
+            return (new ClinicModel())->where('id', $scopedClinicId)->where('status', 1)->countAllResults() > 0 ? $scopedClinicId : 0;
+        }
+
+        $clinic = (new ClinicModel())->where('status', 1)->orderBy('id', 'ASC')->first();
+
+        return (int) ($clinic['id'] ?? 0);
     }
 
     private function inClinicScope(int $clinicId): bool

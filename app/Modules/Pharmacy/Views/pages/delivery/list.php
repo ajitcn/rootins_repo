@@ -1,6 +1,6 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container pharmacy-delivery-page pharmacy-delivery-list-page" aria-labelledby="pharmacy-delivery-title">
+<main class="pharmacy-page pharmacy-delivery-page pharmacy-delivery-list-page" aria-labelledby="pharmacy-delivery-title">
     <?= $this->include(PHARMACY_VIEW . 'pages/delivery/_toolbar') ?>
     <section class="card pharmacy-delivery-card" aria-label="Pharmacy delivery records">
         <div class="table-responsive pharmacy-delivery-table-wrap">

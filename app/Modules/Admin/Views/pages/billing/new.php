@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container" aria-labelledby="new-bill-title">
+<main class="dashboard-container crm-page" aria-labelledby="new-bill-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Billing and Invoices', 'page' => 'New Bill']) ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3"><div><h1 id="new-bill-title" class="h4 mb-1">New Bill</h1><p class="text-muted mb-0">Create a draft invoice. It must be finalized before payment updates.</p></div><a href="<?= base_url('admin/billing') ?>" class="btn btn-outline-secondary">View Bill List</a></div>
     <div id="billing-alert" role="status" aria-live="polite"></div>

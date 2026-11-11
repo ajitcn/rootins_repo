@@ -1,38 +1,35 @@
 <?= $this->extend(DOCTOR_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
-<main class="dashboard-container" aria-labelledby="doctor-patients-title">
-    <div class="page-heading">
+<main class="dashboard-container doctor-patients-page" aria-labelledby="doctor-patients-title">
+    <div class="page-heading doctor-patients-heading">
         <div>
             <div class="page-eyebrow">Clinical relationships</div>
             <h1 id="doctor-patients-title">My Patients</h1>
             <p class="text-muted mb-0">Patients in your assigned clinic relationship.</p>
         </div>
-        <button class="btn btn-primary" type="button" data-toggle="modal" data-target="#new-patient-modal">
-            <i class="bi bi-person-plus mr-1" aria-hidden="true"></i>New Patient
-        </button>
+        <div class="doctor-patients-heading-actions page-header-buttons">
+            <form method="get" class="doctor-patients-search" action="<?= current_url() ?>">
+                <label class="sr-only" for="doctor-patient-search">Search patients</label>
+                <input id="doctor-patient-search" name="search" value="<?= esc($filters['search'] ?? '') ?>" class="form-control form-control-sm" type="search" placeholder="Search patients">
+                <?php foreach ($filters as $key => $value): ?>
+                    <?php if (! in_array($key, ['search', 'page', 'page_size'], true) && ! is_array($value)): ?>
+                        <input type="hidden" name="<?= esc($key) ?>" value="<?= esc((string) $value) ?>">
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <input type="hidden" name="page_size" value="<?= (int) ($filters['page_size'] ?? 15) ?>">
+                <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search mr-1" aria-hidden="true"></i>Search</button>
+            </form>
+            <button class="btn btn-outline-primary" type="button" data-toggle="modal" data-target="#doctor-patient-filter-modal" aria-controls="doctor-patient-filter-modal">
+                <i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters
+            </button>
+            <button class="btn btn-primary" type="button" data-toggle="modal" data-target="#new-patient-modal">
+                <i class="bi bi-person-plus mr-1" aria-hidden="true"></i>New Patient
+            </button>
+        </div>
     </div>
 
-    <div class="card">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
-            <h2 class="h5 mb-2 mb-md-0">Patient register</h2>
-            <div class="d-flex flex-wrap align-items-center">
-                <form method="get" class="form-inline mr-2 mb-2 mb-md-0" action="<?= current_url() ?>">
-                    <label class="sr-only" for="doctor-patient-search">Search patients</label>
-                    <input id="doctor-patient-search" name="search" value="<?= esc($filters['search'] ?? '') ?>" class="form-control form-control-sm mr-2" type="search" placeholder="Search name or registration number">
-                    <?php foreach ($filters as $key => $value): ?>
-                        <?php if (! in_array($key, ['search', 'page', 'page_size'], true) && ! is_array($value)): ?>
-                            <input type="hidden" name="<?= esc($key) ?>" value="<?= esc((string) $value) ?>">
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                    <input type="hidden" name="page_size" value="<?= (int) ($filters['page_size'] ?? 15) ?>">
-                    <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search mr-1" aria-hidden="true"></i>Search</button>
-                </form>
-                <button class="btn btn-sm btn-outline-secondary mb-2 mb-md-0" type="button" data-toggle="modal" data-target="#doctor-patient-filter-modal" aria-controls="doctor-patient-filter-modal">
-                    <i class="bi bi-funnel mr-1" aria-hidden="true"></i>Filters
-                </button>
-            </div>
-        </div>
+    <div class="card doctor-patients-list-card">
         <div class="table-responsive">
             <table class="table mb-0" id="doctor-patients-table">
                 <thead><tr><th>Patient</th><th>Registration</th><th>Source</th><th>Gender</th><th>Mobile</th><th>Status</th><th class="text-right">Actions</th></tr></thead>

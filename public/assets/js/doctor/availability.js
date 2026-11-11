@@ -153,5 +153,7 @@
         cancel(BASE_URL + 'doctor/availability/schedule/' + $(this).data('id') + '/cancel', 'Disable this availability slot?');
     }).on('click', '.js-cancel-leave', function () {
         cancel(BASE_URL + 'doctor/availability/leave/' + $(this).data('id') + '/cancel', 'Cancel this leave request?');
+    }).on('click', '.js-availability-filter', function () {
+        $('.doctor-availability-page .doctor-availability-schedule-card > form.card-body').trigger('submit');
     });
 }(jQuery));

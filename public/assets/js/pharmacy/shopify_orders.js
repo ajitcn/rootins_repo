@@ -282,8 +282,18 @@
         if (isLine) setLineReviewLoading(form, true);
         try {
             var body = new FormData(form);
+            var displayedLineId = $row.find('.shopify-review-id').first().text().trim();
+            if (displayedLineId && displayedLineId !== 'Line unavailable') body.set('shopify_line_item_id', displayedLineId);
             if (window.RootinsCsrf) window.RootinsCsrf.formData(body);
-            var response = await fetchWithTimeout(form.action, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
+            // The review decision field is intentionally named "action" for the
+            // server contract. Reading form.action is unsafe here because a
+            // named control can shadow HTMLFormElement.action and return the
+            // <select> itself ("[object HTMLSelectElement]").
+            var actionUrl = form.getAttribute('action') || '';
+            if (!actionUrl || actionUrl.includes('[object') || actionUrl.includes('loading-icon.gif')) {
+                throw new Error('Invalid Shopify review action URL.');
+            }
+            var response = await fetchWithTimeout(actionUrl, { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
             var payload = await parseJsonResponse(response);
             if (isLine) lineFeedback($row, payload.message || payload.msg || 'Review saved.', false); else feedback(payload.message || payload.msg || 'Review saved.', false);
             if ($(form).hasClass('shopify-line-review-form')) await refreshReviewLine($(form).find('[name="line_id"]').val());

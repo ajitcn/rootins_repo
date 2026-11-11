@@ -16,6 +16,7 @@ $routes->group('doctor', ['namespace' => 'Doctor\Controllers', 'filter' => 'auth
     $routes->get('clinical', 'Clinical::index', ['filter' => 'permission:consultation.view']);
     $routes->get('appointments', 'Records::appointments', ['filter' => 'permission:appointment.view']);
     $routes->get('availability', 'Availability::index', ['filter' => 'permission:doctor.view']);
+    $routes->get('leaves', 'Availability::leaves', ['filter' => 'permission:doctor.view']);
     $routes->post('availability/schedule/save', 'Availability::saveSchedule', ['filter' => 'permission:doctor.edit']);
     $routes->post('availability/schedule/(:num)/cancel', 'Availability::cancelSchedule/$1', ['filter' => 'permission:doctor.edit']);
     $routes->post('availability/leave/save', 'Availability::saveLeave', ['filter' => 'permission:doctor.edit']);

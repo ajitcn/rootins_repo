@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container" aria-labelledby="edit-bill-title">
+<main class="dashboard-container crm-page" aria-labelledby="edit-bill-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Billing and Invoices', 'page' => 'Edit Bill']) ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3"><div><h1 id="edit-bill-title" class="h4 mb-1">Edit Bill</h1><p class="text-muted mb-0">Select a draft bill to edit. Finalized invoices are locked.</p></div><a href="<?= base_url('admin/billing') ?>" class="btn btn-outline-secondary">View Bill List</a></div>
     <div class="card"><div class="table-responsive"><table class="table mb-0" id="draft-invoices-table"><caption class="sr-only">Draft bills available for editing</caption><thead><tr><th>Invoice</th><th>Patient</th><th>Clinic</th><th>Total</th><th>Created</th><th class="text-right">Action</th></tr></thead><tbody>

@@ -10,11 +10,12 @@ foreach ($commissions ?? [] as $commissionSummary) {
 }
 ?>
 
-<main class="dashboard-container" aria-labelledby="doctor-commission-title">
+<main class="dashboard-container doctor-management-standard" aria-labelledby="doctor-commission-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Doctor Management', 'page' => 'Doctor Commission']) ?>
 
-    <div class="page-heading mb-3">
+    <header class="crm-header">
         <div>
+            <span class="crm-eyebrow">ADMIN / DOCTOR MANAGEMENT</span>
             <h1 id="doctor-commission-title" class="h3 mb-1">Doctor Commission</h1>
             <p class="text-muted mb-0">Manage scoped commission plans for consultations and services.</p>
         </div>
@@ -26,7 +27,7 @@ foreach ($commissions ?? [] as $commissionSummary) {
                 <i class="bi bi-plus-lg mr-1" aria-hidden="true"></i>New Doctor Commission
             </button>
         </div>
-    </div>
+    </header>
 
     <?= display_session_msg() ?>
 
@@ -39,12 +40,7 @@ foreach ($commissions ?? [] as $commissionSummary) {
         </div>
     </section>
 
-    <div class="card">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
-            <h2 class="h6 mb-0">Commission plan list</h2>
-            <span class="small text-muted">Search and status filters apply to the permitted scope.</span>
-        </div>
-        <div class="card-body p-0">
+    <section class="card crm-card" aria-label="Doctor commission plans">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover align-middle" id="doctorCommissionTable">
                     <thead>
@@ -105,9 +101,7 @@ foreach ($commissions ?? [] as $commissionSummary) {
                     <?php endif; ?>
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
+    </section>
 
     <?= view(ADMIN_VIEW . 'parts/doctor_pagination', ['pager' => $pager ?? null, 'group' => 'doctor_commissions', 'filters' => $filters ?? []]) ?>
 </main>

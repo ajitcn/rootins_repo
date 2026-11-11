@@ -1,6 +1,6 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
-<main class="dashboard-container clinic-detail-page" aria-labelledby="clinic-detail-title">
+<main class="dashboard-container crm-page clinic-detail-page" aria-labelledby="clinic-detail-title">
     <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Operations', 'page' => 'Clinic Details']) ?>
     <div class="clinic-detail-header d-flex flex-wrap justify-content-between align-items-start mb-4">
         <div><a href="<?= base_url('admin/clinics') ?>" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left mr-1" aria-hidden="true"></i> Back to clinics</a><h1 id="clinic-detail-title" class="page-title mb-1"><?= esc($clinic['clinic_name']) ?></h1><p class="page-description mb-0">Clinic code: <span class="clinic-code"><?= esc($clinic['clinic_code']) ?></span></p></div>

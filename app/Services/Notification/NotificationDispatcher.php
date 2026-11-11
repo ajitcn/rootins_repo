@@ -28,6 +28,7 @@ class NotificationDispatcher
         $channel = strtolower(trim($channel));
         $template = trim($template);
         $config = $this->config ?? new Notifications();
+        $policy = (new NotificationSettingsService())->runtime();
         $errors = $this->validate($channel, $recipient, $template);
 
         if ($errors !== []) {
@@ -37,16 +38,21 @@ class NotificationDispatcher
         $providerName = (string) ($config->providers[$channel] ?? 'unconfigured');
         $requestKey = $idempotencyKey !== null && trim($idempotencyKey) !== '' ? trim($idempotencyKey) : hash('sha256', $channel . '|' . $address . '|' . $template . '|' . json_encode($data));
         $notificationId = hash('sha256', $providerName . '|' . $requestKey);
-        $nextRetryAt = date('Y-m-d H:i:s', time() + max(1, $config->retryDelaySeconds));
-        $result = ['status' => 'deferred', 'notification_id' => $notificationId, 'channel' => $channel, 'provider' => $providerName, 'attempts' => 0, 'max_attempts' => max(1, $config->maxAttempts), 'retryable' => true, 'next_retry_at' => $nextRetryAt];
+        $retryDelay = max(30, (int) ($policy['retry_delay_seconds'] ?? $config->retryDelaySeconds));
+        $maxAttempts = max(1, (int) ($policy['max_attempts'] ?? $config->maxAttempts));
+        $nextRetryAt = date('Y-m-d H:i:s', time() + $retryDelay);
+        $result = ['status' => 'deferred', 'notification_id' => $notificationId, 'channel' => $channel, 'provider' => $providerName, 'attempts' => 0, 'max_attempts' => $maxAttempts, 'retryable' => true, 'next_retry_at' => $nextRetryAt];
 
-        if (!$config->enabled || $this->provider === null) {
-            $result['failure_reason'] = !$config->enabled ? 'Notification dispatch is disabled until provider and consent review is complete.' : 'No notification provider adapter is configured.';
+        $provider = $this->provider ?? ($channel === 'email' ? new EmailNotificationProvider() : null);
+        $enabled = $policy['enabled'] && ($channel === 'email' ? ($policy['email_enabled'] && (new EmailSettingsService())->runtime()['enabled']) : false);
+
+        if (!$enabled || $provider === null) {
+            $result['failure_reason'] = !$enabled ? 'Notification dispatch is disabled until the provider is enabled.' : 'No notification provider adapter is configured.';
             $this->logDispatch($result, false);
 
             return $result;
         }
-        $providerResult = $this->provider->send(['channel' => $channel, 'recipient' => $recipient, 'template' => $template, 'data' => $data]);
+        $providerResult = $provider->send(['channel' => $channel, 'recipient' => $recipient, 'template' => $template, 'data' => $data]);
         $result = array_merge($result, $providerResult);
         $this->logDispatch($result, ($result['status'] ?? '') === 'sent');
 

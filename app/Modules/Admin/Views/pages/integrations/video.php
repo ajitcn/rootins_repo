@@ -1,8 +1,9 @@
 <?= $this->extend(ADMIN_VIEW . 'layout') ?>
 
 <?= $this->section('main-content') ?>
-<main class="container-fluid py-4" id="video-integration-page">
-    <div class="video-page-heading mb-4">
+<main class="dashboard-container doctor-management-standard crm-page access-shell" id="video-integration-page">
+    <?= view('templates/_breadcrumb', ['module' => 'admin', 'menu_title' => 'Integrations', 'page' => 'Video Consultation']) ?>
+    <div class="video-page-heading crm-header access-hero mb-4">
         <div>
             <div class="video-eyebrow">Integration settings</div>
             <h1 class="video-title mb-2">Video consultation</h1>
