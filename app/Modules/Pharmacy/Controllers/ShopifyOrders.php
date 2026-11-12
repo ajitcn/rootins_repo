@@ -82,6 +82,10 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         try {
             $import = $this->operations->detail($id, $clinicId);
             if ($import === null) return $this->json(false, 'Shopify order was not found.', 404);
+            if (! empty($import['prescription_document_id'])) {
+                $token = (new ShopifyPrescriptionUploadService())->issueAccessToken($id, (int) $import['prescription_document_id'], $clinicId, (int) (session('user')['id'] ?? 0));
+                $import['prescription_url'] = base_url('pharmacy/shopify-orders/' . $id . '/prescription?token=' . rawurlencode($token));
+            }
             return $this->json(true, 'Shopify order loaded.', 200, ['import' => $import]);
         } catch (\Throwable $exception) {
             log_message('error', 'Pharmacy Shopify order JSON detail failed: ' . $exception->getMessage());

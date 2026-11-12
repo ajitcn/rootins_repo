@@ -27,8 +27,7 @@
     function prescriptionMarkup(importData) {
         var status = String(importData.prescription_status || '').toLowerCase();
         if (status === 'not_required') return statusMarkup('prescription', status);
-        var base = String(window.BASE_URL || '/').replace(/\/?$/, '/');
-        if (importData.prescription_document_id) return '<a href="' + escapeHtml(base + 'pharmacy/shopify-orders/' + encodeURIComponent(importData.id) + '/prescription') + '">View prescription</a>';
+        if (importData.prescription_url) return '<a target="_blank" rel="noopener noreferrer" href="' + escapeHtml(importData.prescription_url) + '">View prescription</a>';
         return statusMarkup('prescription', 'missing');
     }
 
