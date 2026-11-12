@@ -1,4 +1,4 @@
-<?php if ($canManage && (int) ($documentId ?? 0) > 0 && in_array((string) ($prescriptionDisplayStatus ?? ''), ['uploaded', 'awaiting_review', 'under_review', 'clarification_required', 'rejected'], true)): ?>
+<?php if ($canManage && (int) ($documentId ?? 0) > 0 && in_array((string) ($import['prescription_upload_status'] ?? ''), ['uploaded', 'awaiting_review', 'under_review', 'clarification_required', 'rejected'], true)): ?>
 <section class="pharmacy-content-card mb-4 shopify-detail-card" aria-label="Uploaded prescription review">
     <div class="card-body">
         <span class="pharmacy-eyebrow">Uploaded prescription</span>

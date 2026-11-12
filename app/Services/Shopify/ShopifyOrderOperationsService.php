@@ -695,9 +695,10 @@ GRAPHQL;
         $reference = trim((string) ($import['prescription_reference'] ?? ''));
         $import['prescription_required'] = $status !== 'not_required' && ($status !== '' || $reference !== '');
         $import['prescription_document_id'] = null;
+        $import['prescription_upload_status'] = null;
 
         $query = db_connect()->table('patient_documents')
-            ->select('id')
+            ->select('id, upload_status')
             ->where('source_type', 'shopify')
             ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
             ->where('shopify_customer_id', (string) ($import['shopify_customer_id'] ?? ''))
@@ -739,6 +740,7 @@ GRAPHQL;
         }
 
         $import['prescription_document_id'] = $document['id'] ?? null;
+        $import['prescription_upload_status'] = $document['upload_status'] ?? null;
         if ($document !== null && $status === '') $import['prescription_required'] = true;
 
         $this->decoratePrescriptionReferences($import, []);
@@ -851,11 +853,15 @@ GRAPHQL;
         $event = ! empty($import['last_event_id']) ? (new ShopifyWebhookEventService())->find((int) $import['last_event_id']) : null;
         $webhookHistory = db_connect()->table('shopify_webhook_events')->select('id, external_event_id, topic, status, error_message, retry_count, created_at, updated_at')->where('store_domain', $import['store_domain'])->like('payload_json', (string) $import['shopify_order_id'])->orderBy('created_at', 'DESC')->get(100)->getResultArray();
         $auditHistory = db_connect()->table('audit_logs')->select('id, action, route, occurred_at, context')->like('context', '"import_id":' . $id)->orderBy('occurred_at', 'DESC')->get(100)->getResultArray();
-        $prescriptionQuery = db_connect()->table('patient_documents')->select('id')->where('source_type', 'shopify')->where('shopify_store_domain', $import['store_domain'])->where('shopify_customer_id', $import['shopify_customer_id'])->where('patient_id', (int) ($import['patient_id'] ?? 0));
+        $prescriptionQuery = db_connect()->table('patient_documents')->select('id, upload_status')->where('source_type', 'shopify')->where('shopify_store_domain', $import['store_domain'])->where('shopify_customer_id', $import['shopify_customer_id'])->where('patient_id', (int) ($import['patient_id'] ?? 0));
         if (! empty($import['prescription_reference'])) $prescriptionQuery->where('external_upload_reference', $import['prescription_reference']);
         else $prescriptionQuery->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
         $prescription = $prescriptionQuery->get(1)->getRowArray();
+        if ($prescription === null) {
+            $prescription = db_connect()->table('patient_documents')->select('id, upload_status')->where('source_type', 'shopify')->where('shopify_store_domain', $import['store_domain'])->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))->where('patient_id', (int) ($import['patient_id'] ?? 0))->where('clinic_id', (int) ($import['clinic_id'] ?? 0))->orderBy('id', 'DESC')->get(1)->getRowArray();
+        }
         $import['prescription_document_id'] = $prescription['id'] ?? null;
+        $import['prescription_upload_status'] = $prescription['upload_status'] ?? null;
         $this->decoratePrescriptionReferences($import, $lines);
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
         $import['intent_present'] = $this->appointmentIntentPresent($event);
