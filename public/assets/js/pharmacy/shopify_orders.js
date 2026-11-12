@@ -121,7 +121,10 @@
         $row.find('[data-line-decision]').text(state).removeClass('is-approved is-awaiting is-blocked').addClass(approved ? 'is-approved' : (blocking ? 'is-blocked' : 'is-awaiting'));
         $row.find('[data-line-blocking]').remove();
         if (blocking) $('<small>', { 'class': 'shopify-blocking-reason', 'data-line-blocking': '', text: blocking }).appendTo($row.find('.shopify-review-action').first());
-        $row.find('select[name="action"] option[value="approve"]').prop('disabled', Boolean(blocking));
+        // Review decisions are reversible. Keep Approve selectable after a
+        // previous pharmacist decision; the server validates the current
+        // mapping, quantity, and prescription state before accepting it.
+        $row.find('select[name="action"] option[value="approve"]').prop('disabled', false);
         var $metrics = $('.shopify-review-metric strong'), approvedCount = lines.filter(function (item) { return ['approved', 'substituted', 'fulfilled'].indexOf(String(item.review_status || item.status || '').toLowerCase()) !== -1; }).length, blockedCount = lines.filter(function (item) { return reviewBlocking(item) !== ''; }).length;
         if ($metrics.length >= 4) { $metrics.eq(0).text(lines.length); $metrics.eq(1).text(approvedCount); $metrics.eq(2).text(blockedCount); $metrics.eq(3).text(Math.max(0, lines.length - approvedCount - blockedCount)); }
     }
@@ -223,6 +226,7 @@
     $('.shopify-review-workspace').addClass('pharmacist-review-section');
     $('.shopify-review-workspace .shopify-review-table tbody').addClass('pharmacist-review-list');
     $('.shopify-review-workspace .shopify-review-row').addClass('pharmacist-review-item');
+    $('.shopify-line-review-form select[name="action"] option[value="approve"]').prop('disabled', false);
 
     $('.shopify-order-action-form, .shopify-payment-action-form, .shopify-order-operation-action-form')
         .addClass('shopify-order-operation-action-form')

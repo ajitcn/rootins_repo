@@ -95,7 +95,12 @@ final class ShopifyOrderReviewService
         $next = $this->lineState($action);
         $previous = (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review');
         if ($previous === $next && in_array($next, ['approved', 'rejected', 'out_of_stock', 'prescription_invalid'], true)) throw new InvalidArgumentException('This pharmacist decision has already been applied.');
-        if ($next === 'approved' && ((int) ($line['medicine_id'] ?? 0) <= 0 || in_array($previous, ['prescription_missing', 'prescription_invalid', 'out_of_stock', 'unmapped', 'inactive'], true))) throw new InvalidArgumentException('This medicine line is not eligible for approval.');
+        // A pharmacist decision is corrective and reversible. The previous
+        // review status is not a permanent business fact: stock may be
+        // replenished, a prescription may be corrected, or a prior decision
+        // may simply have been entered in error. Approval still validates the
+        // current medicine mapping, quantity, and prescription eligibility.
+        if ($next === 'approved' && (int) ($line['medicine_id'] ?? 0) <= 0) throw new InvalidArgumentException('This medicine line is not eligible for approval.');
         $substituteNote = trim((string) ($input['substitute_note'] ?? $input['reason'] ?? ''));
         if ($next === 'substituted' && $substituteNote === '') throw new InvalidArgumentException('A substitute note is required.');
         $data = ['review_status' => $next, 'review_reason' => trim((string) ($input['reason'] ?? '')) ?: null, 'reviewed_by' => $actorId > 0 ? $actorId : null, 'reviewed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')];
