@@ -188,20 +188,58 @@ final class ShopifyOrderReviewService
         // doctor prescriptions. An accepted uploaded document authorizes the
         // order without requiring a prescriptions row or duration_days.
         if ($db->tableExists('patient_documents')) {
-            $uploaded = $db->table('patient_documents')
+            $documentQuery = $db->table('patient_documents')
                 ->where('source_type', 'shopify')
-                ->where('external_upload_reference', $reference)
                 ->where('patient_id', $patientId)
                 ->where('clinic_id', $clinicId)
-                ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
-                ->where('upload_status', 'accepted')
-                ->get(1)
-                ->getRowArray();
-            if ($uploaded !== null) return;
+                ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''));
+            if ($reference !== '') $documentQuery->where('external_upload_reference', $reference);
+            $uploaded = $documentQuery->orderBy('id', 'DESC')->get(1)->getRowArray();
+            if ($uploaded === null && $db->tableExists('shopify_prescription_order_links')) {
+                $link = $db->table('shopify_prescription_order_links')
+                    ->where('import_id', (int) ($import['id'] ?? 0))
+                    ->where('patient_id', $patientId)
+                    ->where('clinic_id', $clinicId)
+                    ->get(1)
+                    ->getRowArray();
+                if ((int) ($link['document_id'] ?? 0) > 0) {
+                    $uploaded = $db->table('patient_documents')
+                        ->where('id', (int) $link['document_id'])
+                        ->where('source_type', 'shopify')
+                        ->where('patient_id', $patientId)
+                        ->where('clinic_id', $clinicId)
+                        ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
+                        ->get(1)
+                        ->getRowArray();
+                }
+            }
+            if ($uploaded !== null) {
+                log_message('debug', 'Shopify pharmacist uploaded prescription eligibility ' . json_encode([
+                    'import_id' => (int) ($import['id'] ?? 0),
+                    'document_id' => (int) ($uploaded['id'] ?? 0),
+                    'upload_status' => (string) ($uploaded['upload_status'] ?? ''),
+                    'patient_id' => $patientId,
+                    'clinic_id' => $clinicId,
+                ], JSON_UNESCAPED_SLASHES));
+                if ((string) ($uploaded['upload_status'] ?? '') === 'accepted') return;
+            }
         }
 
-        $prescription = $db->table('prescriptions p')->select('p.id, p.status, p.duration_days, p.valid_until')->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)->where('p.clinic_id', $clinicId)->whereIn('p.status', ShopifyPrescriptionEligibility::ORDERABLE_STATUSES)->where('p.valid_until IS NOT NULL', null, false)->where('p.valid_until >=', ShopifyPrescriptionEligibility::today())->get(1)->getRowArray();
-        if ($prescription === null || ! ShopifyPrescriptionEligibility::isOrderable($prescription)) throw new InvalidArgumentException(ShopifyPrescriptionEligibility::REASON);
+        $prescription = $db->table('prescriptions p')->select('p.id, p.status, p.duration_days, p.valid_until')->join('doctors d', 'd.id = p.doctor_id AND d.clinic_id = p.clinic_id AND d.status = 1')->join('clinics c', 'c.id = p.clinic_id AND c.status = 1')->where('p.prescription_number', $reference)->where('p.patient_id', $patientId)->where('p.clinic_id', $clinicId)->get(1)->getRowArray();
+        if ($prescription === null || ! ShopifyPrescriptionEligibility::isOrderable($prescription)) {
+            log_message('warning', 'Shopify pharmacist structured prescription eligibility failed ' . json_encode([
+                'import_id' => (int) ($import['id'] ?? 0),
+                'prescription_found' => $prescription !== null,
+                'prescription_id' => (int) ($prescription['id'] ?? 0),
+                'status' => (string) ($prescription['status'] ?? ''),
+                'duration_days' => $prescription['duration_days'] ?? null,
+                'valid_until' => (string) ($prescription['valid_until'] ?? ''),
+                'today' => ShopifyPrescriptionEligibility::today(),
+                'patient_id' => $patientId,
+                'clinic_id' => $clinicId,
+            ], JSON_UNESCAPED_SLASHES));
+            throw new InvalidArgumentException(ShopifyPrescriptionEligibility::REASON);
+        }
         $item = db_connect()->table('prescription_items')->select('quantity')->where('prescription_id', (int) $prescription['id'])->where('medicine_id', (int) ($line['medicine_id'] ?? 0))->get(1)->getRowArray();
         $prescribedQuantity = $item === null ? null : ShopifyPrescriptionQuantity::normalize($item['quantity'] ?? null);
         if ($prescribedQuantity === null || $prescribedQuantity < 1 || $quantity > $prescribedQuantity) throw new InvalidArgumentException('Approved quantity cannot exceed the prescribed quantity.');
