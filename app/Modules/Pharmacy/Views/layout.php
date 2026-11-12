@@ -1,7 +1,7 @@
 <?= $this->extend('templates/theme1') ?>
 
 <?= $this->section('styles') ?>
-<?php $pharmacyAssetVersion = '20261106-pharmacy-standard11'; ?>
+<?php $pharmacyAssetVersion = '20261112-upload-preview2'; ?>
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/shared.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/prescriptions.css?v=' . $pharmacyAssetVersion) ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/pharmacy/prescriptions-refinement.css?v=' . $pharmacyAssetVersion) ?>">

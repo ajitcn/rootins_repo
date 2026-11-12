@@ -93,7 +93,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
         }
     }
 
-    public function viewPrescription(int $id): ResponseInterface
+    public function viewPrescription(int $id): string|ResponseInterface
     {
         $clinicId = $this->previewClinicId();
         if ($clinicId === null) return $this->response->setStatusCode(403)->setBody('Prescription access denied.');
@@ -114,7 +114,12 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             }
             $this->scope->audit('pharmacy.shopify_prescription_viewed', ['import_id' => $id, 'document_id' => (int) $document['id'], 'user_id' => $userId]);
             $temporaryUrl = (new ShopifyPrescriptionUploadService())->temporaryUrl($document);
-            return $this->response->setStatusCode(302)->setHeader('Location', $temporaryUrl);
+            return view(PHARMACY_VIEW . 'pages/shopify_orders/prescription_preview', [
+                'import' => $import,
+                'document' => $document,
+                'temporaryUrl' => $temporaryUrl,
+                'canManage' => $this->scope->can('pharmacy.shopify_orders.manage'),
+            ]);
         } catch (ShopifyPrescriptionPreviewException $exception) {
             $status = in_array($exception->category, [
                 'PRESCRIPTION_ACCESS_DENIED',
