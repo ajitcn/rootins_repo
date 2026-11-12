@@ -706,6 +706,38 @@ GRAPHQL;
         else $query->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''));
         $document = $query->get(1)->getRowArray();
 
+        // The order linkage is canonical for Shopify uploads. Fall back to it
+        // when a customer/reference value was normalized differently between
+        // upload and order import, while retaining full store/patient/clinic
+        // scoping.
+        if ($document === null && db_connect()->tableExists('shopify_prescription_order_links')) {
+            $link = db_connect()->table('shopify_prescription_order_links')
+                ->where('import_id', (int) ($import['id'] ?? 0))
+                ->where('store_domain', (string) ($import['store_domain'] ?? ''))
+                ->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))
+                ->where('clinic_id', (int) ($import['clinic_id'] ?? 0))
+                ->where('patient_id', (int) ($import['patient_id'] ?? 0))
+                ->get(1)->getRowArray();
+            if ((int) ($link['document_id'] ?? 0) > 0) {
+                $document = db_connect()->table('patient_documents')
+                    ->where('id', (int) $link['document_id'])
+                    ->where('source_type', 'shopify')
+                    ->where('clinic_id', (int) ($import['clinic_id'] ?? 0))
+                    ->where('patient_id', (int) ($import['patient_id'] ?? 0))
+                    ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
+                    ->get(1)->getRowArray();
+            }
+        }
+        if ($document === null) {
+            $document = db_connect()->table('patient_documents')
+                ->where('source_type', 'shopify')
+                ->where('shopify_store_domain', (string) ($import['store_domain'] ?? ''))
+                ->where('shopify_order_id', (string) ($import['shopify_order_id'] ?? ''))
+                ->where('patient_id', (int) ($import['patient_id'] ?? 0))
+                ->where('clinic_id', (int) ($import['clinic_id'] ?? 0))
+                ->orderBy('id', 'DESC')->get(1)->getRowArray();
+        }
+
         $import['prescription_document_id'] = $document['id'] ?? null;
         if ($document !== null && $status === '') $import['prescription_required'] = true;
 
