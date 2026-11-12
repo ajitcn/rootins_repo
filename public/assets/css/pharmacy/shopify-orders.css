@@ -436,6 +436,36 @@ body.modal-open .shopify-process-modal, body.modal-open .pharmacy-shopify-detail
     overflow: hidden;
 }
 
+.shopify-workflow-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.shopify-workflow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    min-height: 76px;
+    padding: .85rem 1rem;
+    border: 1px solid #e1e7ed;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.shopify-workflow-step.is-current { border-color: #9ac5e8; background: #eff7ff; }
+.shopify-workflow-step.is-complete { border-color: #b9dfca; background: #f1fbf4; }
+.shopify-workflow-step.is-locked { opacity: .7; }
+.shopify-workflow-number { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #dce7f1; color: #34495e; font-weight: 700; }
+.shopify-workflow-step.is-current .shopify-workflow-number { background: #2f80c0; color: #fff; }
+.shopify-workflow-step.is-complete .shopify-workflow-number { background: #31915b; color: #fff; }
+.shopify-workflow-step strong, .shopify-workflow-step small { display: block; }
+.shopify-workflow-step small { margin-top: .2rem; color: #68788c; line-height: 1.35; }
+
+@media (max-width: 767.98px) {
+    .shopify-workflow-steps { grid-template-columns: 1fr; }
+}
+
 .shopify-prescription-preview-image {
     display: block;
     max-width: 100%;
