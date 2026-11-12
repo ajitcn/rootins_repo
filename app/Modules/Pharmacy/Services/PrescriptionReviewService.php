@@ -94,7 +94,60 @@ final class PrescriptionReviewService
         $rows = array_map(fn (array $record): array => $this->normalize($record, $items[(int) $record['id']] ?? [], $cartStates[(int) $record['id']] ?? [], $orderReferences[(int) $record['id']] ?? []), $records);
         $doctors = $db->table('doctors')->select('id, first_name, last_name, doctor_code')->where('clinic_id', $clinicId)->orderBy('first_name', 'ASC')->orderBy('last_name', 'ASC')->get()->getResultArray();
 
-        return ['prescriptions' => $rows, 'doctors' => $doctors, 'view' => $view, 'filters' => ['search' => $search, 'status' => $status, 'review_state' => $reviewState, 'doctor_id' => $doctorId, 'from' => $this->toDisplayDate($from), 'to' => $this->toDisplayDate($to), 'page_size' => $pageSize], 'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total]];
+        return ['prescriptions' => $rows, 'uploaded_prescriptions' => $this->shopifyUploads($db, $clinicId, $search, $status), 'doctors' => $doctors, 'view' => $view, 'filters' => ['search' => $search, 'status' => $status, 'review_state' => $reviewState, 'doctor_id' => $doctorId, 'from' => $this->toDisplayDate($from), 'to' => $this->toDisplayDate($to), 'page_size' => $pageSize], 'pagination' => ['page' => $page, 'pages' => $pages, 'page_size' => $pageSize, 'total' => $total]];
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function shopifyUploads($db, int $clinicId, string $search, string $status): array
+    {
+        if (! $db->tableExists('patient_documents')) return [];
+
+        $query = $db->table('patient_documents d')
+            ->select('d.id, d.external_upload_reference, d.upload_status, d.created_at, d.updated_at, d.patient_id, d.shopify_order_id, p.registration_number, p.first_name, p.middle_name, p.last_name, p.mobile_number, p.country_code')
+            ->join('patients p', 'p.id = d.patient_id', 'left')
+            ->where('d.source_type', 'shopify')
+            ->where('d.clinic_id', $clinicId);
+
+        if (in_array($status, ['awaiting_review', 'accepted', 'rejected'], true)) {
+            $query->where('d.upload_status', $status === 'awaiting_review' ? 'awaiting_review' : $status);
+        }
+        if ($search !== '') {
+            $query->groupStart()
+                ->like('d.external_upload_reference', $search)
+                ->orLike('d.upload_status', $search)
+                ->orLike('p.registration_number', $search)
+                ->orLike('p.first_name', $search)
+                ->orLike('p.middle_name', $search)
+                ->orLike('p.last_name', $search)
+                ->orLike('p.mobile_number', $search)
+                ->groupEnd();
+        }
+
+        $documents = $query->orderBy('d.created_at', 'DESC')->get()->getResultArray();
+        $orderIds = array_values(array_filter(array_unique(array_map(static fn (array $row): string => trim((string) ($row['shopify_order_id'] ?? '')), $documents))));
+        $imports = [];
+        if ($orderIds !== []) {
+            foreach ($db->table('shopify_order_imports')->select('id, shopify_order_id, shopify_order_number')->whereIn('shopify_order_id', $orderIds)->where('clinic_id', $clinicId)->orderBy('id', 'DESC')->get()->getResultArray() as $import) {
+                $orderId = (string) ($import['shopify_order_id'] ?? '');
+                if ($orderId !== '' && ! isset($imports[$orderId])) $imports[$orderId] = $import;
+            }
+        }
+
+        return array_map(static function (array $row) use ($imports): array {
+            $patientName = trim(implode(' ', array_filter([(string) ($row['first_name'] ?? ''), (string) ($row['middle_name'] ?? ''), (string) ($row['last_name'] ?? '')])));
+            $order = $imports[(string) ($row['shopify_order_id'] ?? '')] ?? [];
+            return [
+                'id' => (int) ($row['id'] ?? 0),
+                'reference' => trim((string) ($row['external_upload_reference'] ?? '')) ?: 'Uploaded prescription',
+                'status' => trim((string) ($row['upload_status'] ?? 'uploaded')) ?: 'uploaded',
+                'patient_name' => $patientName ?: 'Patient not recorded',
+                'patient_number' => trim((string) ($row['registration_number'] ?? '')) ?: 'Not recorded',
+                'patient_mobile' => trim(implode(' ', array_filter([(string) ($row['country_code'] ?? ''), (string) ($row['mobile_number'] ?? '')]))) ?: 'Not recorded',
+                'shopify_order_number' => (string) ($order['shopify_order_number'] ?? ''),
+                'import_id' => (int) ($order['id'] ?? 0),
+                'received_at' => (string) ($row['created_at'] ?? ''),
+            ];
+        }, $documents);
     }
 
     /**
@@ -179,6 +232,6 @@ final class PrescriptionReviewService
      */
     private function emptyResult(string $view, int $pageSize): array
     {
-        return ['prescriptions' => [], 'doctors' => [], 'view' => $view, 'filters' => ['search' => '', 'status' => '', 'review_state' => '', 'doctor_id' => 0, 'from' => '', 'to' => '', 'page_size' => $pageSize], 'pagination' => ['page' => 1, 'pages' => 1, 'page_size' => $pageSize, 'total' => 0]];
+        return ['prescriptions' => [], 'uploaded_prescriptions' => [], 'doctors' => [], 'view' => $view, 'filters' => ['search' => '', 'status' => '', 'review_state' => '', 'doctor_id' => 0, 'from' => '', 'to' => '', 'page_size' => $pageSize], 'pagination' => ['page' => 1, 'pages' => 1, 'page_size' => $pageSize, 'total' => 0]];
     }
 }

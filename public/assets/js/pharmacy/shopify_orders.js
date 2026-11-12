@@ -324,6 +324,29 @@
         return false;
     });
 
+    $(document).off('submit.shopifyUploadReview', '.shopify-upload-review-form').on('submit.shopifyUploadReview', '.shopify-upload-review-form', async function (event) {
+        event.preventDefault();
+        var form = this, $form = $(form), $button = $form.find('[type="submit"]');
+        if ($form.data('busy')) return false;
+        $form.data('busy', true).attr('aria-busy', 'true');
+        $button.prop('disabled', true).attr('aria-busy', 'true');
+        try {
+            var body = new FormData(form);
+            if (window.RootinsCsrf) window.RootinsCsrf.formData(body);
+            var response = await fetchWithTimeout(form.getAttribute('action'), { method: 'POST', body: body, credentials: 'same-origin', headers: csrfHeaders() }, 30000);
+            var payload = await parseJsonResponse(response);
+            feedback(payload.message || payload.msg || 'Prescription upload review saved.', false);
+            window.location.reload();
+        } catch (error) {
+            feedback(error && error.message ? error.message : 'Prescription upload review could not be saved safely.', true);
+        } finally {
+            $form.data('busy', false).removeAttr('aria-busy');
+            $button.prop('disabled', false).removeAttr('aria-busy');
+            clearStaleLoadingState();
+        }
+        return false;
+    });
+
     $(document).off('click.shopifyHistory', '.shopify-history-toggle').on('click.shopifyHistory', '.shopify-history-toggle', function () {
         var $button = $(this), panel = document.getElementById($button.attr('aria-controls')), expanded = $button.attr('aria-expanded') === 'true', nextExpanded = !expanded, $panel = $(panel);
         if (!panel) return;
