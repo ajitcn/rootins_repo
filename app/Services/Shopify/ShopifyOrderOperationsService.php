@@ -643,7 +643,10 @@ GRAPHQL;
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) ($filters['date_to'] ?? '')))) $query->where('i.created_at <=', trim((string) $filters['date_to']) . ' 23:59:59');
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') $query->groupStart()->like('i.shopify_order_number', $search)->orLike('i.shopify_order_id', $search)->orLike('i.customer_name_snapshot', $search)->orLike('i.customer_email_snapshot', $search)->orLike('p.registration_number', $search)->orLike('i.shopify_customer_id', $search)->groupEnd();
-        $imports = $query->get(500)->getResultArray();
+        // Pagination is applied by queuePage() after the derived prescription and
+        // delivery filters are resolved. Keep this method unpaged for the Admin
+        // operations screen and for callers that need the complete queue.
+        $imports = $query->get()->getResultArray();
         foreach ($imports as &$import) {
             $this->decorateShopifyPrescriptionDisplay($import);
         }
@@ -711,6 +714,37 @@ GRAPHQL;
         }
         unset($import);
         return $imports;
+    }
+
+    /**
+     * Return a paged pharmacy queue while preserving the derived display filters.
+     *
+     * @return array{imports:list<array<string,mixed>>,pagination:array{page:int,pages:int,page_size:int,total:int}}
+     */
+    public function queuePage(array $filters = [], ?int $clinicId = null): array
+    {
+        $pageSize = (int) ($filters['page_size'] ?? 15);
+        $pageSize = in_array($pageSize, [10, 15, 25, 50], true) ? $pageSize : 15;
+        $page = max(1, (int) ($filters['page'] ?? 1));
+
+        // queue() performs all SQL and derived-state filtering. Do not pass page
+        // controls into it because they are not order filters.
+        $queueFilters = $filters;
+        unset($queueFilters['page'], $queueFilters['page_size']);
+        $allImports = $this->queue($queueFilters, $clinicId);
+        $total = count($allImports);
+        $pages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $pages);
+
+        return [
+            'imports' => array_slice($allImports, ($page - 1) * $pageSize, $pageSize),
+            'pagination' => [
+                'page' => $page,
+                'pages' => $pages,
+                'page_size' => $pageSize,
+                'total' => $total,
+            ],
+        ];
     }
 
     /** @param array<string, mixed> $import */

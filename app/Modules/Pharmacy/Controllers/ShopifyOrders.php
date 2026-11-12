@@ -33,7 +33,8 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             $filters = $this->request->getGet();
             $prescriptions = new ShopifyPrescriptionUploadService();
             $userId = (int) (session('user')['id'] ?? 0);
-            $imports = $this->operations->queue(is_array($filters) ? $filters : [], $clinicId);
+            $queue = $this->operations->queuePage(is_array($filters) ? $filters : [], $clinicId);
+            $imports = $queue['imports'];
             foreach ($imports as &$import) {
                 if (! empty($import['prescription_document_id'])) {
                     $token = $prescriptions->issueAccessToken((int) $import['id'], (int) $import['prescription_document_id'], $clinicId, $userId);
@@ -43,6 +44,7 @@ final class ShopifyOrders extends \App\Controllers\BaseController
             unset($import);
             return view(PHARMACY_VIEW . 'pages/shopify_orders/index', [
                 'imports' => $imports,
+                'pagination' => $queue['pagination'],
                 'counters' => $this->operations->counters($clinicId),
                 'filters' => is_array($filters) ? $filters : [],
                 'canManage' => $this->scope->can('pharmacy.shopify_orders.manage'),

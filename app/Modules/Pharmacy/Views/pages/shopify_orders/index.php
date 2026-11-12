@@ -1,7 +1,8 @@
 <?= $this->extend(PHARMACY_VIEW . 'layout') ?>
 <?= $this->section('main-content') ?>
 <?php
-$this->setData(['eyebrow' => 'Medicine Orders / Shopify', 'title' => 'Shopify Orders', 'titleId' => 'pharmacy-shopify-orders-title', 'description' => 'Review imported Shopify orders, prescriptions, mappings, payment, delivery, and processing history.', 'count' => count($imports ?? []), 'countLabel' => 'orders in scope', 'filterTarget' => '#pharmacy-shopify-order-filters', 'filterMode' => 'collapse']);
+$pagination = $pagination ?? ['page' => 1, 'pages' => 1, 'page_size' => 15, 'total' => 0];
+$this->setData(['eyebrow' => 'Medicine Orders / Shopify', 'title' => 'Shopify Orders', 'titleId' => 'pharmacy-shopify-orders-title', 'description' => 'Review imported Shopify orders, prescriptions, mappings, payment, delivery, and processing history.', 'count' => (int) ($pagination['total'] ?? 0), 'countLabel' => 'orders in scope', 'filterTarget' => '#pharmacy-shopify-order-filters', 'filterMode' => 'collapse']);
 $filters = $filters ?? [];
 $statusOptions = ['received' => 'Received', 'awaiting_patient_link' => 'Awaiting patient link', 'pending_mapping' => 'Pending mapping', 'ready_to_import' => 'Ready to process', 'quarantined' => 'Quarantined', 'imported' => 'Imported', 'failed' => 'Failed', 'cancelled' => 'Cancelled'];
 $paymentOptions = ['paid' => 'Paid', 'authorized' => 'Authorized', 'partially_paid' => 'Partially paid', 'pending' => 'Pending', 'refunded' => 'Refunded', 'voided' => 'Voided'];
@@ -33,6 +34,7 @@ $badge = static function (string $groupOrValue, mixed $value = null): string {
         <?php endforeach; ?>
         <div class="filter-field"><label for="shopify-date-from">From</label><input class="form-control form-control-sm" type="date" id="shopify-date-from" name="date_from" value="<?= esc($filters['date_from'] ?? '') ?>"></div>
         <div class="filter-field"><label for="shopify-date-to">To</label><input class="form-control form-control-sm" type="date" id="shopify-date-to" name="date_to" value="<?= esc($filters['date_to'] ?? '') ?>"></div>
+        <div class="filter-field"><label for="shopify-filter-page-size">Rows per page</label><select class="form-control form-control-sm" id="shopify-filter-page-size" name="page_size"><option value="10" <?= (int) ($filters['page_size'] ?? 15) === 10 ? 'selected' : '' ?>>10</option><option value="15" <?= (int) ($filters['page_size'] ?? 15) === 15 ? 'selected' : '' ?>>15</option><option value="25" <?= (int) ($filters['page_size'] ?? 15) === 25 ? 'selected' : '' ?>>25</option><option value="50" <?= (int) ($filters['page_size'] ?? 15) === 50 ? 'selected' : '' ?>>50</option></select></div>
         <div class="pharmacy-shopify-filter-actions"><button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search mr-1" aria-hidden="true"></i>Apply</button><a class="btn btn-sm btn-light" href="<?= base_url('pharmacy/shopify-orders') ?>">Clear</a></div>
     </form></div>
     <section class="card pharmacy-shopify-table-card" aria-label="Imported Shopify orders">
@@ -49,6 +51,7 @@ $badge = static function (string $groupOrValue, mixed $value = null): string {
             </tr>
         <?php endforeach; endif; ?></tbody></table></div>
     </section>
+    <?= $this->include(PHARMACY_VIEW . 'parts/shopify_order_pagination') ?>
 </main>
 <div class="modal fade pharmacy-shopify-details-modal" id="shopifyOrderDetailsModal" tabindex="-1" role="dialog" aria-labelledby="shopifyOrderDetailsTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable" role="document"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="shopifyOrderDetailsTitle">Shopify order details</h2><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body" id="shopifyOrderDetailsBody"><div class="text-center text-muted py-5">Select an order to load its details.</div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-dismiss="modal">Close</button></div></div></div></div>
 <?= $this->section('scripts') ?><script src="<?= base_url('assets/js/pharmacy/shopify_orders.js?v=20261112-review-reversible1') ?>"></script><?= $this->endSection() ?>

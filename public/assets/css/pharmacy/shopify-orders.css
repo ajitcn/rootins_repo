@@ -15,6 +15,9 @@
 .pharmacy-shopify-filters label { display: block; margin-bottom: 5px; color: #5d6878; font-size: 11px; font-weight: 700; }
 .pharmacy-shopify-filter-actions { display: flex; gap: 6px; }
 .pharmacy-shopify-table-card { overflow: visible; border: 1px solid var(--shopify-border); border-radius: 10px; box-shadow: 0 5px 18px rgba(31, 41, 55, .045); }
+.pharmacy-shopify-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 12px 2px 4px; }
+.pharmacy-shopify-page-size { display: inline-flex; align-items: center; gap: 7px; margin: 0; color: #697586; font-size: 11px; font-weight: 700; }
+.pharmacy-shopify-page-size .custom-select { width: auto; min-width: 62px; }
 .pharmacy-shopify-table-card .card-header { min-height: 52px; padding: 15px 16px; background: #fff; border-bottom: 1px solid var(--shopify-border); }
 .pharmacy-shopify-table-card .card-header h2 { color: #1f2940; font-size: .86rem; font-weight: 800; }
 .pharmacy-shopify-table-wrap { overflow-x: auto; }
