@@ -62,7 +62,7 @@ $canReviewDocument = in_array($uploadStatus, ['uploaded', 'awaiting_review', 'un
             <?php elseif (! $canManage): ?>
                 <div class="alert alert-info mb-0">You have read-only access. A pharmacist with prescription-review permission must accept, request clarification, or reject this upload.</div>
             <?php else: ?>
-                <form class="shopify-upload-review-form" method="post" action="<?= base_url('pharmacy/shopify-orders/prescriptions/review') ?>">
+                <form class="shopify-upload-review-form" data-no-global-loader method="post" action="<?= base_url('pharmacy/shopify-orders/prescriptions/review') ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="upload_id" value="<?= $documentId ?>">
                     <div class="form-row align-items-end">
@@ -76,6 +76,6 @@ $canReviewDocument = in_array($uploadStatus, ['uploaded', 'awaiting_review', 'un
     </section>
 </main>
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js/pharmacy/shopify_orders.js?v=20261112-upload-preview2') ?>"></script>
+<script src="<?= base_url('assets/js/pharmacy/shopify_orders.js?v=20261112-upload-preview3') ?>"></script>
 <?= $this->endSection() ?>
 <?= $this->endSection() ?>

@@ -7,7 +7,7 @@
         <?php if (! $canManage): ?>
             <div class="alert alert-info mb-0">You have read-only access. A pharmacist with prescription-review permission must accept, clarify, or reject this upload.</div>
         <?php else: ?>
-        <form class="shopify-upload-review-form" method="post" action="<?= base_url('pharmacy/shopify-orders/prescriptions/review') ?>">
+        <form class="shopify-upload-review-form" data-no-global-loader method="post" action="<?= base_url('pharmacy/shopify-orders/prescriptions/review') ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="upload_id" value="<?= (int) $documentId ?>">
             <div class="form-row align-items-end">
