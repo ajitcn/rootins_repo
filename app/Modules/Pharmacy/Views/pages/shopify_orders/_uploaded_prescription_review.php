@@ -13,7 +13,7 @@
             <div class="form-row align-items-end">
                 <div class="form-group col-md-4 mb-md-0"><label for="shopify-upload-review-decision">Decision</label><select class="form-control" id="shopify-upload-review-decision" name="decision"><option value="approve">Accept upload</option><option value="clarify">Request clarification</option><option value="reject">Reject upload</option></select></div>
                 <div class="form-group col-md-6 mb-md-0"><label for="shopify-upload-review-reason">Reason / note</label><input class="form-control" id="shopify-upload-review-reason" name="reason" maxlength="1000" placeholder="Required for rejection or clarification"></div>
-                <div class="form-group col-md-2 mb-md-0"><div class="custom-control custom-checkbox mb-2"><input class="custom-control-input" type="checkbox" id="shopify-upload-review-confirmation" name="confirmation" value="1"><label class="custom-control-label small" for="shopify-upload-review-confirmation">Confirm</label></div><button class="btn btn-primary btn-block" type="submit">Save review</button></div>
+                <div class="form-group col-md-2 mb-md-0"><div class="custom-control custom-checkbox mb-2"><input class="custom-control-input" type="checkbox" id="shopify-upload-review-confirmation" name="confirmation" value="1" required><label class="custom-control-label small" for="shopify-upload-review-confirmation">Confirm decision <span class="text-danger">*</span></label></div><button class="btn btn-primary btn-block" type="submit">Save review</button></div>
             </div>
         </form>
         <?php endif; ?>

@@ -357,6 +357,16 @@
         return false;
     });
 
+    $(document).off('change.shopifyUploadReviewDecision', '.shopify-upload-review-form [name="decision"]').on('change.shopifyUploadReviewDecision', '.shopify-upload-review-form [name="decision"]', function () {
+        var $form = $(this).closest('.shopify-upload-review-form');
+        var requiresConfirmation = $(this).val() === 'approve';
+        var $confirmation = $form.find('[name="confirmation"]');
+        $confirmation.prop('required', requiresConfirmation);
+        $form.find('label[for="' + $confirmation.attr('id') + '"] .text-danger').toggle(requiresConfirmation);
+    });
+
+    $('.shopify-upload-review-form [name="decision"]').trigger('change.shopifyUploadReviewDecision');
+
     $(document).off('click.shopifyHistory', '.shopify-history-toggle').on('click.shopifyHistory', '.shopify-history-toggle', function () {
         var $button = $(this), panel = document.getElementById($button.attr('aria-controls')), expanded = $button.attr('aria-expanded') === 'true', nextExpanded = !expanded, $panel = $(panel);
         if (!panel) return;

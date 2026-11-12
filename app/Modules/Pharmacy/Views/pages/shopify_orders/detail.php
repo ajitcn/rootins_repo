@@ -23,7 +23,7 @@ if ($identityStatus === 'linked' && ((int) ($import['patient_id'] ?? 0) <= 0 || 
 $display = static fn (mixed $value, string $fallback = '—'): string => trim((string) $value) !== '' ? (string) $value : $fallback;
 $prescriptionReferences = is_array($import['prescription_references'] ?? null) ? $import['prescription_references'] : [];
 $prescriptionDisplayStatus = (string) ($import['prescription_display_status'] ?? 'not_required');
-$prescriptionLabel = ['uploaded' => 'Uploaded prescription', 'awaiting_review' => 'Awaiting Review', 'missing' => 'Required - Missing', 'rejected' => 'Invalid / Rejected', 'not_required' => 'Not Required'][$prescriptionDisplayStatus] ?? 'Not Required';
+$prescriptionLabel = ['uploaded' => 'Uploaded prescription', 'awaiting_review' => 'Awaiting Review', 'under_review' => 'Under Review', 'accepted' => 'Accepted', 'missing' => 'Required - Missing', 'rejected' => 'Invalid / Rejected', 'not_required' => 'Not Required'][$prescriptionDisplayStatus] ?? 'Not Required';
 $linePrescriptionReferences = static function (array $line) use ($prescriptionReferences): array { $name = trim((string) ($line['medicine_name'] ?? $line['title_snapshot'] ?? '')); return array_values(array_filter($prescriptionReferences, static fn (array $rx): bool => $name !== '' && in_array($name, $rx['medicine_names'] ?? [], true))); };
 $reviewLines = $import['lines'] ?? [];
 $reviewState = static fn (array $line): string => strtolower(trim((string) ($line['review_status'] ?? $line['status'] ?? 'awaiting_review')));

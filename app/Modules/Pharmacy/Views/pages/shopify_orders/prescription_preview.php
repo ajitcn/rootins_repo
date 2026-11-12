@@ -68,7 +68,7 @@ $canReviewDocument = in_array($uploadStatus, ['uploaded', 'awaiting_review', 'un
                     <div class="form-row align-items-end">
                         <div class="form-group col-lg-4"><label for="preview-review-decision">Decision</label><select class="form-control" id="preview-review-decision" name="decision"><option value="approve">Accept upload</option><option value="clarify">Request clarification</option><option value="reject">Reject upload</option></select></div>
                         <div class="form-group col-lg-5"><label for="preview-review-reason">Reason / note</label><input class="form-control" id="preview-review-reason" name="reason" maxlength="1000" placeholder="Required for clarification or rejection"></div>
-                        <div class="form-group col-lg-3"><div class="custom-control custom-checkbox mb-2"><input class="custom-control-input" type="checkbox" id="preview-review-confirmation" name="confirmation" value="1"><label class="custom-control-label small" for="preview-review-confirmation">Confirm decision</label></div><button type="submit" class="btn btn-primary btn-block">Save review</button></div>
+                        <div class="form-group col-lg-3"><div class="custom-control custom-checkbox mb-2"><input class="custom-control-input" type="checkbox" id="preview-review-confirmation" name="confirmation" value="1" required><label class="custom-control-label small" for="preview-review-confirmation">Confirm decision <span class="text-danger">*</span></label></div><button type="submit" class="btn btn-primary btn-block">Save review</button></div>
                     </div>
                 </form>
             <?php endif; ?>

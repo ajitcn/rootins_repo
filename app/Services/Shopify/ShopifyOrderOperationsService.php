@@ -741,6 +741,9 @@ GRAPHQL;
 
         $import['prescription_document_id'] = $document['id'] ?? null;
         $import['prescription_upload_status'] = $document['upload_status'] ?? null;
+        if ($document !== null) {
+            $import['prescription_status'] = $this->displayUploadedPrescriptionStatus($document['upload_status'] ?? null);
+        }
         if ($document !== null && $status === '') $import['prescription_required'] = true;
 
         $this->decoratePrescriptionReferences($import, []);
@@ -817,9 +820,21 @@ GRAPHQL;
     private function displayPrescriptionState(array $import, array $lines): string
     {
         $status = strtolower(trim((string) ($import['prescription_status'] ?? '')));
-        if (! empty($import['prescription_document_id'])) return in_array($status, ['rejected', 'invalid'], true) ? 'rejected' : ($status === 'awaiting_review' ? 'awaiting_review' : 'uploaded');
+        if (! empty($import['prescription_document_id'])) return $this->displayUploadedPrescriptionStatus($import['prescription_upload_status'] ?? $status);
         foreach ($lines as $line) if (! empty($line['prescription_required']) || in_array((string) ($line['review_status'] ?? ''), ['prescription_required', 'prescription_missing'], true)) return in_array((string) ($line['review_status'] ?? ''), ['prescription_invalid', 'rejected'], true) ? 'rejected' : 'missing';
         return $status === 'invalid' ? 'rejected' : ($status === 'awaiting_review' ? 'awaiting_review' : 'not_required');
+    }
+
+    private function displayUploadedPrescriptionStatus(mixed $status): string
+    {
+        return match (strtolower(trim((string) $status))) {
+            'accepted' => 'accepted',
+            'rejected' => 'rejected',
+            'clarification_required' => 'awaiting_review',
+            'under_review' => 'under_review',
+            'uploaded', 'awaiting_review' => 'awaiting_review',
+            default => 'awaiting_review',
+        };
     }
 
     public function counters(?int $clinicId = null): array
@@ -862,6 +877,9 @@ GRAPHQL;
         }
         $import['prescription_document_id'] = $prescription['id'] ?? null;
         $import['prescription_upload_status'] = $prescription['upload_status'] ?? null;
+        if ($prescription !== null) {
+            $import['prescription_status'] = $this->displayUploadedPrescriptionStatus($prescription['upload_status'] ?? null);
+        }
         $this->decoratePrescriptionReferences($import, $lines);
         $import['lines'] = $lines; $import['history'] = $history; $import['last_webhook'] = $event; $import['webhook_history'] = $webhookHistory; $import['audit_history'] = $auditHistory;
         $import['intent_present'] = $this->appointmentIntentPresent($event);
