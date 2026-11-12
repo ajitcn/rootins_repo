@@ -7,7 +7,7 @@ $statusOptions = ['received' => 'Received', 'awaiting_patient_link' => 'Awaiting
 $paymentOptions = ['paid' => 'Paid', 'authorized' => 'Authorized', 'partially_paid' => 'Partially paid', 'pending' => 'Pending', 'refunded' => 'Refunded', 'voided' => 'Voided'];
 $prescriptionOptions = ['awaiting_review' => 'Awaiting review', 'accepted' => 'Accepted', 'invalid' => 'Invalid'];
 $mappingOptions = ['mapped' => 'Mapped', 'unmapped' => 'Unmapped', 'conflict' => 'Mapping conflict', 'inactive_medicine' => 'Inactive medicine'];
-$deliveryOptions = ['pending' => 'Pending', 'packed' => 'Packed', 'fulfilled' => 'Fulfilled', 'out_for_delivery' => 'Out for delivery', 'delivered' => 'Delivered', 'failed' => 'Failed'];
+$deliveryOptions = ['not_fulfilled' => 'Not fulfilled', 'pending' => 'Pending', 'packed' => 'Packed', 'fulfilled' => 'Fulfilled', 'out_for_delivery' => 'Out for delivery', 'delivered' => 'Delivered', 'failed' => 'Failed'];
 // Empty Shopify fulfilment remains null in storage and is presented as "Not fulfilled".
 $badge = static function (string $groupOrValue, mixed $value = null): string {
     if ($value === null) {

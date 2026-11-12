@@ -635,9 +635,10 @@ GRAPHQL;
             ->select('i.*, p.registration_number, p.first_name, p.last_name, p.status AS rootins_patient_status, l.link_status')
             ->join('patients p', 'p.id = i.patient_id', 'left')
             ->join('shopify_patient_identity_links l', 'l.shopify_store_domain = i.store_domain AND l.shopify_customer_id = i.shopify_customer_id', 'left')
-            ->orderBy('i.updated_at', 'DESC');
+            ->orderBy('CAST(i.shopify_order_number AS UNSIGNED)', 'DESC', false)
+            ->orderBy('i.id', 'DESC');
         if ($clinicId !== null) $query->where('i.clinic_id', $clinicId);
-        foreach (['store_domain' => 'i.store_domain', 'status' => 'i.status', 'prescription_status' => 'i.prescription_status', 'mapping_status' => 'i.mapping_status', 'financial_status' => 'i.financial_status', 'fulfillment_status' => 'i.fulfillment_status', 'patient_status' => 'i.patient_status'] as $key => $column) if (($filters[$key] ?? '') !== '') $query->where($column, trim((string) $filters[$key]));
+        foreach (['store_domain' => 'i.store_domain', 'status' => 'i.status', 'mapping_status' => 'i.mapping_status', 'financial_status' => 'i.financial_status', 'patient_status' => 'i.patient_status'] as $key => $column) if (($filters[$key] ?? '') !== '') $query->where($column, trim((string) $filters[$key]));
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) ($filters['date_from'] ?? '')))) $query->where('i.created_at >=', trim((string) $filters['date_from']) . ' 00:00:00');
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) ($filters['date_to'] ?? '')))) $query->where('i.created_at <=', trim((string) $filters['date_to']) . ' 23:59:59');
         $search = trim((string) ($filters['search'] ?? ''));
@@ -647,6 +648,30 @@ GRAPHQL;
             $this->decorateShopifyPrescriptionDisplay($import);
         }
         unset($import);
+        $prescriptionFilter = strtolower(trim((string) ($filters['prescription_status'] ?? '')));
+        $deliveryFilter = strtolower(trim((string) ($filters['fulfillment_status'] ?? '')));
+        if ($prescriptionFilter !== '' || $deliveryFilter !== '') {
+            $imports = array_values(array_filter($imports, function (array $import) use ($prescriptionFilter, $deliveryFilter): bool {
+                if ($prescriptionFilter !== '') {
+                    $displayStatus = strtolower((string) ($import['prescription_display_status'] ?? 'not_required'));
+                    $matchesPrescription = match ($prescriptionFilter) {
+                        'invalid' => $displayStatus === 'rejected',
+                        default => $displayStatus === $prescriptionFilter,
+                    };
+                    if (! $matchesPrescription) return false;
+                }
+                if ($deliveryFilter !== '') {
+                    $rawDelivery = strtolower(trim((string) ($import['fulfillment_status'] ?? '')));
+                    $matchesDelivery = match ($deliveryFilter) {
+                        'not_fulfilled' => $rawDelivery === '',
+                        'fulfilled' => in_array($rawDelivery, ['fulfilled', 'dispatched'], true),
+                        default => $rawDelivery === $deliveryFilter,
+                    };
+                    if (! $matchesDelivery) return false;
+                }
+                return true;
+            }));
+        }
         $ids = array_values(array_filter(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $imports)));
         if ($ids === []) return $imports;
         $lineRows = db_connect()->table('shopify_order_import_lines l')->select('l.import_id, l.title_snapshot, l.quantity, l.medicine_id, l.status, l.review_status, v.prescription_required, m.medicine_name, m.strength, m.unit')->join('medicines m', 'm.id = l.medicine_id', 'left')->join('shopify_order_imports oi', 'oi.id = l.import_id', 'inner')->join('shopify_variant_catalogue v', 'v.store_domain = oi.store_domain AND v.shopify_variant_id = l.shopify_variant_id', 'left')->whereIn('l.import_id', $ids)->orderBy('l.id', 'ASC')->get()->getResultArray();

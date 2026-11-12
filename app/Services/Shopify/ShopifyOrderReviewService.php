@@ -131,11 +131,47 @@ final class ShopifyOrderReviewService
         if ($lines === []) throw new InvalidArgumentException('The order has no imported medicine lines.');
         $states = array_map(static fn (array $line): string => (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review'), $lines);
         if ((string) ($import['review_status'] ?? '') === ($action === 'reject' ? 'rejected' : ($action === 'approve_partial' ? 'partially_approved' : 'approved'))) throw new InvalidArgumentException('This pharmacist decision has already been applied.');
-        if ($action === 'approve_complete' && array_intersect($states, ['prescription_missing', 'prescription_invalid', 'out_of_stock', 'rejected', 'unmapped', 'inactive'])) throw new InvalidArgumentException('Every blocking line must be resolved before complete approval.');
         if (! in_array($action, ['approve_complete', 'approve_partial', 'reject'], true)) throw new InvalidArgumentException('This order review action is invalid.');
+        $blockingStates = ['prescription_missing', 'prescription_invalid', 'out_of_stock', 'rejected', 'unmapped', 'inactive'];
+        if ($action === 'approve_complete' && array_intersect($states, $blockingStates)) throw new InvalidArgumentException('Every blocking line must be resolved before complete approval.');
         $next = $action === 'reject' ? 'rejected' : ($action === 'approve_complete' ? 'approved' : 'partially_approved');
         $db = db_connect();
+        if ($action !== 'reject') {
+            $db->transStart();
+            foreach ($lines as $line) {
+                $previous = (string) ($line['review_status'] ?: $line['status'] ?: 'awaiting_review');
+                if (in_array($previous, ['approved', 'substituted', 'fulfilled'], true) || in_array($previous, $blockingStates, true)) continue;
+                $quantity = max(0, (int) ($line['quantity'] ?? 0));
+                try {
+                    // Step 2 is optional. Step 3 performs the same safety
+                    // checks before approving an unreviewed eligible line.
+                    $this->validateApprovedQuantity($import, $line, $quantity);
+                } catch (\Throwable $exception) {
+                    if ($action === 'approve_complete') {
+                        $db->transRollback();
+                        throw $exception;
+                    }
+                    continue;
+                }
+                $db->table('shopify_order_import_lines')
+                    ->where('id', (int) ($line['id'] ?? 0))
+                    ->where('import_id', $importId)
+                    ->where('review_status', $line['review_status'] ?? null)
+                    ->update([
+                        'review_status' => 'approved',
+                        'approved_quantity' => $quantity,
+                        'review_reason' => 'Auto-approved with order approval.',
+                        'reviewed_by' => $actorId > 0 ? $actorId : null,
+                        'reviewed_at' => date('Y-m-d H:i:s'),
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+            }
+        }
         $db->table('shopify_order_imports')->where('id', $importId)->update(['review_status' => $next, 'review_reason' => trim((string) ($input['reason'] ?? '')) ?: null, 'reviewed_by' => $actorId ?: null, 'reviewed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        if ($action !== 'reject') {
+            $db->transComplete();
+            if (! $db->transStatus()) throw new \RuntimeException('The order approval could not be saved.');
+        }
         $this->audit($import, null, 'order_' . $action, (string) ($import['review_status'] ?? 'awaiting_review'), $next, $actorId);
         $this->queue($import, $action === 'reject' ? 'full_cancellation_refund' : ($action === 'approve_partial' ? 'partial_approval' : 'order_approved'), $actorId);
         return ['import_id' => $importId, 'status' => $next];
