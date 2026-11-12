@@ -34,6 +34,10 @@
 .shopify-primary { color: #1e4fa3; font-size: 13px; font-weight: 750; }
 .shopify-primary-text { color: #1f2937; font-size: 13px; font-weight: 750; }
 .shopify-secondary { display: block; max-width: 100%; color: var(--shopify-muted); font-size: 11px; overflow-wrap: anywhere; }
+.pharmacy-shopify-table .shopify-secondary,
+.pharmacy-shopify-table time.shopify-secondary { font-size: 8px; line-height: 1.35; }
+.pharmacy-shopify-table .shopify-group-cell > small.shopify-secondary { letter-spacing: .01em; }
+.pharmacy-shopify-table .shopify-secondary-status { padding: 3px 6px; font-size: 8px; line-height: 1.25; }
 .shopify-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shopify-attention-text { color: #855b00; font-weight: 700; }
 .medicine-summary { display: block; max-width: 185px; line-height: 1.35; }
