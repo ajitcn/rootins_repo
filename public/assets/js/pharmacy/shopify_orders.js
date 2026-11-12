@@ -55,6 +55,11 @@
         var error = payload && payload.error ? payload.error : {};
         var code = error.code || payload.error_code || 'SHOPIFY_ORDER_ACTION_FAILED';
         var message = error.message || payload.message || payload.msg || ('The action failed (HTTP ' + response.status + ').');
+        var fieldErrors = payload && payload.data && payload.data.errors ? payload.data.errors : (payload && payload.errors ? payload.errors : null);
+        if (fieldErrors && typeof fieldErrors === 'object') {
+            var details = Object.keys(fieldErrors).map(function (key) { return fieldErrors[key]; }).filter(Boolean).join(' ');
+            if (details) message += ' ' + details;
+        }
         var failure = new Error(code + ': ' + message);
         failure.payload = payload;
         failure.code = code;
@@ -328,6 +333,11 @@
         event.preventDefault();
         var form = this, $form = $(form), $button = $form.find('[type="submit"]');
         if ($form.data('busy')) return false;
+        if ($form.find('[name="decision"]').val() === 'approve' && ! $form.find('[name="confirmation"]').is(':checked')) {
+            feedback('Please confirm that the uploaded prescription is valid before accepting it.', true);
+            $form.find('[name="confirmation"]').trigger('focus');
+            return false;
+        }
         $form.data('busy', true).attr('aria-busy', 'true');
         $button.prop('disabled', true).attr('aria-busy', 'true');
         try {

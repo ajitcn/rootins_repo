@@ -5,6 +5,7 @@ namespace Pharmacy\Controllers;
 use App\Services\Shopify\ShopifyOrderOperationsService;
 use App\Services\Shopify\ShopifyPrescriptionUploadService;
 use App\Services\Shopify\ShopifyPrescriptionPreviewException;
+use App\Services\Shopify\ShopifyPrescriptionUploadValidationException;
 use App\Services\Shopify\ShopifyOrderReviewService;
 use CodeIgniter\HTTP\ResponseInterface;
 use Pharmacy\Services\PharmacyScope;
@@ -155,9 +156,13 @@ final class ShopifyOrders extends \App\Controllers\BaseController
                 filter_var($this->request->getPost('confirmation'), FILTER_VALIDATE_BOOLEAN),
             );
             return $this->json(true, 'Prescription review updated.', 200, $data);
+        } catch (ShopifyPrescriptionUploadValidationException $exception) {
+            return $this->json(false, 'Review the upload review fields.', 422, ['errors' => $exception->errors]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json(false, $exception->getMessage(), 422);
         } catch (\Throwable $exception) {
-            $message = $exception instanceof InvalidArgumentException ? $exception->getMessage() : 'Prescription review could not be processed safely.';
-            return $this->json(false, $message, 422);
+            log_message('error', 'Shopify prescription review failed safely: ' . get_class($exception));
+            return $this->json(false, 'Prescription review could not be processed safely.', 422);
         }
     }
 
