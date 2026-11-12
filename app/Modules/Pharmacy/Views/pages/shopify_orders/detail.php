@@ -10,7 +10,7 @@ $badge = static function (string $groupOrValue, mixed $value = null): string {
     if ($value === null) {
         $value = $groupOrValue;
         $normalized = shopify_status_normalize($value);
-        $groupOrValue = in_array($normalized, ['not_required', 'uploaded', 'available', 'awaiting_review', 'missing', 'rejected', 'approved'], true) ? 'prescription' : (in_array($normalized, ['not_fulfilled', 'packed', 'shipped', 'delivered', 'fulfilled', 'returned'], true) ? 'delivery' : (in_array($normalized, ['paid', 'pending', 'refunded', 'partially_refunded'], true) ? 'payment' : 'import'));
+        $groupOrValue = in_array($normalized, ['not_required', 'uploaded', 'available', 'awaiting_review', 'under_review', 'accepted', 'missing', 'rejected', 'approved'], true) ? 'prescription' : (in_array($normalized, ['not_fulfilled', 'packed', 'shipped', 'delivered', 'fulfilled', 'returned'], true) ? 'delivery' : (in_array($normalized, ['paid', 'pending', 'refunded', 'partially_refunded'], true) ? 'payment' : 'import'));
     }
     return shopify_status_badge_class($groupOrValue, $value);
 };
