@@ -222,6 +222,13 @@ final class ShopifyOrderReviewService
                     'clinic_id' => $clinicId,
                 ], JSON_UNESCAPED_SLASHES));
                 if ((string) ($uploaded['upload_status'] ?? '') === 'accepted') return;
+                $uploadStatus = (string) ($uploaded['upload_status'] ?? '');
+                if (in_array($uploadStatus, ['uploaded', 'awaiting_review', 'under_review', 'clarification_required'], true)) {
+                    throw new InvalidArgumentException('PRESCRIPTION_UPLOAD_REVIEW_REQUIRED');
+                }
+                if ($uploadStatus === 'rejected') {
+                    throw new InvalidArgumentException('PRESCRIPTION_UPLOAD_REJECTED');
+                }
             }
         }
 
